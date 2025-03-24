@@ -26,14 +26,12 @@ jobs:
           node-version: 20
           registry-url: "https://registry.npmjs.org"
       - name: Set version
-        working-directory: sdk-ts
         run: |
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#v}"
           echo "Setting version to $VERSION"
           pnpm version $VERSION
       - name: Publish to NPM
-        working-directory: sdk-ts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

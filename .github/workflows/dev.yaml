@@ -27,7 +27,6 @@ jobs:
           node-version: 20
           registry-url: "https://registry.npmjs.org"
       - name: Set version
-        working-directory: sdk-ts
         run: |
           VERSION=$(git describe --tags --abbrev=0)
           VERSION="${VERSION#v}"
@@ -38,7 +37,6 @@ jobs:
           echo "Current version: $VERSION"
           pnpm version $VERSION-alpha.${{ github.run_number }}
       - name: Publish to NPM
-        working-directory: sdk-ts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
