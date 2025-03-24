@@ -26,12 +26,10 @@ jobs:
           registry-url: "https://registry.npmjs.org"
       - name: Set version
         run: |
-          git config --global user.email "ci-bot@github.com"
-          git config --global user.name "GitHub Actions"
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#v}"
           echo "Setting version to $VERSION"
-          pnpm version $VERSION --preid=beta
+          pnpm version $VERSION --no-git-tag-version --preid=beta
       - name: Publish to NPM
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

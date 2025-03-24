@@ -27,8 +27,6 @@ jobs:
           registry-url: "https://registry.npmjs.org"
       - name: Set version
         run: |
-          git config --global user.email "ci-bot@github.com"
-          git config --global user.name "GitHub Actions"
           VERSION=$(git describe --tags --abbrev=0)
           VERSION="${VERSION#v}"
           # Split version into parts and increment minor version
@@ -36,7 +34,7 @@ jobs:
           patch=$((patch + 1))
           VERSION="${major}.${minor}.${patch}"
           echo "Current version: $VERSION"
-          pnpm version $VERSION-alpha.${{ github.run_number }}
+          pnpm version --no-git-tag-version $VERSION-alpha.${{ github.run_number }}
       - name: Publish to NPM
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
