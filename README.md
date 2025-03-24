@@ -7,6 +7,28 @@
 An SDK to connect your agent or tools with Blaxel platform.
 Currently in preview, feel free to send us feedback or contribute to the project.
 
+## Table of Contents
+- [Features](#features)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Quick Start](#quick-start)
+- [Integration Guide](#integration-guide)
+  - [Setting up Blaxel Observability](#setting-up-blaxel-observability)
+  - [Connecting Tools and Models](#connecting-tools-and-models)
+    - [LlamaIndex Integration](#llamaindex-integration)
+    - [Vercel AI Integration](#vercel-ai-integration)
+    - [LangChain Integration](#langchain-integration)
+  - [Deployment](#deployment)
+  - [Configuration](#configuration)
+- [MCP Server](#mcp-server)
+  - [Creating an MCP Server](#creating-an-mcp-server)
+  - [Connecting Existing MCP Server](#connecting-existing-mcp-server)
+- [Environment Variables](#environment-variables)
+  - [Configuration File](#configuration-file)
+  - [Secrets Management](#secrets-management)
+- [Contributing](#contributing)
+- [License](#license)
+
 ## Features
 Supported AI frameworks:
 - Vercel AI
@@ -15,8 +37,8 @@ Supported AI frameworks:
 Supported Tools frameworks:
 - MCP
 
-## Getting Started
-### Prerequisites
+
+## Prerequisites
 - **Node.js:** v18 or later.
 - **Blaxel CLI:** Ensure you have the Blaxel CLI installed. If not, install it globally:
   ```bash
@@ -27,94 +49,101 @@ Supported Tools frameworks:
     bl login YOUR-WORKSPACE
   ```
 
-### Quick Start
+
+## Start from an hello world example
 ```bash
 bl create-agent-app myfolder
 cd myfolder
 bl serve --hotreload
 ```
 
-## Integration Guide
-### Setting up Blaxel Observability
+## Integrate with a custom code
+
+### Set-up blaxel observability
+
+It only need a require of our SDK on top of your main entrypoint file.
+It will directly plug our backend (when deployed on blaxel) with open telemetry standard.
+
 ```ts
 import "@blaxel/sdk";
 ```
 
-### Connecting Tools and Models
+### Connect tools and model from blaxel platform to your agent
+
 ```ts
 import { blTools, blModel } from '@blaxel/sdk';
 ```
 
-#### LlamaIndex Integration
+Then you need to use it in your agent
 ```ts
-const stream = agent({
-  llm: await blModel("gpt-4o-mini").ToLlamaIndex(),
-  tools: [...await blTools(['blaxel-search','webcrawl']).ToLlamaIndex(),
-    tool({
-      name: "weather",
-      description: "Get the weather in a specific city",
-      parameters: z.object({
-        city: z.string(),
-      }),
-      execute: async (input) => {
-        logger.debug("TOOLCALLING: local weather", input)
-        return `The weather in ${input.city} is sunny`;
-      },
-    })
-  ],
-  systemPrompt: prompt,
-}).run(process.argv[2]);
-```
-
-#### Vercel AI Integration
-```ts
-const stream = streamText({
-  model: await blModel("gpt-4o-mini").ToVercelAI(),
-  messages: [
-    { role: 'user', content: process.argv[2] }
-  ],
-  system: prompt,
-  tools: {
-    ...await blTools(['blaxel-search','webcrawl']).ToVercelAI(),
-    "weather": tool({
-      description: "Get the weather in a specific city",
-      parameters: z.object({
-        city: z.string(),
-      }),
-      execute: async (input) => {
-        logger.debug("TOOLCALLING: local weather", input)
-        return `The weather in ${input.city} is sunny`;
-      },
-    }),
-  },
-  maxSteps: 5,
-});
-```
-
-#### LangChain Integration
-```ts
-const stream = await createReactAgent({
-  llm: await blModel("gpt-4o-mini").ToLangChain(),
-  prompt: prompt,
-  tools: [
-    ...await blTools(['blaxel-search','webcrawl']).ToLangChain(),
-    tool(async (input: any) => {
-      logger.debug("TOOLCALLING: local weather", input)
-      return `The weather in ${input.city} is sunny`;
-    },{
-      name: "weather",
-      description: "Get the weather in a specific city",
-      schema: z.object({
-        city: z.string(),
+  // Example with llamaIndex
+  const stream = agent({
+    llm: await blModel("gpt-4o-mini").ToLlamaIndex(),
+    tools: [...await blTools(['blaxel-search','webcrawl']).ToLlamaIndex(),
+      tool({
+        name: "weather",
+        description: "Get the weather in a specific city",
+        parameters: z.object({
+          city: z.string(),
+        }),
+        execute: async (input) => {
+          logger.debug("TOOLCALLING: local weather", input)
+          return `The weather in ${input.city} is sunny`;
+        },
       })
-    })
-  ],
-}).stream({
-  messages: [new HumanMessage(process.argv[2])],
-});
+    ],
+    systemPrompt: prompt,
+  }).run(process.argv[2]);
+
+  // With Vercel AI
+
+  const stream = streamText({
+    model: await blModel("gpt-4o-mini").ToVercelAI(),
+    messages: [
+      { role: 'user', content: process.argv[2] }
+    ],
+    system: prompt,
+    tools: {
+      ...await blTools(['blaxel-search','webcrawl']).ToVercelAI(),
+      "weather": tool({
+        description: "Get the weather in a specific city",
+        parameters: z.object({
+          city: z.string(),
+        }),
+        execute: async (input) => {
+          logger.debug("TOOLCALLING: local weather", input)
+          return `The weather in ${input.city} is sunny`;
+        },
+      }),
+    },
+    maxSteps: 5,
+  });
+
+  // With LangChain
+  const stream = await createReactAgent({
+    llm: await blModel("gpt-4o-mini").ToLangChain(),
+    prompt: prompt,
+    tools: [
+      ...await blTools(['blaxel-search','webcrawl']).ToLangChain(),
+      tool(async (input: any) => {
+        logger.debug("TOOLCALLING: local weather", input)
+        return `The weather in ${input.city} is sunny`;
+      },{
+        name: "weather",
+        description: "Get the weather in a specific city",
+        schema: z.object({
+          city: z.string(),
+        })
+      })
+    ],
+  }).stream({
+    messages: [new HumanMessage(process.argv[2])],
+  });
 ```
 
-### Deployment
+
+### Deploy on blaxel
+
 To deploy on blaxel, we have only one requirement in your code.
 We need an HTTP Server
 
@@ -148,11 +177,14 @@ With expressjs it will be for example:
   })
 ```
 
+
 ```bash
 bl deploy
 ```
 
-### Configuration
+
+### Advanced configuration
+
 You can add optionally a configuration file "blaxel.toml" in your project root.
 
 ```toml
@@ -166,8 +198,9 @@ models = ["sandbox-openai"]
 
 It allow to customize the requirements for your agent, it can be usefull if you have many models and functions in your workspace.
 
-## MCP Server
-### Creating an MCP Server
+
+### Create an MCP Server
+
 If you want to create an MCP Server for using it in multiple agents, you can bootstrap it with the following command:
 
 ```bash
@@ -219,7 +252,8 @@ function main() {
 main();
 ```
 
-### Connecting Existing MCP Server
+### Connect an existing MCP Server to blaxel
+
 You need to have a "blaxel.toml" file in your project root
 ```toml
 name = "weather"
@@ -287,13 +321,6 @@ Then you can use it in your agent or function with the following syntax:
 import { env } from "@blaxel/sdk";
 console.log(env.DEFAULT_CITY_PASSWORD); // 123456
 ```
-
-## Environment Variables
-### Configuration File
-// ... existing configuration file code ...
-
-### Secrets Management
-// ... existing secrets management code ...
 
 ## Contributing
 
