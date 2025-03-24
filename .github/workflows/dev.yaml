@@ -34,7 +34,7 @@ jobs:
           patch=$((patch + 1))
           VERSION="${major}.${minor}.${patch}"
           echo "Current version: $VERSION"
-          pnpm version --no-git-tag-version $VERSION-alpha.${{ github.run_number }}
+          pnpm version --no-git-tag-version $VERSION-dev.${{ github.run_number }}
       - name: Publish to NPM
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
