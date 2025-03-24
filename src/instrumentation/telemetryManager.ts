@@ -6,7 +6,6 @@ import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { Instrumentation, registerInstrumentations } from "@opentelemetry/instrumentation";
-import { FastifyInstrumentation } from "@opentelemetry/instrumentation-fastify";
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
 import { PinoInstrumentation } from "@opentelemetry/instrumentation-pino";
 import { envDetector, Resource } from "@opentelemetry/resources";
@@ -153,7 +152,6 @@ class TelemetryManager {
 
   async instrumentApp() {
     const pinoInstrumentation = new PinoInstrumentation();
-    const fastifyInstrumentation = new FastifyInstrumentation();
     const httpInstrumentation = new HttpInstrumentation();
     const wsInstrumentation = new WSInstrumentation({
       sendSpans: true,
@@ -161,7 +159,6 @@ class TelemetryManager {
     });
     const instrumentations = await this.loadInstrumentation();
 
-    instrumentations.push(fastifyInstrumentation);
     instrumentations.push(httpInstrumentation);
     instrumentations.push(pinoInstrumentation);
     instrumentations.push(wsInstrumentation);

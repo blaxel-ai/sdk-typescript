@@ -5,6 +5,16 @@ export type InstrumentationInfo = {
 };
 
 export const instrumentationMap: Record<string, InstrumentationInfo> = {
+  express: {
+    modulePath: "@opentelemetry/instrumentation-express",
+    className: "ExpressInstrumentation",
+    requiredPackages: ["express"],
+  },
+  fastify: {
+    modulePath: "@opentelemetry/instrumentation-fastify",
+    className: "FastifyInstrumentation",
+    requiredPackages: ["fastify"],
+  },
   anthropic: {
     modulePath: "@traceloop/instrumentation-anthropic",
     className: "AnthropicInstrumentation",
