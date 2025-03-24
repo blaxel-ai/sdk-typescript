@@ -1,0 +1,10 @@
+{
+  "entryPoints": ["src/index.ts"],
+  "plugin": ["typedoc-theme-hierarchy"],
+  "theme": "hierarchy",
+  "out": "docs",
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "tsconfig": "./tsconfig.json",
+  "includeVersion": true
+}
