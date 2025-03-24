@@ -175,6 +175,146 @@ With expressjs it will be for example:
 bl deploy
 ```
 
+
+### Advanced configuration
+
+You can add optionally a configuration file "blaxel.toml" in your project root.
+
+```toml
+name = "my-agent"
+workspace = "my-workspace"
+type = "agent"
+
+functions = ["blaxel-search"]
+models = ["sandbox-openai"]
+```
+
+It allow to customize the requirements for your agent, it can be usefull if you have many models and functions in your workspace.
+
+
+### Create an MCP Server
+
+If you want to create an MCP Server for using it in multiple agents, you can bootstrap it with the following command:
+
+```bash
+bl create-mcp-server my-mcp-server
+cd my-mcp-server
+bl serve --hotreload
+```
+
+We follow current standard for tool development over MCP Server.
+Example of a tool which is sending fake information about the weather:
+
+```ts
+import { BlaxelMcpServerTransport, logger } from "@blaxel/sdk";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
+
+const server = new McpServer({
+  name: "Weather",
+  version: "1.0.0",
+  description: "A demo mcp server"
+});
+
+server.tool(
+  "weather_by_city",
+  "Get the weather for a city",
+  {
+    city: z.string()
+  },
+  async ({city}) => {
+    logger.info(`Weather in ${city}`);
+    return {
+      content: [{ type: "text", text: `The weather in ${city} is sunny` }]
+    }
+  }
+);
+
+function main() {
+  let transport;
+  if (process.env.BL_SERVER_PORT) {
+    transport = new BlaxelMcpServerTransport();
+  } else {
+    transport = new StdioServerTransport();
+  }
+  server.connect(transport);
+  logger.info("Server started");
+}
+
+main();
+```
+
+### Connect an existing MCP Server to blaxel
+
+You need to have a "blaxel.toml" file in your project root
+```toml
+name = "weather"
+workspace = "my-workspace"
+type = "function"
+```
+
+Connect the observability layer
+
+```ts
+import "@blaxel/sdk";
+```
+
+Load blaxel transport
+
+```ts
+import { BlaxelMcpServerTransport } from "@blaxel/sdk";
+```
+
+Update your entrypoint to support our transport instead of StdioServerTransport
+
+```ts
+// You can easily keep your MCP working locally with a simple if on our prod variable
+function main() {
+  let transport;
+  if (process.env.BL_SERVER_PORT) {
+    transport = new BlaxelMcpServerTransport();
+  } else {
+    transport = new StdioServerTransport();
+  }
+  server.connect(transport);
+  logger.info("Server started");
+}
+```
+
+### How to use environment variables or secrets
+
+You can use the "blaxel.toml" config file to specify environment variables for your agent.
+```toml
+name = "weather"
+workspace = "my-workspace"
+type = "function"
+
+[env]
+DEFAULT_CITY = "San Francisco"
+
+```
+
+Then you can use it in your agent or function with the following syntax:
+```ts
+import { env } from "@blaxel/sdk";
+console.log(env.DEFAULT_CITY); // San Francisco
+```
+
+You can also add secrets variables to a .env files in your project root. (goal is to not commit this file)
+
+Example of a .env file:
+```
+# Secret variables can be store here
+DEFAULT_CITY_PASSWORD=123456
+```
+
+Then you can use it in your agent or function with the following syntax:
+```ts
+import { env } from "@blaxel/sdk";
+console.log(env.DEFAULT_CITY_PASSWORD); // 123456
+```
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
