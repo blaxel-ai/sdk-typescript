@@ -10,7 +10,6 @@ jobs:
   npm-publish:
     name: Upload to NPM
     runs-on: ubuntu-latest
-    environment: release
     steps:
       - uses: actions/checkout@v4
         name: Checkout
@@ -43,4 +42,4 @@ jobs:
         run: |
           pnpm i
           pnpm build
-          pnpm publish --access public --no-git-checks --dev
+          pnpm publish --access public --no-git-checks --tag dev
