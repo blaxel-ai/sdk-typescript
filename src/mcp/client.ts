@@ -4,7 +4,7 @@ import {
   JSONRPCMessageSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import WebSocket from "ws";
-import { logger } from "../../common/logger.js";
+import { logger } from "../common/logger.js";
 //const SUBPROTOCOL = "mcp";
 
 const MAX_RETRIES = 3;
@@ -16,7 +16,7 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 /**
  * Client transport for WebSocket: this will connect to a server over the WebSocket protocol.
  */
-export class WebSocketClientTransport implements Transport {
+export class BlaxelMcpClientTransport implements Transport {
   private _socket?: WebSocket;
   private _url: URL;
   private _headers: Record<string, string>;
@@ -25,15 +25,15 @@ export class WebSocketClientTransport implements Transport {
   onerror?: (error: Error) => void;
   onmessage?: (message: JSONRPCMessage) => void;
 
-  constructor(url: URL, headers: Record<string, string>) {
-    this._url = new URL(url.toString().replace("http", "ws"));
-    this._headers = headers;
+  constructor(url: string, headers?: Record<string, string>) {
+    this._url = new URL(url.replace("http", "ws"));
+    this._headers = headers ?? {};
   }
 
   async start(): Promise<void> {
     if (this._socket) {
       throw new Error(
-        "WebSocketClientTransport already started! If using Client class, note that connect() calls start() automatically."
+        "Blaxel already started! If using Client class, note that connect() calls start() automatically."
       );
     }
 

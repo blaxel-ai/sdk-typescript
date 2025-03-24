@@ -48,6 +48,10 @@ class Settings {
     return process.env.BL_NAME || "";
   }
 
+  get type() {
+    return process.env.BL_TYPE || "agents";
+  }
+
   get runInternalHostname() {
     return process.env.BL_RUN_INTERNAL_HOSTNAME || "internal.run.beamlit.net";
   }

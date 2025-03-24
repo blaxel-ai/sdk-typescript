@@ -3,7 +3,7 @@ import { Function } from "../client/index.js";
 import { onLoad } from "../common/autoload.js";
 import { logger } from "../common/logger.js";
 import settings from "../common/settings.js";
-import { WebSocketClientTransport } from "./transport/websocket.js";
+import { BlaxelMcpClientTransport } from "../mcp/client.js";
 import { Tool } from "./types.js";
 import { schemaToZodSchema } from './zodSchema.js';
 
@@ -50,14 +50,14 @@ class McpTool {
   async refresh() {
     await onLoad()
     try {
-      const transport = new WebSocketClientTransport(this.url, settings.headers);
+      const transport = new BlaxelMcpClientTransport(this.url.toString(), settings.headers);
       await this.client.connect(transport);
     } catch (err: any) {
       logger.error(err.stack)
       if (!this.fallbackUrl) {
         throw err
       }
-      const transport = new WebSocketClientTransport(this.fallbackUrl, settings.headers);
+      const transport = new BlaxelMcpClientTransport(this.fallbackUrl.toString(), settings.headers);
       await this.client.connect(transport);
     }
   }

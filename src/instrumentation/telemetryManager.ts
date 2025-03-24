@@ -16,6 +16,8 @@ import { AlwaysOnSampler, BatchSpanProcessor, NodeTracerProvider } from "@opente
 import { LangChainInstrumentation } from "@traceloop/instrumentation-langchain";
 import { instrumentationMap } from "./instrumentationMap.js";
 
+import { WSInstrumentation } from "opentelemetry-instrumentation-ws";
+
 export type TelemetryOptions = {
   workspace: string | null;
   name: string | null;
@@ -153,12 +155,16 @@ class TelemetryManager {
     const pinoInstrumentation = new PinoInstrumentation();
     const fastifyInstrumentation = new FastifyInstrumentation();
     const httpInstrumentation = new HttpInstrumentation();
+    const wsInstrumentation = new WSInstrumentation({
+      sendSpans: true,
+      messageEvents: true,
+    });
     const instrumentations = await this.loadInstrumentation();
 
     instrumentations.push(fastifyInstrumentation);
     instrumentations.push(httpInstrumentation);
     instrumentations.push(pinoInstrumentation);
-
+    instrumentations.push(wsInstrumentation);
     const resource = new Resource(await this.getResourceAttributes());
 
     const logExporter = await this.getLogExporter();
