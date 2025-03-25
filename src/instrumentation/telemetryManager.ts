@@ -33,6 +33,7 @@ class TelemetryManager {
   private authorization: string | null;
   private name: string | null;
   private initialized: boolean;
+  private configured: boolean;
   private instrumentations: Instrumentation[];
 
   constructor() {
@@ -44,6 +45,7 @@ class TelemetryManager {
     this.authorization = null;
     this.name = null;
     this.initialized = false;
+    this.configured = false;
     this.instrumentations = [];
   }
 
@@ -68,10 +70,14 @@ class TelemetryManager {
   }
 
   async setConfiguration(options:TelemetryOptions) {
+    if (!this.enabled || this.configured) {
+      return;
+    }
     this.authorization = options.authorization;
     this.setExporterts();
     this.otelLogger = logs.getLogger("blaxel");
     logger.info('Telemetry ready')
+    this.configured = true;
   }
 
   get enabled() {
