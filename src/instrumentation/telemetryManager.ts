@@ -13,15 +13,16 @@ import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs
 import { MeterProvider, PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
 import { AlwaysOnSampler, BatchSpanProcessor, NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { LangChainInstrumentation } from "@traceloop/instrumentation-langchain";
-import { instrumentationMap } from "./instrumentationMap.js";
-
 import { WSInstrumentation } from "opentelemetry-instrumentation-ws";
 import { logger } from "../common/logger.js";
+import { InstrumentationInfo, instrumentationMap } from "./instrumentationMap.js";
+import { DefaultAttributesSpanProcessor } from "./span.js";
 
 export type TelemetryOptions = {
   workspace: string | null;
   name: string | null;
   authorization: string | null;
+  type: string | null;
 }
 
 class TelemetryManager {
@@ -32,6 +33,7 @@ class TelemetryManager {
   private workspace: string | null;
   private authorization: string | null;
   private name: string | null;
+  private type: string | null;
   private initialized: boolean;
   private configured: boolean;
   private instrumentations: Instrumentation[];
@@ -44,6 +46,7 @@ class TelemetryManager {
     this.workspace = null;
     this.authorization = null;
     this.name = null;
+    this.type = null;
     this.initialized = false;
     this.configured = false;
     this.instrumentations = [];
@@ -52,6 +55,7 @@ class TelemetryManager {
   initialize(options:TelemetryOptions) {
     this.workspace = options.workspace;
     this.name = options.name;
+    this.type = options.type+"s";
     if (process.env.BL_DEBUG_TELEMETRY === 'true') {
       diag.setLogger(new DiagConsoleLogger(), {logLevel: DiagLogLevel.DEBUG})
     }
@@ -130,9 +134,13 @@ class TelemetryManager {
     const attributes = resource.attributes
     if (this.name) {
       attributes["service.name"] = this.name;
+      attributes["workload.id"] = this.name;
     }
     if (this.workspace) {
       attributes["workspace"] = this.workspace;
+    }
+    if(this.type) {
+      attributes["workload.type"] = this.type;
     }
     return attributes;
   }
@@ -192,7 +200,14 @@ class TelemetryManager {
     this.nodeTracerProvider = new NodeTracerProvider({
       resource,
       sampler: new AlwaysOnSampler(),
-      spanProcessors: [new BatchSpanProcessor(traceExporter)],
+      spanProcessors: [
+        new DefaultAttributesSpanProcessor({
+          "workload.id": this.name || "",
+          "workload.type": this.type || "",
+          "workspace": this.workspace || "",
+        }),
+        new BatchSpanProcessor(traceExporter)
+      ],
     });
     this.nodeTracerProvider.register();
 
@@ -208,10 +223,21 @@ class TelemetryManager {
     });
   }
 
+  async shouldInstrument(name: string, info: InstrumentationInfo): Promise<boolean> {
+    if (info.ignoreIfPackages && info.ignoreIfPackages.some((pkg) => this.isPackageInstalled(pkg))) {
+      return false;
+    }
+    if (info.requiredPackages.some((pkg) => this.isPackageInstalled(pkg))) {
+      return true;
+    }
+    return false;
+  }
+
   async loadInstrumentation(): Promise<Instrumentation[]> {
     const instrumentations: Instrumentation[] = [];
     for (const [name, info] of Object.entries(instrumentationMap)) {
-      if (info.requiredPackages.some((pkg) => this.isPackageInstalled(pkg))) {
+      if (await this.shouldInstrument(name, info)) {
+        console.log(`Instrumenting ${name}`)
         const module = await this.importInstrumentationClass(
           info.modulePath,
           info.className

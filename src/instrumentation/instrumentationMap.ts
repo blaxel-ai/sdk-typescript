@@ -2,6 +2,7 @@ export type InstrumentationInfo = {
   modulePath: string;
   className: string;
   requiredPackages: string[]; // At least one package is required
+  ignoreIfPackages?: string[];
 };
 
 export const instrumentationMap: Record<string, InstrumentationInfo> = {
@@ -9,6 +10,7 @@ export const instrumentationMap: Record<string, InstrumentationInfo> = {
     modulePath: "@opentelemetry/instrumentation-express",
     className: "ExpressInstrumentation",
     requiredPackages: ["express"],
+    ignoreIfPackages: ["fastify"],
   },
   fastify: {
     modulePath: "@opentelemetry/instrumentation-fastify",
