@@ -57,7 +57,6 @@ export class DeviceMode {
       throw new Error(response.error.error)
     }
     this.accessToken = response.data?.access_token || ''
-    console.log(response.data)
     this.currentPromise = null
   }
 
