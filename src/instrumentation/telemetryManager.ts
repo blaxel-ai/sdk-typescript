@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
+
 /* eslint-disable no-console */
 import { diag, DiagConsoleLogger, DiagLogLevel, metrics } from "@opentelemetry/api";
 import { Logger, logs } from "@opentelemetry/api-logs";
@@ -12,9 +12,7 @@ import { envDetector, Resource } from "@opentelemetry/resources";
 import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs";
 import { MeterProvider, PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
 import { AlwaysOnSampler, BatchSpanProcessor, NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { LangChainInstrumentation } from "@traceloop/instrumentation-langchain";
 import { WSInstrumentation } from "opentelemetry-instrumentation-ws";
-import { logger } from "../common/logger.js";
 import { InstrumentationInfo, instrumentationMap } from "./instrumentationMap.js";
 import { DefaultAttributesSpanProcessor } from "./span.js";
 
@@ -52,7 +50,7 @@ class TelemetryManager {
     this.instrumentations = [];
   }
 
-  initialize(options:TelemetryOptions) {
+  async initialize(options:TelemetryOptions) {
     this.workspace = options.workspace;
     this.name = options.name;
     this.type = options.type+"s";
@@ -63,12 +61,7 @@ class TelemetryManager {
       return;
     }
     this.instrumentApp()
-    .then(() => {
-      console.info('Telemetry initialized')
-    })
-    .catch((error) => {
-      console.error("Error instrumenting app:", error);
-    });
+    console.info('Telemetry initialized')
     this.setupSignalHandler();
     this.initialized = true;
   }
@@ -78,9 +71,9 @@ class TelemetryManager {
       return;
     }
     this.authorization = options.authorization;
-    this.setExporterts();
+    await this.setExporters();
     this.otelLogger = logs.getLogger("blaxel");
-    logger.info('Telemetry ready')
+    console.debug('Telemetry ready')
     this.configured = true;
   }
 
@@ -174,18 +167,24 @@ class TelemetryManager {
 
   async instrumentApp() {
     const pinoInstrumentation = new PinoInstrumentation();
-    const httpInstrumentation = new HttpInstrumentation();
+    const httpInstrumentation = new HttpInstrumentation({
+      requireParentforOutgoingSpans: true,
+    });
     const wsInstrumentation = new WSInstrumentation({
       sendSpans: true,
       messageEvents: true,
     });
-    this.instrumentations = await this.loadInstrumentation();
+
+    this.instrumentations = this.loadInstrumentation();
     this.instrumentations.push(httpInstrumentation);
     this.instrumentations.push(pinoInstrumentation);
     this.instrumentations.push(wsInstrumentation);
+    registerInstrumentations({
+      instrumentations: this.instrumentations,
+    });
   }
 
-  async setExporterts() {
+  async setExporters() {
     const resource = new Resource(await this.getResourceAttributes());
     const logExporter = await this.getLogExporter();
     this.loggerProvider = new LoggerProvider({
@@ -196,7 +195,6 @@ class TelemetryManager {
     );
     logs.setGlobalLoggerProvider(this.loggerProvider);
     const traceExporter = await this.getTraceExporter();
-
     this.nodeTracerProvider = new NodeTracerProvider({
       resource,
       sampler: new AlwaysOnSampler(),
@@ -210,20 +208,15 @@ class TelemetryManager {
       ],
     });
     this.nodeTracerProvider.register();
-
     const metricExporter = await this.getMetricExporter();
     this.meterProvider = new MeterProvider({
       resource,
       readers: [new PeriodicExportingMetricReader({ exporter: metricExporter, exportIntervalMillis: 60000 })],
     });
     metrics.setGlobalMeterProvider(this.meterProvider);
-
-    registerInstrumentations({
-      instrumentations: this.instrumentations,
-    });
   }
 
-  async shouldInstrument(name: string, info: InstrumentationInfo): Promise<boolean> {
+  shouldInstrument(name: string, info: InstrumentationInfo): boolean {
     if (info.ignoreIfPackages && info.ignoreIfPackages.some((pkg) => this.isPackageInstalled(pkg))) {
       return false;
     }
@@ -233,12 +226,12 @@ class TelemetryManager {
     return false;
   }
 
-  async loadInstrumentation(): Promise<Instrumentation[]> {
+  loadInstrumentation(): Instrumentation[] {
     const instrumentations: Instrumentation[] = [];
     for (const [name, info] of Object.entries(instrumentationMap)) {
-      if (await this.shouldInstrument(name, info)) {
-        console.log(`Instrumenting ${name}`)
-        const module = await this.importInstrumentationClass(
+      if (this.shouldInstrument(name, info)) {
+        console.debug(`Instrumenting ${name}`)
+        const module = this.importInstrumentationClass(
           info.modulePath,
           info.className
         );
@@ -247,22 +240,8 @@ class TelemetryManager {
             const instrumentor = new module() as Instrumentation;
             instrumentor.enable();
             instrumentations.push(instrumentor);
-            if (name === "langchain") {
-              const langchain = instrumentor as LangChainInstrumentation;
-
-              const RunnableModule = require("@langchain/core/runnables");
-              const ToolsModule = require("@langchain/core/tools");
-              const ChainsModule = require("langchain/chains");
-              const AgentsModule = require("langchain/agents");
-              const VectorStoresModule = require("@langchain/core/vectorstores");
-
-              langchain.manuallyInstrument({
-                runnablesModule: RunnableModule,
-                toolsModule: ToolsModule,
-                chainsModule: ChainsModule,
-                agentsModule: AgentsModule,
-                vectorStoreModule: VectorStoresModule,
-              });
+            if (info.init) {
+              info.init(instrumentor);
             }
           } catch (error) {
             console.debug(`Failed to instrument ${name}: ${error}`);
@@ -282,9 +261,10 @@ class TelemetryManager {
     }
   }
 
-  async importInstrumentationClass(modulePath: string, className: string): Promise<any> {
+  importInstrumentationClass(modulePath: string, className: string): any {
     try {
-      const module = await import(modulePath);
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const module = require(modulePath);
       return module[className];
     } catch (e) {
       console.debug(`Could not import ${className} from ${modulePath}: ${e}`);

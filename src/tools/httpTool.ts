@@ -1,3 +1,4 @@
+import { trace } from "@opentelemetry/api"
 import { Function, FunctionSpec } from "../client/index.js"
 import { onLoad } from "../common/autoload.js"
 import { logger } from "../common/logger.js"
@@ -41,11 +42,40 @@ export class HttpTool {
     }]
   }
 
+
+
   async call(args: any) {
     await onLoad()
     logger.debug("TOOLCALLING: http", this.name, args)
-    try {
-      const response = await fetch(this.url+"/", {
+    const tracer = trace.getTracer('blaxel-tracer');
+
+    return tracer.startActiveSpan(this.name,{
+      attributes: {
+        "blaxel.environment": settings.env,
+        "workload.id": settings.name,
+        "workload.type": settings.type+"s",
+        "workspace": settings.workspace,
+        "tool.name": this.name,
+        "tool.args": JSON.stringify(args)
+      },
+    }, async (span) => {
+      try {
+        const response = await fetch(this.url+"/", {
+          method: 'POST',
+          headers: {
+            ...settings.headers,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(args),
+        })
+        return await response.text()
+      } catch (err: any) {
+        logger.error(err.stack)
+        if (!this.fallbackUrl) {
+          throw err
+        }
+      }
+      const response = await fetch(this.fallbackUrl+"/", {
         method: 'POST',
         headers: {
           ...settings.headers,
@@ -53,22 +83,10 @@ export class HttpTool {
         },
         body: JSON.stringify(args),
       })
-      return await response.text()
-    } catch (err: any) {
-      logger.error(err.stack)
-      if (!this.fallbackUrl) {
-        throw err
-      }
-    }
-    const response = await fetch(this.fallbackUrl+"/", {
-      method: 'POST',
-      headers: {
-        ...settings.headers,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(args),
+      const result = await response.text()
+      span.end();
+      return result;
     })
-    return await response.text()
   }
 }
 
