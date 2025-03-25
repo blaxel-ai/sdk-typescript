@@ -51,6 +51,7 @@ class TelemetryManager {
   }
 
   async initialize(options:TelemetryOptions) {
+    const start = new Date()
     this.workspace = options.workspace;
     this.name = options.name;
     this.type = options.type+"s";
@@ -61,9 +62,9 @@ class TelemetryManager {
       return;
     }
     this.instrumentApp()
-    console.info('Telemetry initialized')
     this.setupSignalHandler();
     this.initialized = true;
+    console.debug(`Telemetry initialized in ${new Date().getTime() - start.getTime()}ms`)
   }
 
   async setConfiguration(options:TelemetryOptions) {
@@ -231,6 +232,7 @@ class TelemetryManager {
     for (const [name, info] of Object.entries(instrumentationMap)) {
       if (this.shouldInstrument(name, info)) {
         console.debug(`Instrumenting ${name}`)
+        const start = new Date()
         const module = this.importInstrumentationClass(
           info.modulePath,
           info.className
@@ -247,6 +249,7 @@ class TelemetryManager {
             console.debug(`Failed to instrument ${name}: ${error}`);
           }
         }
+        console.debug(`Imported ${name} in ${new Date().getTime() - start.getTime()}ms`)
       }
     }
     return instrumentations;
@@ -254,7 +257,7 @@ class TelemetryManager {
 
   isPackageInstalled(packageName: string): boolean {
     try {
-      require.resolve(packageName);
+      require.resolve(packageName, { paths: [process.cwd()] });
       return true;
     } catch {
       return false;

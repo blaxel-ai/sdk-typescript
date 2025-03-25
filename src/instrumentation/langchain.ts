@@ -2,7 +2,6 @@
 import { LangChainInstrumentation } from "@traceloop/instrumentation-langchain";
 export function langchain(instrumentor: any) {
   const langchain = instrumentor as LangChainInstrumentation;
-
   const RunnableModule = require("@langchain/core/runnables");
   const ToolsModule = require("@langchain/core/tools");
   const ChainsModule = require("langchain/chains");
