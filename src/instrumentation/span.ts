@@ -14,7 +14,7 @@ export class SpanManager {
         ...attributes,
         "blaxel.environment": settings.env,
         "workload.id": settings.name,
-        "workload.type": settings.type,
+        "workload.type": settings.type+"s",
         "workspace": settings.workspace
       },
       ...(parent ? { parent } : {})

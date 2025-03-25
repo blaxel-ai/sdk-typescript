@@ -16,6 +16,7 @@ import { LangChainInstrumentation } from "@traceloop/instrumentation-langchain";
 import { instrumentationMap } from "./instrumentationMap.js";
 
 import { WSInstrumentation } from "opentelemetry-instrumentation-ws";
+import { logger } from "../common/logger.js";
 
 export type TelemetryOptions = {
   workspace: string | null;
@@ -32,6 +33,7 @@ class TelemetryManager {
   private authorization: string | null;
   private name: string | null;
   private initialized: boolean;
+  private instrumentations: Instrumentation[];
 
   constructor() {
     this.nodeTracerProvider = null;
@@ -42,13 +44,13 @@ class TelemetryManager {
     this.authorization = null;
     this.name = null;
     this.initialized = false;
+    this.instrumentations = [];
   }
 
   initialize(options:TelemetryOptions) {
     this.workspace = options.workspace;
-    this.authorization = options.authorization;
     this.name = options.name;
-    if (process.env.BL_DEBUG_TELEMETRY) {
+    if (process.env.BL_DEBUG_TELEMETRY === 'true') {
       diag.setLogger(new DiagConsoleLogger(), {logLevel: DiagLogLevel.DEBUG})
     }
     if (!this.enabled || this.initialized) {
@@ -56,14 +58,20 @@ class TelemetryManager {
     }
     this.instrumentApp()
     .then(() => {
-      console.debug('Instrumentation initialized')
+      console.info('Telemetry initialized')
     })
     .catch((error) => {
       console.error("Error instrumenting app:", error);
     });
     this.setupSignalHandler();
-    this.otelLogger = logs.getLogger("blaxel");
     this.initialized = true;
+  }
+
+  async setConfiguration(options:TelemetryOptions) {
+    this.authorization = options.authorization;
+    this.setExporterts();
+    this.otelLogger = logs.getLogger("blaxel");
+    logger.info('Telemetry ready')
   }
 
   get enabled() {
@@ -157,13 +165,14 @@ class TelemetryManager {
       sendSpans: true,
       messageEvents: true,
     });
-    const instrumentations = await this.loadInstrumentation();
+    this.instrumentations = await this.loadInstrumentation();
+    this.instrumentations.push(httpInstrumentation);
+    this.instrumentations.push(pinoInstrumentation);
+    this.instrumentations.push(wsInstrumentation);
+  }
 
-    instrumentations.push(httpInstrumentation);
-    instrumentations.push(pinoInstrumentation);
-    instrumentations.push(wsInstrumentation);
+  async setExporterts() {
     const resource = new Resource(await this.getResourceAttributes());
-
     const logExporter = await this.getLogExporter();
     this.loggerProvider = new LoggerProvider({
       resource,
@@ -172,7 +181,6 @@ class TelemetryManager {
       new BatchLogRecordProcessor(logExporter)
     );
     logs.setGlobalLoggerProvider(this.loggerProvider);
-
     const traceExporter = await this.getTraceExporter();
 
     this.nodeTracerProvider = new NodeTracerProvider({
@@ -190,9 +198,8 @@ class TelemetryManager {
     metrics.setGlobalMeterProvider(this.meterProvider);
 
     registerInstrumentations({
-      instrumentations: instrumentations,
+      instrumentations: this.instrumentations,
     });
-
   }
 
   async loadInstrumentation(): Promise<Instrumentation[]> {
