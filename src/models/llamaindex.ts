@@ -1,10 +1,12 @@
 
 
 import { anthropic, AnthropicSession } from "@llamaindex/anthropic";
+import { mistral } from "@llamaindex/mistral";
 import { openai } from "@llamaindex/openai";
+import { onLoad } from "../common/autoload";
 import settings from "../common/settings";
 import { getModelMetadata } from './index';
-import { onLoad } from "../common/autoload";
+
 
 export const getLlamaIndexModel = async (model: string, options?: any) => {
   const url = `${settings.runUrl}/${settings.workspace}/models/${model}`
@@ -15,22 +17,13 @@ export const getLlamaIndexModel = async (model: string, options?: any) => {
   await onLoad()
   const type = modelData?.spec?.runtime?.type || 'openai'
   switch(type) {
-    // case 'mistral':
-    //   return mistral({
-    //     model: modelData?.spec?.runtime?.model,
-    //     apiKey: settings.token,
-    //     baseURL: `${url}/v1`,
-    //     ...options
-    //   });
-    // case 'cohere':
-    //   throw new Error("Cohere is not supported in LlamaIndex integration with blaxel")
-    // case 'deepseek':
-    //   return openai({
-    //     model: modelData?.spec?.runtime?.model,
-    //     apiKey: settings.token,
-    //     baseURL: `${url}/v1`,
-    //     ...options
-    //   });
+    case 'mistral':
+      return mistral({
+        model: modelData?.spec?.runtime?.model,
+        apiKey: settings.token,
+        baseURL: `${url}/v1`,
+        ...options
+      });
     case 'anthropic':
       return anthropic({
         model: modelData?.spec?.runtime?.model,
