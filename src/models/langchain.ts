@@ -25,7 +25,6 @@ export const getLangchainModel = async (model: string, options?: any) : Promise<
         apiKey: settings.token,
         model: modelData?.spec?.runtime?.model,
         baseUrl: url,
-        // customHeaders: settings.headers,
         ...options
       });
     case 'mistral':
