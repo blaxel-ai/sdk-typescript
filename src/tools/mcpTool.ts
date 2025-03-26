@@ -1,9 +1,9 @@
 import { Client as ModelContextProtocolClient } from "@modelcontextprotocol/sdk/client/index.js";
-import { trace } from "@opentelemetry/api";
 import { Function } from "../client/index.js";
 import { onLoad } from "../common/autoload.js";
 import { logger } from "../common/logger.js";
 import settings from "../common/settings.js";
+import { SpanManager } from "../instrumentation/span.js";
 import { BlaxelMcpClientTransport } from "../mcp/client.js";
 import { Tool } from "./types.js";
 import { schemaToZodSchema } from './zodSchema.js';
@@ -76,24 +76,16 @@ class McpTool {
 
   async call(toolName: string, args: any) {
     logger.debug("TOOLCALLING: mcp", toolName, args)
-    const tracer = trace.getTracer('blaxel-tracer');
-    return tracer.startActiveSpan(this.name+"."+toolName,{
-      attributes: {
-        "blaxel.environment": settings.env,
-        "workload.id": settings.name,
-        "workload.type": settings.type+"s",
-        "workspace": settings.workspace,
-        "tool.name": toolName,
-        "tool.args": JSON.stringify(args)
-      },
-    }, async (span) => {
-      const result = await this.client.callTool({
+    const spanManager = new SpanManager('blaxel-tracer')
+    return spanManager.createActiveSpan(this.name+"."+toolName,{
+      "tool.name": toolName,
+      "tool.args": JSON.stringify(args)
+    }, async () => {
+      return await this.client.callTool({
         name: toolName,
         arguments: args,
       });
-      span.end();
-      return result;
-    });
+    })
   }
 }
 

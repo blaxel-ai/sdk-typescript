@@ -27,6 +27,25 @@ export class SpanManager {
     this.tracer = trace.getTracer(name);
   }
 
+  createActiveSpan(name: string, attributes: Record<string, string>, fn: (span: Span) => Promise<any>) : Promise<any> {
+    attributes["blaxel.environment"] = settings.env
+    attributes["workload.id"] = settings.name
+    attributes["workload.type"] = settings.type+"s"
+    attributes["workspace"] = settings.workspace
+    const span = this.tracer.startActiveSpan(name, {attributes}, async (span) => {
+      try {
+        const res = await fn(span)
+        span.end()
+        return res
+      } catch (err: any) {
+        span.recordException(err)
+        span.end()
+        throw err
+      }
+    })
+    return span
+  }
+
   createSpan(name: string, attributes: Record<string, any>, parent?: Span) : Span {
     return this.tracer.startSpan(name, {
       attributes: {

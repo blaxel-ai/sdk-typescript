@@ -9,7 +9,7 @@ import { SpanManager } from "../instrumentation/span";
 const spans = new Map<string, Span>();
 
 export class BlaxelMcpServerTransport implements Transport {
-  private spanManager = new SpanManager('blaxel-mcp-server');
+  private spanManager = new SpanManager('blaxel-tracer');
 
   private port: number;
   private wss!: WebSocketServer;

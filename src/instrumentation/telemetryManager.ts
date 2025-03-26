@@ -12,7 +12,6 @@ import { envDetector, Resource } from "@opentelemetry/resources";
 import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs";
 import { MeterProvider, PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
 import { AlwaysOnSampler, BatchSpanProcessor, NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { WSInstrumentation } from "opentelemetry-instrumentation-ws";
 import { InstrumentationInfo, instrumentationMap } from "./instrumentationMap.js";
 import { DefaultAttributesSpanProcessor } from "./span.js";
 
@@ -171,15 +170,10 @@ class TelemetryManager {
     const httpInstrumentation = new HttpInstrumentation({
       requireParentforOutgoingSpans: true,
     });
-    const wsInstrumentation = new WSInstrumentation({
-      sendSpans: true,
-      messageEvents: true,
-    });
 
     this.instrumentations = this.loadInstrumentation();
     this.instrumentations.push(httpInstrumentation);
     this.instrumentations.push(pinoInstrumentation);
-    this.instrumentations.push(wsInstrumentation);
     registerInstrumentations({
       instrumentations: this.instrumentations,
     });
