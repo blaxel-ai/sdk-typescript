@@ -41,6 +41,9 @@ class McpTool {
 
   get url() {
     const envVar = this.name.replace(/-/g, "_").toUpperCase();
+    if(process.env[`BL_FUNCTION_${envVar}_URL`]) {
+      return new URL(process.env[`BL_FUNCTION_${envVar}_URL`] as string)
+    }
     if (process.env[`BL_FUNCTION_${envVar}_SERVICE_NAME`]) {
       return new URL(`https://${process.env[`BL_FUNCTION_${envVar}_SERVICE_NAME`]}.${settings.runInternalHostname}`);
     }
