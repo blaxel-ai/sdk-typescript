@@ -4,18 +4,20 @@ import { Model } from "../client/types.gen.js";
 import { getLangchainModel } from "./langchain.js";
 import { getLlamaIndexModel } from "./llamaindex.js";
 import { getVercelAIModel } from "./vercelai.js";
+import { getMastraModel } from "./mastra.js";
 
 export * from "./langchain.js";
 export * from "./llamaindex.js";
 export * from "./vercelai.js";
+export * from "./mastra.js";
 
 class BLModel {
-  modelName: string
-  options?: any
+  modelName: string;
+  options?: any;
 
-  constructor (modelName: string, options?: any) {
+  constructor(modelName: string, options?: any) {
     this.modelName = modelName;
-    this.options = options||{};
+    this.options = options || {};
   }
 
   async ToLangChain() {
@@ -29,21 +31,27 @@ class BLModel {
   async ToVercelAI() {
     return getVercelAIModel(this.modelName, this.options);
   }
+
+  async ToMastra() {
+    return getMastraModel(this.modelName, this.options);
+  }
 }
 
 export const blModel = (modelName: string, options?: any) => {
   return new BLModel(modelName, options);
-}
+};
 
-export const getModelMetadata = async (model: string) : Promise<Model | null> => {
-  const cacheData = await findFromCache('Model', model)
-  if(cacheData) {
-    return cacheData as Model
+export const getModelMetadata = async (
+  model: string,
+): Promise<Model | null> => {
+  const cacheData = await findFromCache("Model", model);
+  if (cacheData) {
+    return cacheData as Model;
   }
-  const {data} = await getModel({
+  const { data } = await getModel({
     path: {
       modelName: model,
     },
   });
-  return data || null
-}
+  return data || null;
+};

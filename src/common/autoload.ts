@@ -6,19 +6,19 @@ import settings from "./settings.js";
 async function autoload() {
   client.setConfig({
     baseUrl: settings.baseUrl,
-  })
-  for(const interceptor of interceptors) {
-    client.interceptors.request.use(interceptor as any)
+  });
+  for (const interceptor of interceptors) {
+    client.interceptors.request.use(interceptor as any);
   }
   await settings.authenticate();
   telemetryManager.initialize(settings);
 }
 
-const autoloadPromise = autoload()
+const autoloadPromise = autoload();
 
-export const onLoad = function(): Promise<void> {
+export const onLoad = function (): Promise<void> {
   return autoloadPromise;
-}
+};
 
 autoloadPromise.catch((err) => {
   console.error(err);

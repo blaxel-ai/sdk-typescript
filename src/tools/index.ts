@@ -6,59 +6,66 @@ import getLlamaIndexTools from "./llamaindex.js";
 import { getMcpTool } from "./mcpTool.js";
 import { Tool } from "./types.js";
 import { getVercelAITools } from "./vertcelai.js";
+import getMastraTools from "./mastra.js";
 
 export * from "./langchain.js";
 export * from "./llamaindex.js";
 export * from "./vertcelai.js";
+export * from "./mastra.js";
 
 export const getTool = async (name: string): Promise<Tool[]> => {
-  const functionData = await getToolMetadata(name)
-  if(!functionData) {
-    throw new Error(`Function ${name} not found`)
+  const functionData = await getToolMetadata(name);
+  if (!functionData) {
+    throw new Error(`Function ${name} not found`);
   }
   if (functionData?.spec?.runtime?.type === "mcp") {
-    return await getMcpTool(functionData)
+    return await getMcpTool(functionData);
   }
-  return await getHttpTool(functionData)
-}
+  return await getHttpTool(functionData);
+};
 
 class BLTools {
-  toolNames: string[]
+  toolNames: string[];
   constructor(toolNames: string[]) {
-    this.toolNames = toolNames
+    this.toolNames = toolNames;
   }
 
   async ToLangChain() {
-    return getLangchainTools(this.toolNames)
+    return getLangchainTools(this.toolNames);
   }
 
   async ToLlamaIndex() {
-    return getLlamaIndexTools(this.toolNames)
+    return getLlamaIndexTools(this.toolNames);
   }
 
   async ToVercelAI() {
-    return getVercelAITools(this.toolNames)
+    return getVercelAITools(this.toolNames);
+  }
+
+  async ToMastra() {
+    return getMastraTools(this.toolNames);
   }
 }
 
 export const blTools = (names: string[]) => {
-  return new BLTools(names)
-}
+  return new BLTools(names);
+};
 
 export const blTool = (name: string) => {
-  return new BLTools([name])
-}
+  return new BLTools([name]);
+};
 
-export const getToolMetadata = async (tool: string) : Promise<Function | null> => {
-  const cacheData = await findFromCache('Function', tool)
-  if(cacheData) {
-    return cacheData as Function
+export const getToolMetadata = async (
+  tool: string,
+): Promise<Function | null> => {
+  const cacheData = await findFromCache("Function", tool);
+  if (cacheData) {
+    return cacheData as Function;
   }
-  const {data} = await getFunction({
+  const { data } = await getFunction({
     path: {
       functionName: tool,
     },
   });
-  return data || null
-}
-
+  return data || null;
+};

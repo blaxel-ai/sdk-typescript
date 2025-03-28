@@ -5,15 +5,15 @@ import { logger } from "../common/logger.js";
 import settings from "../common/settings.js";
 import { BlaxelMcpClientTransport } from "../mcp/client.js";
 import { Tool } from "./types.js";
-import { schemaToZodSchema } from './zodSchema.js';
+import { schemaToZodSchema } from "./zodSchema.js";
 
-const McpToolCache = new Map<string, McpTool>()
+const McpToolCache = new Map<string, McpTool>();
 
 class McpTool {
-  private name: string
-  private client: ModelContextProtocolClient
+  private name: string;
+  private client: ModelContextProtocolClient;
   constructor(name: string) {
-    this.name = name
+    this.name = name;
     this.client = new ModelContextProtocolClient(
       {
         name: this.name,
@@ -23,59 +23,70 @@ class McpTool {
         capabilities: {
           tools: {},
         },
-      }
+      },
     );
   }
 
   get fallbackUrl() {
     if (this.externalUrl != this.url) {
-      return this.externalUrl
+      return this.externalUrl;
     }
-    return null
+    return null;
   }
 
-
   get externalUrl() {
-    return new URL(`${settings.runUrl}/${settings.workspace}/functions/${this.name}`)
+    return new URL(
+      `${settings.runUrl}/${settings.workspace}/functions/${this.name}`,
+    );
   }
 
   get url() {
     const envVar = this.name.replace(/-/g, "_").toUpperCase();
     if (process.env[`BL_FUNCTION_${envVar}_SERVICE_NAME`]) {
-      return new URL(`https://${process.env[`BL_FUNCTION_${envVar}_SERVICE_NAME`]}.${settings.runInternalHostname}`);
+      return new URL(
+        `https://${process.env[`BL_FUNCTION_${envVar}_SERVICE_NAME`]}.${settings.runInternalHostname}`,
+      );
     }
-    return this.externalUrl
+    return this.externalUrl;
   }
 
   async refresh() {
-    await onLoad()
+    await onLoad();
     try {
-      const transport = new BlaxelMcpClientTransport(this.url.toString(), settings.headers);
+      const transport = new BlaxelMcpClientTransport(
+        this.url.toString(),
+        settings.headers,
+      );
       await this.client.connect(transport);
     } catch (err: any) {
-      logger.error(err.stack)
+      logger.error(err.stack);
       if (!this.fallbackUrl) {
-        throw err
+        throw err;
       }
-      const transport = new BlaxelMcpClientTransport(this.fallbackUrl.toString(), settings.headers);
+      const transport = new BlaxelMcpClientTransport(
+        this.fallbackUrl.toString(),
+        settings.headers,
+      );
       await this.client.connect(transport);
     }
   }
 
   async listTools(): Promise<Tool[]> {
-    const {tools} = (await this.client.listTools()) as any;
-    return tools.map((tool: any) => ({
-      name: tool.name,
-      description: tool.description,
-      inputSchema: schemaToZodSchema(tool.inputSchema),
-      call: (input: any) => {
-        return this.call(tool.name, input)
-      }
-    }))
+    const { tools } = (await this.client.listTools()) as any;
+    return tools.map((tool: any) => {
+      return {
+        name: tool.name,
+        description: tool.description,
+        inputSchema: schemaToZodSchema(tool.inputSchema),
+        call: (input: any) => {
+          return this.call(tool.name, input);
+        },
+      };
+    });
   }
 
   async call(toolName: string, args: any) {
-    logger.debug("TOOLCALLING: mcp", toolName, args)
+    logger.debug("TOOLCALLING: mcp", toolName, args);
     return this.client.callTool({
       name: toolName,
       arguments: args,
@@ -83,17 +94,17 @@ class McpTool {
   }
 }
 
-export const retrieveMCPClient = async(name: string): Promise<McpTool> => {
+export const retrieveMCPClient = async (name: string): Promise<McpTool> => {
   if (McpToolCache.has(name)) {
-    return McpToolCache.get(name) as McpTool
+    return McpToolCache.get(name) as McpTool;
   }
-  const tool = new McpTool(name)
-  McpToolCache.set(name, tool)
-  return tool
-}
+  const tool = new McpTool(name);
+  McpToolCache.set(name, tool);
+  return tool;
+};
 
 export const getMcpTool = async (functionData: Function): Promise<Tool[]> => {
-  const mcpClient = await retrieveMCPClient(functionData.metadata?.name || "")
-  await mcpClient.refresh()
-  return await mcpClient.listTools()
-}
+  const mcpClient = await retrieveMCPClient(functionData.metadata?.name || "");
+  await mcpClient.refresh();
+  return await mcpClient.listTools();
+};
