@@ -3,6 +3,7 @@ import { Function } from "../client/index.js";
 import { onLoad } from "../common/autoload.js";
 import { logger } from "../common/logger.js";
 import settings from "../common/settings.js";
+import { SpanManager } from "../instrumentation/span.js";
 import { BlaxelMcpClientTransport } from "../mcp/client.js";
 import { Tool } from "./types.js";
 import { schemaToZodSchema } from "./zodSchema.js";
@@ -42,6 +43,9 @@ class McpTool {
 
   get url() {
     const envVar = this.name.replace(/-/g, "_").toUpperCase();
+    if (process.env[`BL_FUNCTION_${envVar}_URL`]) {
+      return new URL(process.env[`BL_FUNCTION_${envVar}_URL`] as string);
+    }
     if (process.env[`BL_FUNCTION_${envVar}_SERVICE_NAME`]) {
       return new URL(
         `https://${process.env[`BL_FUNCTION_${envVar}_SERVICE_NAME`]}.${settings.runInternalHostname}`,
@@ -87,10 +91,20 @@ class McpTool {
 
   async call(toolName: string, args: any) {
     logger.debug("TOOLCALLING: mcp", toolName, args);
-    return this.client.callTool({
-      name: toolName,
-      arguments: args,
-    });
+    const spanManager = new SpanManager("blaxel-tracer");
+    return spanManager.createActiveSpan(
+      this.name + "." + toolName,
+      {
+        "tool.name": toolName,
+        "tool.args": JSON.stringify(args),
+      },
+      async () => {
+        return await this.client.callTool({
+          name: toolName,
+          arguments: args,
+        });
+      },
+    );
   }
 }
 

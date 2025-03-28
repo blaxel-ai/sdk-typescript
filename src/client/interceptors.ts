@@ -1,4 +1,3 @@
-import { onLoad } from "../common/autoload";
 import settings from "../common/settings";
 
 type Interceptor = (request: Request, options: any) => Promise<Request | Response>;
@@ -9,7 +8,7 @@ export const interceptors: Interceptor[] = [
     if (options.authenticated === false) {
       return request;
     }
-    await onLoad()
+    await settings.authenticate()
     for(const header in settings.headers) {
       request.headers.set(header, settings.headers[header])
     }

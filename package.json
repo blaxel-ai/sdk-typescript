@@ -1,6 +1,6 @@
 {
   "name": "@blaxel/sdk",
-  "version": "0.1.1",
+  "version": "0.1.1-preview.15",
   "description": "Blaxel SDK for TypeScript",
   "license": "MIT",
   "author": "Blaxel, INC (https://blaxel.ai)",
@@ -84,6 +84,7 @@
     "@langchain/deepseek": "^0.0.1",
     "@langchain/langgraph": "^0.2.46",
     "@langchain/openai": "^0.3.17",
+    "@langchain/xai": "^0.0.2",
     "@llamaindex/anthropic": "^0.2.6",
     "@llamaindex/cohere": "^0.0.13",
     "@llamaindex/deepseek": "^0.0.5",
@@ -97,6 +98,7 @@
     "@opentelemetry/exporter-metrics-otlp-http": "^0.57.1",
     "@opentelemetry/exporter-trace-otlp-http": "^0.57.1",
     "@opentelemetry/instrumentation": "^0.57.1",
+    "@opentelemetry/instrumentation-express": "^0.48.0",
     "@opentelemetry/instrumentation-fastify": "^0.44.1",
     "@opentelemetry/instrumentation-http": "^0.57.1",
     "@opentelemetry/instrumentation-pino": "^0.46.0",

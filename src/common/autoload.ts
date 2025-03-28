@@ -10,8 +10,9 @@ async function autoload() {
   for (const interceptor of interceptors) {
     client.interceptors.request.use(interceptor as any);
   }
-  await settings.authenticate();
   telemetryManager.initialize(settings);
+  await settings.authenticate();
+  await telemetryManager.setConfiguration(settings);
 }
 
 const autoloadPromise = autoload();

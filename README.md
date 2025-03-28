@@ -19,6 +19,7 @@ Currently in preview, feel free to send us feedback or contribute to the project
     - [LlamaIndex Integration](#llamaindex-integration)
     - [Vercel AI Integration](#vercel-ai-integration)
     - [LangChain Integration](#langchain-integration)
+    - [Agent Chaining](#agent-chaining)
   - [Deployment](#deployment)
   - [Configuration](#configuration)
 - [MCP Server](#mcp-server)
@@ -172,9 +173,120 @@ const agent = new Agent({
 const stream = await agent.stream([{ role: "user", content: process.argv[2] }]);
 ```
 
+### Agent Chaining
+
+You can call an agent from another agent to chain them.
+This allow complexe agentic logic, with multiple agents calling each other, orchestration, routing, etc.
+
+```ts
+// Example of call of an agent, then put his result inside a second one
+
+// First agent, which is a simple one
+// He will expose himself with an endpoint (can be done with getting started example)
+// POST / {input: string}
+export default async function agent(input: string): Promise<any> {
+  const firstResponse = await generateObject({
+    experimental_telemetry: { isEnabled: true },
+    model: await blModel("gpt-4o-mini").ToVercelAI(),
+    system:
+      "You are a first point of contact for a loan company. Your job is to turn client conversation into loan application.",
+    schema: z.object({
+      name: z.string(),
+      loan_amount: z.number(),
+      loan_time_in_months: z.number(),
+      monthly_income: z.number(),
+    }),
+    messages: [
+      {
+        role: "user",
+        content: input,
+      },
+    ],
+  });
+
+  return firstResponse.object;
+}
+
+// Second agent, which will call the first one, then do another processing
+export default async function agent(input: string): Promise<any> {
+  let firstResponse = await blAgent("vercel-first").run({
+    inputs: input,
+  });
+  const gateResponse = await generateObject({
+    experimental_telemetry: { isEnabled: true },
+    model: await blModel("gpt-4o-mini").ToVercelAI(),
+    system:
+      "You are a loan specialist. Based on the given json file with client data, your job is to decide if a client can be further processed.",
+    schema: z.object({
+      is_client_accepted: z.boolean(),
+      denial_reason: z
+        .string()
+        .optional()
+        .describe("If client is rejected, you need to give a reason."),
+    }),
+    messages: [{ role: "user", content: firstResponse }],
+  });
+  return gateResponse.object;
+}
+```
+
+You can also set an agent as a tool, depending of framework you use.
+
+```ts
+// In this example, we call the first agent as a tool, you can use the example above to expose the first one
+import { blAgent, blModel, blTools, logger } from "@blaxel/sdk";
+import { streamText, tool } from "ai";
+import { z } from "zod";
+
+interface Stream {
+  write: (data: string) => void;
+  end: () => void;
+}
+
+export default async function agent(
+  input: string,
+  stream: Stream,
+): Promise<void> {
+  const response = streamText({
+    experimental_telemetry: { isEnabled: true },
+    model: await blModel("gpt-4o-mini").ToVercelAI(),
+    tools: {
+      ...(await blTools(["blaxel-search"]).ToVercelAI()),
+      "vercel-first": tool({
+        description: "Get a json for load from input",
+        parameters: z.object({
+          input: z.string(),
+        }),
+        execute: async (args: { input: string }) => {
+          return await blAgent("vercel-first").run(args.input);
+        },
+      }),
+      weather: tool({
+        description: "Get the weather in a specific city",
+        parameters: z.object({
+          city: z.string(),
+        }),
+        execute: async (args: { city: string }) => {
+          logger.debug("TOOLCALLING: local weather", args);
+          return `The weather in ${args.city} is sunny`;
+        },
+      }),
+    },
+    system: "If the user ask for the weather, use the weather tool.",
+    messages: [{ role: "user", content: input }],
+    maxSteps: 5,
+  });
+
+  for await (const delta of response.textStream) {
+    stream.write(delta);
+  }
+  stream.end();
+}
+```
+
 ### Deploy on blaxel
 
-To deploy on blaxel, we have only one requirement in your code.
+To deploy on blaxel, we have only one requirement in each agent code.
 We need an HTTP Server
 
 For example with expressjs we will have this configuration

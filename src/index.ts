@@ -1,5 +1,6 @@
 import './common/autoload';
 import settings from './common/settings.js';
+export * from "./agents/index.js";
 export * from "./client/index.js";
 export * from "./common/autoload.js";
 export * from "./common/env.js";

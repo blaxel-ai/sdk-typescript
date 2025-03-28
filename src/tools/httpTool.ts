@@ -1,7 +1,7 @@
 import { Function, FunctionSpec } from "../client/index.js"
-import { onLoad } from "../common/autoload.js"
 import { logger } from "../common/logger.js"
 import settings from "../common/settings.js"
+import { SpanManager } from "../instrumentation/span.js"
 import { Tool } from "./types.js"
 import { schemaToZodSchema } from "./zodSchema.js"
 
@@ -41,26 +41,28 @@ export class HttpTool {
     }]
   }
 
-  async call(args: any) {
-    await onLoad()
+
+  async call(args: any) : Promise<any> {
     logger.debug("TOOLCALLING: http", this.name, args)
-    try {
-      const response = await fetch(this.url+"/", {
-        method: 'POST',
-        headers: {
-          ...settings.headers,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(args),
-      })
-      return await response.text()
-    } catch (err: any) {
-      logger.error(err.stack)
-      if (!this.fallbackUrl) {
-        throw err
+    const spanManager = new SpanManager('blaxel-tracer')
+    return spanManager.createActiveSpan(this.name,{
+      "tool.name": this.name,
+      "tool.args": JSON.stringify(args)
+    }, async () => {
+      try {
+        return this.exec(this.url, args)
+      } catch (err: any) {
+        logger.error(err.stack)
+        if (!this.fallbackUrl) {
+          throw err
+        }
       }
-    }
-    const response = await fetch(this.fallbackUrl+"/", {
+      return this.exec(this.fallbackUrl, args)
+    })
+  }
+
+  async exec(url: URL, args: any) {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         ...settings.headers,

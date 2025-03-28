@@ -1,7 +1,11 @@
+import { langchain } from "./langchain.js";
+
 export type InstrumentationInfo = {
   modulePath: string;
   className: string;
   requiredPackages: string[]; // At least one package is required
+  ignoreIfPackages?: string[];
+  init?: (instrumentor: any) => void;
 };
 
 export const instrumentationMap: Record<string, InstrumentationInfo> = {
@@ -9,6 +13,7 @@ export const instrumentationMap: Record<string, InstrumentationInfo> = {
     modulePath: "@opentelemetry/instrumentation-express",
     className: "ExpressInstrumentation",
     requiredPackages: ["express"],
+    ignoreIfPackages: ["fastify"],
   },
   fastify: {
     modulePath: "@opentelemetry/instrumentation-fastify",
@@ -49,6 +54,7 @@ export const instrumentationMap: Record<string, InstrumentationInfo> = {
       "@langchain/community",
       "@langchain/langgraph",
     ],
+    init: langchain,
   },
   llamaindex: {
     modulePath: "@traceloop/instrumentation-llamaindex",
