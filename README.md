@@ -38,6 +38,7 @@ Supported AI frameworks:
 - Vercel AI
 - LlamaIndex
 - LangChain
+- Mastra
   Supported Tools frameworks:
 - MCP
 
