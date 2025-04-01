@@ -10,24 +10,17 @@ Currently in preview, feel free to send us feedback or contribute to the project
 ## Table of Contents
 
 - [Features](#features)
-- [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Quick Start](#quick-start)
-- [Integration Guide](#integration-guide)
-  - [Setting up Blaxel Observability](#setting-up-blaxel-observability)
-  - [Connecting Tools and Models](#connecting-tools-and-models)
-    - [LlamaIndex Integration](#llamaindex-integration)
-    - [Vercel AI Integration](#vercel-ai-integration)
-    - [LangChain Integration](#langchain-integration)
-    - [Agent Chaining](#agent-chaining)
-  - [Deployment](#deployment)
-  - [Configuration](#configuration)
-- [MCP Server](#mcp-server)
-  - [Creating an MCP Server](#creating-an-mcp-server)
-  - [Connecting Existing MCP Server](#connecting-existing-mcp-server)
-- [Environment Variables](#environment-variables)
-  - [Configuration File](#configuration-file)
-  - [Secrets Management](#secrets-management)
+- [Prerequisites](#prerequisites)
+- [Start from an hello world example](#start-from-an-hello-world-example)
+- [Integrate with a custom code](#integrate-with-a-custom-code)
+  - [Set-up blaxel observability](#set-up-blaxel-observability)
+  - [Connect tools and model from blaxel platform to your agent](#connect-tools-and-model-from-blaxel-platform-to-your-agent)
+  - [Agent Chaining](#agent-chaining)
+  - [Deploy on blaxel](#deploy-on-blaxel)
+  - [Advanced configuration](#advanced-configuration)
+  - [Create an MCP Server](#create-an-mcp-server)
+  - [Connect an existing MCP Server to blaxel](#connect-an-existing-mcp-server-to-blaxel)
+  - [How to use environment variables or secrets](#how-to-use-environment-variables-or-secrets)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -141,7 +134,7 @@ const stream = await createReactAgent({
         schema: z.object({
           city: z.string(),
         }),
-      },
+      }
     ),
   ],
 }).stream({
@@ -246,7 +239,7 @@ interface Stream {
 
 export default async function agent(
   input: string,
-  stream: Stream,
+  stream: Stream
 ): Promise<void> {
   const response = streamText({
     experimental_telemetry: { isEnabled: true },
@@ -375,7 +368,7 @@ server.tool(
     return {
       content: [{ type: "text", text: `The weather in ${city} is sunny` }],
     };
-  },
+  }
 );
 
 function main() {
