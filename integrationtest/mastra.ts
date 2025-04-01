@@ -28,15 +28,13 @@ async function main() {
     },
   });
 
-  const stream = await agent.generate([
-    { role: "user", content: "Who is charles drappier" },
+  const stream = await agent.stream([
+    { role: "user", content: process.argv[2] },
   ]);
 
-  console.log("STREAM: ", stream);
-
-  // for await (const chunk of stream.textStream) {
-  //   if (chunk) process.stdout.write(chunk);
-  // }
+  for await (const chunk of stream.textStream) {
+    if (chunk) process.stdout.write(chunk);
+  }
   process.stdout.write("\n\n");
 }
 
