@@ -8,7 +8,13 @@ try {
   const configFile = fs.readFileSync('blaxel.toml', 'utf8');
   const configInfos = toml.parse(configFile);
   for (const key in configInfos.env) {
+    if (key == 'dev') {
+      continue
+    }
     configEnv[key] = configInfos.env[key];
+  }
+  for (const key in configInfos.env.dev) {
+    configEnv[key] = configInfos.env.dev[key];
   }
 /* eslint-disable */
 } catch (error) {
@@ -26,7 +32,11 @@ try {
 } catch (error) {
 }
 
-const env = new Proxy({}, {
+type EnvVariables = {
+  [key: string]: string | undefined;
+};
+
+const env = new Proxy<EnvVariables>({}, {
   get: (target, prop: string) => {
     if (secretEnv[prop]) {
       return secretEnv[prop];

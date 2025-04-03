@@ -1,6 +1,7 @@
 import { Client as ModelContextProtocolClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { Function } from "../client/index.js";
 import { onLoad } from "../common/autoload.js";
+import { env } from "../common/env.js";
 import { logger } from "../common/logger.js";
 import settings from "../common/settings.js";
 import { SpanManager } from "../instrumentation/span.js";
@@ -36,6 +37,10 @@ class McpTool {
   }
 
   get externalUrl() {
+    const envVar = this.name.replace(/-/g, "_").toUpperCase();
+    if (env[`BL_FUNCTION_${envVar}_URL`]) {
+      return new URL(env[`BL_FUNCTION_${envVar}_URL`] as string);
+    }
     return new URL(
       `${settings.runUrl}/${settings.workspace}/functions/${this.name}`,
     );
@@ -43,12 +48,12 @@ class McpTool {
 
   get url() {
     const envVar = this.name.replace(/-/g, "_").toUpperCase();
-    if (process.env[`BL_FUNCTION_${envVar}_URL`]) {
-      return new URL(process.env[`BL_FUNCTION_${envVar}_URL`] as string);
+    if (env[`BL_FUNCTION_${envVar}_URL`]) {
+      return new URL(env[`BL_FUNCTION_${envVar}_URL`] as string);
     }
-    if (process.env[`BL_FUNCTION_${envVar}_SERVICE_NAME`]) {
+    if (env[`BL_FUNCTION_${envVar}_SERVICE_NAME`]) {
       return new URL(
-        `https://${process.env[`BL_FUNCTION_${envVar}_SERVICE_NAME`]}.${settings.runInternalHostname}`,
+        `https://${env[`BL_FUNCTION_${envVar}_SERVICE_NAME`]}.${settings.runInternalHostname}`,
       );
     }
     return this.externalUrl;

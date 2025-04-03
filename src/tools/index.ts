@@ -1,17 +1,18 @@
 import { findFromCache } from "../cache/index.js";
 import { Function, getFunction } from "../client/index.js";
+import { env } from "../common/env.js";
 import { getHttpTool } from "./httpTool.js";
 import { getLangchainTools } from "./langchain.js";
 import getLlamaIndexTools from "./llamaindex.js";
+import getMastraTools from "./mastra.js";
 import { getMcpTool } from "./mcpTool.js";
 import { Tool } from "./types.js";
 import { getVercelAITools } from "./vertcelai.js";
-import getMastraTools from "./mastra.js";
 
 export * from "./langchain.js";
 export * from "./llamaindex.js";
-export * from "./vertcelai.js";
 export * from "./mastra.js";
+export * from "./vertcelai.js";
 
 export const getTool = async (name: string): Promise<Tool[]> => {
   const functionData = await getToolMetadata(name);
@@ -58,6 +59,20 @@ export const blTool = (name: string) => {
 export const getToolMetadata = async (
   tool: string,
 ): Promise<Function | null> => {
+  const envVar = tool.replace(/-/g, "_").toUpperCase();
+  if (env[`BL_FUNCTION_${envVar}_URL`]) {
+    return {
+      metadata: {
+        name: tool,
+      },
+      spec: {
+        runtime: {
+          type: "mcp",
+        },
+      },
+    };
+  }
+
   const cacheData = await findFromCache("Function", tool);
   if (cacheData) {
     return cacheData as Function;
