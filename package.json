@@ -1,6 +1,6 @@
 {
   "name": "@blaxel/sdk",
-  "version": "0.1.1-preview.19",
+  "version": "0.1.0",
   "description": "Blaxel SDK for TypeScript",
   "license": "MIT",
   "author": "Blaxel, INC (https://blaxel.ai)",
