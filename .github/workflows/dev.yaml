@@ -4,8 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: ["main"]
-    paths:
-      - "sdk-ts/**"
+
 jobs:
   npm-publish:
     name: Upload to NPM
