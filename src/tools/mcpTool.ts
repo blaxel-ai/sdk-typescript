@@ -83,7 +83,11 @@ class McpTool {
     logger.debug(`SETTING TIMER: mcp ${this.name} ${this.ms}`);
     this.closeTimer();
     this.timer = setTimeout(async () => {
-      await this.close();
+      try {
+        await this.close();
+      } catch (err: any) {
+        logger.error(err.stack);
+      }
     }, this.ms);
   }
 
