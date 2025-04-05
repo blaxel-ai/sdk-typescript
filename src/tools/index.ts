@@ -1,7 +1,6 @@
 import { findFromCache } from "../cache/index.js";
 import { Function, getFunction } from "../client/index.js";
 import { env } from "../common/env.js";
-import { getHttpTool } from "./httpTool.js";
 import { getLangchainTools } from "./langchain.js";
 import getLlamaIndexTools from "./llamaindex.js";
 import getMastraTools from "./mastra.js";
@@ -15,14 +14,7 @@ export * from "./mastra.js";
 export * from "./vertcelai.js";
 
 export const getTool = async (name: string): Promise<Tool[]> => {
-  const functionData = await getToolMetadata(name);
-  if (!functionData) {
-    throw new Error(`Function ${name} not found`);
-  }
-  if (functionData?.spec?.runtime?.type === "mcp") {
-    return await getMcpTool(functionData);
-  }
-  return await getHttpTool(functionData);
+  return await getMcpTool(name);
 };
 
 class BLTools {
