@@ -15,7 +15,7 @@ class McpTool {
   private client: ModelContextProtocolClient;
   private timer?: NodeJS.Timeout;
   private ms: number;
-  private isConnected: boolean = false;
+  private refreshActionPromise?: Promise<void> | null;
 
   constructor(name: string, ms: number = 5000) {
     this.name = name;
@@ -29,7 +29,7 @@ class McpTool {
         capabilities: {
           tools: {},
         },
-      },
+      }
     );
   }
 
@@ -46,7 +46,7 @@ class McpTool {
       return new URL(env[`BL_FUNCTION_${envVar}_URL`] as string);
     }
     return new URL(
-      `${settings.runUrl}/${settings.workspace}/functions/${this.name}`,
+      `${settings.runUrl}/${settings.workspace}/functions/${this.name}`
     );
   }
 
@@ -57,7 +57,9 @@ class McpTool {
     }
     if (env[`BL_FUNCTION_${envVar}_SERVICE_NAME`]) {
       return new URL(
-        `https://${env[`BL_FUNCTION_${envVar}_SERVICE_NAME`]}.${settings.runInternalHostname}`,
+        `https://${env[`BL_FUNCTION_${envVar}_SERVICE_NAME`]}.${
+          settings.runInternalHostname
+        }`
       );
     }
     return this.externalUrl;
@@ -65,13 +67,13 @@ class McpTool {
 
   async close() {
     logger.debug("CLOSING: mcp", this.name);
-    this.isConnected = false;
+    delete this.refreshActionPromise;
     this.client.close();
   }
 
   closeTimer() {
     logger.debug(`CLOSING TIMER: mcp ${this.name}`);
-    if(this.timer) {
+    if (this.timer) {
       clearTimeout(this.timer);
       this.timer = undefined;
     }
@@ -85,18 +87,15 @@ class McpTool {
     }, this.ms);
   }
 
-  async refresh() {
-    this.closeTimer();
-    if(this.isConnected) return;
+  async refreshAction() {
     await onLoad();
     logger.debug(`REFRESHING: mcp ${this.name}`);
     try {
       const transport = new BlaxelMcpClientTransport(
         this.url.toString(),
-        settings.headers,
+        settings.headers
       );
       await this.client.connect(transport);
-      this.isConnected = true;
     } catch (err: any) {
       logger.error(err.stack);
       if (!this.fallbackUrl) {
@@ -104,11 +103,17 @@ class McpTool {
       }
       const transport = new BlaxelMcpClientTransport(
         this.fallbackUrl.toString(),
-        settings.headers,
+        settings.headers
       );
       await this.client.connect(transport);
-      this.isConnected = true;
     }
+  }
+
+  async refresh() {
+    this.closeTimer();
+    this.refreshActionPromise =
+      this.refreshActionPromise || this.refreshAction();
+    return this.refreshActionPromise;
   }
 
   async listTools(): Promise<Tool[]> {
@@ -138,16 +143,21 @@ class McpTool {
         "tool.args": JSON.stringify(args),
       },
       async () => {
-        logger.debug(`TOOLCALLING: mcp ${this.name} ${toolName} ${args}`);
+        logger.debug(
+          `TOOLCALLING: mcp ${this.name} ${toolName} ${JSON.stringify(args)}`
+        );
         await this.refresh();
         const result = await this.client.callTool({
           name: toolName,
           arguments: args,
         });
-        logger.debug(`TOOLRESULT: mcp ${this.name} ${toolName} ${args}`, result);
+        logger.debug(
+          `TOOLRESULT: mcp ${this.name} ${toolName} ${JSON.stringify(args)}`,
+          result
+        );
         this.setTimer();
         return result;
-      },
+      }
     );
     return result;
   }
