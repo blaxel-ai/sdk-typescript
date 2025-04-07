@@ -1,11 +1,11 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
+import { createCerebras } from "@ai-sdk/cerebras";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
-import { createCerebras } from "@ai-sdk/cerebras";
 import { createOpenAI } from "@ai-sdk/openai";
+import { onLoad } from "../common/autoload";
 import settings from "../common/settings";
 import { getModelMetadata } from "./index";
-import { onLoad } from "../common/autoload";
 
 export const getMastraModel = async (model: string, options?: any) => {
   const url = `${settings.runUrl}/${settings.workspace}/models/${model}`;
@@ -38,7 +38,7 @@ export const getMastraModel = async (model: string, options?: any) => {
     case "cerebras":
       return createCerebras({
         apiKey: settings.token,
-        baseURL: `${url}`,
+        baseURL: `${url}/v1`,
         ...options,
       })(modelId);
     default:
