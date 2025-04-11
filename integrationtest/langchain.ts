@@ -10,34 +10,38 @@ async function main() {
     llm: await blModel("gpt-4o-mini").ToLangChain(),
     prompt: prompt,
     tools: [
-      ...await blTools(['blaxel-search','webcrawl']).ToLangChain(),
-      tool(async (input: any) => {
-        logger.debug("TOOLCALLING: local weather", input)
-        return `The weather in ${input.city} is sunny`;
-      },{
-        name: "weather",
-        description: "Get the weather in a specific city",
-        schema: z.object({
-          city: z.string(),
-        })
-      })
+      ...(await blTools(["blaxel-search"]).ToLangChain()),
+      tool(
+        async (input: any) => {
+          logger.debug("TOOLCALLING: local weather", input);
+          return `The weather in ${input.city} is sunny`;
+        },
+        {
+          name: "weather",
+          description: "Get the weather in a specific city",
+          schema: z.object({
+            city: z.string(),
+          }),
+        }
+      ),
     ],
   }).stream({
     messages: [new HumanMessage(process.argv[2])],
   });
   for await (const chunk of stream) {
-    if(chunk.agent) for(const message of chunk.agent.messages) {
-      process.stdout.write(message.content)
-    }
+    if (chunk.agent)
+      for (const message of chunk.agent.messages) {
+        process.stdout.write(message.content);
+      }
   }
-  process.stdout.write('\n\n')
+  process.stdout.write("\n\n");
 }
 
 main()
-.then(() => {
-  process.exit(0)
-})
-.catch(err=>{
-  console.error(err)
-  process.exit(1)
-});
+  .then(() => {
+    process.exit(0);
+  })
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });

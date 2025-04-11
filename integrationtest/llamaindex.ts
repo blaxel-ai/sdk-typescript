@@ -6,7 +6,8 @@ import { prompt } from "./prompt";
 async function main() {
   const stream = agent({
     llm: await blModel("gpt-4o-mini").ToLlamaIndex(),
-    tools: [...await blTools(['blaxel-search','webcrawl']).ToLlamaIndex(),
+    tools: [
+      ...(await blTools(["blaxel-search"]).ToLlamaIndex()),
       tool({
         name: "weather",
         description: "Get the weather in a specific city",
@@ -14,10 +15,10 @@ async function main() {
           city: z.string(),
         }),
         execute: async (input) => {
-          logger.debug("TOOLCALLING: local weather", input)
+          logger.debug("TOOLCALLING: local weather", input);
           return `The weather in ${input.city} is sunny`;
         },
-      })
+      }),
     ],
     systemPrompt: prompt,
   }).run(process.argv[2]);
@@ -29,14 +30,14 @@ async function main() {
       }
     }
   }
-  process.stdout.write('\n\n');
+  process.stdout.write("\n\n");
 }
 
 main()
-.then(() => {
-  process.exit(0)
-})
-.catch(err=>{
-  console.error(err)
-  process.exit(1)
-});
+  .then(() => {
+    process.exit(0);
+  })
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });

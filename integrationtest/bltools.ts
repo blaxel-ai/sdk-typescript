@@ -33,10 +33,11 @@ async function test_mcp_tools_llamaindex() {
 
 async function test_mcp_tools_vercel() {
   const tools = await blTools(["blaxel-search"]).ToVercelAI();
-  if (!tools.search) {
+  console.log(tools);
+  if (!tools.web_search) {
     throw new Error("No tools found");
   }
-  const result = await tools.search.execute({
+  const result = await tools.web_search.execute({
     query: "What is the capital of France?",
   });
   logger.info(result);
@@ -44,10 +45,10 @@ async function test_mcp_tools_vercel() {
 
 async function test_mcp_tools_mastra() {
   const tools = await blTools(["blaxel-search"]).ToMastra();
-  if (!tools.search) {
+  if (!tools.web_search) {
     throw new Error("No tools found");
   }
-  const result = await tools.search.execute({
+  const result = await tools.web_search.execute({
     query: "What is the capital of France?",
   });
   logger.info(result);
