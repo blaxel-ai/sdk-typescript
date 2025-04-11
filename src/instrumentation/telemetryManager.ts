@@ -1,18 +1,39 @@
-
 /* eslint-disable no-console */
-import { diag, DiagConsoleLogger, DiagLogLevel, metrics } from "@opentelemetry/api";
+import {
+  diag,
+  DiagConsoleLogger,
+  DiagLogLevel,
+  metrics,
+} from "@opentelemetry/api";
 import { Logger, logs } from "@opentelemetry/api-logs";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import { Instrumentation, registerInstrumentations } from "@opentelemetry/instrumentation";
+import {
+  Instrumentation,
+  registerInstrumentations,
+} from "@opentelemetry/instrumentation";
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
 import { PinoInstrumentation } from "@opentelemetry/instrumentation-pino";
 import { envDetector, Resource } from "@opentelemetry/resources";
-import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs";
-import { MeterProvider, PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
-import { AlwaysOnSampler, BatchSpanProcessor, NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { InstrumentationInfo, instrumentationMap } from "./instrumentationMap.js";
+import {
+  BatchLogRecordProcessor,
+  LoggerProvider,
+} from "@opentelemetry/sdk-logs";
+import {
+  MeterProvider,
+  PeriodicExportingMetricReader,
+} from "@opentelemetry/sdk-metrics";
+import {
+  AlwaysOnSampler,
+  BatchSpanProcessor,
+  NodeTracerProvider,
+} from "@opentelemetry/sdk-trace-node";
+import { logger } from "../common/logger.js";
+import {
+  InstrumentationInfo,
+  instrumentationMap,
+} from "./instrumentationMap.js";
 import { DefaultAttributesSpanProcessor } from "./span.js";
 
 export type TelemetryOptions = {
@@ -20,11 +41,11 @@ export type TelemetryOptions = {
   name: string | null;
   authorization: string | null;
   type: string | null;
-}
+};
 
 class TelemetryManager {
   private nodeTracerProvider: NodeTracerProvider | null;
-  private meterProvider: MeterProvider | null  ;
+  private meterProvider: MeterProvider | null;
   private loggerProvider: LoggerProvider | null;
   private otelLogger: Logger | null;
   private workspace: string | null;
@@ -34,7 +55,7 @@ class TelemetryManager {
   private initialized: boolean;
   private configured: boolean;
   private instrumentations: Instrumentation[];
-
+  private minimumBootTime: number;
   constructor() {
     this.nodeTracerProvider = null;
     this.meterProvider = null;
@@ -47,33 +68,36 @@ class TelemetryManager {
     this.initialized = false;
     this.configured = false;
     this.instrumentations = [];
+    this.minimumBootTime = 2000;
   }
 
-  async initialize(options:TelemetryOptions) {
-    const start = new Date()
+  async initialize(options: TelemetryOptions) {
+    const start = new Date();
     this.workspace = options.workspace;
     this.name = options.name;
-    this.type = options.type+"s";
-    if (process.env.BL_DEBUG_TELEMETRY === 'true') {
-      diag.setLogger(new DiagConsoleLogger(), {logLevel: DiagLogLevel.DEBUG})
+    this.type = options.type + "s";
+    if (process.env.BL_DEBUG_TELEMETRY === "true") {
+      diag.setLogger(new DiagConsoleLogger(), { logLevel: DiagLogLevel.DEBUG });
     }
     if (!this.enabled || this.initialized) {
       return;
     }
-    this.instrumentApp()
-    this.setupSignalHandler();
+    this.instrumentApp();
+    this.setupSignalHandler(new Date());
     this.initialized = true;
-    console.debug(`Telemetry initialized in ${new Date().getTime() - start.getTime()}ms`)
+    console.debug(
+      `Telemetry initialized in ${new Date().getTime() - start.getTime()}ms`
+    );
   }
 
-  async setConfiguration(options:TelemetryOptions) {
+  async setConfiguration(options: TelemetryOptions) {
     if (!this.enabled || this.configured) {
       return;
     }
     this.authorization = options.authorization;
     await this.setExporters();
     this.otelLogger = logs.getLogger("blaxel");
-    console.debug('Telemetry ready')
+    console.debug("Telemetry ready");
     this.configured = true;
   }
 
@@ -93,30 +117,29 @@ class TelemetryManager {
   }
 
   async sleep(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   async getLogger(): Promise<Logger> {
     if (!this.otelLogger) {
-      await this.sleep(100)
-      return this.getLogger()
+      await this.sleep(100);
+      return this.getLogger();
     }
     return this.otelLogger;
   }
 
-  setupSignalHandler() {
-    process.on("SIGINT", () => {
-      this.shutdownApp().catch((error) => {
-        console.debug("Fatal error during shutdown:", error);
-        process.exit(0);
+  setupSignalHandler(start: Date) {
+    const signals = ["SIGINT", "SIGTERM", "uncaughtException"];
+    for (const signal of signals) {
+      process.on(signal, (error) => {
+        logger.error(error.stack);
+        console.debug(`${signal} received`);
+        this.shutdownApp(start).catch((error) => {
+          console.debug("Fatal error during shutdown:", error);
+          process.exit(0);
+        });
       });
-    });
-    process.on("SIGTERM", () => {
-      this.shutdownApp().catch((error) => {
-        console.debug("Fatal error during shutdown:", error);
-        process.exit(0);
-      });
-    });
+    }
   }
 
   /**
@@ -124,7 +147,7 @@ class TelemetryManager {
    */
   async getResourceAttributes() {
     const resource = await envDetector.detect();
-    const attributes = resource.attributes
+    const attributes = resource.attributes;
     if (this.name) {
       attributes["service.name"] = this.name;
       attributes["workload.id"] = this.name;
@@ -132,7 +155,7 @@ class TelemetryManager {
     if (this.workspace) {
       attributes["workspace"] = this.workspace;
     }
-    if(this.type) {
+    if (this.type) {
       attributes["workload.type"] = this.type;
     }
     return attributes;
@@ -197,22 +220,30 @@ class TelemetryManager {
         new DefaultAttributesSpanProcessor({
           "workload.id": this.name || "",
           "workload.type": this.type || "",
-          "workspace": this.workspace || "",
+          workspace: this.workspace || "",
         }),
-        new BatchSpanProcessor(traceExporter)
+        new BatchSpanProcessor(traceExporter),
       ],
     });
     this.nodeTracerProvider.register();
     const metricExporter = await this.getMetricExporter();
     this.meterProvider = new MeterProvider({
       resource,
-      readers: [new PeriodicExportingMetricReader({ exporter: metricExporter, exportIntervalMillis: 60000 })],
+      readers: [
+        new PeriodicExportingMetricReader({
+          exporter: metricExporter,
+          exportIntervalMillis: 60000,
+        }),
+      ],
     });
     metrics.setGlobalMeterProvider(this.meterProvider);
   }
 
   shouldInstrument(name: string, info: InstrumentationInfo): boolean {
-    if (info.ignoreIfPackages && info.ignoreIfPackages.some((pkg) => this.isPackageInstalled(pkg))) {
+    if (
+      info.ignoreIfPackages &&
+      info.ignoreIfPackages.some((pkg) => this.isPackageInstalled(pkg))
+    ) {
       return false;
     }
     if (info.requiredPackages.some((pkg) => this.isPackageInstalled(pkg))) {
@@ -225,8 +256,8 @@ class TelemetryManager {
     const instrumentations: Instrumentation[] = [];
     for (const [name, info] of Object.entries(instrumentationMap)) {
       if (this.shouldInstrument(name, info)) {
-        console.debug(`Instrumenting ${name}`)
-        const start = new Date()
+        console.debug(`Instrumenting ${name}`);
+        const start = new Date();
         const module = this.importInstrumentationClass(
           info.modulePath,
           info.className
@@ -243,7 +274,9 @@ class TelemetryManager {
             console.debug(`Failed to instrument ${name}: ${error}`);
           }
         }
-        console.debug(`Imported ${name} in ${new Date().getTime() - start.getTime()}ms`)
+        console.debug(
+          `Imported ${name} in ${new Date().getTime() - start.getTime()}ms`
+        );
       }
     }
     return instrumentations;
@@ -269,8 +302,14 @@ class TelemetryManager {
     }
   }
 
-  async shutdownApp() {
+  async shutdownApp(start: Date) {
     try {
+      const remainingTime =
+        this.minimumBootTime - (new Date().getTime() - start.getTime());
+      await new Promise((resolve) =>
+        setTimeout(resolve, remainingTime > 0 ? remainingTime : 0)
+      );
+
       const shutdownPromises = [];
       if (this.nodeTracerProvider) {
         shutdownPromises.push(
@@ -307,7 +346,7 @@ class TelemetryManager {
         Promise.all(shutdownPromises),
         new Promise((resolve) => setTimeout(resolve, 5000)), // 5 second timeout
       ]);
-      console.debug('Instrumentation shutdown complete')
+      console.debug("Instrumentation shutdown complete");
 
       process.exit(0);
     } catch (error) {
