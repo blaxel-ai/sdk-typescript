@@ -8,7 +8,8 @@ async function autoload() {
     baseUrl: settings.baseUrl,
   });
   for (const interceptor of interceptors) {
-    client.interceptors.request.use(interceptor as any);
+    // @ts-expect-error - Interceptor is not typed
+    client.interceptors.request.use(interceptor);
   }
   telemetryManager.initialize(settings);
   await settings.authenticate();

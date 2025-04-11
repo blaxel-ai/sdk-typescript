@@ -1,4 +1,3 @@
-
 import { Logger, SeverityNumber } from "@opentelemetry/api-logs";
 import localLogger from "../instrumentation/localLogger.js";
 import { telemetryManager } from "../instrumentation/telemetryManager.js";
@@ -7,27 +6,68 @@ export const logger = {
   async getLogger(): Promise<Logger> {
     return await telemetryManager.getLogger();
   },
-  emit: async (severityNumber: SeverityNumber, msg: any, ...args: any[]) => {
+
+  asyncEmit: async (
+    severityNumber: SeverityNumber,
+    msg: unknown,
+    ...args: unknown[]
+  ) => {
     const loggerInstance = await logger.getLogger();
     if (typeof msg !== "string") {
-      msg = JSON.stringify(msg)
+      msg = JSON.stringify(msg);
     }
-    loggerInstance.emit({ severityNumber: severityNumber, body: msg, attributes: { args } });
+    const safeArgs = args.map((arg) =>
+      typeof arg === "string" ? arg : JSON.stringify(arg)
+    );
+    loggerInstance.emit({
+      severityNumber: severityNumber,
+      body: msg as string,
+      attributes: { args: safeArgs },
+    });
   },
-  info: async (msg: any, ...args: any[]) => {
-    localLogger.info(msg, ...args)
-    logger.emit(SeverityNumber.INFO, msg, ...args);
+  emit: (severityNumber: SeverityNumber, msg: unknown, ...args: unknown[]) => {
+    logger.asyncEmit(severityNumber, msg, ...args).catch((err) => {
+      console.error(err);
+    });
   },
-  error: async (msg: any, ...args: any[]) => {
-    localLogger.error(msg, ...args)
-    logger.emit(SeverityNumber.ERROR, msg, ...args);
+  info: (msg: unknown, ...args: unknown[]) => {
+    if (typeof msg !== "string") {
+      msg = JSON.stringify(msg);
+    }
+    const safeArgs = args.map((arg) =>
+      typeof arg === "string" ? arg : JSON.stringify(arg)
+    );
+    localLogger.info(msg, ...safeArgs);
+    logger.emit(SeverityNumber.INFO, msg, ...safeArgs);
   },
-  warn: async (msg: any, ...args: any[]) => {
-    localLogger.warn(msg, ...args)
-    logger.emit(SeverityNumber.WARN, msg, ...args);
+  error: (msg: unknown, ...args: unknown[]) => {
+    if (typeof msg !== "string") {
+      msg = JSON.stringify(msg);
+    }
+    const safeArgs = args.map((arg) =>
+      typeof arg === "string" ? arg : JSON.stringify(arg)
+    );
+    localLogger.error(msg, ...safeArgs);
+    logger.emit(SeverityNumber.ERROR, msg, ...safeArgs);
   },
-  debug: async (msg: any, ...args: any[]) => {
-    localLogger.debug(msg, ...args)
-    logger.emit(SeverityNumber.DEBUG, msg, ...args);
+  warn: (msg: unknown, ...args: unknown[]) => {
+    if (typeof msg !== "string") {
+      msg = JSON.stringify(msg);
+    }
+    const safeArgs = args.map((arg) =>
+      typeof arg === "string" ? arg : JSON.stringify(arg)
+    );
+    localLogger.warn(msg, ...safeArgs);
+    logger.emit(SeverityNumber.WARN, msg, ...safeArgs);
+  },
+  debug: (msg: unknown, ...args: unknown[]) => {
+    if (typeof msg !== "string") {
+      msg = JSON.stringify(msg);
+    }
+    const safeArgs = args.map((arg) =>
+      typeof arg === "string" ? arg : JSON.stringify(arg)
+    );
+    localLogger.debug(msg, ...safeArgs);
+    logger.emit(SeverityNumber.DEBUG, msg, ...safeArgs);
   },
 };

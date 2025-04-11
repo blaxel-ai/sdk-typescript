@@ -19,7 +19,7 @@ export interface GenerativeAIJsonSchemaDirty extends GenerativeAIJsonSchema {
 
 export function removeAdditionalProperties(
   // eslint-disable @typescript-eslint/no-explicit-any
-  obj: Record<string, any>
+  obj: Record<string, unknown>
 ): GenerativeAIJsonSchema {
   if (typeof obj === "object" && obj !== null) {
     const newObj = { ...obj };
@@ -36,7 +36,9 @@ export function removeAdditionalProperties(
         if (Array.isArray(newObj[key])) {
           newObj[key] = newObj[key].map(removeAdditionalProperties);
         } else if (typeof newObj[key] === "object" && newObj[key] !== null) {
-          newObj[key] = removeAdditionalProperties(newObj[key]);
+          newObj[key] = removeAdditionalProperties(
+            newObj[key] as Record<string, unknown>
+          );
         }
       }
     }

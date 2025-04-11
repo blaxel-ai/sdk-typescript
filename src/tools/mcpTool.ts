@@ -1,4 +1,5 @@
 import { Client as ModelContextProtocolClient } from "@modelcontextprotocol/sdk/client/index.js";
+import { FunctionSchema } from "../client/types.gen.js";
 import { onLoad } from "../common/autoload.js";
 import { env } from "../common/env.js";
 import { logger } from "../common/logger.js";
@@ -68,7 +69,7 @@ class McpTool {
   async close() {
     logger.debug("CLOSING: mcp", this.name);
     delete this.refreshActionPromise;
-    this.client.close();
+    await this.client.close();
   }
 
   closeTimer() {
@@ -82,12 +83,10 @@ class McpTool {
   setTimer() {
     logger.debug(`SETTING TIMER: mcp ${this.name} ${this.ms}`);
     this.closeTimer();
-    this.timer = setTimeout(async () => {
-      try {
-        await this.close();
-      } catch (err: any) {
+    this.timer = setTimeout(() => {
+      this.close().catch((err: Error) => {
         logger.error(err.stack);
-      }
+      });
     }, this.ms);
   }
 
@@ -100,8 +99,12 @@ class McpTool {
         settings.headers
       );
       await this.client.connect(transport);
-    } catch (err: any) {
-      logger.error(err.stack);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        logger.error(err.stack);
+      } else {
+        logger.error("An unknown error occurred");
+      }
       if (!this.fallbackUrl) {
         throw err;
       }
@@ -123,13 +126,19 @@ class McpTool {
   async listTools(): Promise<Tool[]> {
     logger.debug(`LISTING TOOLS: mcp ${this.name}`);
     await this.refresh();
-    const { tools } = (await this.client.listTools()) as any;
-    const result = tools.map((tool: any) => {
+    const { tools } = (await this.client.listTools()) as {
+      tools: Array<{
+        name: string;
+        description: string;
+        inputSchema: FunctionSchema;
+      }>;
+    };
+    const result = tools.map((tool) => {
       return {
         name: tool.name,
         description: tool.description,
         inputSchema: schemaToZodSchema(tool.inputSchema),
-        call: (input: any) => {
+        call: (input: Record<string, unknown> | undefined) => {
           return this.call(tool.name, input);
         },
       };
@@ -138,7 +147,7 @@ class McpTool {
     return result;
   }
 
-  async call(toolName: string, args: any) {
+  async call(toolName: string, args: Record<string, unknown> | undefined) {
     const spanManager = new SpanManager("blaxel-tracer");
     const result = spanManager.createActiveSpan(
       this.name + "." + toolName,
@@ -167,7 +176,7 @@ class McpTool {
   }
 }
 
-export const retrieveMCPClient = async (name: string): Promise<McpTool> => {
+export const retrieveMCPClient = (name: string): McpTool => {
   if (McpToolCache.has(name)) {
     return McpToolCache.get(name) as McpTool;
   }
@@ -177,6 +186,6 @@ export const retrieveMCPClient = async (name: string): Promise<McpTool> => {
 };
 
 export const getMcpTool = async (name: string): Promise<Tool[]> => {
-  const mcpClient = await retrieveMCPClient(name);
+  const mcpClient = retrieveMCPClient(name);
   return await mcpClient.listTools();
 };

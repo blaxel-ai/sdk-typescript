@@ -85,11 +85,23 @@ export class BlaxelMcpClientTransport implements Transport {
         logger.debug("WebSocket message received");
         let message: JSONRPCMessage;
         try {
-          message = JSONRPCMessageSchema.parse(
-            JSON.parse(event.data.toString())
-          );
+          let dataString: string;
+          if (typeof event.data === "string") {
+            dataString = event.data;
+          } else if (event.data instanceof Buffer) {
+            dataString = event.data.toString("utf-8");
+          } else {
+            throw new Error("Unsupported data type for event.data");
+          }
+          message = JSONRPCMessageSchema.parse(JSON.parse(dataString));
         } catch (error) {
-          logger.error(`Error parsing message: ${event.data}`);
+          logger.error(
+            `Error parsing message: ${
+              typeof event.data === "object"
+                ? JSON.stringify(event.data)
+                : event.data
+            }`
+          );
           this.onerror?.(error as Error);
           return;
         }
@@ -103,6 +115,7 @@ export class BlaxelMcpClientTransport implements Transport {
     this._socket?.close();
     this._socket = undefined;
     this.onclose?.();
+    return Promise.resolve();
   }
 
   async send(message: JSONRPCMessage): Promise<void> {
@@ -127,8 +140,8 @@ export class BlaxelMcpClientTransport implements Transport {
                 resolve();
               }
             });
-          } catch (error) {
-            reject(error);
+          } catch (error: unknown) {
+            reject(error as Error);
           }
         });
         return;

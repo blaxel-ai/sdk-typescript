@@ -1,13 +1,16 @@
 import {
-  EnhancedGenerateContentResponse,
+  CodeExecutionResult,
   Content,
-  Part,
-  type FunctionDeclarationsTool as GoogleGenerativeAIFunctionDeclarationsTool,
-  type FunctionDeclaration as GenerativeAIFunctionDeclaration,
-  POSSIBLE_ROLES,
-  FunctionResponsePart,
+  EnhancedGenerateContentResponse,
+  ExecutableCode,
   FunctionCallPart,
+  FunctionResponsePart,
+  POSSIBLE_ROLES,
+  Part,
+  type FunctionDeclaration as GenerativeAIFunctionDeclaration,
+  type FunctionDeclarationsTool as GoogleGenerativeAIFunctionDeclarationsTool,
 } from "@google/generative-ai";
+import { isOpenAITool } from "@langchain/core/language_models/base";
 import {
   AIMessage,
   AIMessageChunk,
@@ -18,19 +21,28 @@ import {
   UsageMetadata,
   isBaseMessage,
 } from "@langchain/core/messages";
+import { ToolCallChunk } from "@langchain/core/messages/tool";
 import {
   ChatGeneration,
   ChatGenerationChunk,
   ChatResult,
 } from "@langchain/core/outputs";
 import { isLangChainTool } from "@langchain/core/utils/function_calling";
-import { isOpenAITool } from "@langchain/core/language_models/base";
-import { ToolCallChunk } from "@langchain/core/messages/tool";
+import * as z from "zod";
+import { GoogleGenerativeAIToolType } from "../types.js";
 import {
   jsonSchemaToGeminiParameters,
   zodToGenerativeAIParameters,
 } from "./zod_to_genai_parameters.js";
-import { GoogleGenerativeAIToolType } from "../types.js";
+
+interface ToolCall {
+  name: string;
+  args: object;
+}
+
+interface ImageUrl {
+  url: string;
+}
 
 export function getMessageAuthor(message: BaseMessage) {
   const type = message._getType();
@@ -76,16 +88,16 @@ function messageContentMedia(content: MessageContentComplex): Part {
   if ("mimeType" in content && "data" in content) {
     return {
       inlineData: {
-        mimeType: content.mimeType,
-        data: content.data,
+        mimeType: content.mimeType as string,
+        data: content.data as string,
       },
     };
   }
   if ("mimeType" in content && "fileUri" in content) {
     return {
       fileData: {
-        mimeType: content.mimeType,
-        fileUri: content.fileUri,
+        mimeType: content.mimeType as string,
+        fileUri: content.fileUri as string,
       },
     };
   }
@@ -110,12 +122,19 @@ export function convertMessageContentToParts(
     Array.isArray(message.tool_calls) &&
     message.tool_calls.length > 0
   ) {
-    functionCalls = message.tool_calls.map((tc) => ({
-      functionCall: {
-        name: tc.name,
-        args: tc.args,
-      },
-    }));
+    functionCalls = message.tool_calls
+      .map((tc: ToolCall) => {
+        if (typeof tc.name === "string") {
+          return {
+            functionCall: {
+              name: tc.name,
+              args: tc.args,
+            },
+          };
+        }
+        return null;
+      })
+      .filter(Boolean) as FunctionCallPart[];
   } else if (message.getType() === "tool" && message.name && message.content) {
     functionResponses = [
       {
@@ -129,15 +148,15 @@ export function convertMessageContentToParts(
     messageParts = message.content.map((c) => {
       if (c.type === "text") {
         return {
-          text: c.text,
+          text: c.text as string,
         };
       } else if (c.type === "executableCode") {
         return {
-          executableCode: c.executableCode,
+          executableCode: c.executableCode as ExecutableCode,
         };
       } else if (c.type === "codeExecutionResult") {
         return {
-          codeExecutionResult: c.codeExecutionResult,
+          codeExecutionResult: c.codeExecutionResult as CodeExecutionResult,
         };
       }
 
@@ -149,7 +168,7 @@ export function convertMessageContentToParts(
         if (typeof c.image_url === "string") {
           source = c.image_url;
         } else if (typeof c.image_url === "object" && "url" in c.image_url) {
-          source = c.image_url.url;
+          source = (c.image_url as ImageUrl).url;
         } else {
           throw new Error("Please provide image as base64 encoded data URL");
         }
@@ -174,8 +193,8 @@ export function convertMessageContentToParts(
       } else if (c.type === "tool_use") {
         return {
           functionCall: {
-            name: c.name,
-            args: c.input,
+            name: c.name as string,
+            args: c.input as object,
           },
         };
       } else if (
@@ -298,17 +317,17 @@ export function mapGenerateContentResultToChatResult(
       if ("text" in p) {
         return {
           type: "text",
-          text: p.text,
+          text: p.text as string,
         };
       } else if ("executableCode" in p) {
         return {
           type: "executableCode",
-          executableCode: p.executableCode,
+          executableCode: p.executableCode as ExecutableCode,
         };
       } else if ("codeExecutionResult" in p) {
         return {
           type: "codeExecutionResult",
-          codeExecutionResult: p.codeExecutionResult,
+          codeExecutionResult: p.codeExecutionResult as CodeExecutionResult,
         };
       }
       return p;
@@ -319,7 +338,7 @@ export function mapGenerateContentResultToChatResult(
   if (typeof content === "string") {
     text = content;
   } else if ("text" in content[0]) {
-    text = content[0].text;
+    text = content[0].text as string;
   }
 
   const generation: ChatGeneration = {
@@ -368,17 +387,17 @@ export function convertResponseContentToChatGenerationChunk(
       if ("text" in p) {
         return {
           type: "text",
-          text: p.text,
+          text: p.text as string,
         };
       } else if ("executableCode" in p) {
         return {
           type: "executableCode",
-          executableCode: p.executableCode,
+          executableCode: p.executableCode as ExecutableCode,
         };
       } else if ("codeExecutionResult" in p) {
         return {
           type: "codeExecutionResult",
-          codeExecutionResult: p.codeExecutionResult,
+          codeExecutionResult: p.codeExecutionResult as CodeExecutionResult,
         };
       }
       return p;
@@ -389,7 +408,7 @@ export function convertResponseContentToChatGenerationChunk(
   if (content && typeof content === "string") {
     text = content;
   } else if (content && typeof content === "object" && "text" in content[0]) {
-    text = content[0].text;
+    text = content[0].text as string;
   }
 
   const toolCallChunks: ToolCallChunk[] = [];
@@ -419,6 +438,10 @@ export function convertResponseContentToChatGenerationChunk(
   });
 }
 
+function isZodType(schema: unknown): schema is z.ZodType<any> {
+  return typeof schema === "object" && schema !== null && "_def" in schema;
+}
+
 export function convertToGenerativeAITools(
   tools: GoogleGenerativeAIToolType[]
 ): GoogleGenerativeAIFunctionDeclarationsTool[] {
@@ -435,7 +458,7 @@ export function convertToGenerativeAITools(
     {
       functionDeclarations: tools.map(
         (tool): GenerativeAIFunctionDeclaration => {
-          if (isLangChainTool(tool)) {
+          if (isLangChainTool(tool) && isZodType(tool.schema)) {
             const jsonSchema = zodToGenerativeAIParameters(tool.schema);
             return {
               name: tool.name,

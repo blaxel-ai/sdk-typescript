@@ -1,8 +1,12 @@
-import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
-import type { TaskType, EmbedContentRequest } from "@google/generative-ai";
-import { getEnvironmentVariable } from "@langchain/core/utils/env";
+import {
+  EmbedContentRequest,
+  GenerativeModel,
+  GoogleGenerativeAI,
+  TaskType,
+} from "@google/generative-ai";
 import { Embeddings, EmbeddingsParams } from "@langchain/core/embeddings";
 import { chunkArray } from "@langchain/core/utils/chunk_array";
+import { getEnvironmentVariable } from "@langchain/core/utils/env";
 
 /**
  * Interface that extends EmbeddingsParams and defines additional
@@ -104,9 +108,9 @@ export class GoogleGenerativeAIEmbeddings
 
     this.title = fields?.title ?? this.title;
 
-    if (this.title && this.taskType !== "RETRIEVAL_DOCUMENT") {
+    if (this.title && this.taskType !== TaskType.RETRIEVAL_DOCUMENT) {
       throw new Error(
-        "title can only be sepcified with TaskType.RETRIEVAL_DOCUMENT"
+        "title can only be specified with TaskType.RETRIEVAL_DOCUMENT"
       );
     }
 
@@ -160,7 +164,7 @@ export class GoogleGenerativeAIEmbeddings
       if (res.status === "fulfilled") {
         return res.value.embeddings.map((e) => e.values || []);
       } else {
-        return Array(batchEmbedChunks[idx].length).fill([]);
+        return Array(batchEmbedChunks[idx].length).fill([]) as number[][];
       }
     });
 
