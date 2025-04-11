@@ -23,11 +23,11 @@ class BLTools {
     this.toolNames = toolNames;
   }
 
-  async ToLangChain(): Promise<unknown[]> {
+  async ToLangChain() {
     return getLangchainTools(this.toolNames);
   }
 
-  async ToLlamaIndex(): Promise<unknown[]> {
+  async ToLlamaIndex() {
     return getLlamaIndexTools(this.toolNames);
   }
 

@@ -1,31 +1,35 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { tool } = require("llamaindex") as {
-  tool: (config: {
-    name: string;
-    description: string;
-    parameters: any;
-    execute: (args: any, options?: any) => Promise<any>;
-  }) => Tool;
-};
-import { Tool } from "ai";
+import type { FunctionTool, JSONValue } from "llamaindex" with { "resolution-mode": "import" };
+// @ts-expect-error - tool is not exported from llamaindex
+import { tool } from "llamaindex";
 import { getTool } from "./index.js";
 
-export const getLlamaIndexTool = async (name: string): Promise<unknown[]> => {
-  const blaxelTool = await getTool(name);
+// Define a type for JSON objects
+type JSONObject = { [key: string]: JSONValue };
 
-  return blaxelTool.map((t) => {
+// Use JSONObject for the input type
+export const getLlamaIndexTool = async (
+  name: string
+): Promise<FunctionTool<JSONObject, JSONValue | Promise<JSONValue>>[]> => {
+
+  const blaxelTool = await getTool(name);
+  const tools = blaxelTool.map((t) => {
     return tool({
       name: t.name,
       description: t.description,
       parameters: t.inputSchema,
-      execute: t.call.bind(t),
+      execute: async (input: JSONObject): Promise<JSONValue> => {
+        // Await the promise to ensure the return type is JSONValue
+        const result = await t.call(input);
+        return result as JSONValue;
+      },
     });
   });
+  return tools;
 };
 
 export const getLlamaIndexTools = async (
   names: string[]
-): Promise<unknown[]> => {
+): Promise<FunctionTool<JSONObject, JSONValue | Promise<JSONValue>>[]> => {
   const toolArrays = await Promise.all(names.map(getLlamaIndexTool));
   return toolArrays.flat();
 };

@@ -16,7 +16,7 @@ async function main() {
         }),
         execute: async (input) => {
           logger.debug("TOOLCALLING: local weather", input);
-          return `The weather in ${input.city} is sunny`;
+          return Promise.resolve(`The weather in ${input.city} is sunny`);
         },
       }),
     },

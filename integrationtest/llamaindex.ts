@@ -4,17 +4,19 @@ import { blModel, blTools, logger } from "../src/index.js";
 import { prompt } from "./prompt";
 
 async function main() {
+  let tools = await blTools(["blaxel-search"]).ToLlamaIndex();
+
   const stream = agent({
     llm: await blModel("gpt-4o-mini").ToLlamaIndex(),
     tools: [
-      ...(await blTools(["blaxel-search"]).ToLlamaIndex()),
+      ...tools,
       tool({
         name: "weather",
         description: "Get the weather in a specific city",
         parameters: z.object({
           city: z.string(),
         }),
-        execute: async (input) => {
+        execute: (input: { city: string }) => {
           logger.debug("TOOLCALLING: local weather", input);
           return `The weather in ${input.city} is sunny`;
         },

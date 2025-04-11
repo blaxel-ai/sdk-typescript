@@ -1,5 +1,5 @@
-import { createTool } from "@mastra/core/tools";
 import { Agent } from "@mastra/core/agent";
+import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import { blModel, blTools, logger } from "../src/index.js";
 import { prompt } from "./prompt";
@@ -20,9 +20,11 @@ async function main() {
         outputSchema: z.object({
           weather: z.string(),
         }),
-        execute: async ({ context }) => {
+        execute: async ({ context }: { context: { city: string } }) => {
           logger.debug("TOOLCALLING: local weather", context);
-          return `The weather in ${context.city} is sunny`;
+          return Promise.resolve({
+            weather: `The weather in ${context.city} is sunny`,
+          });
         },
       }),
     },

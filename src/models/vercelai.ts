@@ -9,7 +9,7 @@ import { getModelMetadata } from "./index";
 export const getVercelAIModel = async (
   model: string,
   options?: Record<string, unknown>
-): Promise<unknown> => {
+) => {
   const url = `${settings.runUrl}/${settings.workspace}/models/${model}`;
   const modelData = await getModelMetadata(model);
   if (!modelData) {

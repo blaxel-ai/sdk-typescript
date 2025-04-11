@@ -12,7 +12,7 @@ import { ChatXAI } from "./langchain/xai";
 export const getLangchainModel = async (
   model: string,
   options?: Record<string, unknown>
-): Promise<unknown> => {
+) => {
   const url = `${settings.runUrl}/${settings.workspace}/models/${model}`;
   const modelData = await getModelMetadata(model);
   if (!modelData) {
