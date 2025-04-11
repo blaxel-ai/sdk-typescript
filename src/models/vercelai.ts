@@ -1,9 +1,10 @@
 import { createAnthropic } from '@ai-sdk/anthropic';
+import { createCerebras } from '@ai-sdk/cerebras';
 import { createMistral } from '@ai-sdk/mistral';
 import { createOpenAI } from '@ai-sdk/openai';
+import { onLoad } from '../common/autoload';
 import settings from "../common/settings";
 import { getModelMetadata } from './index';
-import { onLoad } from '../common/autoload';
 
 export const getVercelAIModel = async (model: string, options?: any) => {
   const url = `${settings.runUrl}/${settings.workspace}/models/${model}`
@@ -26,6 +27,12 @@ export const getVercelAIModel = async (model: string, options?: any) => {
         apiKey: settings.token,
         baseURL: `${url}`,
         ...options
+      })(modelId);
+    case "cerebras":
+      return createCerebras({
+        apiKey: settings.token,
+        baseURL: `${url}/v1`,
+        ...options,
       })(modelId);
     default:
       return createOpenAI({

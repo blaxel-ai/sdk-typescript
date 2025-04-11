@@ -72,6 +72,16 @@ export const getLangchainModel = async (model: string, options?: any) : Promise<
         model: modelData?.spec?.runtime?.model,
         ...options
       });
+    case 'cerebras':
+      // We don't use ChatCerebras because there is a problem with apiKey headers
+      return new ChatOpenAI({
+        apiKey: settings.token,
+        model: modelData?.spec?.runtime?.model,
+        configuration: {
+          baseURL: `${url}/v1`,
+        },
+        ...options
+      })
     default: {
       return new ChatOpenAI({
         apiKey: settings.token,
