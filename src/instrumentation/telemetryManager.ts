@@ -55,7 +55,6 @@ class TelemetryManager {
   private initialized: boolean;
   private configured: boolean;
   private instrumentations: Instrumentation[];
-  private minimumBootTime: number;
   constructor() {
     this.nodeTracerProvider = null;
     this.meterProvider = null;
@@ -68,7 +67,6 @@ class TelemetryManager {
     this.initialized = false;
     this.configured = false;
     this.instrumentations = [];
-    this.minimumBootTime = 2000;
   }
 
   async initialize(options: TelemetryOptions) {
@@ -83,7 +81,7 @@ class TelemetryManager {
       return;
     }
     this.instrumentApp();
-    this.setupSignalHandler(new Date());
+    this.setupSignalHandler();
     this.initialized = true;
     console.debug(
       `Telemetry initialized in ${new Date().getTime() - start.getTime()}ms`
@@ -128,13 +126,13 @@ class TelemetryManager {
     return this.otelLogger;
   }
 
-  setupSignalHandler(start: Date) {
+  setupSignalHandler() {
     const signals = ["SIGINT", "SIGTERM", "uncaughtException"];
     for (const signal of signals) {
       process.on(signal, (error) => {
         logger.error(error.stack);
         console.debug(`${signal} received`);
-        this.shutdownApp(start).catch((error) => {
+        this.shutdownApp().catch((error) => {
           console.debug("Fatal error during shutdown:", error);
           process.exit(0);
         });
@@ -302,13 +300,13 @@ class TelemetryManager {
     }
   }
 
-  async shutdownApp(start: Date) {
+  async shutdownApp() {
     try {
-      const remainingTime =
-        this.minimumBootTime - (new Date().getTime() - start.getTime());
-      await new Promise((resolve) =>
-        setTimeout(resolve, remainingTime > 0 ? remainingTime : 0)
-      );
+      const maxSleepTime = 5000;
+      const startTime = Date.now();
+      while (!this.configured && Date.now() - startTime < maxSleepTime) {
+        await this.sleep(100);
+      }
 
       const shutdownPromises = [];
       if (this.nodeTracerProvider) {
