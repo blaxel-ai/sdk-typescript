@@ -1,20 +1,26 @@
-import { tool } from "ai";
+import { handleDynamicImportError } from "../common/errors.js";
 import { getTool } from "./index.js";
 
 export const getVercelAITool = async (
   name: string
 ): Promise<Record<string, unknown>> => {
-  const toolFormated: Record<string, unknown> = {};
-  const blaxelTool = await getTool(name);
+  try {
+    const { tool } = await import("ai");
+    const toolFormated: Record<string, unknown> = {};
+    const blaxelTool = await getTool(name);
 
-  for (const t of blaxelTool) {
-    toolFormated[t.name] = tool({
-      description: t.description,
-      parameters: t.inputSchema,
-      execute: t.call.bind(t),
-    });
+    for (const t of blaxelTool) {
+      toolFormated[t.name] = tool({
+        description: t.description,
+        parameters: t.inputSchema,
+        execute: t.call.bind(t),
+      });
+    }
+    return toolFormated;
+  } catch (err) {
+    handleDynamicImportError(err);
+    throw err;
   }
-  return toolFormated;
 };
 
 export const getVercelAITools = async (

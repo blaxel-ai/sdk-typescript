@@ -5,9 +5,9 @@ import { prompt } from "./prompt";
 
 async function main() {
   const tools = await blTools(["blaxel-search"]).ToLlamaIndex();
-
+  const llm = await blModel("gpt-4o-mini").ToLlamaIndex();
   const stream = agent({
-    llm: await blModel("gpt-4o-mini").ToLlamaIndex(),
+    llm,
     tools: [
       ...tools,
       tool({
@@ -16,7 +16,7 @@ async function main() {
         parameters: z.object({
           city: z.string(),
         }),
-        execute: (input: { city: string }) => {
+        execute: async (input) => {
           logger.debug("TOOLCALLING: local weather", input);
           return `The weather in ${input.city} is sunny`;
         },

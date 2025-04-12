@@ -1,17 +1,9 @@
 import { findFromCache } from "../cache/index.js";
 import { Function, getFunction } from "../client/index.js";
 import { env } from "../common/env.js";
-import { getLangchainTools } from "./langchain.js";
-import getLlamaIndexTools from "./llamaindex.js";
-import getMastraTools from "./mastra.js";
+import { handleDynamicImportError } from "../common/errors.js";
 import { getMcpTool } from "./mcpTool.js";
 import { Tool } from "./types.js";
-import { getVercelAITools } from "./vertcelai.js";
-
-export * from "./langchain.js";
-export * from "./llamaindex.js";
-export * from "./mastra.js";
-export * from "./vertcelai.js";
 
 export const getTool = async (name: string): Promise<Tool[]> => {
   return await getMcpTool(name);
@@ -24,19 +16,43 @@ class BLTools {
   }
 
   async ToLangChain() {
-    return getLangchainTools(this.toolNames);
+    try {
+      const { getLangchainTools } = await import("./langchain.js");
+      return getLangchainTools(this.toolNames);
+    } catch (err) {
+      handleDynamicImportError(err);
+      throw err;
+    }
   }
 
   async ToLlamaIndex() {
-    return getLlamaIndexTools(this.toolNames);
+    try {
+      const { getLlamaIndexTools } = await import("./llamaindex.js");
+      return getLlamaIndexTools(this.toolNames);
+    } catch (err) {
+      handleDynamicImportError(err);
+      throw err;
+    }
   }
 
   async ToVercelAI(): Promise<Record<string, unknown>> {
-    return getVercelAITools(this.toolNames);
+    try {
+      const { getVercelAITools } = await import("./vertcelai.js");
+      return getVercelAITools(this.toolNames);
+    } catch (err) {
+      handleDynamicImportError(err);
+      throw err;
+    }
   }
 
   async ToMastra(): Promise<Record<string, unknown>> {
-    return getMastraTools(this.toolNames);
+    try {
+      const { getMastraTools } = await import("./mastra.js");
+      return getMastraTools(this.toolNames);
+    } catch (err) {
+      handleDynamicImportError(err);
+      throw err;
+    }
   }
 }
 

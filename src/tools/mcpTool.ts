@@ -138,6 +138,7 @@ class McpTool {
         name: tool.name,
         description: tool.description,
         inputSchema: schemaToZodSchema(tool.inputSchema),
+        originalSchema: tool.inputSchema,
         call: (input: Record<string, unknown> | undefined) => {
           return this.call(tool.name, input);
         },

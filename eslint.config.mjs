@@ -37,6 +37,12 @@ export default tseslint.config(
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
       "no-console": ["warn", { allow: ["warn", "error"] }],
+      "@typescript-eslint/ban-ts-comment": [
+        "error",
+        {
+          "ts-ignore": "allow-with-description"
+        }
+      ]
     },
   }
 );

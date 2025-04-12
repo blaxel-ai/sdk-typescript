@@ -1,11 +1,11 @@
-import { langchain } from "./langchain.js";
+import { handleDynamicImportError } from "../common/errors.js";
 
 export type InstrumentationInfo = {
   modulePath: string;
   className: string;
   requiredPackages: string[]; // At least one package is required
   ignoreIfPackages?: string[];
-  init?: (instrumentor: any) => void;
+  init?: (instrumentor: any) => Promise<void>;
 };
 
 export const instrumentationMap: Record<string, InstrumentationInfo> = {
@@ -54,7 +54,15 @@ export const instrumentationMap: Record<string, InstrumentationInfo> = {
       "@langchain/community",
       "@langchain/langgraph",
     ],
-    init: langchain,
+    init: async (instrumentor: any) => {
+      try {
+        const { langchain } = await import("./langchain.js");
+        await langchain(instrumentor);
+      } catch (err) {
+        handleDynamicImportError(err);
+        throw err;
+      }
+    },
   },
   llamaindex: {
     modulePath: "@traceloop/instrumentation-llamaindex",

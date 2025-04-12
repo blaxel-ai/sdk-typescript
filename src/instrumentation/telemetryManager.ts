@@ -69,7 +69,7 @@ class TelemetryManager {
     this.instrumentations = [];
   }
 
-  initialize(options: TelemetryOptions) {
+  async initialize(options: TelemetryOptions) {
     const start = new Date();
     this.workspace = options.workspace;
     this.name = options.name;
@@ -80,7 +80,7 @@ class TelemetryManager {
     if (!this.enabled || this.initialized) {
       return;
     }
-    this.instrumentApp();
+    await this.instrumentApp();
     this.setupSignalHandler();
     this.initialized = true;
     console.debug(
@@ -186,13 +186,13 @@ class TelemetryManager {
     });
   }
 
-  instrumentApp() {
+  async instrumentApp() {
     const pinoInstrumentation = new PinoInstrumentation();
     const httpInstrumentation = new HttpInstrumentation({
       requireParentforOutgoingSpans: true,
     });
 
-    this.instrumentations = this.loadInstrumentation();
+    this.instrumentations = await this.loadInstrumentation();
     this.instrumentations.push(httpInstrumentation);
     this.instrumentations.push(pinoInstrumentation);
     registerInstrumentations({
@@ -237,7 +237,7 @@ class TelemetryManager {
     metrics.setGlobalMeterProvider(this.meterProvider);
   }
 
-  shouldInstrument(name: string, info: InstrumentationInfo): boolean {
+  shouldInstrument(info: InstrumentationInfo): boolean {
     if (
       info.ignoreIfPackages &&
       info.ignoreIfPackages.some((pkg) => this.isPackageInstalled(pkg))
@@ -250,10 +250,10 @@ class TelemetryManager {
     return false;
   }
 
-  loadInstrumentation(): Instrumentation[] {
+  async loadInstrumentation(): Promise<Instrumentation[]> {
     const instrumentations: Instrumentation[] = [];
     for (const [name, info] of Object.entries(instrumentationMap)) {
-      if (this.shouldInstrument(name, info)) {
+      if (this.shouldInstrument(info)) {
         console.debug(`Instrumenting ${name}`);
         const start = new Date();
         const module = this.importInstrumentationClass(
@@ -267,7 +267,7 @@ class TelemetryManager {
             instrumentor.enable();
             instrumentations.push(instrumentor);
             if (info.init) {
-              info.init(instrumentor);
+              await info.init(instrumentor);
             }
           } catch (error: unknown) {
             if (error instanceof Error) {
