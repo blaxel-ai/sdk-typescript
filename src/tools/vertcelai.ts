@@ -1,5 +1,5 @@
 import { tool } from "ai";
-import { getLlamaIndexTools, getTool } from "./index.js";
+import { getTool } from "./index.js";
 
 export const getVercelAITool = async (
   name: string
@@ -30,4 +30,4 @@ export const getVercelAITools = async (
   return toolFormated;
 };
 
-export default getLlamaIndexTools;
+export default getVercelAITools;
