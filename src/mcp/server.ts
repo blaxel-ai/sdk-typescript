@@ -2,9 +2,9 @@ import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { Span } from "@opentelemetry/api";
 import { v4 as uuidv4 } from "uuid";
 import WebSocket, { WebSocketServer } from "ws";
+import { env } from "../common/env.js";
 import { logger } from "../common/logger";
 import { SpanManager } from "../instrumentation/span";
-
 const spans = new Map<string, Span>();
 
 interface JSONRPCMessage {
@@ -42,7 +42,7 @@ export class BlaxelMcpServerTransport implements Transport {
   }
 
   constructor(port?: number) {
-    this.port = port ?? parseInt(process.env.BL_SERVER_PORT ?? "8080", 10);
+    this.port = port ?? parseInt(env.BL_SERVER_PORT ?? "8080", 10);
     this.wss = new WebSocketServer({ port: this.port });
   }
 

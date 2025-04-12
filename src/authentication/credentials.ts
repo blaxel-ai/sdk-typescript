@@ -1,17 +1,17 @@
-export class Credentials {
-  async authenticate() {
+import { env } from "../common/env.js";
 
-  }
+export class Credentials {
+  async authenticate() {}
 
   get workspace() {
-    return process.env.BL_WORKSPACE || '';
+    return env.BL_WORKSPACE || "";
   }
 
   get authorization() {
-    return ''
+    return "";
   }
 
   get token() {
-    return ''
+    return "";
   }
 }

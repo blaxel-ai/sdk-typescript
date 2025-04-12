@@ -1,8 +1,8 @@
-
 import pino from "pino";
+import { env } from "../common/env.js";
 
 const loggerConfiguration = {
-  level: process.env.BL_LOG_LEVEL || "info",
+  level: env.BL_LOG_LEVEL || "info",
   transport: {
     target: "pino-pretty",
     options: {

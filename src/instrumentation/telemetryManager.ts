@@ -29,6 +29,7 @@ import {
   BatchSpanProcessor,
   NodeTracerProvider,
 } from "@opentelemetry/sdk-trace-node";
+import { env } from "../common/env.js";
 import { logger } from "../common/logger.js";
 import {
   InstrumentationInfo,
@@ -74,7 +75,7 @@ class TelemetryManager {
     this.workspace = options.workspace;
     this.name = options.name;
     this.type = options.type + "s";
-    if (process.env.BL_DEBUG_TELEMETRY === "true") {
+    if (env.BL_DEBUG_TELEMETRY === "true") {
       diag.setLogger(new DiagConsoleLogger(), { logLevel: DiagLogLevel.DEBUG });
     }
     if (!this.enabled || this.initialized) {
@@ -100,7 +101,7 @@ class TelemetryManager {
   }
 
   get enabled() {
-    return process.env.BL_ENABLE_OPENTELEMETRY === "true";
+    return env.BL_ENABLE_OPENTELEMETRY === "true";
   }
 
   get authHeaders() {

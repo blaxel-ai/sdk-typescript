@@ -286,8 +286,9 @@ We need an HTTP Server
 For example with expressjs we will have this configuration
 
 ```ts
-const port = parseInt(process.env.BL_SERVER_PORT || "3000");
-const host = process.env.BL_SERVER_HOST || "0.0.0.0";
+import { env } from "@blaxel/sdk";
+const port = parseInt(env.BL_SERVER_PORT || "3000");
+const host = env.BL_SERVER_HOST || "0.0.0.0";
 
 app.listen(port, host, () => {
   logger.info(`Server is running on port ${host}:${port}`);
@@ -346,7 +347,7 @@ We follow current standard for tool development over MCP Server.
 Example of a tool which is sending fake information about the weather:
 
 ```ts
-import { BlaxelMcpServerTransport, logger } from "@blaxel/sdk";
+import { env, BlaxelMcpServerTransport, logger } from "@blaxel/sdk";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -373,7 +374,7 @@ server.tool(
 
 function main() {
   let transport;
-  if (process.env.BL_SERVER_PORT) {
+  if (env.BL_SERVER_PORT) {
     transport = new BlaxelMcpServerTransport();
   } else {
     transport = new StdioServerTransport();
@@ -404,7 +405,7 @@ import "@blaxel/sdk";
 Load blaxel transport
 
 ```ts
-import { BlaxelMcpServerTransport } from "@blaxel/sdk";
+import { env, BlaxelMcpServerTransport } from "@blaxel/sdk";
 ```
 
 Update your entrypoint to support our transport instead of StdioServerTransport
@@ -413,7 +414,7 @@ Update your entrypoint to support our transport instead of StdioServerTransport
 // You can easily keep your MCP working locally with a simple if on our prod variable
 function main() {
   let transport;
-  if (process.env.BL_SERVER_PORT) {
+  if (env.BL_SERVER_PORT) {
     transport = new BlaxelMcpServerTransport();
   } else {
     transport = new StdioServerTransport();

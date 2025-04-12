@@ -2,6 +2,7 @@ import fs from "fs";
 import os from "os";
 import { join } from "path";
 import yaml from "yaml";
+import { env } from "../common/env.js";
 import { ApiKey } from "./apikey.js";
 import { ClientCredentials } from "./clientcredentials.js";
 import { Credentials } from "./credentials.js";
@@ -9,16 +10,16 @@ import { DeviceMode } from "./deviceMode.js";
 import { CredentialsType } from "./types.js";
 
 function getCredentials(): CredentialsType | null {
-  if (process.env.BL_API_KEY) {
+  if (env.BL_API_KEY) {
     return {
-      apiKey: process.env.BL_API_KEY,
-      workspace: process.env.BL_WORKSPACE,
+      apiKey: env.BL_API_KEY,
+      workspace: env.BL_WORKSPACE,
     };
   }
-  if (process.env.BL_CLIENT_CREDENTIALS) {
+  if (env.BL_CLIENT_CREDENTIALS) {
     return {
-      clientCredentials: process.env.BL_CLIENT_CREDENTIALS,
-      workspace: process.env.BL_WORKSPACE,
+      clientCredentials: env.BL_CLIENT_CREDENTIALS,
+      workspace: env.BL_WORKSPACE,
     };
   }
   try {
@@ -39,8 +40,7 @@ function getCredentials(): CredentialsType | null {
     };
 
     const configJson = yaml.parse(config) as AuthConfig;
-    const workspaceName =
-      process.env.BL_WORKSPACE || configJson.context.workspace;
+    const workspaceName = env.BL_WORKSPACE || configJson.context.workspace;
     const credentials = configJson.workspaces.find(
       (wk: AuthWorkspace) => wk.name === workspaceName
     )?.credentials;

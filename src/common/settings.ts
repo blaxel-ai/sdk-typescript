@@ -1,5 +1,6 @@
 import { Credentials } from "../authentication/credentials.js";
 import authentication from "../authentication/index.js";
+import { env } from "../common/env.js";
 class Settings {
   credentials: Credentials;
 
@@ -8,7 +9,7 @@ class Settings {
   }
 
   get env() {
-    return process.env.BL_ENV || "prod";
+    return env.BL_ENV || "prod";
   }
 
   get baseUrl() {
@@ -45,15 +46,15 @@ class Settings {
   }
 
   get name() {
-    return process.env.BL_NAME || "";
+    return env.BL_NAME || "";
   }
 
   get type() {
-    return process.env.BL_TYPE || "agents";
+    return env.BL_TYPE || "agents";
   }
 
   get runInternalHostname() {
-    return process.env.BL_RUN_INTERNAL_HOSTNAME || "internal.run.beamlit.net";
+    return env.BL_RUN_INTERNAL_HOSTNAME || "internal.run.beamlit.net";
   }
 
   async authenticate() {

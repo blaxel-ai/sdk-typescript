@@ -1,9 +1,9 @@
 import { findFromCache } from "../cache/index.js";
 import { Agent, getAgent } from "../client/index.js";
+import { env } from "../common/env.js";
 import { logger } from "../common/logger.js";
 import settings from "../common/settings.js";
 import { SpanManager } from "../instrumentation/span.js";
-
 class BlAgent {
   agentName: string;
   constructor(agentName: string) {
@@ -25,9 +25,9 @@ class BlAgent {
 
   get url() {
     const envVar = this.agentName.replace(/-/g, "_").toUpperCase();
-    if (process.env[`BL_AGENT_${envVar}_SERVICE_NAME`]) {
+    if (env[`BL_AGENT_${envVar}_SERVICE_NAME`]) {
       return new URL(
-        `https://${process.env[`BL_AGENT_${envVar}_SERVICE_NAME`]}.${
+        `https://${env[`BL_AGENT_${envVar}_SERVICE_NAME`]}.${
           settings.runInternalHostname
         }`
       );
