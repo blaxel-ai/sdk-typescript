@@ -4,7 +4,7 @@ import { blModel, blTools, logger } from "../src/index.js";
 import { prompt } from "./prompt";
 
 async function main() {
-  let tools = await blTools(["blaxel-search"]).ToLlamaIndex();
+  const tools = await blTools(["blaxel-search"]).ToLlamaIndex();
 
   const stream = agent({
     llm: await blModel("gpt-4o-mini").ToLlamaIndex(),
