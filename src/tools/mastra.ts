@@ -1,4 +1,4 @@
-import { getVercelAITools } from "./index.js";
+import { getVercelAITools } from "./vertcelai.js";
 
 export const getMastraTools = async (
   names: string[]

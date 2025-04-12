@@ -1,37 +1,27 @@
-import type { FunctionTool, JSONValue } from "llamaindex" with { "resolution-mode": "import" };
-
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore - tool is not exported from llamaindex
+// @ts-ignore - Required for build time due to missing types in 'llamaindex'
 import { tool } from "llamaindex";
+import { handleDynamicImportError } from "../common/errors.js";
 import { getTool } from "./index.js";
 
-// Define a type for JSON objects
-type JSONObject = { [key: string]: JSONValue };
-
-// Use JSONObject for the input type
-export const getLlamaIndexTool = async (
-  name: string
-): Promise<FunctionTool<JSONObject, JSONValue | Promise<JSONValue>>[]> => {
-
-  const blaxelTool = await getTool(name);
-  const tools = blaxelTool.map((t) => {
-    return tool({
-      name: t.name,
-      description: t.description,
-      parameters: t.inputSchema,
-      execute: async (input: JSONObject): Promise<JSONValue> => {
-        // Await the promise to ensure the return type is JSONValue
-        const result = await t.call(input);
-        return result as JSONValue;
-      },
+export const getLlamaIndexTool = async (name: string) => {
+  try {
+    const blaxelTool = await getTool(name);
+    const tools = blaxelTool.map((t) => {
+      // @ts-ignore - Required for build time due to missing types in 'llamaindex'
+      return tool(t.call.bind(t), {
+        name: t.name,
+        description: t.description,
+        parameters: t.inputSchema,
+      });
     });
-  });
-  return tools;
+    return tools;
+  } catch (err) {
+    handleDynamicImportError(err);
+    throw err;
+  }
 };
 
-export const getLlamaIndexTools = async (
-  names: string[]
-): Promise<FunctionTool<JSONObject, JSONValue | Promise<JSONValue>>[]> => {
+export const getLlamaIndexTools = async (names: string[]) => {
   const toolArrays = await Promise.all(names.map(getLlamaIndexTool));
   return toolArrays.flat();
 };

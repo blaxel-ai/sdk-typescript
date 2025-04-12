@@ -1,4 +1,4 @@
-import { AIMessageChunk, HumanMessage } from "@langchain/core/messages";
+import { HumanMessage } from "@langchain/core/messages";
 import { tool } from "@langchain/core/tools";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { z } from "zod";
@@ -19,27 +19,14 @@ async function main() {
       }),
     }
   );
-
-  const stream = await createReactAgent({
+  const response = await createReactAgent({
     llm: await blModel("gpt-4o-mini").ToLangChain(),
     prompt: prompt,
     tools: [...(await blTools(["blaxel-search"]).ToLangChain()), weatherTool],
-  }).stream(
-    {
-      messages: [new HumanMessage(process.argv[2])],
-    },
-    {
-      streamMode: "messages",
-    }
-  );
-  for await (const chunk of stream) {
-    for (const message of chunk) {
-      if (message instanceof AIMessageChunk) {
-        process.stdout.write(message.content as string);
-      }
-    }
-  }
-  process.stdout.write("\n\n");
+  }).invoke({
+    messages: [new HumanMessage(process.argv[2])],
+  });
+  console.log(response.messages[response.messages.length - 1].content);
 }
 
 main()

@@ -1,15 +1,7 @@
 import { findFromCache } from "../cache/index.js";
 import { getModel } from "../client/sdk.gen.js";
 import { Model } from "../client/types.gen.js";
-import { getLangchainModel } from "./langchain.js";
-import { getLlamaIndexModel } from "./llamaindex.js";
-import { getMastraModel } from "./mastra.js";
-import { getVercelAIModel } from "./vercelai.js";
-
-export * from "./langchain.js";
-export * from "./llamaindex.js";
-export * from "./mastra.js";
-export * from "./vercelai.js";
+import { handleDynamicImportError } from "../common/errors.js";
 
 class BLModel {
   modelName: string;
@@ -21,19 +13,43 @@ class BLModel {
   }
 
   async ToLangChain() {
-    return getLangchainModel(this.modelName, this.options);
+    try {
+      const { getLangchainModel } = await import("./langchain.js");
+      return getLangchainModel(this.modelName, this.options);
+    } catch (err) {
+      handleDynamicImportError(err);
+      throw err;
+    }
   }
 
   async ToLlamaIndex() {
-    return getLlamaIndexModel(this.modelName, this.options);
+    try {
+      const { getLlamaIndexModel } = await import("./llamaindex.js");
+      return getLlamaIndexModel(this.modelName, this.options);
+    } catch (err) {
+      handleDynamicImportError(err);
+      throw err;
+    }
   }
 
   async ToVercelAI() {
-    return getVercelAIModel(this.modelName, this.options);
+    try {
+      const { getVercelAIModel } = await import("./vercelai.js");
+      return getVercelAIModel(this.modelName, this.options);
+    } catch (err) {
+      handleDynamicImportError(err);
+      throw err;
+    }
   }
 
   async ToMastra() {
-    return getMastraModel(this.modelName, this.options);
+    try {
+      const { getMastraModel } = await import("./mastra.js");
+      return getMastraModel(this.modelName, this.options);
+    } catch (err) {
+      handleDynamicImportError(err);
+      throw err;
+    }
   }
 }
 

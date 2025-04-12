@@ -11,7 +11,7 @@ async function autoload() {
     // @ts-expect-error - Interceptor is not typed
     client.interceptors.request.use(interceptor);
   }
-  telemetryManager.initialize(settings);
+  await telemetryManager.initialize(settings);
   await settings.authenticate();
   await telemetryManager.setConfiguration(settings);
 }
