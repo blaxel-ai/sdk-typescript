@@ -1,5 +1,7 @@
 import type { FunctionTool, JSONValue } from "llamaindex" with { "resolution-mode": "import" };
-// @ts-expect-error - tool is not exported from llamaindex
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - tool is not exported from llamaindex
 import { tool } from "llamaindex";
 import { getTool } from "./index.js";
 

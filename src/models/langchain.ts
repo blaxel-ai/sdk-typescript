@@ -1,18 +1,19 @@
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatCohere } from "@langchain/cohere";
+import { LanguageModelLike } from "@langchain/core/language_models/base";
 import { ChatDeepSeek } from "@langchain/deepseek";
 import { ChatOpenAI } from "@langchain/openai";
 import { CohereClient } from "cohere-ai";
 import { onLoad } from "../common/autoload";
 import settings from "../common/settings";
 import { getModelMetadata } from "./index";
-import { ChatGoogleGenerativeAI } from "./langchain/google-genai/chat_models";
+import { ChatGoogleGenerativeAI } from "./langchain/google-genai";
 import { ChatXAI } from "./langchain/xai";
 
 export const getLangchainModel = async (
   model: string,
   options?: Record<string, unknown>
-) => {
+): Promise<LanguageModelLike> => {
   const url = `${settings.runUrl}/${settings.workspace}/models/${model}`;
   const modelData = await getModelMetadata(model);
   if (!modelData) {
