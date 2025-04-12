@@ -7,7 +7,10 @@ import { onLoad } from "../common/autoload";
 import settings from "../common/settings";
 import { getModelMetadata } from "./index";
 
-export const getMastraModel = async (model: string, options?: any) => {
+export const getMastraModel = async (
+  model: string,
+  options?: Record<string, unknown>
+) => {
   const url = `${settings.runUrl}/${settings.workspace}/models/${model}`;
   const modelData = await getModelMetadata(model);
   if (!modelData) {

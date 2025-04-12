@@ -36,7 +36,7 @@ export class ChatXAI extends ChatOpenAI {
    * @param fields - Configuration fields, including the API key.
    * @throws If the API key is not provided.
    */
-  constructor(fields: any) {
+  constructor(fields: Record<string, unknown>) {
     const apiKey = fields?.apiKey || getEnvironmentVariable("XAI_API_KEY");
     if (!apiKey) {
       throw new Error(
@@ -80,8 +80,8 @@ export class ChatXAI extends ChatOpenAI {
    * @param options - Additional options for parameter retrieval.
    * @returns An object containing LangChain parameters.
    */
-  getLsParams(options: any) {
-    const params = super.getLsParams(options);
+  getLsParams(options: unknown) {
+    const params = super.getLsParams(options as this["ParsedCallOptions"]);
     params.ls_provider = "xai";
     return params;
   }

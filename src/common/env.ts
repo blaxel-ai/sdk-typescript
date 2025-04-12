@@ -1,51 +1,51 @@
-import fs from 'fs';
-import toml from 'toml';
+import fs from "fs";
+import toml from "toml";
 
-const secretEnv: any = {};
-const configEnv: any = {};
+const secretEnv: Record<string, string> = {};
+const configEnv: Record<string, string> = {};
 
 try {
-  const configFile = fs.readFileSync('blaxel.toml', 'utf8');
-  const configInfos = toml.parse(configFile);
+  const configFile = fs.readFileSync("blaxel.toml", "utf8");
+  type ConfigInfos = {
+    env: {
+      [key: string]: string;
+    };
+  };
+  const configInfos = toml.parse(configFile) as ConfigInfos;
   for (const key in configInfos.env) {
-    if (key == 'dev') {
-      continue
-    }
     configEnv[key] = configInfos.env[key];
   }
-  for (const key in configInfos.env.dev) {
-    configEnv[key] = configInfos.env.dev[key];
-  }
-/* eslint-disable */
-} catch (error) {
-}
+  /* eslint-disable */
+} catch (error) {}
 
 try {
-  const secretFile = fs.readFileSync('.env', 'utf8');
-  secretFile.split('\n').forEach((line) => {
-    if(line.startsWith('#')) {
+  const secretFile = fs.readFileSync(".env", "utf8");
+  secretFile.split("\n").forEach((line) => {
+    if (line.startsWith("#")) {
       return;
     }
-    const [key, value] = line.split('=');
+    const [key, value] = line.split("=");
     secretEnv[key] = value;
   });
-} catch (error) {
-}
+} catch (error) {}
 
 type EnvVariables = {
   [key: string]: string | undefined;
 };
 
-const env = new Proxy<EnvVariables>({}, {
-  get: (target, prop: string) => {
-    if (secretEnv[prop]) {
-      return secretEnv[prop];
-    }
-    if (configEnv[prop]) {
-      return configEnv[prop];
-    }
-    return process.env[prop];
+const env = new Proxy<EnvVariables>(
+  {},
+  {
+    get: (target, prop: string) => {
+      if (secretEnv[prop]) {
+        return secretEnv[prop];
+      }
+      if (configEnv[prop]) {
+        return configEnv[prop];
+      }
+      return process.env[prop];
+    },
   }
-});
+);
 
 export { env };

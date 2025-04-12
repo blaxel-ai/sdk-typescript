@@ -1,42 +1,44 @@
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatCohere } from "@langchain/cohere";
+import { LanguageModelLike } from "@langchain/core/language_models/base";
 import { ChatDeepSeek } from "@langchain/deepseek";
 import { ChatOpenAI } from "@langchain/openai";
 import { CohereClient } from "cohere-ai";
 import { onLoad } from "../common/autoload";
 import settings from "../common/settings";
-import { getModelMetadata } from './index';
-import {
-  ChatGoogleGenerativeAI,
-} from "./langchain/google-genai/chat_models";
+import { getModelMetadata } from "./index";
+import { ChatGoogleGenerativeAI } from "./langchain/google-genai";
 import { ChatXAI } from "./langchain/xai";
 
-export const getLangchainModel = async (model: string, options?: any) : Promise<any> => {
-  const url = `${settings.runUrl}/${settings.workspace}/models/${model}`
-  const modelData = await getModelMetadata(model)
-  if(!modelData) {
-    throw new Error(`Model ${model} not found`)
+export const getLangchainModel = async (
+  model: string,
+  options?: Record<string, unknown>
+): Promise<LanguageModelLike> => {
+  const url = `${settings.runUrl}/${settings.workspace}/models/${model}`;
+  const modelData = await getModelMetadata(model);
+  if (!modelData) {
+    throw new Error(`Model ${model} not found`);
   }
-  await onLoad()
-  const type = modelData?.spec?.runtime?.type || 'openai'
-  switch(type) {
-    case 'gemini':
+  await onLoad();
+  const type = modelData?.spec?.runtime?.type || "openai";
+  switch (type) {
+    case "gemini":
       return new ChatGoogleGenerativeAI({
         apiKey: settings.token,
         model: modelData?.spec?.runtime?.model,
         baseUrl: url,
-        ...options
+        ...options,
       });
-    case 'mistral':
+    case "mistral":
       return new ChatOpenAI({
         apiKey: settings.token,
         model: modelData?.spec?.runtime?.model,
         configuration: {
           baseURL: `${url}/v1`,
         },
-        ...options
+        ...options,
       });
-    case 'cohere':
+    case "cohere":
       return new ChatCohere({
         apiKey: settings.token,
         model: modelData?.spec?.runtime?.model,
@@ -45,34 +47,34 @@ export const getLangchainModel = async (model: string, options?: any) : Promise<
           environment: url,
         }),
       });
-    case 'deepseek':
+    case "deepseek":
       return new ChatDeepSeek({
         apiKey: settings.token,
         model: modelData?.spec?.runtime?.model,
         configuration: {
           baseURL: `${url}/v1`,
         },
-        ...options
+        ...options,
       });
-    case 'anthropic':
+    case "anthropic":
       return new ChatAnthropic({
         anthropicApiUrl: url,
         model: modelData?.spec?.runtime?.model,
         clientOptions: {
           defaultHeaders: settings.headers,
         },
-        ...options
+        ...options,
       });
-    case 'xai':
+    case "xai":
       return new ChatXAI({
         apiKey: settings.token,
         configuration: {
           baseURL: `${url}/v1`,
         },
         model: modelData?.spec?.runtime?.model,
-        ...options
+        ...options,
       });
-    case 'cerebras':
+    case "cerebras":
       // We don't use ChatCerebras because there is a problem with apiKey headers
       return new ChatOpenAI({
         apiKey: settings.token,
@@ -80,8 +82,8 @@ export const getLangchainModel = async (model: string, options?: any) : Promise<
         configuration: {
           baseURL: `${url}/v1`,
         },
-        ...options
-      })
+        ...options,
+      });
     default: {
       return new ChatOpenAI({
         apiKey: settings.token,
@@ -89,8 +91,8 @@ export const getLangchainModel = async (model: string, options?: any) : Promise<
         configuration: {
           baseURL: `${url}/v1`,
         },
-        ...options
+        ...options,
       });
     }
   }
-}
+};

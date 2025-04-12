@@ -4,7 +4,7 @@ class Settings {
   credentials: Credentials;
 
   constructor() {
-    this.credentials = authentication()
+    this.credentials = authentication();
   }
 
   get env() {
@@ -25,23 +25,23 @@ class Settings {
     return "https://run.blaxel.dev";
   }
 
-  get workspace() : string {
-    return this.credentials.workspace || '';
+  get workspace(): string {
+    return this.credentials.workspace || "";
   }
 
-  get authorization() {
+  get authorization(): string {
     return this.credentials.authorization;
   }
 
-  get token() {
+  get token(): string {
     return this.credentials.token;
   }
 
-  get headers() : Record<string, string> {
+  get headers(): Record<string, string> {
     return {
       "x-blaxel-authorization": this.authorization,
       "x-blaxel-workspace": this.workspace || "",
-    }
+    };
   }
 
   get name() {

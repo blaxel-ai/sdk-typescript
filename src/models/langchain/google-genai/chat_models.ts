@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import {
   GenerateContentRequest,
   GoogleGenerativeAI as GenerativeAI,
@@ -137,7 +140,7 @@ export interface GoogleGenerativeAIChatInput
    * Top-k changes how the model selects tokens for output.
    *
    * A top-k of 1 means the selected token is the most probable among
-   * all tokens in the model’s vocabulary (also called greedy decoding),
+   * all tokens in the model's vocabulary (also called greedy decoding),
    * while a top-k of 3 means that the next token is selected from
    * among the 3 most probable tokens (using temperature).
    *
@@ -1016,7 +1019,7 @@ export class ChatGoogleGenerativeAI
               name: functionName,
               description:
                 jsonSchema.description ?? "A function available to call.",
-              parameters: jsonSchema as GenerativeAIFunctionDeclarationSchema,
+              parameters: jsonSchema,
             },
           ],
         },
@@ -1066,10 +1069,12 @@ export class ChatGoogleGenerativeAI
     }
 
     const parserAssign = RunnablePassthrough.assign({
-      parsed: (input: any, config) => outputParser.invoke(input.raw, config),
+      parsed: (input: { raw: BaseMessage }, config) =>
+        outputParser.invoke(input.raw, config),
     });
     const parserNone = RunnablePassthrough.assign({
-      parsed: () => null,
+      raw: (input: { raw: BaseMessage }) => input.raw,
+      parsed: () => ({} as RunOutput),
     });
     const parsedWithFallback = parserAssign.withFallbacks({
       fallbacks: [parserNone],

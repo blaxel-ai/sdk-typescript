@@ -69,7 +69,7 @@ class TelemetryManager {
     this.instrumentations = [];
   }
 
-  async initialize(options: TelemetryOptions) {
+  initialize(options: TelemetryOptions) {
     const start = new Date();
     this.workspace = options.workspace;
     this.name = options.name;
@@ -129,7 +129,7 @@ class TelemetryManager {
   setupSignalHandler() {
     const signals = ["SIGINT", "SIGTERM", "uncaughtException"];
     for (const signal of signals) {
-      process.on(signal, (error) => {
+      process.on(signal, (error: Error) => {
         logger.error(error.stack);
         console.debug(`${signal} received`);
         this.shutdownApp().catch((error) => {
@@ -162,7 +162,7 @@ class TelemetryManager {
   /**
    * Initialize and return the OTLP Metric Exporter.
    */
-  async getMetricExporter() {
+  getMetricExporter() {
     return new OTLPMetricExporter({
       headers: this.authHeaders,
     });
@@ -171,7 +171,7 @@ class TelemetryManager {
   /**
    * Initialize and return the OTLP Trace Exporter.
    */
-  async getTraceExporter() {
+  getTraceExporter() {
     return new OTLPTraceExporter({
       headers: this.authHeaders,
     });
@@ -180,13 +180,13 @@ class TelemetryManager {
   /**
    * Initialize and return the OTLP Log Exporter.
    */
-  async getLogExporter() {
+  getLogExporter() {
     return new OTLPLogExporter({
       headers: this.authHeaders,
     });
   }
 
-  async instrumentApp() {
+  instrumentApp() {
     const pinoInstrumentation = new PinoInstrumentation();
     const httpInstrumentation = new HttpInstrumentation({
       requireParentforOutgoingSpans: true,
@@ -202,7 +202,7 @@ class TelemetryManager {
 
   async setExporters() {
     const resource = new Resource(await this.getResourceAttributes());
-    const logExporter = await this.getLogExporter();
+    const logExporter = this.getLogExporter();
     this.loggerProvider = new LoggerProvider({
       resource,
     });
@@ -210,7 +210,7 @@ class TelemetryManager {
       new BatchLogRecordProcessor(logExporter)
     );
     logs.setGlobalLoggerProvider(this.loggerProvider);
-    const traceExporter = await this.getTraceExporter();
+    const traceExporter = this.getTraceExporter();
     this.nodeTracerProvider = new NodeTracerProvider({
       resource,
       sampler: new AlwaysOnSampler(),
@@ -224,7 +224,7 @@ class TelemetryManager {
       ],
     });
     this.nodeTracerProvider.register();
-    const metricExporter = await this.getMetricExporter();
+    const metricExporter = this.getMetricExporter();
     this.meterProvider = new MeterProvider({
       resource,
       readers: [
@@ -262,14 +262,19 @@ class TelemetryManager {
         );
         if (module) {
           try {
+            // @ts-expect-error - Instrumentation class is not typed
             const instrumentor = new module() as Instrumentation;
             instrumentor.enable();
             instrumentations.push(instrumentor);
             if (info.init) {
               info.init(instrumentor);
             }
-          } catch (error) {
-            console.debug(`Failed to instrument ${name}: ${error}`);
+          } catch (error: unknown) {
+            if (error instanceof Error) {
+              console.debug(`Failed to instrument ${name}: ${error.stack}`);
+            } else {
+              console.debug(`Failed to instrument ${name}: ${String(error)}`);
+            }
           }
         }
         console.debug(
@@ -289,13 +294,15 @@ class TelemetryManager {
     }
   }
 
-  importInstrumentationClass(modulePath: string, className: string): any {
+  importInstrumentationClass(modulePath: string, className: string): unknown {
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const module = require(modulePath);
+      const module = require(modulePath) as { [key: string]: any };
       return module[className];
     } catch (e) {
-      console.debug(`Could not import ${className} from ${modulePath}: ${e}`);
+      console.debug(
+        `Could not import ${className} from ${modulePath}: ${String(e)}`
+      );
       return null;
     }
   }

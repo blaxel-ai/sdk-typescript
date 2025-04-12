@@ -3,19 +3,19 @@ import { getModel } from "../client/sdk.gen.js";
 import { Model } from "../client/types.gen.js";
 import { getLangchainModel } from "./langchain.js";
 import { getLlamaIndexModel } from "./llamaindex.js";
-import { getVercelAIModel } from "./vercelai.js";
 import { getMastraModel } from "./mastra.js";
+import { getVercelAIModel } from "./vercelai.js";
 
 export * from "./langchain.js";
 export * from "./llamaindex.js";
-export * from "./vercelai.js";
 export * from "./mastra.js";
+export * from "./vercelai.js";
 
 class BLModel {
   modelName: string;
-  options?: any;
+  options?: Record<string, unknown>;
 
-  constructor(modelName: string, options?: any) {
+  constructor(modelName: string, options?: Record<string, unknown>) {
     this.modelName = modelName;
     this.options = options || {};
   }
@@ -37,12 +37,15 @@ class BLModel {
   }
 }
 
-export const blModel = (modelName: string, options?: any) => {
+export const blModel = (
+  modelName: string,
+  options?: Record<string, unknown>
+) => {
   return new BLModel(modelName, options);
 };
 
 export const getModelMetadata = async (
-  model: string,
+  model: string
 ): Promise<Model | null> => {
   const cacheData = await findFromCache("Model", model);
   if (cacheData) {

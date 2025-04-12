@@ -31,11 +31,11 @@ class BLTools {
     return getLlamaIndexTools(this.toolNames);
   }
 
-  async ToVercelAI() {
+  async ToVercelAI(): Promise<Record<string, unknown>> {
     return getVercelAITools(this.toolNames);
   }
 
-  async ToMastra() {
+  async ToMastra(): Promise<Record<string, unknown>> {
     return getMastraTools(this.toolNames);
   }
 }
@@ -49,7 +49,7 @@ export const blTool = (name: string) => {
 };
 
 export const getToolMetadata = async (
-  tool: string,
+  tool: string
 ): Promise<Function | null> => {
   const envVar = tool.replace(/-/g, "_").toUpperCase();
   if (env[`BL_FUNCTION_${envVar}_URL`]) {
