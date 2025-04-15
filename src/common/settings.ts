@@ -54,7 +54,11 @@ class Settings {
   }
 
   get runInternalHostname() {
-    return env.BL_RUN_INTERNAL_HOSTNAME || "internal.run.beamlit.net";
+    return env.BL_RUN_INTERNAL_HOSTNAME || "";
+  }
+
+  get runInternalProtocol() {
+    return env.BL_RUN_INTERNAL_PROTOCOL || "https";
   }
 
   async authenticate() {

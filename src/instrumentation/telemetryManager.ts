@@ -70,7 +70,8 @@ class TelemetryManager {
     this.instrumentations = [];
   }
 
-  async initialize(options: TelemetryOptions) {
+  // This method need to stay sync to avoid non booted instrumentations
+  initialize(options: TelemetryOptions) {
     const start = new Date();
     this.workspace = options.workspace;
     this.name = options.name;
@@ -81,7 +82,7 @@ class TelemetryManager {
     if (!this.enabled || this.initialized) {
       return;
     }
-    await this.instrumentApp();
+    this.instrumentApp();
     this.setupSignalHandler();
     this.initialized = true;
     console.debug(
@@ -187,13 +188,13 @@ class TelemetryManager {
     });
   }
 
-  async instrumentApp() {
+  instrumentApp() {
     const pinoInstrumentation = new PinoInstrumentation();
     const httpInstrumentation = new HttpInstrumentation({
       requireParentforOutgoingSpans: true,
     });
 
-    this.instrumentations = await this.loadInstrumentation();
+    this.instrumentations = this.loadInstrumentation();
     this.instrumentations.push(httpInstrumentation);
     this.instrumentations.push(pinoInstrumentation);
     registerInstrumentations({
@@ -251,7 +252,7 @@ class TelemetryManager {
     return false;
   }
 
-  async loadInstrumentation(): Promise<Instrumentation[]> {
+  loadInstrumentation(): Instrumentation[] {
     const instrumentations: Instrumentation[] = [];
     for (const [name, info] of Object.entries(instrumentationMap)) {
       if (this.shouldInstrument(info)) {
@@ -268,7 +269,7 @@ class TelemetryManager {
             instrumentor.enable();
             instrumentations.push(instrumentor);
             if (info.init) {
-              await info.init(instrumentor);
+              info.init(instrumentor);
             }
           } catch (error: unknown) {
             if (error instanceof Error) {
@@ -288,7 +289,11 @@ class TelemetryManager {
 
   isPackageInstalled(packageName: string): boolean {
     try {
-      require.resolve(packageName, { paths: [process.cwd()] });
+      let cwd = process.cwd();
+      if (process.env.BL_CLOUD === "true") {
+        cwd = "/blaxel/";
+      }
+      require.resolve(packageName, { paths: [cwd] });
       return true;
     } catch {
       return false;

@@ -111,6 +111,10 @@ export class BlaxelMcpClientTransport implements Transport {
     });
   }
 
+  get isConnected() {
+    return this._socket?.readyState === WebSocket.OPEN;
+  }
+
   async close(): Promise<void> {
     this._socket?.close();
     this._socket = undefined;

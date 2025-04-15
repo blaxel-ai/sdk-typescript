@@ -29,6 +29,7 @@ export class SpanManager {
 
   createActiveSpan(
     name: string,
+    type: string,
     attributes: Record<string, string>,
     fn: (span: Span) => Promise<unknown>
   ): Promise<unknown> {
@@ -36,6 +37,7 @@ export class SpanManager {
     attributes["workload.id"] = settings.name;
     attributes["workload.type"] = settings.type + "s";
     attributes["workspace"] = settings.workspace;
+    attributes["span.type"] = type;
     const span = this.tracer.startActiveSpan(
       name,
       { attributes },
@@ -56,6 +58,7 @@ export class SpanManager {
 
   createSpan(
     name: string,
+    type: string,
     attributes: Record<string, any>,
     parent?: Span
   ): Span {
@@ -66,6 +69,7 @@ export class SpanManager {
         "workload.id": settings.name,
         "workload.type": settings.type + "s",
         workspace: settings.workspace,
+        "span.type": type,
       },
       ...(parent ? { parent } : {}),
     });

@@ -1,6 +1,7 @@
 import { findFromCache } from "../cache/index.js";
 import { Agent, getAgent } from "../client/index.js";
 import { env } from "../common/env.js";
+import { getGlobalUniqueHash } from "../common/internal.js";
 import { logger } from "../common/logger.js";
 import settings from "../common/settings.js";
 import { SpanManager } from "../instrumentation/span.js";
@@ -10,12 +11,6 @@ class BlAgent {
     this.agentName = agentName;
   }
 
-  get externalUrl() {
-    return new URL(
-      `${settings.runUrl}/${settings.workspace}/agents/${this.agentName}`
-    );
-  }
-
   get fallbackUrl() {
     if (this.externalUrl != this.url) {
       return this.externalUrl;
@@ -23,15 +18,34 @@ class BlAgent {
     return null;
   }
 
-  get url() {
+  get externalUrl() {
+    return new URL(
+      `${settings.runUrl}/${settings.workspace}/agents/${this.agentName}`
+    );
+  }
+
+  get internalUrl() {
+    const hash = getGlobalUniqueHash(
+      settings.workspace,
+      "agent",
+      this.agentName
+    );
+    return new URL(
+      `${settings.runInternalProtocol}://${hash}}.${settings.runInternalHostname}`
+    );
+  }
+
+  get forcedUrl() {
     const envVar = this.agentName.replace(/-/g, "_").toUpperCase();
-    if (env[`BL_AGENT_${envVar}_SERVICE_NAME`]) {
-      return new URL(
-        `https://${env[`BL_AGENT_${envVar}_SERVICE_NAME`]}.${
-          settings.runInternalHostname
-        }`
-      );
+    if (env[`BL_AGENT_${envVar}_URL`]) {
+      return new URL(env[`BL_AGENT_${envVar}_URL`] as string);
     }
+    return null;
+  }
+
+  get url() {
+    if (this.forcedUrl) return this.forcedUrl;
+    if (settings.runInternalHostname) return this.internalUrl;
     return this.externalUrl;
   }
 
@@ -61,25 +75,44 @@ class BlAgent {
     const spanManager = new SpanManager("blaxel-tracer");
     const result = await spanManager.createActiveSpan(
       this.agentName,
+      "agent.run",
       {
         "agent.name": this.agentName,
         "agent.args": JSON.stringify(input),
       },
-      async () => {
+      async (span) => {
         try {
           const response = await this.call(this.url, input);
+          span.setAttribute("agent.run.result", await response.text());
           return await response.text();
         } catch (err: unknown) {
           if (err instanceof Error) {
             logger.error(err.stack);
           } else {
-            logger.error("An unknown error occurred");
+            span.setAttribute("agent.run.error", "An unknown error occurred");
           }
           if (!this.fallbackUrl) {
+            if (err instanceof Error) {
+              span.setAttribute("agent.run.error", err.stack as string);
+            } else {
+              span.setAttribute("agent.run.error", "An unknown error occurred");
+            }
             throw err;
           }
-          const response = await this.call(this.fallbackUrl, input);
-          return await response.text();
+          try {
+            const response = await this.call(this.fallbackUrl, input);
+            span.setAttribute("agent.run.result", await response.text());
+            return await response.text();
+          } catch (err: unknown) {
+            if (err instanceof Error) {
+              span.setAttribute("agent.run.error", err.stack as string);
+            } else {
+              span.setAttribute("agent.run.error", "An unknown error occurred");
+            }
+            throw err;
+          }
+        } finally {
+          span.end();
         }
       }
     );
