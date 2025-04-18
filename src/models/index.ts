@@ -3,7 +3,7 @@ import { getModel } from "../client/sdk.gen.js";
 import { Model } from "../client/types.gen.js";
 import { handleDynamicImportError } from "../common/errors.js";
 
-class BLModel {
+export class BLModel {
   modelName: string;
   options?: Record<string, unknown>;
 

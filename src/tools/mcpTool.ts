@@ -10,8 +10,7 @@ import { Tool } from "./types.js";
 import { schemaToZodSchema } from "./zodSchema.js";
 
 const McpToolCache = new Map<string, McpTool>();
-
-class McpTool {
+export class McpTool {
   private name: string;
   private client: ModelContextProtocolClient;
   private timer?: NodeJS.Timeout;

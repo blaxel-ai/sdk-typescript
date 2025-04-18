@@ -55,9 +55,9 @@
 	],
 	"scripts": {
 		"build": "npm run build:esm && npm run build:cjs",
-		"build:watch": "tsc -p tsconfig.cjs.json --watch",
-		"build:esm": "tsc -p tsconfig.prod.json && echo '{\"type\": \"module\"}' > dist/esm/package.json",
-		"build:cjs": "tsc -p tsconfig.cjs.json && echo '{\"type\": \"commonjs\"}' > dist/cjs/package.json",
+		"build:watch": "tsc -p tsconfig.prod.json --watch",
+		"build:esm": "tsc -p tsconfig.prod.json",
+		"build:cjs": "tsc -p tsconfig.cjs.json",
 		"prepack": "npm run build:esm && npm run build:cjs",
 		"lint": "eslint src/",
 		"test": "jest",
