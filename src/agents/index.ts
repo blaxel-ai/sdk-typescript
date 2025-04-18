@@ -111,8 +111,6 @@ class BlAgent {
             }
             throw err;
           }
-        } finally {
-          span.end();
         }
       }
     );

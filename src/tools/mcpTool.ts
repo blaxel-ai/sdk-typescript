@@ -135,7 +135,6 @@ class McpTool {
           };
         });
         span.setAttribute("tool.list.result", JSON.stringify(result));
-        span.end();
         return result;
       }
     );
@@ -169,7 +168,6 @@ class McpTool {
           result
         );
         span.setAttribute("tool.call.result", JSON.stringify(result));
-        span.end();
         return result;
       }
     );

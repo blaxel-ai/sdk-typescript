@@ -28,6 +28,7 @@ import {
   AlwaysOnSampler,
   BatchSpanProcessor,
   NodeTracerProvider,
+  ReadableSpan,
 } from "@opentelemetry/sdk-trace-node";
 import { env } from "../common/env.js";
 import { logger } from "../common/logger.js";
@@ -43,6 +44,13 @@ export type TelemetryOptions = {
   authorization: string | null;
   type: string | null;
 };
+
+class HasBeenProcessedSpanProcessor extends BatchSpanProcessor {
+  onEnd(span: ReadableSpan) {
+    super.onEnd(span);
+    console.log("onEnd", span.name);
+  }
+}
 
 class TelemetryManager {
   private nodeTracerProvider: NodeTracerProvider | null;
@@ -223,6 +231,7 @@ class TelemetryManager {
           workspace: this.workspace || "",
         }),
         new BatchSpanProcessor(traceExporter),
+        new HasBeenProcessedSpanProcessor(traceExporter),
       ],
     });
     this.nodeTracerProvider.register();
