@@ -1,6 +1,40 @@
+/* eslint-disable no-console */
 import { Logger, SeverityNumber } from "@opentelemetry/api-logs";
 import localLogger from "../instrumentation/localLogger.js";
 import { telemetryManager } from "../instrumentation/telemetryManager.js";
+
+const originalLogger = {
+  info: console.info,
+  error: console.error,
+  warn: console.warn,
+  debug: console.debug,
+  log: console.log,
+};
+
+console.log = (...args: unknown[]) => {
+  originalLogger.log(...args);
+  logger.emit(SeverityNumber.INFO, ...args);
+};
+
+console.info = (...args: unknown[]) => {
+  originalLogger.info(...args);
+  logger.emit(SeverityNumber.INFO, ...args);
+};
+
+console.error = (...args: unknown[]) => {
+  originalLogger.error(...args);
+  logger.emit(SeverityNumber.ERROR, ...args);
+};
+
+console.warn = (...args: unknown[]) => {
+  originalLogger.warn(...args);
+  logger.emit(SeverityNumber.WARN, ...args);
+};
+
+console.debug = (...args: unknown[]) => {
+  originalLogger.debug(...args);
+  logger.emit(SeverityNumber.DEBUG, ...args);
+};
 
 export const logger = {
   async getLogger(): Promise<Logger> {
@@ -9,65 +43,49 @@ export const logger = {
 
   asyncEmit: async (
     severityNumber: SeverityNumber,
-    msg: unknown,
     ...args: unknown[]
   ) => {
     const loggerInstance = await logger.getLogger();
-    if (typeof msg !== "string") {
-      msg = JSON.stringify(msg);
-    }
     const safeArgs = args.map((arg) =>
       typeof arg === "string" ? arg : JSON.stringify(arg)
     );
     loggerInstance.emit({
       severityNumber: severityNumber,
-      body: msg as string,
+      body: safeArgs.join(" "),
       attributes: { args: safeArgs },
     });
   },
-  emit: (severityNumber: SeverityNumber, msg: unknown, ...args: unknown[]) => {
-    logger.asyncEmit(severityNumber, msg, ...args).catch((err) => {
+  emit: (severityNumber: SeverityNumber, ...args: unknown[]) => {
+    logger.asyncEmit(severityNumber, ...args).catch((err) => {
       console.error(err);
     });
   },
-  info: (msg: unknown, ...args: unknown[]) => {
-    if (typeof msg !== "string") {
-      msg = JSON.stringify(msg);
-    }
+  info: (...args: unknown[]) => {
     const safeArgs = args.map((arg) =>
       typeof arg === "string" ? arg : JSON.stringify(arg)
     );
+    const msg = safeArgs.join(" ");
     localLogger.info(msg, ...safeArgs);
-    logger.emit(SeverityNumber.INFO, msg, ...safeArgs);
   },
-  error: (msg: unknown, ...args: unknown[]) => {
-    if (typeof msg !== "string") {
-      msg = JSON.stringify(msg);
-    }
+  error: (...args: unknown[]) => {
     const safeArgs = args.map((arg) =>
       typeof arg === "string" ? arg : JSON.stringify(arg)
     );
+    const msg = safeArgs.join(" ");
     localLogger.error(msg, ...safeArgs);
-    logger.emit(SeverityNumber.ERROR, msg, ...safeArgs);
   },
-  warn: (msg: unknown, ...args: unknown[]) => {
-    if (typeof msg !== "string") {
-      msg = JSON.stringify(msg);
-    }
+  warn: (...args: unknown[]) => {
     const safeArgs = args.map((arg) =>
       typeof arg === "string" ? arg : JSON.stringify(arg)
     );
+    const msg = safeArgs.join(" ");
     localLogger.warn(msg, ...safeArgs);
-    logger.emit(SeverityNumber.WARN, msg, ...safeArgs);
   },
-  debug: (msg: unknown, ...args: unknown[]) => {
-    if (typeof msg !== "string") {
-      msg = JSON.stringify(msg);
-    }
+  debug: (...args: unknown[]) => {
     const safeArgs = args.map((arg) =>
       typeof arg === "string" ? arg : JSON.stringify(arg)
     );
+    const msg = safeArgs.join(" ");
     localLogger.debug(msg, ...safeArgs);
-    logger.emit(SeverityNumber.DEBUG, msg, ...safeArgs);
   },
 };
