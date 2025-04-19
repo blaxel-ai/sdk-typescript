@@ -9,7 +9,7 @@ export const getTool = async (name: string): Promise<Tool[]> => {
   return await getMcpTool(name);
 };
 
-class BLTools {
+export class BLTools {
   toolNames: string[];
   constructor(toolNames: string[]) {
     this.toolNames = toolNames;

@@ -10,7 +10,7 @@ import { BlaxelMcpClientTransport } from "../mcp/client.js";
 import { Tool } from "./types.js";
 import { schemaToZodSchema } from "./zodSchema.js";
 
-class McpTool {
+export class McpTool {
   private name: string;
   private client: ModelContextProtocolClient;
   private transport?: BlaxelMcpClientTransport;
