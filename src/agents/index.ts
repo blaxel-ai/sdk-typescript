@@ -75,10 +75,10 @@ class BlAgent {
     const spanManager = new SpanManager("blaxel-tracer");
     const result = await spanManager.createActiveSpan(
       this.agentName,
-      "agent.run",
       {
         "agent.name": this.agentName,
         "agent.args": JSON.stringify(input),
+        "span.type": "agent.run",
       },
       async (span) => {
         try {

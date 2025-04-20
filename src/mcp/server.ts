@@ -56,8 +56,9 @@ export class BlaxelMcpServerTransport implements Transport {
       this.onconnection?.(clientId);
 
       ws.on("message", (data: Buffer) => {
-        const msgSpan = this.spanManager.createSpan("message", "mcp.message", {
+        const msgSpan = this.spanManager.createSpan("message", {
           "mcp.client.id": clientId,
+          "span.type": "mcp.message",
         });
         try {
           const msg = JSON.parse(data.toString()) as JSONRPCMessage;

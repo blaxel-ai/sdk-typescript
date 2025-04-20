@@ -110,8 +110,9 @@ export class McpTool {
   async listTools(): Promise<Tool[]> {
     const result = this.spanManager.createActiveSpan(
       this.name,
-      "tool.list",
-      {},
+      {
+        "span.type": "tool.list",
+      },
       async (span) => {
         logger.debug(`MCP:${this.name}:Listing tools`);
         await this.start();
@@ -144,8 +145,8 @@ export class McpTool {
   async call(toolName: string, args: Record<string, unknown> | undefined) {
     const result = this.spanManager.createActiveSpan(
       this.name + "." + toolName,
-      "tool.call",
       {
+        "span.type": "tool.call",
         "tool.name": toolName,
         "tool.args": JSON.stringify(args),
       },
