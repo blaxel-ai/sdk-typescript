@@ -87,30 +87,22 @@ class BlAgent {
           return await response.text();
         } catch (err: unknown) {
           if (err instanceof Error) {
-            logger.error(err.stack);
-          } else {
-            span.setAttribute("agent.run.error", "An unknown error occurred");
-          }
-          if (!this.fallbackUrl) {
-            if (err instanceof Error) {
+            if (!this.fallbackUrl) {
               span.setAttribute("agent.run.error", err.stack as string);
-            } else {
-              span.setAttribute("agent.run.error", "An unknown error occurred");
+              throw err;
             }
-            throw err;
-          }
-          try {
-            const response = await this.call(this.fallbackUrl, input);
-            span.setAttribute("agent.run.result", await response.text());
-            return await response.text();
-          } catch (err: unknown) {
-            if (err instanceof Error) {
-              span.setAttribute("agent.run.error", err.stack as string);
-            } else {
-              span.setAttribute("agent.run.error", "An unknown error occurred");
+            try {
+              const response = await this.call(this.fallbackUrl, input);
+              span.setAttribute("agent.run.result", await response.text());
+              return await response.text();
+            } catch (err: unknown) {
+              if (err instanceof Error) {
+                span.setAttribute("agent.run.error", err.stack as string);
+              }
+              throw err;
             }
-            throw err;
           }
+          throw err;
         }
       }
     );
