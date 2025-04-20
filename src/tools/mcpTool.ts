@@ -10,13 +10,23 @@ import { BlaxelMcpClientTransport } from "../mcp/client.js";
 import { Tool } from "./types.js";
 import { schemaToZodSchema } from "./zodSchema.js";
 
+const McpToolCache = new Map<string, McpTool>();
 export class McpTool {
   private name: string;
   private client: ModelContextProtocolClient;
   private transport?: BlaxelMcpClientTransport;
 
-  constructor(name: string) {
+  private timer?: NodeJS.Timeout;
+  private ms: number;
+  private startPromise?: Promise<void> | null;
+
+  constructor(name: string, ms: number = 5000) {
     this.name = name;
+    if (env.BL_CLOUD) {
+      this.ms = 0;
+    } else {
+      this.ms = ms;
+    }
     this.client = new ModelContextProtocolClient(
       {
         name: this.name,
@@ -74,37 +84,60 @@ export class McpTool {
 
   async start() {
     logger.debug(`MCP:${this.name}:start`);
-    await onLoad();
-    try {
-      logger.debug(`MCP:${this.name}:Connecting`);
-      this.transport = new BlaxelMcpClientTransport(
-        this.url.toString(),
-        settings.headers
-      );
-      await this.client.connect(this.transport);
-      logger.debug(`MCP:${this.name}:Connected`);
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        logger.error(err.stack);
-      } else {
-        logger.error("An unknown error occurred");
+    this.stopCloseTimer();
+    logger.debug(`MCP:${this.name}:startPromise`, this.startPromise);
+    this.startPromise = this.startPromise || (async () => {
+      logger.debug(`MCP:${this.name}:startPromise:onLoad`);
+      await onLoad();
+      try {
+        logger.debug(`MCP:${this.name}:Connecting`);
+        this.transport = new BlaxelMcpClientTransport(
+          this.url.toString(),
+          settings.headers
+        );
+        await this.client.connect(this.transport);
+        logger.debug(`MCP:${this.name}:Connected`);
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          logger.error(err.stack);
+        } else {
+          logger.error("An unknown error occurred");
+        }
+        if (!this.fallbackUrl) {
+          throw err;
+        }
+        logger.debug(`MCP:${this.name}:Connecting to fallback`);
+        this.transport = new BlaxelMcpClientTransport(
+          this.fallbackUrl.toString(),
+          settings.headers
+        );
+        await this.client.connect(this.transport);
+        logger.debug(`MCP:${this.name}:Connected to fallback`);
       }
-      if (!this.fallbackUrl) {
-        throw err;
-      }
-      logger.debug(`MCP:${this.name}:Connecting to fallback`);
-      this.transport = new BlaxelMcpClientTransport(
-        this.fallbackUrl.toString(),
-        settings.headers
-      );
-      await this.client.connect(this.transport);
-      logger.debug(`MCP:${this.name}:Connected to fallback`);
-    }
+    })();
+    return await this.startPromise;
   }
 
-  async close() {
-    logger.debug(`MCP:${this.name}:Close`);
-    await this.client.close();
+  close() {
+    logger.debug(`MCP:${this.name}:Close in ${this.ms}ms`);
+    if (!this.ms) return this.client.close().catch((err) => {
+      logger.error(err);
+    });
+    this.timer = setTimeout(() => {
+      logger.debug(`MCP:${this.name}:CloseTimer`);
+      delete this.startPromise;
+      this.client.close().catch((err) => {
+        logger.error(err);
+      });
+    }, this.ms);
+  }
+
+  stopCloseTimer() {
+    logger.debug(`MCP:${this.name}:StopCloseTimer`);
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = undefined;
+    }
   }
 
   async listTools(): Promise<Tool[]> {
@@ -123,6 +156,7 @@ export class McpTool {
             inputSchema: FunctionSchema;
           }>;
         };
+        logger.debug(`MCP:${this.name}:Listed tools result`, tools);
         await this.close();
         const result = tools.map((tool) => {
           return {
@@ -151,25 +185,35 @@ export class McpTool {
         "tool.args": JSON.stringify(args),
       },
       async (span) => {
-        logger.debug(
-          `MCP:${this.name}:Tool calling`,
-          toolName,
-          JSON.stringify(args)
-        );
-        await this.start();
-        const result = await this.client.callTool({
-          name: toolName,
-          arguments: args,
-        });
-        await this.close();
-        logger.debug(
-          `MCP:${this.name}:Tool result`,
-          toolName,
-          JSON.stringify(args),
-          result
-        );
-        span.setAttribute("tool.call.result", JSON.stringify(result));
-        return result;
+        try {
+          logger.debug(
+            `MCP:${this.name}:Tool calling`,
+            toolName,
+            JSON.stringify(args)
+          );
+          logger.debug(`MCP:${this.name}:Tool calling:start`);
+          await this.start();
+          logger.debug(`MCP:${this.name}:Tool calling:start2`);
+          const result = await this.client.callTool({
+            name: toolName,
+            arguments: args,
+          });
+          logger.debug(`MCP:${this.name}:Tool calling:result`);
+          await this.close();
+          logger.debug(
+            `MCP:${this.name}:Tool result`,
+            toolName,
+            JSON.stringify(args),
+            // result
+          );
+          span.setAttribute("tool.call.result", JSON.stringify(result));
+          return result;
+        } catch (err: unknown) {
+          if (err instanceof Error) {
+            logger.error(err.stack);
+          }
+          throw err;
+        }
       }
     );
     return result;
@@ -177,6 +221,11 @@ export class McpTool {
 }
 
 export const getMcpTool = async (name: string): Promise<Tool[]> => {
-  const tool = new McpTool(name);
+  let tool = McpToolCache.get(name);
+  if (!tool) {
+    logger.debug(`MCP:${name}:Creating new tool`);
+    tool = new McpTool(name);
+    McpToolCache.set(name, tool);
+  }
   return await tool.listTools();
 };

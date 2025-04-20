@@ -55,7 +55,7 @@
 	],
 	"scripts": {
 		"build": "npm run build:esm && npm run build:cjs",
-		"build:watch": "tsc -p tsconfig.prod.json --watch",
+		"build:watch": "tsc -p tsconfig.cjs.json --watch",
 		"build:esm": "tsc -p tsconfig.prod.json",
 		"build:cjs": "tsc -p tsconfig.cjs.json",
 		"prepack": "npm run build:esm && npm run build:cjs",
