@@ -66,6 +66,7 @@ export const logger = {
     );
     const msg = safeArgs.join(" ");
     localLogger.info(msg, ...safeArgs);
+    logger.emit(SeverityNumber.INFO, ...args);
   },
   error: (...args: unknown[]) => {
     const safeArgs = args.map((arg) =>
@@ -73,6 +74,7 @@ export const logger = {
     );
     const msg = safeArgs.join(" ");
     localLogger.error(msg, ...safeArgs);
+    logger.emit(SeverityNumber.ERROR, ...args);
   },
   warn: (...args: unknown[]) => {
     const safeArgs = args.map((arg) =>
@@ -80,6 +82,7 @@ export const logger = {
     );
     const msg = safeArgs.join(" ");
     localLogger.warn(msg, ...safeArgs);
+    logger.emit(SeverityNumber.WARN, ...args);
   },
   debug: (...args: unknown[]) => {
     const safeArgs = args.map((arg) =>
@@ -87,5 +90,6 @@ export const logger = {
     );
     const msg = safeArgs.join(" ");
     localLogger.debug(msg, ...safeArgs);
+    logger.emit(SeverityNumber.DEBUG, ...args);
   },
 };
