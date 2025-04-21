@@ -3,3 +3,4 @@ dist/
 instrumentation.sh
 .DS_Store
 telemetry.sh
+.env
