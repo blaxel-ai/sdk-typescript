@@ -48,7 +48,6 @@ export type TelemetryOptions = {
 class HasBeenProcessedSpanProcessor extends BatchSpanProcessor {
   onEnd(span: ReadableSpan) {
     super.onEnd(span);
-    console.log("onEnd", span.name);
   }
 }
 

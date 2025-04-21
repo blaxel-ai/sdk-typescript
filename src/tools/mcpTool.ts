@@ -97,11 +97,9 @@ export class McpTool {
         );
         await this.client.connect(this.transport);
         logger.debug(`MCP:${this.name}:Connected`);
-      } catch (err: unknown) {
+      } catch (err) {
         if (err instanceof Error) {
           logger.error(err.stack);
-        } else {
-          logger.error("An unknown error occurred");
         }
         if (!this.fallbackUrl) {
           throw err;
@@ -118,16 +116,19 @@ export class McpTool {
     return await this.startPromise;
   }
 
-  close() {
+  async close() {
     logger.debug(`MCP:${this.name}:Close in ${this.ms}ms`);
-    if (!this.ms) return this.client.close().catch((err) => {
-      logger.error(err);
-    });
+    if (!this.ms) {
+      delete this.startPromise;
+      return this.client.close();
+    }
     this.timer = setTimeout(() => {
       logger.debug(`MCP:${this.name}:CloseTimer`);
       delete this.startPromise;
       this.client.close().catch((err) => {
-        logger.error(err);
+        if (err instanceof Error) {
+          logger.error(err.stack);
+        }
       });
     }, this.ms);
   }
