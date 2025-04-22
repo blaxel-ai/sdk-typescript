@@ -68,6 +68,10 @@ export const logger = {
     localLogger.info(msg, ...safeArgs);
   },
   error: (...args: unknown[]) => {
+    if(args[0] instanceof Error){
+      const error = args[0];
+      args[0] = error.stack;
+    }
     const safeArgs = args.map((arg) =>
       typeof arg === "string" ? arg : JSON.stringify(arg)
     );
