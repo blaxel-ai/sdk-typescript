@@ -2,7 +2,7 @@ import pino from "pino";
 import { env } from "../common/env.js";
 
 const loggerConfiguration = {
-  level: env.BL_LOG_LEVEL || "info",
+  level: env.LOG_LEVEL || "info",
   transport: {
     target: "pino-pretty",
     options: {
