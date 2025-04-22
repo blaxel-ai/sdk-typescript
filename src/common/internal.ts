@@ -1,6 +1,6 @@
 import crypto from "crypto";
 
-function getAlphanumericLimitedHash(input: string, maxSize: number): string {
+export function getAlphanumericLimitedHash(input: string, maxSize: number): string {
   const hash = crypto.createHash("sha256").update(input).digest("base64");
   const alphanumeric = hash.replace(/[^a-z0-9]+/g, "");
   return alphanumeric.length > maxSize
