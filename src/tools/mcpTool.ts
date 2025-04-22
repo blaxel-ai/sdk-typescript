@@ -60,7 +60,7 @@ export class McpTool {
   get internalUrl() {
     const hash = getGlobalUniqueHash(settings.workspace, "function", this.name);
     return new URL(
-      `${settings.runInternalProtocol}://${hash}.${settings.runInternalHostname}`
+      `${settings.runInternalProtocol}://bl-${settings.env}-${hash}.${settings.runInternalHostname}`
     );
   }
 

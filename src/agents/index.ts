@@ -31,7 +31,7 @@ class BlAgent {
       this.agentName
     );
     return new URL(
-      `${settings.runInternalProtocol}://${hash}}.${settings.runInternalHostname}`
+      `${settings.runInternalProtocol}://bl-${settings.env}-${hash}.${settings.runInternalHostname}`
     );
   }
 
