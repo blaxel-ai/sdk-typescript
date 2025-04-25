@@ -1,6 +1,9 @@
 /* eslint-disable no-console */
 import {
-  metrics
+  diag,
+  DiagConsoleLogger,
+  DiagLogLevel,
+  metrics,
 } from "@opentelemetry/api";
 import { Logger, logs } from "@opentelemetry/api-logs";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
@@ -72,10 +75,9 @@ class TelemetryManager {
     this.workspace = options.workspace;
     this.name = options.name;
     this.type = options.type + "s";
-    // THIS VARIABLE SHOULD NEVER BE USED, IT CREATE A LOOP OVER THE LOGGER
-    // if (env.BL_DEBUG_TELEMETRY === "true") {
-    //   diag.setLogger(new DiagConsoleLogger(), { logLevel: DiagLogLevel.DEBUG });
-    // }
+    if (env.BL_DEBUG_TELEMETRY === "true") {
+      diag.setLogger(new DiagConsoleLogger(), { logLevel: DiagLogLevel.DEBUG });
+    }
     if (!this.enabled || this.initialized) {
       return;
     }

@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
 import { Logger, SeverityNumber } from "@opentelemetry/api-logs";
+import { env } from "process";
 import localLogger from "../instrumentation/localLogger.js";
 import { telemetryManager } from "../instrumentation/telemetryManager.js";
 
@@ -13,26 +14,31 @@ const originalLogger = {
 
 console.log = (...args: unknown[]) => {
   originalLogger.log(...args);
+  if (env.BL_DEBUG_TELEMETRY === "true") return
   logger.emit(SeverityNumber.INFO, ...args);
 };
 
 console.info = (...args: unknown[]) => {
   originalLogger.info(...args);
+  if (env.BL_DEBUG_TELEMETRY === "true") return
   logger.emit(SeverityNumber.INFO, ...args);
 };
 
 console.error = (...args: unknown[]) => {
   originalLogger.error(...args);
+  if (env.BL_DEBUG_TELEMETRY === "true") return
   logger.emit(SeverityNumber.ERROR, ...args);
 };
 
 console.warn = (...args: unknown[]) => {
   originalLogger.warn(...args);
+  if (env.BL_DEBUG_TELEMETRY === "true") return
   logger.emit(SeverityNumber.WARN, ...args);
 };
 
 console.debug = (...args: unknown[]) => {
   originalLogger.debug(...args);
+  if (env.BL_DEBUG_TELEMETRY === "true") return
   logger.emit(SeverityNumber.DEBUG, ...args);
 };
 
