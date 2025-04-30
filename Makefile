@@ -7,8 +7,10 @@ sdk-uvm:
 
 	sed -i.bak 's/from '\''\.\/sdk\.gen'\''/from '\''\.\/sdk\.gen\.js'\''/g' src/uvm/client/index.ts
 	sed -i.bak 's/from '\''\.\/types\.gen'\''/from '\''\.\/types\.gen\.js'\''/g' src/uvm/client/index.ts
-
+	sed -i.bak 's/export type GetFilesystemByPathResponse = (Directory);/export type GetFilesystemByPathResponse = (Directory | FileWithContent);/g' src/uvm/client/types.gen.ts
+	echo "\n\nexport type FileWithContent = File & { content?: string };" >> src/uvm/client/types.gen.ts
 	rm -f src/uvm/client/index.ts.bak
+	rm -f src/uvm/client/types.gen.ts.bak
 	rm -f src/uvm/client/sdk.gen.ts.bak
 	rm -rf ./tmp
 	rm definition.yml

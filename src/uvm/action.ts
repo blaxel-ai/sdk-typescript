@@ -5,13 +5,11 @@ import settings from "../common/settings";
 export class UVMAction {
   constructor(private uvm: UVM) {}
   get externalUrl() {
-    return new URL(
-      `${settings.runUrl}/${settings.workspace}/uvm/${this.uvm.metadata?.name}`
-    );
+    return `${settings.runUrl}/${settings.workspace}/uvm/${this.uvm.metadata?.name}`;
   }
 
   get fallbackUrl() {
-    if (this.externalUrl != this.url) {
+    if (this.externalUrl !== this.url) {
       return this.externalUrl;
     }
     return null;
@@ -19,12 +17,12 @@ export class UVMAction {
 
   get url() {
     const envVar = this.uvm.metadata?.name?.replace(/-/g, "_").toUpperCase();
+    const forceUrl = env[`BL_UVM_${envVar}_URL`];
+    if (forceUrl) {
+      return forceUrl;
+    }
     if (env[`BL_UVM_${envVar}_SERVICE_NAME`]) {
-      return new URL(
-        `https://${env[`BL_UVM_${envVar}_SERVICE_NAME`]}.${
-          settings.runInternalHostname
-        }`
-      );
+      return `https://${env[`BL_UVM_${envVar}_SERVICE_NAME`]}.${settings.runInternalHostname}`;
     }
     return this.externalUrl;
   }

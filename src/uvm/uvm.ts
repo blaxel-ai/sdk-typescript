@@ -1,10 +1,9 @@
 import { createUvm, deleteUvm, getUvm, listUvm, UVM as UVMModel } from "../client";
-import { HttpError } from "../common/errors";
 import { UVMFileSystem } from "./filesystem";
 import { UVMNetwork } from "./network";
 import { UVMProcess } from "./process";
 
-export class UVM {
+export class UVMInstance {
   fs: UVMFileSystem;
   network: UVMNetwork;
   process: UVMProcess;
@@ -16,56 +15,35 @@ export class UVM {
   }
 
   static async create(uvm: UVMModel) {
-    const { response, data } = await createUvm({
+    const { data } = await createUvm({
       body: uvm,
+      throwOnError: true,
     });
-    if (!response.ok) {
-      throw new HttpError(response, data);
-    }
-    if (!data) {
-      throw new Error("No data returned from createUvm");
-    }
-    return new UVM(data);
+    return new UVMInstance(data);
   }
 
   static async get(uvmName: string) {
-    const { response, data } = await getUvm({
+    const { data } = await getUvm({
       path: {
         uvmName,
       },
+      throwOnError: true,
     });
-    if (!response.ok) {
-      throw new HttpError(response, data);
-    }
-    if (!data) {
-      throw new Error("No data returned from getUvm");
-    }
-    return new UVM(data);
+    return new UVMInstance(data);
   }
 
   static async list() {
-    const { response, data } = await listUvm() as { response: Response; data: UVMModel[] };
-    if (!response.ok) {
-      throw new HttpError(response, data);
-    }
-    if (!data) {
-      throw new Error("No data returned from listUvm");
-    }
-    return data.map((uvm) => new UVM(uvm));
+    const { data } = await listUvm({throwOnError: true}) as { response: Response; data: UVMModel[] };
+    return data.map((uvm) => new UVMInstance(uvm));
   }
 
   static async delete(uvmName: string) {
-    const { response, data } = await deleteUvm({
+    const { data } = await deleteUvm({
       path: {
         uvmName,
       },
+      throwOnError: true,
     });
-    if (!response.ok) {
-      throw new HttpError(response, data);
-    }
-    if (!data) {
-      throw new Error("No data returned from deleteUvm");
-    }
     return data;
   }
 }

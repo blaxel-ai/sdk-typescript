@@ -96,7 +96,7 @@ export type GetFilesystemByPathData = {
     };
 };
 
-export type GetFilesystemByPathResponse = (Directory);
+export type GetFilesystemByPathResponse = (Directory | FileWithContent);
 
 export type GetFilesystemByPathError = (ErrorResponse);
 
@@ -207,7 +207,7 @@ export type GetProcessByIdentifierResponse = (ProcessResponse);
 
 export type GetProcessByIdentifierError = (ErrorResponse);
 
-export type PostProcessByIdentifierKillData = {
+export type DeleteProcessByIdentifierKillData = {
     /**
      * Kill options
      */
@@ -220,9 +220,9 @@ export type PostProcessByIdentifierKillData = {
     };
 };
 
-export type PostProcessByIdentifierKillResponse = (SuccessResponse);
+export type DeleteProcessByIdentifierKillResponse = (SuccessResponse);
 
-export type PostProcessByIdentifierKillError = (ErrorResponse);
+export type DeleteProcessByIdentifierKillError = (ErrorResponse);
 
 export type GetProcessByIdentifierLogsData = {
     path: {
@@ -238,3 +238,5 @@ export type GetProcessByIdentifierLogsResponse = ({
 });
 
 export type GetProcessByIdentifierLogsError = (ErrorResponse);
+
+export type FileWithContent = File & { content?: string };
