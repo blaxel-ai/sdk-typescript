@@ -4,110 +4,82 @@
  * ACL
  */
 export type ACL = TimeFields & {
-  /**
-   * ACL id
-   */
-  id?: string;
-  /**
-   * Resource ID
-   */
-  resource_id?: string;
-  /**
-   * Resource type
-   */
-  resource_type?: string;
-  /**
-   * Role
-   */
-  role?: string;
-  /**
-   * Subject ID
-   */
-  subject_id?: string;
-  /**
-   * Subject type
-   */
-  subject_type?: string;
-  /**
-   * Workspace name
-   */
-  workspace?: string;
+    /**
+     * ACL id
+     */
+    id?: string;
+    /**
+     * Resource ID
+     */
+    resource_id?: string;
+    /**
+     * Resource type
+     */
+    resource_type?: string;
+    /**
+     * Role
+     */
+    role?: string;
+    /**
+     * Subject ID
+     */
+    subject_id?: string;
+    /**
+     * Subject type
+     */
+    subject_type?: string;
+    /**
+     * Workspace name
+     */
+    workspace?: string;
 };
 
 /**
  * Agent
  */
 export type Agent = {
-  events?: CoreEvents;
-  metadata?: Metadata;
-  spec?: AgentSpec;
-  /**
-   * Agent status
-   */
-  status?: string;
+    events?: CoreEvents;
+    metadata?: Metadata;
+    spec?: AgentSpec;
+    /**
+     * Agent status
+     */
+    status?: string;
 };
-
-/**
- * Agent chain configuration
- */
-export type AgentChain = {
-  /**
-   * Description of the agent in case you want to override the default one
-   */
-  description?: string;
-  /**
-   * Whether the agent chain is enabled
-   */
-  enabled?: boolean;
-  /**
-   * The name of the agent to chain to
-   */
-  name?: string;
-  /**
-   * Prompt of the agent in case you want to override the default one
-   */
-  prompt?: string;
-};
-
-/**
- * Agent chain
- */
-export type AgentChains = Array<AgentChain>;
 
 /**
  * Agent specification
  */
 export type AgentSpec = CoreSpec & {
-  agentChain?: AgentChains;
-  /**
-   * Description, small description computed from the prompt
-   */
-  description?: string;
-  functions?: FunctionsList;
-  /**
-   * Knowledgebase Name
-   */
-  knowledgebase?: string;
-  /**
-   * Model name
-   */
-  model?: string;
-  /**
-   * Prompt, describe what your agent does
-   */
-  prompt?: string;
-  repository?: Repository;
-  /**
-   * Store id
-   */
-  storeId?: string;
+    /**
+     * Description, small description computed from the prompt
+     */
+    description?: string;
+    functions?: FunctionsList;
+    /**
+     * Knowledgebase Name
+     */
+    knowledgebase?: string;
+    /**
+     * Model name
+     */
+    model?: string;
+    /**
+     * Prompt, describe what your agent does
+     */
+    prompt?: string;
+    repository?: Repository;
+    /**
+     * Store id
+     */
+    storeId?: string;
+    triggers?: Triggers;
 };
 
 /**
  * Long-lived API key for accessing Blaxel
  */
-export type ApiKey = TimeFields &
-  OwnerFields & {
+export type ApiKey = TimeFields & OwnerFields & {
     /**
      * Api key
      */
@@ -132,7 +104,7 @@ export type ApiKey = TimeFields &
      * Subject type
      */
     sub_type?: string;
-  };
+};
 
 /**
  * Array of metrics
@@ -143,58 +115,58 @@ export type ArrayMetric = Array<Metric>;
  * Configuration
  */
 export type Configuration = {
-  /**
-   * Continents
-   */
-  continents?: Array<unknown>;
-  /**
-   * Countries
-   */
-  countries?: Array<unknown>;
-  /**
-   * Private locations managed with blaxel operator
-   */
-  privateLocations?: Array<unknown>;
+    /**
+     * Continents
+     */
+    continents?: Array<unknown>;
+    /**
+     * Countries
+     */
+    countries?: Array<unknown>;
+    /**
+     * Private locations managed with blaxel operator
+     */
+    privateLocations?: Array<unknown>;
 };
 
 /**
  * Continent
  */
 export type Continent = {
-  /**
-   * Continent display name
-   */
-  displayName?: string;
-  /**
-   * Continent code
-   */
-  name?: string;
+    /**
+     * Continent display name
+     */
+    displayName?: string;
+    /**
+     * Continent code
+     */
+    name?: string;
 };
 
 /**
  * Core event
  */
 export type CoreEvent = {
-  /**
-   * Event message
-   */
-  message?: string;
-  /**
-   * RevisionID link to the event
-   */
-  revision?: string;
-  /**
-   * Event status
-   */
-  status?: string;
-  /**
-   * Event time
-   */
-  time?: string;
-  /**
-   * Event type
-   */
-  type?: string;
+    /**
+     * Event message
+     */
+    message?: string;
+    /**
+     * RevisionID link to the event
+     */
+    revision?: string;
+    /**
+     * Event status
+     */
+    status?: string;
+    /**
+     * Event time
+     */
+    time?: string;
+    /**
+     * Event type
+     */
+    type?: string;
 };
 
 /**
@@ -206,79 +178,77 @@ export type CoreEvents = Array<CoreEvent>;
  * Core specification
  */
 export type CoreSpec = {
-  /**
-   * Optional configurations for the object
-   */
-  configurations?: {
-    key?: SpecConfiguration;
-  };
-  /**
-   * Enable or disable the agent
-   */
-  enabled?: boolean;
-  flavors?: Flavors;
-  integrationConnections?: IntegrationConnectionsList;
-  podTemplate?: PodTemplateSpec;
-  policies?: PoliciesList;
-  /**
-   * The private clusters where the model deployment is deployed
-   */
-  privateClusters?: ModelPrivateCluster;
-  revision?: RevisionConfiguration;
-  runtime?: Runtime;
-  /**
-   * Sandbox mode
-   */
-  sandbox?: boolean;
-  serverlessConfig?: ServerlessConfig;
+    /**
+     * Optional configurations for the object
+     */
+    configurations?: {
+        key?: SpecConfiguration;
+    };
+    /**
+     * Enable or disable the resource
+     */
+    enabled?: boolean;
+    flavors?: Flavors;
+    integrationConnections?: IntegrationConnectionsList;
+    policies?: PoliciesList;
+    /**
+     * The private clusters where the model deployment is deployed
+     */
+    privateClusters?: ModelPrivateCluster;
+    revision?: RevisionConfiguration;
+    runtime?: Runtime;
+    /**
+     * Sandbox mode
+     */
+    sandbox?: boolean;
 };
 
 /**
  * Configuration
  */
 export type Country = {
-  /**
-   * Country display name
-   */
-  displayName?: string;
-  /**
-   * Country code
-   */
-  name?: string;
+    /**
+     * Country display name
+     */
+    displayName?: string;
+    /**
+     * Country code
+     */
+    name?: string;
 };
 
 /**
  * Entrypoint of the artifact
  */
 export type Entrypoint = {
-  /**
-   * Args of the entrypoint
-   */
-  args?: Array<unknown>;
-  /**
-   * Command of the entrypoint
-   */
-  command?: string;
-  /**
-   * Env of the entrypoint
-   */
-  env?: {
-    [key: string]: unknown;
-  };
+    /**
+     * Args of the entrypoint
+     */
+    args?: Array<unknown>;
+    /**
+     * Command of the entrypoint
+     */
+    command?: string;
+    /**
+     * Env of the entrypoint
+     */
+    env?: {
+        [key: string]: unknown;
+    };
 };
 
 /**
  * A type of hardware available for deployments
  */
 export type Flavor = {
-  /**
-   * Flavor name (e.g. t4)
-   */
-  name?: string;
-  /**
-   * Flavor type (e.g. cpu, gpu)
-   */
-  type?: string;
+    /**
+     * Flavor name (e.g. t4)
+     */
+    name?: string;
+    /**
+     * Flavor type (e.g. cpu, gpu)
+     */
+    type?: string;
 };
 
 /**
@@ -290,506 +260,513 @@ export type Flavors = Array<Flavor>;
  * Form of the artifact
  */
 export type Form = {
-  /**
-   * Config of the artifact
-   */
-  config?: {
-    [key: string]: unknown;
-  };
-  /**
-   * OAuth of the artifact
-   */
-  oauth?: {
-    [key: string]: unknown;
-  };
-  /**
-   * Secrets of the artifact
-   */
-  secrets?: {
-    [key: string]: unknown;
-  };
+    /**
+     * Config of the artifact
+     */
+    config?: {
+        [key: string]: unknown;
+    };
+    /**
+     * OAuth of the artifact
+     */
+    oauth?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Secrets of the artifact
+     */
+    secrets?: {
+        [key: string]: unknown;
+    };
 };
 
 /**
  * Function
  */
 export type Function = {
-  events?: CoreEvents;
-  metadata?: Metadata;
-  spec?: FunctionSpec;
-  /**
-   * Function status
-   */
-  status?: string;
+    events?: CoreEvents;
+    metadata?: Metadata;
+    spec?: FunctionSpec;
+    /**
+     * Function status
+     */
+    status?: string;
 };
 
 /**
  * Function kit
  */
 export type FunctionKit = {
-  /**
-   * Description of the function kit, very important for the agent to work with your kit
-   */
-  description?: string;
-  /**
-   * The kit name, very important for the agent to work with your kit
-   */
-  name?: string;
-  schema?: FunctionSchema;
+    /**
+     * Description of the function kit, very important for the agent to work with your kit
+     */
+    description?: string;
+    /**
+     * The kit name, very important for the agent to work with your kit
+     */
+    name?: string;
+    schema?: FunctionSchema;
 };
 
 /**
  * Function schema
  */
 export type FunctionSchema = {
-  /**
-   * List of schemas that this schema extends
-   */
-  allOf?: Array<unknown>;
-  /**
-   * List of possible schemas, any of which this schema could be
-   */
-  anyOf?: Array<unknown>;
-  /**
-   * Description of the schema
-   */
-  description?: string;
-  /**
-   * Enum values
-   */
-  enum?: Array<string>;
-  /**
-   * Format of the schema
-   */
-  format?: string;
-  items?: FunctionSchema;
-  /**
-   * Maximum length for string types
-   */
-  maxLength?: number;
-  /**
-   * Maximum value for number types
-   */
-  maximum?: number;
-  /**
-   * Minimum length for string types
-   */
-  minLength?: number;
-  /**
-   * Minimum value for number types
-   */
-  minimum?: number;
-  /**
-   * Schema that this schema must not be
-   */
-  not?: {
-    [key: string]: unknown;
-  };
-  /**
-   * List of schemas, one of which this schema must be
-   */
-  oneOf?: Array<unknown>;
-  /**
-   * Pattern for string types
-   */
-  pattern?: string;
-  /**
-   * Properties of the schema
-   */
-  properties?: {
-    [key: string]: FunctionSchema;
-  };
-  /**
-   * Required properties of the schema
-   */
-  required?: Array<string>;
-  /**
-   * Title of the schema
-   */
-  title?: string;
-  /**
-   * Type of the schema
-   */
-  type?: string;
+    /**
+     * List of schemas that this schema extends
+     */
+    allOf?: Array<unknown>;
+    /**
+     * List of possible schemas, any of which this schema could be
+     */
+    anyOf?: Array<unknown>;
+    /**
+     * Description of the schema
+     */
+    description?: string;
+    /**
+     * Enum values
+     */
+    enum?: Array<(string)>;
+    /**
+     * Format of the schema
+     */
+    format?: string;
+    items?: FunctionSchema;
+    /**
+     * Maximum length for string types
+     */
+    maxLength?: number;
+    /**
+     * Maximum value for number types
+     */
+    maximum?: number;
+    /**
+     * Minimum length for string types
+     */
+    minLength?: number;
+    /**
+     * Minimum value for number types
+     */
+    minimum?: number;
+    /**
+     * Schema that this schema must not be
+     */
+    not?: {
+        [key: string]: unknown;
+    };
+    /**
+     * List of schemas, one of which this schema must be
+     */
+    oneOf?: Array<unknown>;
+    /**
+     * Pattern for string types
+     */
+    pattern?: string;
+    /**
+     * Properties of the schema
+     */
+    properties?: {
+        [key: string]: FunctionSchema;
+    };
+    /**
+     * Required properties of the schema
+     */
+    required?: Array<(string)>;
+    /**
+     * Title of the schema
+     */
+    title?: string;
+    /**
+     * Type of the schema
+     */
+    type?: string;
 };
 
 /**
  * Helper type for AdditionalProperties which can be either a boolean or a schema
  */
 export type FunctionSchemaOrBool = {
-  [key: string]: unknown;
+    [key: string]: unknown;
 };
 
-export type FunctionsList = Array<string>;
+export type FunctionsList = Array<(string)>;
 
 /**
  * Function specification
  */
 export type FunctionSpec = CoreSpec & {
-  /**
-   * Function description, very important for the agent function to work with an LLM
-   */
-  description?: string;
-  /**
-   * Function kits
-   */
-  kit?: Array<FunctionKit>;
-  schema?: FunctionSchema;
+    /**
+     * Function description, very important for the agent function to work with an LLM
+     */
+    description?: string;
+    /**
+     * Function kits
+     */
+    kit?: Array<FunctionKit>;
+    schema?: FunctionSchema;
 };
 
 /**
  * Histogram bucket
  */
 export type HistogramBucket = {
-  /**
-   * Count
-   */
-  count?: number;
-  /**
-   * End
-   */
-  end?: number;
-  /**
-   * Start
-   */
-  start?: number;
+    /**
+     * Count
+     */
+    count?: number;
+    /**
+     * End
+     */
+    end?: number;
+    /**
+     * Start
+     */
+    start?: number;
 };
 
 /**
  * Histogram stats
  */
 export type HistogramStats = {
-  /**
-   * Average request duration
-   */
-  average?: number;
-  /**
-   * P50 request duration
-   */
-  p50?: number;
-  /**
-   * P90 request duration
-   */
-  p90?: number;
-  /**
-   * P99 request duration
-   */
-  p99?: number;
+    /**
+     * Average request duration
+     */
+    average?: number;
+    /**
+     * P50 request duration
+     */
+    p50?: number;
+    /**
+     * P90 request duration
+     */
+    p90?: number;
+    /**
+     * P99 request duration
+     */
+    p99?: number;
 };
 
 /**
  * Integration Connection
  */
 export type IntegrationConnection = {
-  metadata?: Metadata;
-  spec?: IntegrationConnectionSpec;
+    metadata?: Metadata;
+    spec?: IntegrationConnectionSpec;
 };
 
-export type IntegrationConnectionsList = Array<string>;
+export type IntegrationConnectionsList = Array<(string)>;
 
 /**
  * Integration connection specification
  */
 export type IntegrationConnectionSpec = {
-  /**
-   * Additional configuration for the integration
-   */
-  config?: {
-    [key: string]: string;
-  };
-  /**
-   * Integration type
-   */
-  integration?: string;
-  /**
-   * Sandbox mode
-   */
-  sandbox?: boolean;
-  /**
-   * Integration secret
-   */
-  secret?: {
-    [key: string]: string;
-  };
+    /**
+     * Additional configuration for the integration
+     */
+    config?: {
+        [key: string]: (string);
+    };
+    /**
+     * Integration type
+     */
+    integration?: string;
+    /**
+     * Sandbox mode
+     */
+    sandbox?: boolean;
+    /**
+     * Integration secret
+     */
+    secret?: {
+        [key: string]: (string);
+    };
 };
 
 /**
  * Model obtained from an external authentication provider, such as HuggingFace, OpenAI, etc...
  */
 export type IntegrationModel = {
-  /**
-   * Provider model author
-   */
-  author?: string;
-  /**
-   * Provider model created at
-   */
-  created_at?: string;
-  /**
-   * Provider model downloads
-   */
-  downloads?: number;
-  /**
-   * Model endpoint URL
-   */
-  endpoint?: string;
-  /**
-   * Provider model ID
-   */
-  id?: string;
-  /**
-   * Provider model library name
-   */
-  library_name?: string;
-  /**
-   * Provider model likes
-   */
-  likes?: number;
-  /**
-   * Is the model private
-   */
-  model_private?: string;
-  /**
-   * Provider model name
-   */
-  name?: string;
-  /**
-   * Provider model pipeline tag
-   */
-  pipeline_tag?: string;
-  /**
-   * Provider model tags
-   */
-  tags?: Array<string>;
-  /**
-   * Provider model trending score
-   */
-  trending_score?: number;
+    /**
+     * Provider model author
+     */
+    author?: string;
+    /**
+     * Provider model created at
+     */
+    created_at?: string;
+    /**
+     * Provider model downloads
+     */
+    downloads?: number;
+    /**
+     * Model endpoint URL
+     */
+    endpoint?: string;
+    /**
+     * Provider model ID
+     */
+    id?: string;
+    /**
+     * Provider model library name
+     */
+    library_name?: string;
+    /**
+     * Provider model likes
+     */
+    likes?: number;
+    /**
+     * Is the model private
+     */
+    model_private?: string;
+    /**
+     * Provider model name
+     */
+    name?: string;
+    /**
+     * Provider model pipeline tag
+     */
+    pipeline_tag?: string;
+    /**
+     * Provider model tags
+     */
+    tags?: Array<(string)>;
+    /**
+     * Provider model trending score
+     */
+    trending_score?: number;
 };
 
 /**
  * Integration repository
  */
 export type IntegrationRepository = {
-  /**
-   * Repository ID
-   */
-  id?: string;
-  /**
-   * Whether the repository has Blaxel imports
-   */
-  isBl?: boolean;
-  /**
-   * Repository name
-   */
-  name?: string;
-  /**
-   * Repository owner
-   */
-  organization?: string;
-  /**
-   * Repository URL
-   */
-  url?: string;
+    /**
+     * Repository ID
+     */
+    id?: string;
+    /**
+     * Whether the repository has Blaxel imports
+     */
+    isBl?: boolean;
+    /**
+     * Repository name
+     */
+    name?: string;
+    /**
+     * Repository owner
+     */
+    organization?: string;
+    /**
+     * Repository URL
+     */
+    url?: string;
 };
 
 /**
  * Knowledgebase
  */
 export type Knowledgebase = {
-  events?: CoreEvents;
-  metadata?: Metadata;
-  spec?: KnowledgebaseSpec;
-  /**
-   * Knowledgebase status
-   */
-  status?: string;
+    events?: CoreEvents;
+    metadata?: Metadata;
+    spec?: KnowledgebaseSpec;
+    /**
+     * Knowledgebase status
+     */
+    status?: string;
 };
 
-export type KnowledgebasesList = Array<string>;
+export type KnowledgebasesList = Array<(string)>;
 
 /**
  * Knowledgebase specification
  */
 export type KnowledgebaseSpec = {
-  /**
-   * Collection name
-   */
-  collectionName?: string;
-  /**
-   * Embedding model
-   */
-  embeddingModel?: string;
-  /**
-   * Embedding model type
-   */
-  embeddingModelType?: string;
-  /**
-   * Enable or disable the agent
-   */
-  enabled?: boolean;
-  integrationConnections?: IntegrationConnectionsList;
-  /**
-   * Options specific to the knowledge base
-   */
-  options?: {
-    [key: string]: string;
-  };
-  policies?: PoliciesList;
-  revision?: RevisionConfiguration;
-  /**
-   * Sandbox mode
-   */
-  sandbox?: boolean;
+    /**
+     * Collection name
+     */
+    collectionName?: string;
+    /**
+     * Embedding model
+     */
+    embeddingModel?: string;
+    /**
+     * Embedding model type
+     */
+    embeddingModelType?: string;
+    /**
+     * Enable or disable the agent
+     */
+    enabled?: boolean;
+    integrationConnections?: IntegrationConnectionsList;
+    /**
+     * Options specific to the knowledge base
+     */
+    options?: {
+        [key: string]: (string);
+    };
+    policies?: PoliciesList;
+    revision?: RevisionConfiguration;
+    /**
+     * Sandbox mode
+     */
+    sandbox?: boolean;
 };
 
 /**
  * Last N requests
  */
 export type LastNRequestsMetric = {
-  /**
-   * Timestamp
-   */
-  date?: string;
-  /**
-   * Workload type
-   */
-  workloadType?: string;
-  /**
-   * Workspace
-   */
-  workspace?: string;
+    /**
+     * Timestamp
+     */
+    date?: string;
+    /**
+     * Status code
+     */
+    statusCode?: string;
+    /**
+     * Workload ID
+     */
+    workloadId?: string;
+    /**
+     * Workload type
+     */
+    workloadType?: string;
+    /**
+     * Workspace
+     */
+    workspace?: string;
 };
 
 /**
  * Latency metrics
  */
 export type LatencyMetric = {
-  /**
-   * Global histogram
-   */
-  globalHistogram?: HistogramBucket;
-  /**
-   * Global stats
-   */
-  globalStats?: HistogramStats;
-  /**
-   * Histogram per code
-   */
-  histogramPerCode?: HistogramBucket;
-  /**
-   * Stats per code
-   */
-  statsPerCode?: HistogramStats;
+    /**
+     * Global histogram
+     */
+    globalHistogram?: HistogramBucket;
+    /**
+     * Global stats
+     */
+    globalStats?: HistogramStats;
+    /**
+     * Histogram per code
+     */
+    histogramPerCode?: HistogramBucket;
+    /**
+     * Stats per code
+     */
+    statsPerCode?: HistogramStats;
 };
 
 /**
  * Location availability for policies
  */
 export type LocationResponse = {
-  /**
-   * Continent of the location
-   */
-  continent?: string;
-  /**
-   * Country of the location
-   */
-  country?: string;
-  /**
-   * Hardware flavors available in the location
-   */
-  flavors?: Array<Flavor>;
-  /**
-   * Name of the location
-   */
-  location?: string;
-  /**
-   * Status of the location
-   */
-  status?: string;
+    /**
+     * Continent of the location
+     */
+    continent?: string;
+    /**
+     * Country of the location
+     */
+    country?: string;
+    /**
+     * Hardware flavors available in the location
+     */
+    flavors?: Array<Flavor>;
+    /**
+     * Name of the location
+     */
+    location?: string;
+    /**
+     * Status of the location
+     */
+    status?: string;
 };
 
 /**
  * Definition of an MCP from the MCP Hub
  */
 export type MCPDefinition = TimeFields & {
-  /**
-   * Categories of the artifact
-   */
-  categories?: Array<unknown>;
-  /**
-   * If the artifact is coming soon
-   */
-  coming_soon?: boolean;
-  /**
-   * Description of the artifact
-   */
-  description?: string;
-  /**
-   * Display name of the artifact
-   */
-  displayName?: string;
-  /**
-   * If the artifact is enterprise
-   */
-  enterprise?: boolean;
-  /**
-   * Entrypoint of the artifact
-   */
-  entrypoint?: {
-    [key: string]: unknown;
-  };
-  /**
-   * Form of the artifact
-   */
-  form?: {
-    [key: string]: unknown;
-  };
-  /**
-   * Hidden secrets of the artifact
-   */
-  hiddenSecrets?: Array<string>;
-  /**
-   * Icon of the artifact
-   */
-  icon?: string;
-  /**
-   * Image of the artifact
-   */
-  image?: string;
-  /**
-   * Integration of the artifact
-   */
-  integration?: string;
-  /**
-   * Long description of the artifact
-   */
-  longDescription?: string;
-  /**
-   * Name of the artifact
-   */
-  name?: string;
-  /**
-   * URL of the artifact
-   */
-  url?: string;
+    /**
+     * Categories of the artifact
+     */
+    categories?: Array<unknown>;
+    /**
+     * If the artifact is coming soon
+     */
+    coming_soon?: boolean;
+    /**
+     * Description of the artifact
+     */
+    description?: string;
+    /**
+     * Display name of the artifact
+     */
+    displayName?: string;
+    /**
+     * If the artifact is enterprise
+     */
+    enterprise?: boolean;
+    /**
+     * Entrypoint of the artifact
+     */
+    entrypoint?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Form of the artifact
+     */
+    form?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Hidden secrets of the artifact
+     */
+    hiddenSecrets?: Array<(string)>;
+    /**
+     * Icon of the artifact
+     */
+    icon?: string;
+    /**
+     * Image of the artifact
+     */
+    image?: string;
+    /**
+     * Integration of the artifact
+     */
+    integration?: string;
+    /**
+     * Long description of the artifact
+     */
+    longDescription?: string;
+    /**
+     * Name of the artifact
+     */
+    name?: string;
+    /**
+     * URL of the artifact
+     */
+    url?: string;
 };
 
 /**
  * Metrics for memory allocation
  */
 export type MemoryAllocationMetric = {
-  /**
-   * Total memory allocation in GB-seconds
-   */
-  totalAllocation?: number;
+    /**
+     * Total memory allocation in GB-seconds
+     */
+    totalAllocation?: number;
 };
 
 /**
  * Metadata
  */
-export type Metadata = TimeFields &
-  OwnerFields & {
+export type Metadata = TimeFields & OwnerFields & {
     /**
      * Model display name
      */
@@ -803,146 +780,153 @@ export type Metadata = TimeFields &
      * Workspace name
      */
     workspace?: string;
-  };
+};
 
 /**
  * Labels
  */
 export type MetadataLabels = {
-  [key: string]: string;
+    [key: string]: (string);
 };
 
 /**
  * Metric
  */
 export type Metric = {
-  /**
-   * Metric value
-   */
-  rate?: number;
-  /**
-   * Metric value
-   */
-  requestTotal?: number;
-  /**
-   * Metric timestamp
-   */
-  timestamp?: string;
+    /**
+     * Metric value
+     */
+    rate?: number;
+    /**
+     * Metric value
+     */
+    requestTotal?: number;
+    /**
+     * Metric timestamp
+     */
+    timestamp?: string;
 };
 
 /**
  * Metrics for resources
  */
 export type Metrics = {
-  /**
-   * Metrics for agents
-   */
-  agents?: unknown;
-  /**
-   * Metrics for functions
-   */
-  functions?: unknown;
-  /**
-   * Historical requests for all resources globally
-   */
-  inferenceGlobal?: Array<unknown>;
-  /**
-   * Metrics for models
-   */
-  models?: {
-    [key: string]: unknown;
-  };
-  /**
-   * Number of requests for all resources globally
-   */
-  requestTotal?: number;
-  /**
-   * Number of requests for all resources globally per code
-   */
-  requestTotalPerCode?: {
-    [key: string]: unknown;
-  };
-  /**
-   * Number of requests per second for all resources globally
-   */
-  rps?: number;
-  /**
-   * Number of requests per second for all resources globally per code
-   */
-  rpsPerCode?: {
-    [key: string]: unknown;
-  };
+    /**
+     * Metrics for agents
+     */
+    agents?: unknown;
+    /**
+     * Metrics for functions
+     */
+    functions?: unknown;
+    /**
+     * Historical requests for all resources globally
+     */
+    inferenceGlobal?: Array<unknown>;
+    /**
+     * Historical requests for all resources globally
+     */
+    items?: Array<unknown>;
+    /**
+     * Metric value
+     */
+    lastNRequests?: number;
+    /**
+     * Metrics for models
+     */
+    models?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Number of requests for all resources globally
+     */
+    requestTotal?: number;
+    /**
+     * Number of requests for all resources globally per code
+     */
+    requestTotalPerCode?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Number of requests per second for all resources globally
+     */
+    rps?: number;
+    /**
+     * Number of requests per second for all resources globally per code
+     */
+    rpsPerCode?: {
+        [key: string]: unknown;
+    };
 };
 
 /**
  * Logical object representing a model
  */
 export type Model = {
-  events?: CoreEvents;
-  metadata?: Metadata;
-  spec?: ModelSpec;
-  /**
-   * Model status
-   */
-  status?: string;
+    events?: CoreEvents;
+    metadata?: Metadata;
+    spec?: ModelSpec;
+    /**
+     * Model status
+     */
+    status?: string;
 };
 
 /**
  * Private cluster where the model deployment is deployed
  */
 export type ModelPrivateCluster = {
-  /**
-   * The base url of the model in the private cluster
-   */
-  baseUrl?: string;
-  /**
-   * If true, the private cluster is available
-   */
-  enabled?: boolean;
-  /**
-   * The name of the private cluster
-   */
-  name?: string;
+    /**
+     * The base url of the model in the private cluster
+     */
+    baseUrl?: string;
+    /**
+     * If true, the private cluster is available
+     */
+    enabled?: boolean;
+    /**
+     * The name of the private cluster
+     */
+    name?: string;
 };
 
 /**
  * Model specification
  */
-export type ModelSpec = CoreSpec;
+export type ModelSpec = CoreSpec & unknown;
 
 /**
  * OAuth of the artifact
  */
 export type OAuth = {
-  /**
-   * Scope of the OAuth
-   */
-  scope?: Array<unknown>;
-  /**
-   * Type of the OAuth
-   */
-  type?: string;
+    /**
+     * Scope of the OAuth
+     */
+    scope?: Array<unknown>;
+    /**
+     * Type of the OAuth
+     */
+    type?: string;
 };
 
 /**
  * Owner fields for Persistance
  */
 export type OwnerFields = {
-  /**
-   * The user or service account who created the resource
-   */
-  createdBy?: string;
-  /**
-   * The user or service account who updated the resource
-   */
-  updatedBy?: string;
+    /**
+     * The user or service account who created the resource
+     */
+    createdBy?: string;
+    /**
+     * The user or service account who updated the resource
+     */
+    updatedBy?: string;
 };
 
 /**
  * Pending invitation in workspace
  */
-export type PendingInvitation = TimeFields &
-  OwnerFields & {
+export type PendingInvitation = TimeFields & OwnerFields & {
     /**
      * User email
      */
@@ -959,119 +943,119 @@ export type PendingInvitation = TimeFields &
      * Workspace name
      */
     workspace?: string;
-  };
+};
 
 /**
  * Pending invitation accept
  */
 export type PendingInvitationAccept = {
-  /**
-   * User email
-   */
-  email?: string;
-  workspace?: Workspace;
+    /**
+     * User email
+     */
+    email?: string;
+    workspace?: Workspace;
 };
 
 /**
  * Pending invitation in workspace
  */
 export type PendingInvitationRender = {
-  /**
-   * User email
-   */
-  email?: string;
-  /**
-   * Invitation date
-   */
-  invitedAt?: string;
-  invitedBy?: PendingInvitationRenderInvitedBy;
-  /**
-   * ACL role
-   */
-  role?: string;
-  workspace?: PendingInvitationRenderWorkspace;
-  workspaceDetails?: PendingInvitationWorkspaceDetails;
+    /**
+     * User email
+     */
+    email?: string;
+    /**
+     * Invitation date
+     */
+    invitedAt?: string;
+    invitedBy?: PendingInvitationRenderInvitedBy;
+    /**
+     * ACL role
+     */
+    role?: string;
+    workspace?: PendingInvitationRenderWorkspace;
+    workspaceDetails?: PendingInvitationWorkspaceDetails;
 };
 
 /**
  * Invited by
  */
 export type PendingInvitationRenderInvitedBy = {
-  /**
-   * User email
-   */
-  email?: string;
-  /**
-   * User family name
-   */
-  family_name?: string;
-  /**
-   * User given name
-   */
-  given_name?: string;
-  /**
-   * User sub
-   */
-  sub?: string;
+    /**
+     * User email
+     */
+    email?: string;
+    /**
+     * User family name
+     */
+    family_name?: string;
+    /**
+     * User given name
+     */
+    given_name?: string;
+    /**
+     * User sub
+     */
+    sub?: string;
 };
 
 /**
  * Workspace
  */
 export type PendingInvitationRenderWorkspace = {
-  /**
-   * Workspace display name
-   */
-  displayName?: string;
-  /**
-   * Workspace name
-   */
-  name?: string;
+    /**
+     * Workspace display name
+     */
+    displayName?: string;
+    /**
+     * Workspace name
+     */
+    name?: string;
 };
 
 /**
  * Workspace details
  */
 export type PendingInvitationWorkspaceDetails = {
-  /**
-   * List of user emails in the workspace
-   */
-  emails?: Array<unknown>;
-  /**
-   * Number of users in the workspace
-   */
-  user_number?: number;
+    /**
+     * List of user emails in the workspace
+     */
+    emails?: Array<unknown>;
+    /**
+     * Number of users in the workspace
+     */
+    user_number?: number;
 };
 
 /**
  * Pod template specification
  */
 export type PodTemplateSpec = {
-  [key: string]: unknown;
+    [key: string]: unknown;
 };
 
-export type PoliciesList = Array<string>;
+export type PoliciesList = Array<(string)>;
 
 /**
  * Rule that controls how a deployment is made and served (e.g. location restrictions)
  */
 export type Policy = {
-  metadata?: Metadata;
-  spec?: PolicySpec;
+    metadata?: Metadata;
+    spec?: PolicySpec;
 };
 
 /**
  * Policy location
  */
 export type PolicyLocation = {
-  /**
-   * Policy location name
-   */
-  name?: string;
-  /**
-   * Policy location type
-   */
-  type?: string;
+    /**
+     * Policy location name
+     */
+    name?: string;
+    /**
+     * Policy location type
+     */
+    type?: string;
 };
 
 /**
@@ -1083,30 +1067,30 @@ export type PolicyLocations = Array<PolicyLocation>;
  * PolicyMaxTokens is a local type that wraps a slice of PolicyMaxTokens
  */
 export type PolicyMaxTokens = {
-  /**
-   * Granularity
-   */
-  granularity?: string;
-  /**
-   * Input
-   */
-  input?: number;
-  /**
-   * Output
-   */
-  output?: number;
-  /**
-   * RatioInputOverOutput
-   */
-  ratioInputOverOutput?: number;
-  /**
-   * Step
-   */
-  step?: number;
-  /**
-   * Total
-   */
-  total?: number;
+    /**
+     * Granularity
+     */
+    granularity?: string;
+    /**
+     * Input
+     */
+    input?: number;
+    /**
+     * Output
+     */
+    output?: number;
+    /**
+     * RatioInputOverOutput
+     */
+    ratioInputOverOutput?: number;
+    /**
+     * Step
+     */
+    step?: number;
+    /**
+     * Total
+     */
+    total?: number;
 };
 
 /**
@@ -1123,37 +1107,59 @@ export type PolicyResourceTypes = Array<PolicyResourceType>;
  * Policy specification
  */
 export type PolicySpec = {
-  /**
-   * Flavors allowed by the policy. If not set, all flavors are allowed.
-   */
-  flavors?: Flavors;
-  /**
-   * Locations allowed by the policy. If not set, all locations are allowed.
-   */
-  locations?: PolicyLocations;
-  /**
-   * Max token allowed by the policy. If not set, no max token is allowed.
-   */
-  maxTokens?: PolicyMaxTokens;
-  /**
-   * ResourceTypes where the policy is applied. If not set, the policy is applied to all resource types.
-   */
-  resourceTypes?: PolicyResourceTypes;
-  /**
-   * Sandbox mode
-   */
-  sandbox?: boolean;
-  /**
-   * Policy type, can be location or flavor
-   */
-  type?: string;
+    /**
+     * Flavors allowed by the policy. If not set, all flavors are allowed.
+     */
+    flavors?: Flavors;
+    /**
+     * Locations allowed by the policy. If not set, all locations are allowed.
+     */
+    locations?: PolicyLocations;
+    /**
+     * Max token allowed by the policy. If not set, no max token is allowed.
+     */
+    maxTokens?: PolicyMaxTokens;
+    /**
+     * ResourceTypes where the policy is applied. If not set, the policy is applied to all resource types.
+     */
+    resourceTypes?: PolicyResourceTypes;
+    /**
+     * Sandbox mode
+     */
+    sandbox?: boolean;
+    /**
+     * Policy type, can be location or flavor
+     */
+    type?: string;
 };
+
+/**
+ * A port for a resource
+ */
+export type Port = {
+    /**
+     * The name of the port
+     */
+    name?: string;
+    /**
+     * The protocol of the port
+     */
+    protocol?: string;
+    /**
+     * The target port of the port
+     */
+    target?: number;
+};
+
+/**
+ * Set of ports for a resource
+ */
+export type Ports = Array<Port>;
 
 /**
  * A private cluster where models can be located on.
  */
-export type PrivateCluster = TimeFields &
-  OwnerFields & {
+export type PrivateCluster = TimeFields & OwnerFields & {
     /**
      * The private cluster's continent, used to determine the closest private cluster to serve inference requests based on the user's location
      */
@@ -1194,350 +1200,473 @@ export type PrivateCluster = TimeFields &
      * The workspace the private cluster belongs to
      */
     workspace?: string;
-  };
+};
 
 /**
  * Private location available for policies
  */
 export type PrivateLocation = {
-  /**
-   * Location name
-   */
-  name?: string;
+    /**
+     * Location name
+     */
+    name?: string;
 };
 
 /**
  * Repository
  */
 export type Repository = {
-  /**
-   * Repository type
-   */
-  type?: string;
-  /**
-   * Repository URL
-   */
-  url?: string;
+    /**
+     * Repository type
+     */
+    type?: string;
+    /**
+     * Repository URL
+     */
+    url?: string;
 };
 
 /**
  * Request duration over time metric
  */
 export type RequestDurationOverTimeMetric = {
-  /**
-   * Average request duration
-   */
-  average?: number;
-  /**
-   * P50 request duration
-   */
-  p50?: number;
-  /**
-   * P90 request duration
-   */
-  p90?: number;
-  /**
-   * P99 request duration
-   */
-  p99?: number;
-  /**
-   * Timestamp
-   */
-  timestamp?: string;
+    /**
+     * Average request duration
+     */
+    average?: number;
+    /**
+     * P50 request duration
+     */
+    p50?: number;
+    /**
+     * P90 request duration
+     */
+    p90?: number;
+    /**
+     * P99 request duration
+     */
+    p99?: number;
+    /**
+     * Timestamp
+     */
+    timestamp?: string;
 };
 
 /**
  * Request duration over time metrics
  */
 export type RequestDurationOverTimeMetrics = {
-  requestDurationOverTime?: RequestDurationOverTimeMetric;
+    requestDurationOverTime?: RequestDurationOverTimeMetric;
 };
 
 /**
  * Request total by origin metric
  */
 export type RequestTotalByOriginMetric = {
-  /**
-   * Request total by origin
-   */
-  requestTotalByOrigin?: {
-    [key: string]: unknown;
-  };
-  /**
-   * Request total by origin and code
-   */
-  requestTotalByOriginAndCode?: {
-    [key: string]: unknown;
-  };
+    /**
+     * Request total by origin
+     */
+    requestTotalByOrigin?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Request total by origin and code
+     */
+    requestTotalByOriginAndCode?: {
+        [key: string]: unknown;
+    };
 };
 
 /**
  * Metrics for request total
  */
 export type RequestTotalMetric = {
-  /**
-   * Number of requests for all resources globally
-   */
-  requestTotal?: number;
-  /**
-   * Number of requests for all resources globally per code
-   */
-  requestTotalPerCode?: {
-    [key: string]: unknown;
-  };
-  /**
-   * Number of requests per second for all resources globally
-   */
-  rps?: number;
-  /**
-   * Number of requests for all resources globally
-   */
-  rpsPerCode?: {
-    [key: string]: unknown;
-  };
+    /**
+     * Historical requests for all resources globally
+     */
+    items?: Array<unknown>;
+    /**
+     * Number of requests for all resources globally
+     */
+    requestTotal?: number;
+    /**
+     * Number of requests for all resources globally per code
+     */
+    requestTotalPerCode?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Number of requests per second for all resources globally
+     */
+    rps?: number;
+    /**
+     * Number of requests for all resources globally
+     */
+    rpsPerCode?: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * Request total response data
+ */
+export type RequestTotalResponseData = {
+    /**
+     * Request total
+     */
+    requestTotal?: number;
+    /**
+     * Status code
+     */
+    statusCode?: string;
+    /**
+     * Workload ID
+     */
+    workloadId?: string;
+    /**
+     * Workload type
+     */
+    workloadType?: string;
+    /**
+     * Workspace
+     */
+    workspace?: string;
 };
 
 /**
  * Log for a resource deployment (eg. model deployment, function deployment)
  */
 export type ResourceLog = {
-  /**
-   * Content of the log
-   */
-  message?: string;
-  /**
-   * Severity of the log
-   */
-  severity?: number;
-  /**
-   * The timestamp of the log
-   */
-  timestamp?: string;
+    /**
+     * Content of the log
+     */
+    message?: string;
+    /**
+     * Severity of the log
+     */
+    severity?: number;
+    /**
+     * The timestamp of the log
+     */
+    timestamp?: string;
+    /**
+     * Trace ID of the log
+     */
+    trace_id?: string;
 };
 
 /**
  * Metrics for a single resource deployment (eg. model deployment, function deployment)
  */
 export type ResourceMetrics = {
-  /**
-   * Historical requests (in last 24 hours) for the model deployment globally
-   */
-  inferenceGlobal?: ArrayMetric;
-  /**
-   * Historical requests (in last 24 hours) for the model deployment globally
-   */
-  lastNRequests?: ArrayMetric;
-  /**
-   * Historical requests (in last 24 hours) for the model deployment globally
-   */
-  latency?: LatencyMetric;
-  /**
-   * Memory allocation metrics for the resource
-   */
-  memoryAllocation?: MemoryAllocationMetric;
-  /**
-   * Time to first token metrics for model deployments
-   */
-  modelTtft?: LatencyMetric;
-  /**
-   * Time to first token metrics over time for model deployments
-   */
-  modelTtftOverTime?: TimeToFirstTokenOverTimeMetrics;
-  /**
-   * Historical requests (in last 24 hours) for the model deployment globally
-   */
-  requestDurationOverTime?: RequestDurationOverTimeMetrics;
-  /**
-   * Number of requests for the resource globally
-   */
-  requestTotal?: number;
-  /**
-   * Historical requests (in last 24 hours) for the model deployment globally
-   */
-  requestTotalByOrigin?: RequestTotalByOriginMetric;
-  /**
-   * Number of requests for the resource globally per code
-   */
-  requestTotalPerCode?: {
-    [key: string]: unknown;
-  };
-  /**
-   * Number of requests per second for the resource globally
-   */
-  rps?: number;
-  /**
-   * Number of requests per second for the resource globally per code
-   */
-  rpsPerCode?: {
-    [key: string]: unknown;
-  };
-  /**
-   * Historical requests (in last 24 hours) for the model deployment globally
-   */
-  tokenRate?: TokenRateMetrics;
-  /**
-   * Historical requests (in last 24 hours) for the model deployment globally
-   */
-  tokenTotal?: TokenTotalMetric;
+    /**
+     * Historical requests (in last 24 hours) for the model deployment globally
+     */
+    inferenceErrorsGlobal?: ArrayMetric;
+    /**
+     * Historical requests (in last 24 hours) for the model deployment globally
+     */
+    inferenceGlobal?: ArrayMetric;
+    /**
+     * Historical requests (in last 24 hours) for the model deployment globally
+     */
+    lastNRequests?: ArrayMetric;
+    /**
+     * Historical requests (in last 24 hours) for the model deployment globally
+     */
+    latency?: LatencyMetric;
+    /**
+     * Historical requests (in last 24 hours) for the model deployment globally
+     */
+    latencyPrevious?: LatencyMetric;
+    /**
+     * Memory allocation metrics for the resource
+     */
+    memoryAllocation?: MemoryAllocationMetric;
+    /**
+     * Time to first token metrics for model deployments
+     */
+    modelTtft?: LatencyMetric;
+    /**
+     * Time to first token metrics over time for model deployments
+     */
+    modelTtftOverTime?: TimeToFirstTokenOverTimeMetrics;
+    /**
+     * Historical requests (in last 24 hours) for the model deployment globally
+     */
+    requestDurationOverTime?: RequestDurationOverTimeMetrics;
+    /**
+     * Number of requests for the resource globally
+     */
+    requestTotal?: number;
+    /**
+     * Historical requests (in last 24 hours) for the model deployment globally
+     */
+    requestTotalByOrigin?: RequestTotalByOriginMetric;
+    /**
+     * Historical requests for the previous period for the model deployment globally
+     */
+    requestTotalByOriginPrevious?: RequestTotalByOriginMetric;
+    /**
+     * Number of requests for the resource globally per code
+     */
+    requestTotalPerCode?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Number of requests for the resource globally per code for the previous period
+     */
+    requestTotalPerCodePrevious?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Number of requests for the resource globally for the previous period
+     */
+    requestTotalPrevious?: number;
+    /**
+     * Number of requests per second for the resource globally
+     */
+    rps?: number;
+    /**
+     * Number of requests per second for the resource globally per code
+     */
+    rpsPerCode?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Number of requests per second for the resource globally per code for the previous period
+     */
+    rpsPerCodePrevious?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Number of requests per second for the resource globally for the previous period
+     */
+    rpsPrevious?: number;
+    /**
+     * Historical requests (in last 24 hours) for the model deployment globally
+     */
+    tokenRate?: TokenRateMetrics;
+    /**
+     * Historical requests (in last 24 hours) for the model deployment globally
+     */
+    tokenTotal?: TokenTotalMetric;
 };
 
 /**
  * Revision configuration
  */
 export type RevisionConfiguration = {
-  /**
-   * Active revision id
-   */
-  active?: string;
-  /**
-   * Canary revision id
-   */
-  canary?: string;
-  /**
-   * Canary revision percent
-   */
-  canaryPercent?: number;
-  /**
-   * Traffic percentage
-   */
-  traffic?: number;
+    /**
+     * Active revision id
+     */
+    active?: string;
+    /**
+     * Canary revision id
+     */
+    canary?: string;
+    /**
+     * Canary revision percent
+     */
+    canaryPercent?: number;
+    /**
+     * Traffic percentage
+     */
+    traffic?: number;
 };
 
 /**
  * Revision metadata
  */
 export type RevisionMetadata = {
-  /**
-   * Is the revision active
-   */
-  active?: boolean;
-  /**
-   * Is the revision canary
-   */
-  canary?: boolean;
-  /**
-   * Revision created at
-   */
-  createdAt?: string;
-  /**
-   * Revision created by
-   */
-  createdBy?: string;
-  /**
-   * Revision ID
-   */
-  id?: string;
-  /**
-   * Is the revision previous active
-   */
-  previousActive?: boolean;
-  /**
-   * Status of the revision
-   */
-  status?: string;
-  /**
-   * Percent of traffic to the revision
-   */
-  trafficPercent?: number;
+    /**
+     * Is the revision active
+     */
+    active?: boolean;
+    /**
+     * Is the revision canary
+     */
+    canary?: boolean;
+    /**
+     * Revision created at
+     */
+    createdAt?: string;
+    /**
+     * Revision created by
+     */
+    createdBy?: string;
+    /**
+     * Revision ID
+     */
+    id?: string;
+    /**
+     * Is the revision previous active
+     */
+    previousActive?: boolean;
+    /**
+     * Status of the revision
+     */
+    status?: string;
+    /**
+     * Percent of traffic to the revision
+     */
+    trafficPercent?: number;
 };
 
 /**
  * Set of configurations for a deployment
  */
 export type Runtime = {
-  /**
-   * The arguments to pass to the deployment runtime
-   */
-  args?: Array<unknown>;
-  /**
-   * The command to run the deployment
-   */
-  command?: Array<unknown>;
-  /**
-   * The CPU for the deployment in cores, only available for private cluster
-   */
-  cpu?: number;
-  /**
-   * Endpoint Name of the model. In case of hf_private_endpoint, it is the endpoint name. In case of hf_public_endpoint, it is not used.
-   */
-  endpointName?: string;
-  /**
-   * The env variables to set in the deployment. Should be a list of Kubernetes EnvVar types
-   */
-  envs?: Array<unknown>;
-  /**
-   * The Docker image for the deployment
-   */
-  image?: string;
-  /**
-   * The memory for the deployment in MB
-   */
-  memory?: number;
-  /**
-   * The port to serve the metrics on
-   */
-  metricPort?: number;
-  /**
-   * The slug name of the origin model at HuggingFace.
-   */
-  model?: string;
-  /**
-   * The organization of the model
-   */
-  organization?: string;
-  /**
-   * The port to serve the model on
-   */
-  servingPort?: number;
-  /**
-   * The readiness probe. Should be a Kubernetes Probe type
-   */
-  startupProbe?: {
-    [key: string]: unknown;
-  };
-  /**
-   * The type of origin for the deployment (hf_private_endpoint, hf_public_endpoint)
-   */
-  type?: string;
+    /**
+     * The arguments to pass to the deployment runtime
+     */
+    args?: Array<unknown>;
+    /**
+     * The command to run the deployment
+     */
+    command?: Array<unknown>;
+    /**
+     * The configuration for the deployment
+     */
+    configuration?: {
+        [key: string]: unknown;
+    };
+    /**
+     * The CPU for the deployment in cores, only available for private cluster
+     */
+    cpu?: number;
+    /**
+     * Endpoint Name of the model. In case of hf_private_endpoint, it is the endpoint name. In case of hf_public_endpoint, it is not used.
+     */
+    endpointName?: string;
+    /**
+     * The env variables to set in the deployment. Should be a list of Kubernetes EnvVar types
+     */
+    envs?: Array<unknown>;
+    /**
+     * The generation of the deployment
+     */
+    generation?: string;
+    /**
+     * The Docker image for the deployment
+     */
+    image?: string;
+    /**
+     * The minimum number of replicas for the deployment. Can be 0 or 1 (in which case the deployment is always running in at least one location).
+     */
+    maxScale?: number;
+    /**
+     * The memory for the deployment in MB
+     */
+    memory?: number;
+    /**
+     * The port to serve the metrics on
+     */
+    metricPort?: number;
+    /**
+     * The maximum number of replicas for the deployment.
+     */
+    minScale?: number;
+    /**
+     * The slug name of the origin model at HuggingFace.
+     */
+    model?: string;
+    /**
+     * The organization of the model
+     */
+    organization?: string;
+    /**
+     * The exposed ports of the resource
+     */
+    ports?: Ports;
+    /**
+     * The readiness probe. Should be a Kubernetes Probe type
+     */
+    startupProbe?: {
+        [key: string]: unknown;
+    };
+    /**
+     * The timeout for the deployment in seconds
+     */
+    timeout?: number;
+    /**
+     * The type of origin for the deployment (hf_private_endpoint, hf_public_endpoint)
+     */
+    type?: string;
 };
 
 /**
  * Configuration for a serverless deployment
  */
 export type ServerlessConfig = {
-  /**
-   * The minimum number of replicas for the deployment. Can be 0 or 1 (in which case the deployment is always running in at least one location).
-   */
-  maxScale?: number;
-  /**
-   * The maximum number of replicas for the deployment.
-   */
-  minScale?: number;
-  /**
-   * The timeout for the deployment in seconds
-   */
-  timeout?: number;
+    /**
+     * The configuration for the deployment
+     */
+    configuration?: {
+        [key: string]: unknown;
+    };
+    /**
+     * The minimum number of replicas for the deployment. Can be 0 or 1 (in which case the deployment is always running in at least one location).
+     */
+    maxScale?: number;
+    /**
+     * The maximum number of replicas for the deployment.
+     */
+    minScale?: number;
+    /**
+     * The timeout for the deployment in seconds
+     */
+    timeout?: number;
 };
 
 /**
  * Configuration, this is a key value storage. In your object you can retrieve the value with config[key]
  */
 export type SpecConfiguration = {
-  /**
-   * ACconfiguration secret
-   */
-  secret?: boolean;
-  /**
-   * Configuration value
-   */
-  value?: string;
+    /**
+     * ACconfiguration secret
+     */
+    secret?: boolean;
+    /**
+     * Configuration value
+     */
+    value?: string;
+};
+
+/**
+ * Response when starting a UVM
+ */
+export type StartUVM = {
+    /**
+     * Human readable message about the start operation
+     */
+    message?: string;
+    metadata?: Metadata;
+    /**
+     * Status of the UVM start operation
+     */
+    status?: string;
+};
+
+/**
+ * Response when stopping a UVM
+ */
+export type StopUVM = {
+    /**
+     * Human readable message about the stop operation
+     */
+    message?: string;
+    metadata?: Metadata;
+    /**
+     * Status of the UVM stop operation
+     */
+    status?: string;
 };
 
 /**
  * Store agent
  */
-export type StoreAgent = TimeFields &
-  OwnerFields & {
+export type StoreAgent = TimeFields & OwnerFields & {
     /**
      * Store agent configuration
      */
@@ -1558,7 +1687,7 @@ export type StoreAgent = TimeFields &
      * Store agent labels
      */
     labels?: {
-      [key: string]: unknown;
+        [key: string]: unknown;
     };
     /**
      * Store agent name
@@ -1568,270 +1697,368 @@ export type StoreAgent = TimeFields &
      * Store agent prompt, this is to define what the agent does
      */
     prompt?: string;
-  };
+};
 
 /**
  * Store configuration for resources (eg: agent, function, etc)
  */
 export type StoreConfiguration = {
-  /**
-   * Available models for the configuration
-   */
-  availableModels?: Array<string>;
-  /**
-   * Store configuration description
-   */
-  description?: string;
-  /**
-   * Store configuration display name
-   */
-  displayName?: string;
-  /**
-   * Conditional rendering for the configuration, example: provider === 'openai'
-   */
-  if?: string;
-  /**
-   * Store configuration name
-   */
-  name?: string;
-  options?: Array<StoreConfigurationOption>;
-  /**
-   * Store configuration required
-   */
-  required?: boolean;
-  /**
-   * Store configuration secret
-   */
-  secret?: boolean;
-  /**
-   * Store configuration type
-   */
-  type?: string;
+    /**
+     * Available models for the configuration
+     */
+    availableModels?: Array<(string)>;
+    /**
+     * Store configuration description
+     */
+    description?: string;
+    /**
+     * Store configuration display name
+     */
+    displayName?: string;
+    /**
+     * Conditional rendering for the configuration, example: provider === 'openai'
+     */
+    if?: string;
+    /**
+     * Store configuration name
+     */
+    name?: string;
+    options?: Array<StoreConfigurationOption>;
+    /**
+     * Store configuration required
+     */
+    required?: boolean;
+    /**
+     * Store configuration secret
+     */
+    secret?: boolean;
+    /**
+     * Store configuration type
+     */
+    type?: string;
 };
 
 /**
  * Store configuration options for a select type configuration
  */
 export type StoreConfigurationOption = {
-  /**
-   * Conditional rendering for the configuration option, example: provider === 'openai'
-   */
-  if?: string;
-  /**
-   * Store configuration option label
-   */
-  label?: string;
-  /**
-   * Store configuration option value
-   */
-  value?: string;
+    /**
+     * Conditional rendering for the configuration option, example: provider === 'openai'
+     */
+    if?: string;
+    /**
+     * Store configuration option label
+     */
+    label?: string;
+    /**
+     * Store configuration option value
+     */
+    value?: string;
 };
 
 /**
  * Blaxel template
  */
 export type Template = {
-  /**
-   * Default branch of the template
-   */
-  defaultBranch?: string;
-  /**
-   * Description of the template
-   */
-  description?: string;
-  /**
-   * Number of downloads/clones of the repository
-   */
-  downloadCount?: number;
-  /**
-   * Number of forks the repository has
-   */
-  forksCount?: number;
-  /**
-   * URL to the template's icon
-   */
-  icon?: string;
-  /**
-   * URL to the template's icon in dark mode
-   */
-  iconDark?: string;
-  /**
-   * Name of the template
-   */
-  name?: string;
-  /**
-   * SHA of the variable
-   */
-  sha?: string;
-  /**
-   * Number of stars the repository has
-   */
-  starCount?: number;
-  /**
-   * Topic of the template
-   */
-  topics?: Array<string>;
-  /**
-   * URL of the template
-   */
-  url?: string;
-  /**
-   * Variables of the template
-   */
-  variables?: Array<TemplateVariable>;
+    /**
+     * Default branch of the template
+     */
+    defaultBranch?: string;
+    /**
+     * Description of the template
+     */
+    description?: string;
+    /**
+     * Number of downloads/clones of the repository
+     */
+    downloadCount?: number;
+    /**
+     * Number of forks the repository has
+     */
+    forksCount?: number;
+    /**
+     * URL to the template's icon
+     */
+    icon?: string;
+    /**
+     * URL to the template's icon in dark mode
+     */
+    iconDark?: string;
+    /**
+     * Name of the template
+     */
+    name?: string;
+    /**
+     * SHA of the variable
+     */
+    sha?: string;
+    /**
+     * Number of stars the repository has
+     */
+    starCount?: number;
+    /**
+     * Topic of the template
+     */
+    topics?: Array<(string)>;
+    /**
+     * URL of the template
+     */
+    url?: string;
+    /**
+     * Variables of the template
+     */
+    variables?: Array<TemplateVariable>;
 };
 
 /**
  * Blaxel template variable
  */
 export type TemplateVariable = {
-  /**
-   * Description of the variable
-   */
-  description?: string;
-  /**
-   * Integration of the variable
-   */
-  integration?: string;
-  /**
-   * Name of the variable
-   */
-  name?: string;
-  /**
-   * Path of the variable
-   */
-  path?: string;
-  /**
-   * Whether the variable is secret
-   */
-  secret?: boolean;
+    /**
+     * Description of the variable
+     */
+    description?: string;
+    /**
+     * Integration of the variable
+     */
+    integration?: string;
+    /**
+     * Name of the variable
+     */
+    name?: string;
+    /**
+     * Path of the variable
+     */
+    path?: string;
+    /**
+     * Whether the variable is secret
+     */
+    secret?: boolean;
 };
 
 /**
  * Time fields for Persistance
  */
 export type TimeFields = {
-  /**
-   * The date and time when the resource was created
-   */
-  createdAt?: string;
-  /**
-   * The date and time when the resource was updated
-   */
-  updatedAt?: string;
+    /**
+     * The date and time when the resource was created
+     */
+    createdAt?: string;
+    /**
+     * The date and time when the resource was updated
+     */
+    updatedAt?: string;
 };
 
 /**
  * Time to first token over time metrics
  */
 export type TimeToFirstTokenOverTimeMetrics = {
-  timeToFirstTokenOverTime?: RequestDurationOverTimeMetric;
+    timeToFirstTokenOverTime?: RequestDurationOverTimeMetric;
 };
 
 /**
  * Token rate metric
  */
 export type TokenRateMetric = {
-  /**
-   * Model ID
-   */
-  model?: string;
-  /**
-   * Provider name
-   */
-  provider?: string;
-  /**
-   * Provider integration name
-   */
-  providerName?: string;
-  /**
-   * Timestamp
-   */
-  timestamp?: string;
-  /**
-   * Total tokens
-   */
-  tokenTotal?: number;
-  /**
-   * Trend
-   */
-  trend?: number;
+    /**
+     * Model ID
+     */
+    model?: string;
+    /**
+     * Provider name
+     */
+    provider?: string;
+    /**
+     * Provider integration name
+     */
+    providerName?: string;
+    /**
+     * Timestamp
+     */
+    timestamp?: string;
+    /**
+     * Total tokens
+     */
+    tokenTotal?: number;
+    /**
+     * Trend
+     */
+    trend?: number;
 };
 
 /**
  * Token rate metrics
  */
 export type TokenRateMetrics = {
-  /**
-   * Token rate
-   */
-  tokenRate?: TokenRateMetric;
-  /**
-   * Token rate input
-   */
-  tokenRateInput?: TokenRateMetric;
-  /**
-   * Token rate output
-   */
-  tokenRateOutput?: TokenRateMetric;
+    /**
+     * Token rate
+     */
+    tokenRate?: TokenRateMetric;
+    /**
+     * Token rate input
+     */
+    tokenRateInput?: TokenRateMetric;
+    /**
+     * Token rate output
+     */
+    tokenRateOutput?: TokenRateMetric;
 };
 
 /**
  * Token total metric
  */
 export type TokenTotalMetric = {
-  /**
-   * Average input token per request
-   */
-  averageTokenInputPerRequest?: number;
-  /**
-   * Average output token per request
-   */
-  averageTokenOutputPerRequest?: number;
-  /**
-   * Average token per request
-   */
-  averageTokenPerRequest?: number;
-  /**
-   * Total input tokens
-   */
-  tokenInput?: number;
-  /**
-   * Total output tokens
-   */
-  tokenOutput?: number;
-  /**
-   * Total tokens
-   */
-  tokenTotal?: number;
+    /**
+     * Average input token per request
+     */
+    averageTokenInputPerRequest?: number;
+    /**
+     * Average output token per request
+     */
+    averageTokenOutputPerRequest?: number;
+    /**
+     * Average token per request
+     */
+    averageTokenPerRequest?: number;
+    /**
+     * Total input tokens
+     */
+    tokenInput?: number;
+    /**
+     * Total output tokens
+     */
+    tokenOutput?: number;
+    /**
+     * Total tokens
+     */
+    tokenTotal?: number;
 };
 
 /**
  * Trace IDs response
  */
 export type TraceIdsResponse = {
-  [key: string]: unknown;
+    [key: string]: unknown;
 };
+
+/**
+ * Trigger configuration
+ */
+export type Trigger = {
+    /**
+     * The configuration of the trigger
+     */
+    configuration?: {
+        [key: string]: unknown;
+    };
+    /**
+     * The id of the trigger
+     */
+    id?: string;
+    /**
+     * The type of trigger, can be http or http-async
+     */
+    type?: string;
+};
+
+/**
+ * Triggers to use your agent
+ */
+export type Triggers = Array<Trigger>;
+
+/**
+ * Micro VM for running agentic tasks
+ */
+export type UVM = {
+    events?: CoreEvents;
+    metadata?: Metadata;
+    spec?: UVMSpec;
+    /**
+     * UVM status
+     */
+    status?: string;
+};
+
+/**
+ * UVM definition for admin store operations
+ */
+export type UVMDefinition = {
+    /**
+     * Categories of the defintion
+     */
+    categories?: Array<unknown>;
+    /**
+     * If the definition is coming soon
+     */
+    coming_soon?: boolean;
+    /**
+     * Description of the defintion
+     */
+    description?: string;
+    /**
+     * Display name of the definition
+     */
+    displayName?: string;
+    /**
+     * If the definition is enterprise
+     */
+    enterprise?: boolean;
+    /**
+     * Icon of the definition
+     */
+    icon?: string;
+    /**
+     * Image of the UVM definition
+     */
+    image?: string;
+    /**
+     * Long description of the defintion
+     */
+    longDescription?: string;
+    /**
+     * Memory of the UVM definition in MB
+     */
+    memory?: number;
+    /**
+     * Name of the artifact
+     */
+    name?: string;
+    ports?: Ports;
+    /**
+     * URL of the definition
+     */
+    url?: string;
+};
+
+/**
+ * UVM specification
+ */
+export type UVMSpec = CoreSpec & unknown;
+
+/**
+ * Name of a UVM definition
+ */
+export type UVMStoreDefinitionName = unknown;
 
 /**
  * WebSocket connection details
  */
 export type WebsocketChannel = TimeFields & {
-  /**
-   * Unique connection ID
-   */
-  connection_id?: string;
-  /**
-   * Workspace the connection belongs to
-   */
-  workspace?: string;
+    /**
+     * Unique connection ID
+     */
+    connection_id?: string;
+    /**
+     * Workspace the connection belongs to
+     */
+    workspace?: string;
 };
 
 /**
  * Workspace
  */
-export type Workspace = TimeFields &
-  OwnerFields & {
+export type Workspace = TimeFields & OwnerFields & {
     /**
      * Workspace account id
      */
@@ -1844,7 +2071,7 @@ export type Workspace = TimeFields &
      * Workspace labels
      */
     labels?: {
-      [key: string]: unknown;
+        [key: string]: unknown;
     };
     /**
      * Workspace name
@@ -1854,579 +2081,691 @@ export type Workspace = TimeFields &
      * Workspace write region
      */
     region?: string;
-  };
+    runtime?: WorkspaceRuntime;
+};
+
+/**
+ * Workspace runtime
+ */
+export type WorkspaceRuntime = {
+    /**
+     * Workspace generation
+     */
+    generation?: string;
+};
 
 /**
  * Workspace user
  */
 export type WorkspaceUser = {
-  /**
-   * Whether the user has accepted the workspace invitation
-   */
-  accepted?: boolean;
-  /**
-   * Workspace user email
-   */
-  email?: string;
-  /**
-   * Whether the user's email has been verified
-   */
-  email_verified?: boolean;
-  /**
-   * Workspace user family name
-   */
-  family_name?: string;
-  /**
-   * Workspace user given name
-   */
-  given_name?: string;
-  /**
-   * Workspace user role
-   */
-  role?: string;
-  /**
-   * Workspace user identifier
-   */
-  sub?: string;
+    /**
+     * Whether the user has accepted the workspace invitation
+     */
+    accepted?: boolean;
+    /**
+     * Workspace user email
+     */
+    email?: string;
+    /**
+     * Whether the user's email has been verified
+     */
+    email_verified?: boolean;
+    /**
+     * Workspace user family name
+     */
+    family_name?: string;
+    /**
+     * Workspace user given name
+     */
+    given_name?: string;
+    /**
+     * Workspace user role
+     */
+    role?: string;
+    /**
+     * Workspace user identifier
+     */
+    sub?: string;
 };
 
-export type ListAgentsResponse = Array<Agent>;
+export type ListAgentsResponse = (Array<Agent>);
 
 export type ListAgentsError = unknown;
 
 export type CreateAgentData = {
-  body: Agent;
+    body: Agent;
 };
 
-export type CreateAgentResponse = Agent;
+export type CreateAgentResponse = (Agent);
 
 export type CreateAgentError = unknown;
 
 export type DeleteAgentData = {
-  path: {
-    /**
-     * Name of the agent
-     */
-    agentName: string;
-  };
+    path: {
+        /**
+         * Name of the agent
+         */
+        agentName: string;
+    };
 };
 
-export type DeleteAgentResponse = Agent;
+export type DeleteAgentResponse = (Agent);
 
 export type DeleteAgentError = unknown;
 
 export type GetAgentData = {
-  path: {
-    /**
-     * Name of the agent
-     */
-    agentName: string;
-  };
+    path: {
+        /**
+         * Name of the agent
+         */
+        agentName: string;
+    };
 };
 
-export type GetAgentResponse = Agent;
+export type GetAgentResponse = (Agent);
 
 export type GetAgentError = unknown;
 
 export type UpdateAgentData = {
-  body: Agent;
-  path: {
-    /**
-     * Name of the agent
-     */
-    agentName: string;
-  };
+    body: Agent;
+    path: {
+        /**
+         * Name of the agent
+         */
+        agentName: string;
+    };
 };
 
-export type UpdateAgentResponse = Agent;
+export type UpdateAgentResponse = (Agent);
 
 export type UpdateAgentError = unknown;
 
 export type ListAgentRevisionsData = {
-  path: {
-    /**
-     * Name of the agent
-     */
-    agentName: string;
-  };
+    path: {
+        /**
+         * Name of the agent
+         */
+        agentName: string;
+    };
 };
 
-export type ListAgentRevisionsResponse = Array<RevisionMetadata>;
+export type ListAgentRevisionsResponse = (Array<RevisionMetadata>);
 
 export type ListAgentRevisionsError = unknown;
 
-export type GetConfigurationResponse = Configuration;
+export type ListUvmResponse = (Array<UVM>);
+
+export type ListUvmError = unknown;
+
+export type CreateUvmData = {
+    body: UVM;
+};
+
+export type CreateUvmResponse = (UVM);
+
+export type CreateUvmError = unknown;
+
+export type DeleteUvmData = {
+    path: {
+        /**
+         * Name of the UVM
+         */
+        uvmName: string;
+    };
+};
+
+export type DeleteUvmResponse = (UVM);
+
+export type DeleteUvmError = unknown;
+
+export type GetUvmData = {
+    path: {
+        /**
+         * Name of the UVM
+         */
+        uvmName: string;
+    };
+};
+
+export type GetUvmResponse = (UVM);
+
+export type GetUvmError = unknown;
+
+export type UpdateUvmData = {
+    body: UVM;
+    path: {
+        /**
+         * Name of the UVM
+         */
+        uvmName: string;
+    };
+};
+
+export type UpdateUvmResponse = (UVM);
+
+export type UpdateUvmError = unknown;
+
+export type StartUvmData = {
+    path: {
+        /**
+         * Name of the UVM
+         */
+        uvmName: string;
+    };
+};
+
+export type StartUvmResponse = (StartUVM);
+
+export type StartUvmError = (unknown);
+
+export type StopUvmData = {
+    path: {
+        /**
+         * Name of the UVM
+         */
+        uvmName: string;
+    };
+};
+
+export type StopUvmResponse = (StopUVM);
+
+export type StopUvmError = (unknown);
+
+export type GetConfigurationResponse = (Configuration);
 
 export type GetConfigurationError = unknown;
 
-export type ListFunctionsResponse = Array<Function>;
+export type ListFunctionsResponse = (Array<Function>);
 
 export type ListFunctionsError = unknown;
 
 export type CreateFunctionData = {
-  body: Function;
+    body: Function;
 };
 
-export type CreateFunctionResponse = Function;
+export type CreateFunctionResponse = (Function);
 
 export type CreateFunctionError = unknown;
 
 export type DeleteFunctionData = {
-  path: {
-    /**
-     * Name of the function
-     */
-    functionName: string;
-  };
+    path: {
+        /**
+         * Name of the function
+         */
+        functionName: string;
+    };
 };
 
-export type DeleteFunctionResponse = Function;
+export type DeleteFunctionResponse = (Function);
 
 export type DeleteFunctionError = unknown;
 
 export type GetFunctionData = {
-  path: {
-    /**
-     * Name of the function
-     */
-    functionName: string;
-  };
+    path: {
+        /**
+         * Name of the function
+         */
+        functionName: string;
+    };
 };
 
-export type GetFunctionResponse = Function;
+export type GetFunctionResponse = (Function);
 
 export type GetFunctionError = unknown;
 
 export type UpdateFunctionData = {
-  body: Function;
-  path: {
-    /**
-     * Name of the function
-     */
-    functionName: string;
-  };
+    body: Function;
+    path: {
+        /**
+         * Name of the function
+         */
+        functionName: string;
+    };
 };
 
-export type UpdateFunctionResponse = Function;
+export type UpdateFunctionResponse = (Function);
 
 export type UpdateFunctionError = unknown;
 
 export type ListFunctionRevisionsData = {
-  path: {
-    /**
-     * Name of the function
-     */
-    functionName: string;
-  };
+    path: {
+        /**
+         * Name of the function
+         */
+        functionName: string;
+    };
 };
 
-export type ListFunctionRevisionsResponse = RevisionMetadata;
+export type ListFunctionRevisionsResponse = (Array<RevisionMetadata>);
 
 export type ListFunctionRevisionsError = unknown;
 
 export type GetIntegrationData = {
-  path: {
-    /**
-     * Name of the integration
-     */
-    integrationName: string;
-  };
+    path: {
+        /**
+         * Name of the integration
+         */
+        integrationName: string;
+    };
 };
 
-export type GetIntegrationResponse = unknown;
+export type GetIntegrationResponse = (unknown);
 
 export type GetIntegrationError = unknown;
 
-export type ListIntegrationConnectionsResponse = Array<IntegrationConnection>;
+export type ListIntegrationConnectionsResponse = (Array<IntegrationConnection>);
 
 export type ListIntegrationConnectionsError = unknown;
 
 export type CreateIntegrationConnectionData = {
-  body: IntegrationConnection;
+    body: IntegrationConnection;
 };
 
-export type CreateIntegrationConnectionResponse = IntegrationConnection;
+export type CreateIntegrationConnectionResponse = (IntegrationConnection);
 
 export type CreateIntegrationConnectionError = unknown;
 
 export type DeleteIntegrationConnectionData = {
-  path: {
-    /**
-     * Name of the integrationconnection
-     */
-    connectionName: string;
-  };
+    path: {
+        /**
+         * Name of the integrationconnection
+         */
+        connectionName: string;
+    };
 };
 
-export type DeleteIntegrationConnectionResponse = IntegrationConnection;
+export type DeleteIntegrationConnectionResponse = (IntegrationConnection);
 
 export type DeleteIntegrationConnectionError = unknown;
 
 export type GetIntegrationConnectionData = {
-  path: {
-    /**
-     * Name of the integrationconnection
-     */
-    connectionName: string;
-  };
+    path: {
+        /**
+         * Name of the integrationconnection
+         */
+        connectionName: string;
+    };
 };
 
-export type GetIntegrationConnectionResponse = IntegrationConnection;
+export type GetIntegrationConnectionResponse = (IntegrationConnection);
 
 export type GetIntegrationConnectionError = unknown;
 
 export type UpdateIntegrationConnectionData = {
-  body: IntegrationConnection;
-  path: {
-    /**
-     * Name of the integrationconnection
-     */
-    connectionName: string;
-  };
+    body: IntegrationConnection;
+    path: {
+        /**
+         * Name of the integrationconnection
+         */
+        connectionName: string;
+    };
 };
 
-export type UpdateIntegrationConnectionResponse = IntegrationConnection;
+export type UpdateIntegrationConnectionResponse = (IntegrationConnection);
 
 export type UpdateIntegrationConnectionError = unknown;
 
 export type GetIntegrationConnectionModelEndpointConfigurationsData = {
-  path: {
-    /**
-     * Name of the connection
-     */
-    connectionName: string;
-  };
+    path: {
+        /**
+         * Name of the connection
+         */
+        connectionName: string;
+    };
 };
 
-export type GetIntegrationConnectionModelEndpointConfigurationsResponse =
-  unknown;
+export type GetIntegrationConnectionModelEndpointConfigurationsResponse = (unknown);
 
 export type GetIntegrationConnectionModelEndpointConfigurationsError = unknown;
 
 export type ListIntegrationConnectionModelsData = {
-  path: {
-    /**
-     * Name of the connection
-     */
-    connectionName: string;
-  };
+    path: {
+        /**
+         * Name of the connection
+         */
+        connectionName: string;
+    };
 };
 
-export type ListIntegrationConnectionModelsResponse = unknown;
+export type ListIntegrationConnectionModelsResponse = (unknown);
 
 export type ListIntegrationConnectionModelsError = unknown;
 
 export type GetIntegrationConnectionModelData = {
-  path: {
-    /**
-     * Name of the connection
-     */
-    connectionName: string;
-    /**
-     * Model ID
-     */
-    modelId: string;
-  };
+    path: {
+        /**
+         * Name of the connection
+         */
+        connectionName: string;
+        /**
+         * Model ID
+         */
+        modelId: string;
+    };
 };
 
-export type GetIntegrationConnectionModelResponse = unknown;
+export type GetIntegrationConnectionModelResponse = (unknown);
 
 export type GetIntegrationConnectionModelError = unknown;
 
-export type ListKnowledgebasesResponse = Array<Knowledgebase>;
+export type ListKnowledgebasesResponse = (Array<Knowledgebase>);
 
 export type ListKnowledgebasesError = unknown;
 
 export type CreateKnowledgebaseData = {
-  body: Knowledgebase;
+    body: Knowledgebase;
 };
 
-export type CreateKnowledgebaseResponse = Knowledgebase;
+export type CreateKnowledgebaseResponse = (Knowledgebase);
 
 export type CreateKnowledgebaseError = unknown;
 
 export type DeleteKnowledgebaseData = {
-  path: {
-    /**
-     * Name of the knowledgebase
-     */
-    knowledgebaseName: string;
-  };
+    path: {
+        /**
+         * Name of the knowledgebase
+         */
+        knowledgebaseName: string;
+    };
 };
 
-export type DeleteKnowledgebaseResponse = Knowledgebase;
+export type DeleteKnowledgebaseResponse = (Knowledgebase);
 
 export type DeleteKnowledgebaseError = unknown;
 
 export type GetKnowledgebaseData = {
-  path: {
-    /**
-     * Name of the knowledgebase
-     */
-    knowledgebaseName: string;
-  };
+    path: {
+        /**
+         * Name of the knowledgebase
+         */
+        knowledgebaseName: string;
+    };
 };
 
-export type GetKnowledgebaseResponse = Knowledgebase;
+export type GetKnowledgebaseResponse = (Knowledgebase);
 
 export type GetKnowledgebaseError = unknown;
 
 export type UpdateKnowledgebaseData = {
-  body: Knowledgebase;
-  path: {
-    /**
-     * Name of the knowledgebase
-     */
-    knowledgebaseName: string;
-  };
+    body: Knowledgebase;
+    path: {
+        /**
+         * Name of the knowledgebase
+         */
+        knowledgebaseName: string;
+    };
 };
 
-export type UpdateKnowledgebaseResponse = Knowledgebase;
+export type UpdateKnowledgebaseResponse = (Knowledgebase);
 
 export type UpdateKnowledgebaseError = unknown;
 
 export type ListKnowledgebaseRevisionsData = {
-  path: {
-    /**
-     * Name of the knowledgebase
-     */
-    knowledgebaseName: string;
-  };
+    path: {
+        /**
+         * Name of the knowledgebase
+         */
+        knowledgebaseName: string;
+    };
 };
 
-export type ListKnowledgebaseRevisionsResponse = RevisionMetadata;
+export type ListKnowledgebaseRevisionsResponse = (Array<RevisionMetadata>);
 
 export type ListKnowledgebaseRevisionsError = unknown;
 
-export type ListLocationsResponse = Array<LocationResponse>;
+export type ListLocationsResponse = (Array<LocationResponse>);
 
 export type ListLocationsError = unknown;
 
-export type ListMcpHubDefinitionsResponse = Array<MCPDefinition>;
+export type ListMcpHubDefinitionsResponse = (Array<MCPDefinition>);
 
 export type ListMcpHubDefinitionsError = unknown;
 
-export type ListModelsResponse = Array<Model>;
+export type ListModelsResponse = (Array<Model>);
 
 export type ListModelsError = unknown;
 
 export type CreateModelData = {
-  body: Model;
+    body: Model;
 };
 
-export type CreateModelResponse = Model;
+export type CreateModelResponse = (Model);
 
 export type CreateModelError = unknown;
 
 export type DeleteModelData = {
-  path: {
-    /**
-     * Name of the model
-     */
-    modelName: string;
-  };
+    path: {
+        /**
+         * Name of the model
+         */
+        modelName: string;
+    };
 };
 
-export type DeleteModelResponse = Model;
+export type DeleteModelResponse = (Model);
 
 export type DeleteModelError = unknown;
 
 export type GetModelData = {
-  path: {
-    /**
-     * Name of the model
-     */
-    modelName: string;
-  };
+    path: {
+        /**
+         * Name of the model
+         */
+        modelName: string;
+    };
 };
 
-export type GetModelResponse = Model;
+export type GetModelResponse = (Model);
 
 export type GetModelError = unknown;
 
 export type UpdateModelData = {
-  body: Model;
-  path: {
-    /**
-     * Name of the model
-     */
-    modelName: string;
-  };
+    body: Model;
+    path: {
+        /**
+         * Name of the model
+         */
+        modelName: string;
+    };
 };
 
-export type UpdateModelResponse = Model;
+export type UpdateModelResponse = (Model);
 
 export type UpdateModelError = unknown;
 
 export type ListModelRevisionsData = {
-  path: {
-    /**
-     * Name of the model
-     */
-    modelName: string;
-  };
+    path: {
+        /**
+         * Name of the model
+         */
+        modelName: string;
+    };
 };
 
-export type ListModelRevisionsResponse = RevisionMetadata;
+export type ListModelRevisionsResponse = (Array<RevisionMetadata>);
 
 export type ListModelRevisionsError = unknown;
 
-export type ListPoliciesResponse = Array<Policy>;
+export type ListPoliciesResponse = (Array<Policy>);
 
 export type ListPoliciesError = unknown;
 
 export type CreatePolicyData = {
-  body: Policy;
+    body: Policy;
 };
 
-export type CreatePolicyResponse = Policy;
+export type CreatePolicyResponse = (Policy);
 
 export type CreatePolicyError = unknown;
 
 export type DeletePolicyData = {
-  path: {
-    /**
-     * Name of the policy
-     */
-    policyName: string;
-  };
+    path: {
+        /**
+         * Name of the policy
+         */
+        policyName: string;
+    };
 };
 
-export type DeletePolicyResponse = Policy;
+export type DeletePolicyResponse = (Policy);
 
 export type DeletePolicyError = unknown;
 
 export type GetPolicyData = {
-  path: {
-    /**
-     * Name of the policy
-     */
-    policyName: string;
-  };
+    path: {
+        /**
+         * Name of the policy
+         */
+        policyName: string;
+    };
 };
 
-export type GetPolicyResponse = Policy;
+export type GetPolicyResponse = (Policy);
 
 export type GetPolicyError = unknown;
 
 export type UpdatePolicyData = {
-  body: Policy;
-  path: {
-    /**
-     * Name of the policy
-     */
-    policyName: string;
-  };
+    body: Policy;
+    path: {
+        /**
+         * Name of the policy
+         */
+        policyName: string;
+    };
 };
 
-export type UpdatePolicyResponse = Policy;
+export type UpdatePolicyResponse = (Policy);
 
 export type UpdatePolicyError = unknown;
 
-export type ListPrivateClustersResponse = Array<PrivateCluster>;
+export type ListPrivateClustersResponse = (Array<PrivateCluster>);
 
-export type ListPrivateClustersError = unknown;
+export type ListPrivateClustersError = (unknown);
 
-export type CreatePrivateClusterResponse = PrivateCluster;
+export type CreatePrivateClusterResponse = (PrivateCluster);
 
-export type CreatePrivateClusterError = unknown;
+export type CreatePrivateClusterError = (unknown);
 
 export type DeletePrivateClusterData = {
-  path: {
-    /**
-     * Name of the private cluster
-     */
-    privateClusterName: string;
-  };
+    path: {
+        /**
+         * Name of the private cluster
+         */
+        privateClusterName: string;
+    };
 };
 
-export type DeletePrivateClusterResponse = PrivateCluster;
+export type DeletePrivateClusterResponse = (PrivateCluster);
 
-export type DeletePrivateClusterError = unknown;
+export type DeletePrivateClusterError = (unknown);
 
 export type GetPrivateClusterData = {
-  path: {
-    /**
-     * Name of the private cluster
-     */
-    privateClusterName: string;
-  };
+    path: {
+        /**
+         * Name of the private cluster
+         */
+        privateClusterName: string;
+    };
 };
 
-export type GetPrivateClusterResponse = PrivateCluster;
+export type GetPrivateClusterResponse = (PrivateCluster);
 
-export type GetPrivateClusterError = unknown;
+export type GetPrivateClusterError = (unknown);
 
 export type UpdatePrivateClusterData = {
-  path: {
-    /**
-     * Name of the private cluster
-     */
-    privateClusterName: string;
-  };
+    path: {
+        /**
+         * Name of the private cluster
+         */
+        privateClusterName: string;
+    };
 };
 
-export type UpdatePrivateClusterResponse = PrivateCluster;
+export type UpdatePrivateClusterResponse = (PrivateCluster);
 
-export type UpdatePrivateClusterError = unknown;
+export type UpdatePrivateClusterError = (unknown);
 
 export type GetPrivateClusterHealthData = {
-  path: {
-    /**
-     * Name of the private cluster
-     */
-    privateClusterName: string;
-  };
+    path: {
+        /**
+         * Name of the private cluster
+         */
+        privateClusterName: string;
+    };
 };
 
-export type GetPrivateClusterHealthResponse = unknown;
+export type GetPrivateClusterHealthResponse = (unknown);
 
-export type GetPrivateClusterHealthError = unknown;
+export type GetPrivateClusterHealthError = (unknown);
 
 export type UpdatePrivateClusterHealthData = {
-  path: {
-    /**
-     * Name of the private cluster
-     */
-    privateClusterName: string;
-  };
+    path: {
+        /**
+         * Name of the private cluster
+         */
+        privateClusterName: string;
+    };
 };
 
-export type UpdatePrivateClusterHealthResponse = unknown;
+export type UpdatePrivateClusterHealthResponse = (unknown);
 
-export type UpdatePrivateClusterHealthError = unknown;
+export type UpdatePrivateClusterHealthError = (unknown);
 
-export type ListAllPendingInvitationsResponse = Array<PendingInvitationRender>;
+export type ListAllPendingInvitationsResponse = (Array<PendingInvitationRender>);
 
-export type ListAllPendingInvitationsError = unknown;
+export type ListAllPendingInvitationsError = (unknown);
 
-export type GetWorkspaceServiceAccountsResponse = Array<{
-  /**
-   * Service account client ID
-   */
-  client_id?: string;
-  /**
-   * Creation timestamp
-   */
-  created_at?: string;
-  /**
-   * Service account description
-   */
-  description?: string;
-  /**
-   * Service account name
-   */
-  name?: string;
-  /**
-   * Last update timestamp
-   */
-  updated_at?: string;
-}>;
+export type GetWorkspaceServiceAccountsResponse = (Array<{
+    /**
+     * Service account client ID
+     */
+    client_id?: string;
+    /**
+     * Creation timestamp
+     */
+    created_at?: string;
+    /**
+     * Service account description
+     */
+    description?: string;
+    /**
+     * Service account name
+     */
+    name?: string;
+    /**
+     * Last update timestamp
+     */
+    updated_at?: string;
+}>);
 
 export type GetWorkspaceServiceAccountsError = unknown;
 
 export type CreateWorkspaceServiceAccountData = {
-  body: {
+    body: {
+        /**
+         * Service account description
+         */
+        description?: string;
+        /**
+         * Service account name
+         */
+        name: string;
+    };
+};
+
+export type CreateWorkspaceServiceAccountResponse = ({
+    /**
+     * Service account client ID
+     */
+    client_id?: string;
+    /**
+     * Service account client secret (only returned on creation)
+     */
+    client_secret?: string;
+    /**
+     * Creation timestamp
+     */
+    created_at?: string;
     /**
      * Service account description
      */
@@ -2434,75 +2773,33 @@ export type CreateWorkspaceServiceAccountData = {
     /**
      * Service account name
      */
-    name: string;
-  };
-};
-
-export type CreateWorkspaceServiceAccountResponse = {
-  /**
-   * Service account client ID
-   */
-  client_id?: string;
-  /**
-   * Service account client secret (only returned on creation)
-   */
-  client_secret?: string;
-  /**
-   * Creation timestamp
-   */
-  created_at?: string;
-  /**
-   * Service account description
-   */
-  description?: string;
-  /**
-   * Service account name
-   */
-  name?: string;
-  /**
-   * Last update timestamp
-   */
-  updated_at?: string;
-};
+    name?: string;
+    /**
+     * Last update timestamp
+     */
+    updated_at?: string;
+});
 
 export type CreateWorkspaceServiceAccountError = unknown;
 
 export type DeleteWorkspaceServiceAccountData = {
-  path: {
+    path: {
+        /**
+         * Client ID
+         */
+        clientId: string;
+    };
+};
+
+export type DeleteWorkspaceServiceAccountResponse = ({
     /**
-     * Client ID
+     * Service account client ID
      */
-    clientId: string;
-  };
-};
-
-export type DeleteWorkspaceServiceAccountResponse = {
-  /**
-   * Service account client ID
-   */
-  client_id?: string;
-  /**
-   * Creation timestamp
-   */
-  created_at?: string;
-  /**
-   * Service account description
-   */
-  description?: string;
-  /**
-   * Service account name
-   */
-  name?: string;
-  /**
-   * Last update timestamp
-   */
-  updated_at?: string;
-};
-
-export type DeleteWorkspaceServiceAccountError = unknown;
-
-export type UpdateWorkspaceServiceAccountData = {
-  body: {
+    client_id?: string;
+    /**
+     * Creation timestamp
+     */
+    created_at?: string;
     /**
      * Service account description
      */
@@ -2511,267 +2808,289 @@ export type UpdateWorkspaceServiceAccountData = {
      * Service account name
      */
     name?: string;
-  };
-  path: {
     /**
-     * Client ID
+     * Last update timestamp
      */
-    clientId: string;
-  };
+    updated_at?: string;
+});
+
+export type DeleteWorkspaceServiceAccountError = unknown;
+
+export type UpdateWorkspaceServiceAccountData = {
+    body: {
+        /**
+         * Service account description
+         */
+        description?: string;
+        /**
+         * Service account name
+         */
+        name?: string;
+    };
+    path: {
+        /**
+         * Client ID
+         */
+        clientId: string;
+    };
 };
 
-export type UpdateWorkspaceServiceAccountResponse = {
-  /**
-   * Service account client ID
-   */
-  client_id?: string;
-  /**
-   * Creation timestamp
-   */
-  created_at?: string;
-  /**
-   * Service account description
-   */
-  description?: string;
-  /**
-   * Service account name
-   */
-  name?: string;
-  /**
-   * Last update timestamp
-   */
-  updated_at?: string;
-};
+export type UpdateWorkspaceServiceAccountResponse = ({
+    /**
+     * Service account client ID
+     */
+    client_id?: string;
+    /**
+     * Creation timestamp
+     */
+    created_at?: string;
+    /**
+     * Service account description
+     */
+    description?: string;
+    /**
+     * Service account name
+     */
+    name?: string;
+    /**
+     * Last update timestamp
+     */
+    updated_at?: string;
+});
 
 export type UpdateWorkspaceServiceAccountError = unknown;
 
 export type ListApiKeysForServiceAccountData = {
-  path: {
-    /**
-     * Client ID
-     */
-    clientId: string;
-  };
+    path: {
+        /**
+         * Client ID
+         */
+        clientId: string;
+    };
 };
 
-export type ListApiKeysForServiceAccountResponse = Array<ApiKey>;
+export type ListApiKeysForServiceAccountResponse = (Array<ApiKey>);
 
 export type ListApiKeysForServiceAccountError = unknown;
 
 export type CreateApiKeyForServiceAccountData = {
-  body: {
-    /**
-     * Expiration period for the API key
-     */
-    expires_in?: string;
-    /**
-     * Name for the API key
-     */
-    name?: string;
-  };
-  path: {
-    /**
-     * Client ID
-     */
-    clientId: string;
-  };
+    body: {
+        /**
+         * Expiration period for the API key
+         */
+        expires_in?: string;
+        /**
+         * Name for the API key
+         */
+        name?: string;
+    };
+    path: {
+        /**
+         * Client ID
+         */
+        clientId: string;
+    };
 };
 
-export type CreateApiKeyForServiceAccountResponse = ApiKey;
+export type CreateApiKeyForServiceAccountResponse = (ApiKey);
 
 export type CreateApiKeyForServiceAccountError = unknown;
 
 export type DeleteApiKeyForServiceAccountData = {
-  path: {
-    /**
-     * Api key id
-     */
-    apiKeyId: string;
-    /**
-     * Client ID
-     */
-    clientId: string;
-  };
+    path: {
+        /**
+         * Api key id
+         */
+        apiKeyId: string;
+        /**
+         * Client ID
+         */
+        clientId: string;
+    };
 };
 
-export type DeleteApiKeyForServiceAccountResponse = unknown;
+export type DeleteApiKeyForServiceAccountResponse = (unknown);
 
 export type DeleteApiKeyForServiceAccountError = unknown;
 
-export type ListTemplatesResponse = Template;
+export type ListTemplatesResponse = (Array<Template>);
 
 export type ListTemplatesError = unknown;
 
 export type GetTemplateData = {
-  path: {
-    /**
-     * Name of the template
-     */
-    templateName: string;
-  };
+    path: {
+        /**
+         * Name of the template
+         */
+        templateName: string;
+    };
 };
 
-export type GetTemplateResponse = Template;
+export type GetTemplateResponse = (Template);
 
 export type GetTemplateError = unknown;
 
 export type GetTemplateContentsData = {
-  path: {
-    templateName: string;
-  };
+    path: {
+        templateName: string;
+    };
 };
 
-export type GetTemplateContentsResponse = Array<string>;
+export type GetTemplateContentsResponse = (Array<(string)>);
 
 export type GetTemplateContentsError = unknown;
 
 export type GetTemplateFileContentsData = {
-  path: {
-    fileName: string;
-    templateName: string;
-  };
+    path: {
+        fileName: string;
+        templateName: string;
+    };
 };
 
-export type GetTemplateFileContentsResponse = string;
+export type GetTemplateFileContentsResponse = (string);
 
 export type GetTemplateFileContentsError = unknown;
 
-export type ListWorkspaceUsersResponse = Array<WorkspaceUser>;
+export type ListWorkspaceUsersResponse = (Array<WorkspaceUser>);
 
 export type ListWorkspaceUsersError = unknown;
 
 export type InviteWorkspaceUserData = {
-  /**
-   * Email of the user to invite
-   */
-  body: {
-    email?: string;
-  };
+    /**
+     * Email of the user to invite
+     */
+    body: {
+        email?: string;
+    };
 };
 
-export type InviteWorkspaceUserResponse = PendingInvitation;
+export type InviteWorkspaceUserResponse = (PendingInvitation);
 
-export type InviteWorkspaceUserError = unknown;
+export type InviteWorkspaceUserError = (unknown);
 
 export type RemoveWorkspaceUserData = {
-  path: {
-    /**
-     * Sub or email of the user
-     */
-    subOrEmail: string;
-  };
+    path: {
+        /**
+         * Sub or email of the user
+         */
+        subOrEmail: string;
+    };
 };
 
-export type RemoveWorkspaceUserResponse = unknown;
+export type RemoveWorkspaceUserResponse = (unknown);
 
-export type RemoveWorkspaceUserError = unknown;
+export type RemoveWorkspaceUserError = (unknown);
 
 export type UpdateWorkspaceUserRoleData = {
-  body: {
-    /**
-     * The new role to assign to the user
-     */
-    role: string;
-  };
-  path: {
-    /**
-     * Sub or email of the user
-     */
-    subOrEmail: string;
-  };
+    body: {
+        /**
+         * The new role to assign to the user
+         */
+        role: string;
+    };
+    path: {
+        /**
+         * Sub or email of the user
+         */
+        subOrEmail: string;
+    };
 };
 
-export type UpdateWorkspaceUserRoleResponse = WorkspaceUser;
+export type UpdateWorkspaceUserRoleResponse = (WorkspaceUser);
 
-export type UpdateWorkspaceUserRoleError = unknown;
+export type UpdateWorkspaceUserRoleError = (unknown);
 
-export type ListWorkspacesResponse = Array<Workspace>;
+export type ListUvmHubDefinitionsResponse = (Array<UVMDefinition>);
+
+export type ListUvmHubDefinitionsError = unknown;
+
+export type ListWorkspacesResponse = (Array<Workspace>);
 
 export type ListWorkspacesError = unknown;
 
 export type CreateWorspaceData = {
-  body: Workspace;
+    body: Workspace;
 };
 
-export type CreateWorspaceResponse = Workspace;
+export type CreateWorspaceResponse = (Workspace);
 
 export type CreateWorspaceError = unknown;
 
 export type DeleteWorkspaceData = {
-  path: {
-    /**
-     * Name of the workspace
-     */
-    workspaceName: string;
-  };
+    path: {
+        /**
+         * Name of the workspace
+         */
+        workspaceName: string;
+    };
 };
 
-export type DeleteWorkspaceResponse = Workspace;
+export type DeleteWorkspaceResponse = (Workspace);
 
 export type DeleteWorkspaceError = unknown;
 
 export type GetWorkspaceData = {
-  path: {
-    /**
-     * Name of the workspace
-     */
-    workspaceName: string;
-  };
+    path: {
+        /**
+         * Name of the workspace
+         */
+        workspaceName: string;
+    };
 };
 
-export type GetWorkspaceResponse = Workspace;
+export type GetWorkspaceResponse = (Workspace);
 
 export type GetWorkspaceError = unknown;
 
 export type UpdateWorkspaceData = {
-  body: Workspace;
-  path: {
-    /**
-     * name of the workspace
-     */
-    workspaceName: string;
-  };
+    body: Workspace;
+    path: {
+        /**
+         * name of the workspace
+         */
+        workspaceName: string;
+    };
 };
 
-export type UpdateWorkspaceResponse = Workspace;
+export type UpdateWorkspaceResponse = (Workspace);
 
 export type UpdateWorkspaceError = unknown;
 
 export type DeclineWorkspaceInvitationData = {
-  path: {
-    /**
-     * Name of the workspace
-     */
-    workspaceName: string;
-  };
+    path: {
+        /**
+         * Name of the workspace
+         */
+        workspaceName: string;
+    };
 };
 
-export type DeclineWorkspaceInvitationResponse = PendingInvitation;
+export type DeclineWorkspaceInvitationResponse = (PendingInvitation);
 
 export type DeclineWorkspaceInvitationError = unknown;
 
 export type AcceptWorkspaceInvitationData = {
-  path: {
-    /**
-     * Name of the workspace
-     */
-    workspaceName: string;
-  };
+    path: {
+        /**
+         * Name of the workspace
+         */
+        workspaceName: string;
+    };
 };
 
-export type AcceptWorkspaceInvitationResponse = PendingInvitationAccept;
+export type AcceptWorkspaceInvitationResponse = (PendingInvitationAccept);
 
-export type AcceptWorkspaceInvitationError = unknown;
+export type AcceptWorkspaceInvitationError = (unknown);
 
 export type LeaveWorkspaceData = {
-  path: {
-    /**
-     * Name of the workspace
-     */
-    workspaceName: string;
-  };
+    path: {
+        /**
+         * Name of the workspace
+         */
+        workspaceName: string;
+    };
 };
 
-export type LeaveWorkspaceResponse = Workspace;
+export type LeaveWorkspaceResponse = (Workspace);
 
-export type LeaveWorkspaceError = unknown;
+export type LeaveWorkspaceError = (unknown);

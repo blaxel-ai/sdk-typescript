@@ -14,3 +14,9 @@ export function handleDynamicImportError(err: any) {
     }
   }
 }
+
+export class HttpError extends Error {
+  constructor(public response: Response, public data: any) {
+    super(`HTTP error ${response.status} ${response.statusText}`);
+  }
+}
