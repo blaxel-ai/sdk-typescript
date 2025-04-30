@@ -1,7 +1,7 @@
 import { client } from "../client/index.js";
 import { interceptors } from "../client/interceptors.js";
 import { telemetryManager } from "../instrumentation/telemetryManager.js";
-import { client as clientUVM } from "../uvm/client/index.js";
+import { client as clientUVM } from "../sandbox/client/index.js";
 import settings from "./settings.js";
 
 async function autoload() {

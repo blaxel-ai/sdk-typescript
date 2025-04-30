@@ -7,7 +7,7 @@ export * from "./common/env.js";
 export * from "./common/logger.js";
 export * from "./mcp/index.js";
 export * from "./models/index.js";
+export * from "./sandbox/index.js";
 export * from "./tools/index.js";
-export * from "./uvm/index.js";
 export { settings };
 

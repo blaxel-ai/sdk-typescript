@@ -1,10 +1,10 @@
-import { UVM } from "../client";
-import { UVMAction } from "./action";
+import { Sandbox } from "../client";
+import { SandboxAction } from "./action";
 import { ProcessRequest, deleteProcessByIdentifier, deleteProcessByIdentifierKill, getProcess, getProcessByIdentifier, getProcessByIdentifierLogs, postProcess } from "./client";
 
-export class UVMProcess extends UVMAction {
-  constructor(uvm: UVM) {
-    super(uvm);
+export class SandboxProcess extends SandboxAction {
+  constructor(sandbox: Sandbox) {
+    super(sandbox);
   }
 
   async exec(process: ProcessRequest) {

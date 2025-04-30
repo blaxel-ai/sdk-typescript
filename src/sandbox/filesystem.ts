@@ -1,5 +1,5 @@
-import { UVM } from "../client";
-import { UVMAction } from "./action";
+import { Sandbox } from "../client";
+import { SandboxAction } from "./action";
 import { deleteFilesystemByPath, Directory, getFilesystemByPath, putFilesystemByPath } from "./client";
 
 export type CopyResponse = {
@@ -8,9 +8,9 @@ export type CopyResponse = {
   destination: string;
 }
 
-export class UVMFileSystem extends UVMAction {
-  constructor(uvm: UVM) {
-    super(uvm);
+export class SandboxFileSystem extends SandboxAction {
+  constructor(sandbox: Sandbox) {
+    super(sandbox);
   }
 
   async mkdir(path: string, permissions: string = "0755") {

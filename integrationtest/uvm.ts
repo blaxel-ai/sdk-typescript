@@ -1,5 +1,5 @@
 import { UVMInstance } from "../src";
-import { Directory } from "../src/uvm/client";
+import { Directory } from "../src/sandbox/client";
 
 process.env.BL_UVM_TEST_URL = "http://localhost:8080";
 
