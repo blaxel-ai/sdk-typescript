@@ -1,7 +1,7 @@
 import { SandboxInstance } from "../src";
 import { Directory } from "../src/sandbox/client";
 
-process.env.BL_Sandbox_TEST_URL = "http://localhost:8080";
+// process.env.BL_Sandbox_TEST_URL = "http://localhost:8080";
 
 async function testFilesystem(uvm: SandboxInstance) {
   const user = process.env.USER;
@@ -66,23 +66,24 @@ async function testProcess(uvm: SandboxInstance) {
 
 async function testSandbox() {
   // Create a sandbox, then you can play with it
-  let sandbox = await SandboxInstance.create({
-    metadata: {
-      name: "sandbox-test"
-    },
-    spec: {
-      runtime: {
-        image: "blaxel/sandbox-hub/prod/ts-app",
-        ports: [
-          {
-            name: "http",
-            target: 8080,
-            protocol: "HTTP",
-          }
-        ]
-      }
-    }
-  })
+  // let sandbox = await SandboxInstance.create({
+  //   metadata: {
+  //     name: "sandbox-test"
+  //   },
+  //   spec: {
+  //     runtime: {
+  //       image: "blaxel/sandbox-hub/prod/ts-app",
+  //       ports: [
+  //         {
+  //           name: "http",
+  //           target: 8080,
+  //           protocol: "HTTP",
+  //         }
+  //       ]
+  //     }
+  //   }
+  // })
+  let sandbox = await SandboxInstance.get("sandbox-test")
   // Wait for sandbox to be deployed, max wait of 120 seconds and interval of 1 second
   // By default, the interval is 1 second and max wait is 60 seconds
   await sandbox.wait({ maxWait: 120000, interval: 1000 })
@@ -97,13 +98,13 @@ async function main() {
   // Test with controlplane
   await testSandbox()
 
-  const uvm = new SandboxInstance({
-    metadata: {
-      name: "test",
-    },
-  });
-  await testFilesystem(uvm);
-  await testProcess(uvm);
+  // const uvm = new SandboxInstance({
+  //   metadata: {
+  //     name: "test",
+  //   },
+  // });
+  // await testFilesystem(uvm);
+  // await testProcess(uvm);
 }
 
 main()

@@ -45,6 +45,9 @@ export class SandboxInstance {
       } catch(e) {
         console.error("Could not retrieve sandbox", e);
       }
+      if (this.sandbox.status === "FAILED") {
+        throw new Error("Sandbox failed to deploy");
+      }
       if (Date.now() - startTime > maxWait) {
         throw new Error("Sandbox did not deploy in time");
       }
@@ -52,6 +55,11 @@ export class SandboxInstance {
   }
 
   static async create(sandbox: SandboxModel) {
+    if (sandbox.spec?.runtime?.generation == undefined) {
+      sandbox.spec = sandbox.spec ?? {runtime: {}}
+      sandbox.spec.runtime = sandbox.spec.runtime ?? {}
+      sandbox.spec.runtime.generation = "mk3"
+    }
     const { data } = await createSandbox({
       body: sandbox,
       throwOnError: true,
