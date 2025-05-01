@@ -1,20 +1,22 @@
+import type { Tool } from "ai";
+import { tool } from "ai";
 import { handleDynamicImportError } from "../common/errors.js";
 import { getTool } from "./index.js";
 
 export const getVercelAITool = async (
   name: string
-): Promise<Record<string, unknown>> => {
+) : Promise<Record<string, Tool>> => {
   try {
-    const { tool } = await import("ai");
-    const toolFormated: Record<string, unknown> = {};
+    const toolFormated: Record<string, Tool> = {};
     const blaxelTool = await getTool(name);
 
     for (const t of blaxelTool) {
-      toolFormated[t.name] = tool({
+      const toolInstance = tool({
         description: t.description,
         parameters: t.inputSchema,
         execute: t.call.bind(t),
       });
+      toolFormated[t.name] = toolInstance;
     }
     return toolFormated;
   } catch (err) {
@@ -25,9 +27,9 @@ export const getVercelAITool = async (
 
 export const getVercelAITools = async (
   names: string[]
-): Promise<Record<string, unknown>> => {
+) : Promise<Record<string, Tool>> => {
   const toolArrays = await Promise.all(names.map(getVercelAITool));
-  const toolFormated: Record<string, unknown> = {};
+  const toolFormated: Record<string, Tool> = {};
   for (const toolServer of toolArrays) {
     for (const toolName in toolServer) {
       toolFormated[toolName] = toolServer[toolName];

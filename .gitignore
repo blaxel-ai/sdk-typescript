@@ -2,3 +2,5 @@ node_modules/
 dist/
 instrumentation.sh
 .DS_Store
+telemetry.sh
+.env

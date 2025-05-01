@@ -1,6 +1,7 @@
 import { client } from "../client/index.js";
 import { interceptors } from "../client/interceptors.js";
 import { telemetryManager } from "../instrumentation/telemetryManager.js";
+import { client as clientSandbox } from "../sandbox/client/index.js";
 import settings from "./settings.js";
 
 client.setConfig({
@@ -9,6 +10,8 @@ client.setConfig({
 for (const interceptor of interceptors) {
   // @ts-expect-error - Interceptor is not typed
   client.interceptors.request.use(interceptor);
+  // @ts-expect-error - Interceptor is not typed
+  clientSandbox.interceptors.request.use(interceptor);
 }
 telemetryManager.initialize(settings);
 

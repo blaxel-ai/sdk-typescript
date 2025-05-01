@@ -35,7 +35,7 @@ export class BLTools {
     }
   }
 
-  async ToVercelAI(): Promise<Record<string, unknown>> {
+  async ToVercelAI() {
     try {
       const { getVercelAITools } = await import("./vertcelai.js");
       return getVercelAITools(this.toolNames);
@@ -45,7 +45,7 @@ export class BLTools {
     }
   }
 
-  async ToMastra(): Promise<Record<string, unknown>> {
+  async ToMastra() {
     try {
       const { getMastraTools } = await import("./mastra.js");
       return getMastraTools(this.toolNames);
