@@ -14,6 +14,43 @@ export class SandboxInstance {
     this.process = new SandboxProcess(sandbox);
   }
 
+  get metadata() {
+    return this.sandbox.metadata;
+  }
+
+  get status() {
+    return this.sandbox.status;
+  }
+
+  get events() {
+    return this.sandbox.events;
+  }
+
+  get spec() {
+    return this.sandbox.spec;
+  }
+
+  async wait({maxWait = 60000, interval = 1000}: {maxWait?: number, interval?: number} = {}) {
+    const startTime = Date.now();
+    while (this.sandbox.status !== "DEPLOYED") {
+      await new Promise((resolve) => setTimeout(resolve, interval));
+      try {
+        const { data } = await getSandbox({
+          path: {
+            sandboxName: this.sandbox.metadata?.name ?? "",
+          },
+          throwOnError: true,
+        });
+        this.sandbox = data;
+      } catch(e) {
+        console.error("Could not retrieve sandbox", e);
+      }
+      if (Date.now() - startTime > maxWait) {
+        throw new Error("Sandbox did not deploy in time");
+      }
+    }
+  }
+
   static async create(sandbox: SandboxModel) {
     const { data } = await createSandbox({
       body: sandbox,

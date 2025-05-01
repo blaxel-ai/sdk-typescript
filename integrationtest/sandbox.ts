@@ -64,7 +64,39 @@ async function testProcess(uvm: SandboxInstance) {
   }
 }
 
+async function testSandbox() {
+  // Create a sandbox, then you can play with it
+  let sandbox = await SandboxInstance.create({
+    metadata: {
+      name: "sandbox-test"
+    },
+    spec: {
+      runtime: {
+        image: "blaxel/sandbox-hub/prod/ts-app",
+        ports: [
+          {
+            name: "http",
+            target: 8080,
+            protocol: "HTTP",
+          }
+        ]
+      }
+    }
+  })
+  // Wait for sandbox to be deployed, max wait of 120 seconds and interval of 1 second
+  // By default, the interval is 1 second and max wait is 60 seconds
+  await sandbox.wait({ maxWait: 120000, interval: 1000 })
+  console.log(await sandbox.fs.ls("/"))
+
+  const sameSandbox = await SandboxInstance.get("sandbox-test")
+  console.log(await sameSandbox.fs.ls("/"))
+  await SandboxInstance.delete("sandbox-test")
+}
+
 async function main() {
+  // Test with controlplane
+  await testSandbox()
+
   const uvm = new SandboxInstance({
     metadata: {
       name: "test",
