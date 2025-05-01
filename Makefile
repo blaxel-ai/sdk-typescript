@@ -1,9 +1,8 @@
 ARGS:= $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 
 sdk-sandbox:
-	cp ../sandbox/sandbox-api/docs/swagger.yaml ./swagger.yml
+	cp ../sandbox/sandbox-api/docs/openapi.yml ./definition.yml
 	rm -rf src/sandbox/client/types.gen.ts src/sandbox/client/sdk.gen.ts
-	npx swagger2openapi --yaml --outfile ./definition.yml ./swagger.yml
 	npx @hey-api/openapi-ts@0.61.0 -i ./definition.yml -o ./tmp/ -c @hey-api/client-fetch
 	cp -r ./tmp/* ./src/sandbox/client
 
@@ -16,7 +15,6 @@ sdk-sandbox:
 	rm -f src/sandbox/client/sdk.gen.ts.bak
 	rm -rf ./tmp
 	rm definition.yml
-	rm swagger.yml
 
 sdk-controlplane:
 	cp ../controlplane/api/api/definitions/controlplane.yml ./definition.yml

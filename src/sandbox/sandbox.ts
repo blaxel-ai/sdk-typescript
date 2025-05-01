@@ -1,4 +1,5 @@
 import { createSandbox, deleteSandbox, getSandbox, listSandboxes, Sandbox as SandboxModel } from "../client";
+import { logger } from "../common/logger";
 import { SandboxFileSystem } from "./filesystem";
 import { SandboxNetwork } from "./network";
 import { SandboxProcess } from "./process";
@@ -41,6 +42,7 @@ export class SandboxInstance {
           },
           throwOnError: true,
         });
+        logger.info(`Waiting for sandbox to be deployed, status: ${data.status}`);
         this.sandbox = data;
       } catch(e) {
         console.error("Could not retrieve sandbox", e);

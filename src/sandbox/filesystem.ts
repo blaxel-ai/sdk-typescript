@@ -1,6 +1,6 @@
 import { Sandbox } from "../client";
 import { SandboxAction } from "./action";
-import { deleteFilesystemByPath, Directory, getFilesystemByPath, putFilesystemByPath } from "./client";
+import { deleteFilesystemByPath, Directory, getFilesystemByPath, putFilesystemByPath, SuccessResponse } from "./client";
 
 export type CopyResponse = {
   message: string;
@@ -13,74 +13,75 @@ export class SandboxFileSystem extends SandboxAction {
     super(sandbox);
   }
 
-  async mkdir(path: string, permissions: string = "0755") {
+  async mkdir(path: string, permissions: string = "0755"): Promise<SuccessResponse> {
     path = this.formatPath(path);
-    const { data } = await putFilesystemByPath({
+    const { response, data, error } = await putFilesystemByPath({
       path: { path },
       body: { isDirectory: true, permissions },
       baseUrl: this.url,
-      throwOnError: true,
     });
-    return data;
+    this.handleResponseError(response, data, error);
+    return data as SuccessResponse;
   }
 
-  async write(path: string, content: string) {
+  async write(path: string, content: string): Promise<SuccessResponse> {
     path = this.formatPath(path);
-    const { data } = await putFilesystemByPath({
+
+    const { response, data, error } = await putFilesystemByPath({
       path: { path },
       body: { content },
       baseUrl: this.url,
-      throwOnError: true,
     });
-    return data;
+    this.handleResponseError(response, data, error);
+    return data as SuccessResponse;
   }
 
   async read(path: string): Promise<string> {
     path = this.formatPath(path);
-    const { data } = await getFilesystemByPath({
+    const { response, data, error } = await getFilesystemByPath({
       path: { path },
       baseUrl: this.url,
-      throwOnError: true,
     });
-    if ('content' in data) {
+    this.handleResponseError(response, data, error);
+    if (data && 'content' in data) {
       return data.content as string;
     }
     throw new Error("Unsupported file type");
   }
 
-  async rm(path: string, recursive: boolean = false) {
+  async rm(path: string, recursive: boolean = false): Promise<SuccessResponse> {
     path = this.formatPath(path);
-    const { data } = await deleteFilesystemByPath({
+    const { response, data, error } = await deleteFilesystemByPath({
       path: { path },
       query: { recursive },
       baseUrl: this.url,
-      throwOnError: true,
     });
-    return data;
+    this.handleResponseError(response, data, error);
+    return data as SuccessResponse;
   }
 
   async ls(path: string): Promise<Directory> {
     path = this.formatPath(path);
-    const { data } = await getFilesystemByPath({
+    const { response, data, error } = await getFilesystemByPath({
       path: { path },
       baseUrl: this.url,
-      throwOnError: true,
     });
-    if (!('files' in data || 'subdirectories' in data)) {
+    this.handleResponseError(response, data, error);
+    if (!data || !('files' in data || 'subdirectories' in data)) {
       throw new Error(JSON.stringify({ error: "Directory not found" }));
     }
-    return data
+    return data;
   }
 
   async cp(source: string, destination: string): Promise<CopyResponse> {
     source = this.formatPath(source);
     destination = this.formatPath(destination);
-    const { data } = await getFilesystemByPath({
+    const { response, data, error } = await getFilesystemByPath({
       path: { path: source },
       baseUrl: this.url,
-      throwOnError: true,
     });
-    if ('files' in data || 'subdirectories' in data) {
+    this.handleResponseError(response, data, error);
+    if (data && ('files' in data || 'subdirectories' in data)) {
       // Create destination directory
       await this.mkdir(destination);
 
@@ -117,7 +118,7 @@ export class SandboxFileSystem extends SandboxAction {
         source,
         destination,
       }
-    } else if ('content' in data) {
+    } else if (data && 'content' in data) {
       await this.write(destination, data.content as string);
       return {
         message: "File copied successfully",

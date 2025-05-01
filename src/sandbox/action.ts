@@ -3,6 +3,25 @@ import { Sandbox } from "../client";
 import { getGlobalUniqueHash } from "../common/internal";
 import settings from "../common/settings";
 
+export class ResponseError extends Error {
+  constructor(public response: Response, public data: unknown, public error: unknown) {
+    let dataError: Record<string, unknown> = {}
+    if (data && typeof data === 'object' && 'error' in data) {
+      dataError = data;
+    }
+    if (error && typeof error === 'object' && 'error' in error) {
+      dataError['error'] = error.error ;
+    }
+    if (response.status) {
+      dataError['status'] = response.status;
+    }
+    if (response.statusText) {
+      dataError['statusText'] = response.statusText;
+    }
+    super(JSON.stringify(dataError));
+  }
+}
+
 export class SandboxAction {
   constructor(private sandbox: Sandbox) {}
 
@@ -39,5 +58,11 @@ export class SandboxAction {
     if (this.forcedUrl) return this.forcedUrl;
     if (settings.runInternalHostname) return this.internalUrl;
     return this.externalUrl;
+  }
+
+  handleResponseError(response: Response, data: unknown, error: unknown) {
+    if (!response.ok || !data) {
+      throw new ResponseError(response, data, error);
+    }
   }
 }
