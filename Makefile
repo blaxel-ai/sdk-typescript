@@ -1,3 +1,5 @@
+ARGS:= $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+
 sdk-sandbox:
 	cp ../sandbox/sandbox-api/docs/swagger.yaml ./swagger.yml
 	rm -rf src/sandbox/client/types.gen.ts src/sandbox/client/sdk.gen.ts
@@ -31,3 +33,12 @@ sdk-controlplane:
 	rm definition.yml
 
 sdk: sdk-sandbox sdk-controlplane
+
+tag:
+	git tag -a v$(ARGS) -m "Release v$(ARGS)"
+	git push origin v$(ARGS)
+
+%:
+@:
+
+.PHONY: sdk
