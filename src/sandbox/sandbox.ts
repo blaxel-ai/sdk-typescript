@@ -1,4 +1,4 @@
-import { createSandbox, deleteSandbox, getSandbox, listSandbox, Sandbox as SandboxModel } from "../client";
+import { createSandbox, deleteSandbox, getSandbox, listSandboxes, Sandbox as SandboxModel } from "../client";
 import { SandboxFileSystem } from "./filesystem";
 import { SandboxNetwork } from "./network";
 import { SandboxProcess } from "./process";
@@ -33,7 +33,7 @@ export class SandboxInstance {
   }
 
   static async list() {
-    const { data } = await listSandbox({throwOnError: true}) as { response: Response; data: SandboxModel[] };
+    const { data } = await listSandboxes({throwOnError: true}) as { response: Response; data: SandboxModel[] };
     return data.map((sandbox) => new SandboxInstance(sandbox));
   }
 

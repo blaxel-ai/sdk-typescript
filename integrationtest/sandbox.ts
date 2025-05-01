@@ -1,9 +1,9 @@
-import { UVMInstance } from "../src";
+import { SandboxInstance } from "../src";
 import { Directory } from "../src/sandbox/client";
 
-process.env.BL_UVM_TEST_URL = "http://localhost:8080";
+process.env.BL_Sandbox_TEST_URL = "http://localhost:8080";
 
-async function testFilesystem(uvm: UVMInstance) {
+async function testFilesystem(uvm: SandboxInstance) {
   const user = process.env.USER;
   await uvm.fs.write(`/Users/${user}/Downloads/test`, "Hello world");
   const content = await uvm.fs.read(`/Users/${user}/Downloads/test`);
@@ -40,7 +40,7 @@ async function testFilesystem(uvm: UVMInstance) {
   await uvm.fs.rm(`/Users/${user}/Downloads/test2`, true);
 }
 
-async function testProcess(uvm: UVMInstance) {
+async function testProcess(uvm: SandboxInstance) {
   const process = await uvm.process.exec({
     name: "test",
     command: "echo 'Hello world'",
@@ -65,7 +65,7 @@ async function testProcess(uvm: UVMInstance) {
 }
 
 async function main() {
-  const uvm = new UVMInstance({
+  const uvm = new SandboxInstance({
     metadata: {
       name: "test",
     },

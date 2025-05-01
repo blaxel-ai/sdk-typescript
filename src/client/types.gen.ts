@@ -1596,6 +1596,93 @@ export type Runtime = {
 };
 
 /**
+ * Micro VM for running agentic tasks
+ */
+export type Sandbox = {
+    events?: CoreEvents;
+    metadata?: Metadata;
+    spec?: SandboxSpec;
+    /**
+     * Sandbox status
+     */
+    status?: string;
+};
+
+/**
+ * Sandbox definition for admin store operations
+ */
+export type SandboxDefinition = {
+    /**
+     * Categories of the defintion
+     */
+    categories?: Array<unknown>;
+    /**
+     * If the definition is coming soon
+     */
+    coming_soon?: boolean;
+    /**
+     * Description of the defintion
+     */
+    description?: string;
+    /**
+     * Display name of the definition
+     */
+    displayName?: string;
+    /**
+     * If the definition is enterprise
+     */
+    enterprise?: boolean;
+    /**
+     * Icon of the definition
+     */
+    icon?: string;
+    /**
+     * Image of the Sandbox definition
+     */
+    image?: string;
+    /**
+     * Long description of the defintion
+     */
+    longDescription?: string;
+    /**
+     * Memory of the Sandbox definition in MB
+     */
+    memory?: number;
+    /**
+     * Name of the artifact
+     */
+    name?: string;
+    ports?: Ports;
+    /**
+     * URL of the definition
+     */
+    url?: string;
+};
+
+/**
+ * Micro VM for running agentic tasks
+ */
+export type Sandboxes = {
+    events?: CoreEvents;
+    metadata?: Metadata;
+    spec?: SandboxSpec;
+    /**
+     * Sandbox status
+     */
+    status?: string;
+};
+
+/**
+ * Sandbox specification
+ */
+export type SandboxSpec = CoreSpec & unknown;
+
+/**
+ * Name of a Sandbox definition
+ */
+export type SandboxStoreDefinitionName = unknown;
+
+/**
  * Configuration for a serverless deployment
  */
 export type ServerlessConfig = {
@@ -1634,31 +1721,31 @@ export type SpecConfiguration = {
 };
 
 /**
- * Response when starting a UVM
+ * Response when starting a Sandbox
  */
-export type StartUVM = {
+export type StartSandbox = {
     /**
      * Human readable message about the start operation
      */
     message?: string;
     metadata?: Metadata;
     /**
-     * Status of the UVM start operation
+     * Status of the Sandbox start operation
      */
     status?: string;
 };
 
 /**
- * Response when stopping a UVM
+ * Response when stopping a Sandbox
  */
-export type StopUVM = {
+export type StopSandbox = {
     /**
      * Human readable message about the stop operation
      */
     message?: string;
     metadata?: Metadata;
     /**
-     * Status of the UVM stop operation
+     * Status of the Sandbox stop operation
      */
     status?: string;
 };
@@ -1968,80 +2055,6 @@ export type Trigger = {
 export type Triggers = Array<Trigger>;
 
 /**
- * Micro VM for running agentic tasks
- */
-export type UVM = {
-    events?: CoreEvents;
-    metadata?: Metadata;
-    spec?: UVMSpec;
-    /**
-     * UVM status
-     */
-    status?: string;
-};
-
-/**
- * UVM definition for admin store operations
- */
-export type UVMDefinition = {
-    /**
-     * Categories of the defintion
-     */
-    categories?: Array<unknown>;
-    /**
-     * If the definition is coming soon
-     */
-    coming_soon?: boolean;
-    /**
-     * Description of the defintion
-     */
-    description?: string;
-    /**
-     * Display name of the definition
-     */
-    displayName?: string;
-    /**
-     * If the definition is enterprise
-     */
-    enterprise?: boolean;
-    /**
-     * Icon of the definition
-     */
-    icon?: string;
-    /**
-     * Image of the UVM definition
-     */
-    image?: string;
-    /**
-     * Long description of the defintion
-     */
-    longDescription?: string;
-    /**
-     * Memory of the UVM definition in MB
-     */
-    memory?: number;
-    /**
-     * Name of the artifact
-     */
-    name?: string;
-    ports?: Ports;
-    /**
-     * URL of the definition
-     */
-    url?: string;
-};
-
-/**
- * UVM specification
- */
-export type UVMSpec = CoreSpec & unknown;
-
-/**
- * Name of a UVM definition
- */
-export type UVMStoreDefinitionName = unknown;
-
-/**
  * WebSocket connection details
  */
 export type WebsocketChannel = TimeFields & {
@@ -2192,84 +2205,6 @@ export type ListAgentRevisionsData = {
 export type ListAgentRevisionsResponse = (Array<RevisionMetadata>);
 
 export type ListAgentRevisionsError = unknown;
-
-export type ListUvmResponse = (Array<UVM>);
-
-export type ListUvmError = unknown;
-
-export type CreateUvmData = {
-    body: UVM;
-};
-
-export type CreateUvmResponse = (UVM);
-
-export type CreateUvmError = unknown;
-
-export type DeleteUvmData = {
-    path: {
-        /**
-         * Name of the UVM
-         */
-        uvmName: string;
-    };
-};
-
-export type DeleteUvmResponse = (UVM);
-
-export type DeleteUvmError = unknown;
-
-export type GetUvmData = {
-    path: {
-        /**
-         * Name of the UVM
-         */
-        uvmName: string;
-    };
-};
-
-export type GetUvmResponse = (UVM);
-
-export type GetUvmError = unknown;
-
-export type UpdateUvmData = {
-    body: UVM;
-    path: {
-        /**
-         * Name of the UVM
-         */
-        uvmName: string;
-    };
-};
-
-export type UpdateUvmResponse = (UVM);
-
-export type UpdateUvmError = unknown;
-
-export type StartUvmData = {
-    path: {
-        /**
-         * Name of the UVM
-         */
-        uvmName: string;
-    };
-};
-
-export type StartUvmResponse = (StartUVM);
-
-export type StartUvmError = (unknown);
-
-export type StopUvmData = {
-    path: {
-        /**
-         * Name of the UVM
-         */
-        uvmName: string;
-    };
-};
-
-export type StopUvmResponse = (StopUVM);
-
-export type StopUvmError = (unknown);
 
 export type GetConfigurationResponse = (Configuration);
 
@@ -2715,6 +2650,88 @@ export type ListAllPendingInvitationsResponse = (Array<PendingInvitationRender>)
 
 export type ListAllPendingInvitationsError = (unknown);
 
+export type ListSandboxHubDefinitionsResponse = (Array<SandboxDefinition>);
+
+export type ListSandboxHubDefinitionsError = unknown;
+
+export type ListSandboxesResponse = (Array<Sandbox>);
+
+export type ListSandboxesError = unknown;
+
+export type CreateSandboxData = {
+    body: Sandbox;
+};
+
+export type CreateSandboxResponse = (Sandbox);
+
+export type CreateSandboxError = unknown;
+
+export type DeleteSandboxData = {
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+    };
+};
+
+export type DeleteSandboxResponse = (Sandbox);
+
+export type DeleteSandboxError = unknown;
+
+export type GetSandboxData = {
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+    };
+};
+
+export type GetSandboxResponse = (Sandbox);
+
+export type GetSandboxError = unknown;
+
+export type UpdateSandboxData = {
+    body: Sandbox;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+    };
+};
+
+export type UpdateSandboxResponse = (Sandbox);
+
+export type UpdateSandboxError = unknown;
+
+export type StartSandboxData = {
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+    };
+};
+
+export type StartSandboxResponse = (StartSandbox);
+
+export type StartSandboxError = (unknown);
+
+export type StopSandboxData = {
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+    };
+};
+
+export type StopSandboxResponse = (StopSandbox);
+
+export type StopSandboxError = (unknown);
+
 export type GetWorkspaceServiceAccountsResponse = (Array<{
     /**
      * Service account client ID
@@ -2999,10 +3016,6 @@ export type UpdateWorkspaceUserRoleData = {
 export type UpdateWorkspaceUserRoleResponse = (WorkspaceUser);
 
 export type UpdateWorkspaceUserRoleError = (unknown);
-
-export type ListUvmHubDefinitionsResponse = (Array<UVMDefinition>);
-
-export type ListUvmHubDefinitionsError = unknown;
 
 export type ListWorkspacesResponse = (Array<Workspace>);
 
