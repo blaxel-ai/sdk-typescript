@@ -1,14 +1,17 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 import type { LangChainInstrumentation } from "@traceloop/instrumentation-langchain";
 import { handleDynamicImportError } from "../common/errors";
 
-export async function langchain(instrumentor: any) {
+export function langchain(instrumentor: any) {
   try {
-    const RunnableModule = await import("@langchain/core/runnables");
-    const ToolsModule = await import("@langchain/core/tools");
-    const VectorStoresModule = await import("@langchain/core/vectorstores");
+    const RunnableModule = require("@langchain/core/runnables") as unknown;
+    const ToolsModule = require("@langchain/core/tools") as unknown;
+
+    const VectorStoresModule =
+      require("@langchain/core/vectorstores") as unknown;
     const langchain = instrumentor as LangChainInstrumentation;
-    const AgentsModule = await import("langchain/agents");
-    const ChainsModule = await import("langchain/chains");
+    const AgentsModule = require("langchain/agents") as unknown;
+    const ChainsModule = require("langchain/chains") as unknown;
     langchain.manuallyInstrument({
       runnablesModule: RunnableModule,
       toolsModule: ToolsModule,

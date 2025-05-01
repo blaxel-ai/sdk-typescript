@@ -4,17 +4,18 @@ import { telemetryManager } from "../instrumentation/telemetryManager.js";
 import { client as clientSandbox } from "../sandbox/client/index.js";
 import settings from "./settings.js";
 
+client.setConfig({
+  baseUrl: settings.baseUrl,
+});
+for (const interceptor of interceptors) {
+  // @ts-expect-error - Interceptor is not typed
+  client.interceptors.request.use(interceptor);
+  // @ts-expect-error - Interceptor is not typed
+  clientSandbox.interceptors.request.use(interceptor);
+}
+telemetryManager.initialize(settings);
+
 async function autoload() {
-  client.setConfig({
-    baseUrl: settings.baseUrl,
-  });
-  for (const interceptor of interceptors) {
-    // @ts-expect-error - Interceptor is not typed
-    client.interceptors.request.use(interceptor);
-    // @ts-expect-error - Interceptor is not typed
-    clientSandbox.interceptors.request.use(interceptor);
-  }
-  await telemetryManager.initialize(settings);
   await settings.authenticate();
   await telemetryManager.setConfiguration(settings);
 }

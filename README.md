@@ -441,8 +441,8 @@ DEFAULT_CITY = "San Francisco"
 Then you can use it in your agent or function with the following syntax:
 
 ```ts
-import { env } from "@blaxel/sdk";
-console.log(env.DEFAULT_CITY); // San Francisco
+import { env, logger } from "@blaxel/sdk";
+logger.info(env.DEFAULT_CITY); // San Francisco
 ```
 
 You can also add secrets variables to a .env files in your project root. (goal is to not commit this file)
@@ -457,8 +457,8 @@ DEFAULT_CITY_PASSWORD=123456
 Then you can use it in your agent or function with the following syntax:
 
 ```ts
-import { env } from "@blaxel/sdk";
-console.log(env.DEFAULT_CITY_PASSWORD); // 123456
+import { env, logger } from "@blaxel/sdk";
+logger.info(env.DEFAULT_CITY_PASSWORD); // 123456
 ```
 
 ## Contributing

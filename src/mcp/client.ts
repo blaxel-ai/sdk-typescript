@@ -43,6 +43,9 @@ export class BlaxelMcpClientTransport implements Transport {
         await this._connect();
         return;
       } catch (error) {
+        if (error instanceof Error) {
+          logger.warn(error.stack);
+        }
         attempts++;
         if (attempts === MAX_RETRIES) {
           throw error;
@@ -109,6 +112,10 @@ export class BlaxelMcpClientTransport implements Transport {
         this.onmessage?.(message);
       };
     });
+  }
+
+  get isConnected() {
+    return this._socket?.readyState === WebSocket.OPEN;
   }
 
   async close(): Promise<void> {
