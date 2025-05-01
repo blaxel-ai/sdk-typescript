@@ -48,10 +48,6 @@ export class McpTool {
   }
 
   get externalUrl() {
-    const envVar = this.name.replace(/-/g, "_").toUpperCase();
-    if (env[`BL_FUNCTION_${envVar}_URL`]) {
-      return new URL(env[`BL_FUNCTION_${envVar}_URL`] as string);
-    }
     return new URL(
       `${settings.runUrl}/${settings.workspace}/functions/${this.name}`
     );
