@@ -1,16 +1,14 @@
 import { SandboxInstance } from "../src";
 import { Directory } from "../src/sandbox/client";
 
-// process.env.BL_Sandbox_TEST_URL = "http://localhost:8080";
-
-async function testFilesystem(uvm: SandboxInstance) {
+async function testFilesystem(sandbox: SandboxInstance) {
   const user = process.env.USER;
-  await uvm.fs.write(`/Users/${user}/Downloads/test`, "Hello world");
-  const content = await uvm.fs.read(`/Users/${user}/Downloads/test`);
+  await sandbox.fs.write(`/Users/${user}/Downloads/test`, "Hello world");
+  const content = await sandbox.fs.read(`/Users/${user}/Downloads/test`);
   if (content !== "Hello world") {
     throw new Error("File content is not correct");
   }
-  const dir = await uvm.fs.ls(`/Users/${user}/Downloads`);
+  const dir = await sandbox.fs.ls(`/Users/${user}/Downloads`);
   if (dir.files?.length && dir.files?.length < 1) {
     throw new Error("Directory is empty");
   }
@@ -18,26 +16,26 @@ async function testFilesystem(uvm: SandboxInstance) {
     throw new Error("File not found in directory");
   }
 
-  await uvm.fs.mkdir(`/Users/${user}/Downloads/test2`);
-  const afterMkdir = await uvm.fs.ls(`/Users/${user}/Downloads/test2`) as Directory;
+  await sandbox.fs.mkdir(`/Users/${user}/Downloads/test2`);
+  const afterMkdir = await sandbox.fs.ls(`/Users/${user}/Downloads/test2`) as Directory;
   if (afterMkdir.files?.length && afterMkdir.files?.length < 1) {
     throw new Error("Directory is empty");
   }
-  await uvm.fs.cp(`/Users/${user}/Downloads/test`, `/Users/${user}/Downloads/test2/test`);
-  const afterCpLs = await uvm.fs.ls(`/Users/${user}/Downloads/test2`) as Directory;
+  await sandbox.fs.cp(`/Users/${user}/Downloads/test`, `/Users/${user}/Downloads/test2/test`);
+  const afterCpLs = await sandbox.fs.ls(`/Users/${user}/Downloads/test2`) as Directory;
   if (afterCpLs.files?.length && afterCpLs.files?.length < 1) {
     throw new Error("Directory is empty");
   }
   if (!afterCpLs.files?.find((f) => f.path === `/Users/${user}/Downloads/test2/test`)) {
     throw new Error("File not found in directory");
   }
-  await uvm.fs.rm(`/Users/${user}/Downloads/test`);
+  await sandbox.fs.rm(`/Users/${user}/Downloads/test`);
   try {
-    await uvm.fs.rm(`/Users/${user}/Downloads/test2`);
+    await sandbox.fs.rm(`/Users/${user}/Downloads/test2`);
   } catch (e) {
     console.log("That is expected => ", e.error);
   }
-  await uvm.fs.rm(`/Users/${user}/Downloads/test2`, true);
+  await sandbox.fs.rm(`/Users/${user}/Downloads/test2`, true);
 }
 
 async function testProcess(uvm: SandboxInstance) {
@@ -66,45 +64,52 @@ async function testProcess(uvm: SandboxInstance) {
 
 async function testSandbox() {
   // Create a sandbox, then you can play with it
-  // let sandbox = await SandboxInstance.create({
-  //   metadata: {
-  //     name: "sandbox-test"
-  //   },
-  //   spec: {
-  //     runtime: {
-  //       image: "blaxel/sandbox-hub/prod/ts-app",
-  //       ports: [
-  //         {
-  //           name: "http",
-  //           target: 8080,
-  //           protocol: "HTTP",
-  //         }
-  //       ]
-  //     }
-  //   }
-  // })
-  let sandbox = await SandboxInstance.get("sandbox-test")
+  console.log("Creating sandbox");
+  let sandbox = await SandboxInstance.create({
+    metadata: {
+      name: "sandbox-test-2"
+    },
+    spec: {
+      runtime: {
+        image: "blaxel/prod-base:14769328323",
+        memory: 2048,
+        cpu: 2,
+        ports: [
+          {
+            name: "sandbox-api",
+            target: 8080,
+            protocol: "HTTP",
+          }
+        ]
+      }
+    }
+  })
+  console.log("Waiting for sandbox to be deployed");
   // Wait for sandbox to be deployed, max wait of 120 seconds and interval of 1 second
   // By default, the interval is 1 second and max wait is 60 seconds
   await sandbox.wait({ maxWait: 120000, interval: 1000 })
-  console.log(await sandbox.fs.ls("/"))
-
-  const sameSandbox = await SandboxInstance.get("sandbox-test")
-  console.log(await sameSandbox.fs.ls("/"))
-  await SandboxInstance.delete("sandbox-test")
+  console.log("Sandbox deployed");
+  console.log("Getting same sandbox");
+  const sameSandbox = await SandboxInstance.get("sandbox-test-2")
+  // Fix this before uncomment
+  // console.log(await sameSandbox.fs.ls("/"))
+  return sameSandbox
 }
 
 async function main() {
-  // Test with controlplane
-  await testSandbox()
+  try {
+    // Test with controlplane
+    const sandbox = await testSandbox()
 
-  // const uvm = new SandboxInstance({
-  //   metadata: {
-  //     name: "test",
-  //   },
-  // });
-  // await testFilesystem(uvm);
-  // await testProcess(uvm);
+    await testFilesystem(sandbox);
+    await testProcess(sandbox);
+
+    console.log("Deleting sandbox");
+    await SandboxInstance.delete("sandbox-test-2")
+  } catch (e) {
+    console.error("There was an error => ", e);
+    await SandboxInstance.delete("sandbox-test-2")
+  }
 }
 
 main()

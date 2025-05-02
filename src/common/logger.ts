@@ -1,7 +1,6 @@
 /* eslint-disable no-console */
-import { Logger, SeverityNumber } from "@opentelemetry/api-logs";
+import { AnyValue, SeverityNumber } from "@opentelemetry/api-logs";
 import { env } from "process";
-import localLogger from "../instrumentation/localLogger.js";
 import { telemetryManager } from "../instrumentation/telemetryManager.js";
 
 const originalLogger = {
@@ -12,94 +11,78 @@ const originalLogger = {
   log: console.log,
 };
 
-console.log = (...args: unknown[]) => {
-  originalLogger.log(...args);
+/**
+ * Stringify an object with a limited depth
+ * @param obj The object to stringify
+ * @param maxDepth Maximum depth (default: 1)
+ * @param depth Current depth (internal use)
+ */
+export function stringify<T>(obj: T, maxDepth: number = 1, depth: number = 0): string {
+  if (obj === null) return 'null';
+  if (obj === undefined) return 'undefined';
+
+  // If we've reached max depth or it's not an object
+  if (depth >= maxDepth || typeof obj !== 'object') {
+    return typeof obj === 'object' ? `[${Array.isArray(obj) ? 'Array' : 'object'}]` :
+           typeof obj === 'string' ? `"${obj}"` : String(obj);
+  }
+
+  // Handle arrays
+  if (Array.isArray(obj)) {
+    return `[${obj.map(item => stringify(item, maxDepth, depth + 1)).join(', ')}]`;
+  }
+
+  // Handle objects
+  const pairs = Object.entries(obj as Record<string, any>).map(([key, val]) =>
+    `"${key}": ${stringify(val, maxDepth, depth + 1)}`
+  );
+
+  return `{${pairs.join(', ')}}`;
+}
+
+async function emitLog(severityNumber: SeverityNumber, message: any, ...args: any[]) {
+  const loggerInstance = await telemetryManager.getLogger()
+  const safeArgs = args.map((arg) =>
+    typeof arg === "string" ? arg : stringify(arg, 2)
+  );
+  loggerInstance.emit({
+    severityNumber: severityNumber,
+    body: safeArgs.join(" "),
+  });
+}
+
+function emitLogSync(severityNumber: SeverityNumber, message: any, ...args: any[]) {
+  emitLog(severityNumber, message, ...args).catch(() => {}); // eslint-disable-line
+}
+
+console.log = (message: any, ...args: AnyValue[]) => {
+  originalLogger.log(message, ...args);
   if (env.BL_DEBUG_TELEMETRY === "true") return
-  logger.emit(SeverityNumber.INFO, ...args);
+  emitLogSync(SeverityNumber.INFO, message, ...args);
 };
 
-console.info = (...args: unknown[]) => {
-  originalLogger.info(...args);
+console.info = (message: any, ...args: any[]) => {
+  originalLogger.info(message, ...args); // eslint-disable-line
   if (env.BL_DEBUG_TELEMETRY === "true") return
-  logger.emit(SeverityNumber.INFO, ...args);
+  emitLogSync(SeverityNumber.INFO, message, ...args); // eslint-disable-line
 };
 
-console.error = (...args: unknown[]) => {
-  originalLogger.error(...args);
+console.error = (message: any, ...args: any[]) => {
+  originalLogger.error(message, ...args); // eslint-disable-line
   if (env.BL_DEBUG_TELEMETRY === "true") return
-  logger.emit(SeverityNumber.ERROR, ...args);
+  emitLogSync(SeverityNumber.ERROR, message, ...args); // eslint-disable-line
 };
 
-console.warn = (...args: unknown[]) => {
-  originalLogger.warn(...args);
+console.warn = (message: any, ...args: any[]) => {
+  originalLogger.warn(message, ...args); // eslint-disable-line
   if (env.BL_DEBUG_TELEMETRY === "true") return
-  logger.emit(SeverityNumber.WARN, ...args);
+  emitLogSync(SeverityNumber.WARN, message, ...args); // eslint-disable-line
 };
 
-console.debug = (...args: unknown[]) => {
-  originalLogger.debug(...args);
+console.debug = (message: any, ...args: any[]) => {
+  originalLogger.debug(message, ...args); // eslint-disable-line
   if (env.BL_DEBUG_TELEMETRY === "true") return
-  logger.emit(SeverityNumber.DEBUG, ...args);
+  emitLogSync(SeverityNumber.DEBUG, message, ...args); // eslint-disable-line
 };
 
-export const logger = {
-  async getLogger(): Promise<Logger> {
-    return await telemetryManager.getLogger();
-  },
-
-  asyncEmit: async (
-    severityNumber: SeverityNumber,
-    ...args: unknown[]
-  ) => {
-    const loggerInstance = await logger.getLogger();
-    const safeArgs = args.map((arg) =>
-      typeof arg === "string" ? arg : JSON.stringify(arg)
-    );
-    loggerInstance.emit({
-      severityNumber: severityNumber,
-      body: safeArgs.join(" "),
-      attributes: { args: safeArgs },
-    });
-  },
-  emit: (severityNumber: SeverityNumber, ...args: unknown[]) => {
-    logger.asyncEmit(severityNumber, ...args).catch((err) => {
-      console.error(err);
-    });
-  },
-  info: (...args: unknown[]) => {
-    const safeArgs = args.map((arg) =>
-      typeof arg === "string" ? arg : JSON.stringify(arg)
-    );
-    const msg = safeArgs.join(" ");
-    localLogger.info(msg, ...safeArgs);
-    logger.emit(SeverityNumber.INFO, ...args);
-  },
-  error: (...args: unknown[]) => {
-    if(args[0] instanceof Error){
-      const error = args[0];
-      args[0] = error.stack;
-    }
-    const safeArgs = args.map((arg) =>
-      typeof arg === "string" ? arg : JSON.stringify(arg)
-    );
-    const msg = safeArgs.join(" ");
-    localLogger.error(msg, ...safeArgs);
-    logger.emit(SeverityNumber.ERROR, ...args);
-  },
-  warn: (...args: unknown[]) => {
-    const safeArgs = args.map((arg) =>
-      typeof arg === "string" ? arg : JSON.stringify(arg)
-    );
-    const msg = safeArgs.join(" ");
-    localLogger.warn(msg, ...safeArgs);
-    logger.emit(SeverityNumber.WARN, ...args);
-  },
-  debug: (...args: unknown[]) => {
-    const safeArgs = args.map((arg) =>
-      typeof arg === "string" ? arg : JSON.stringify(arg)
-    );
-    const msg = safeArgs.join(" ");
-    localLogger.debug(msg, ...safeArgs);
-    logger.emit(SeverityNumber.DEBUG, ...args);
-  },
-};
+export const logger = console;
