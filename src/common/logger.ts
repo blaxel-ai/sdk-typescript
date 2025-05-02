@@ -1,7 +1,9 @@
 /* eslint-disable no-console */
-import { AnyValue, SeverityNumber } from "@opentelemetry/api-logs";
+import { SeverityNumber } from "@opentelemetry/api-logs";
 import { env } from "process";
 import { telemetryManager } from "../instrumentation/telemetryManager.js";
+
+type LogLevel = "INFO" | "ERROR" | "WARN" | "DEBUG";
 
 const originalLogger = {
   info: console.info,
@@ -9,6 +11,25 @@ const originalLogger = {
   warn: console.warn,
   debug: console.debug,
   log: console.log,
+};
+
+// ANSI color codes for terminal output
+const colors = {
+  reset: "\x1b[0m",
+  red: "\x1b[31m",
+  green: "\x1b[32m",
+  yellow: "\x1b[33m",
+  blue: "\x1b[34m",
+  magenta: "\x1b[35m",
+  cyan: "\x1b[36m",
+};
+
+// Define log level format functions
+const logLevelFormatters: Record<LogLevel, (text: string) => string> = {
+  INFO: (text: string) => `${colors.green}[INFO ]${colors.reset} ${text}`,
+  ERROR: (text: string) => `${colors.red}[ERROR]${colors.reset} ${text}`,
+  WARN: (text: string) => `${colors.yellow}[WARN ]${colors.reset} ${text}`,
+  DEBUG: (text: string) => `${colors.blue}[DEBUG]${colors.reset} ${text}`,
 };
 
 /**
@@ -33,56 +54,62 @@ export function stringify<T>(obj: T, maxDepth: number = 1, depth: number = 0): s
   }
 
   // Handle objects
-  const pairs = Object.entries(obj as Record<string, any>).map(([key, val]) =>
+  const pairs = Object.entries(obj as Record<string, unknown>).map(([key, val]) =>
     `"${key}": ${stringify(val, maxDepth, depth + 1)}`
   );
 
   return `{${pairs.join(', ')}}`;
 }
 
-async function emitLog(severityNumber: SeverityNumber, message: any, ...args: any[]) {
+// Format a log message with appropriate color and prefix
+function formatLogMessage(level: LogLevel, message: unknown, args: unknown[]): string {
+  const formatter = logLevelFormatters[level];
+  const argsStr = args.map(arg => typeof arg === "string" ? arg : stringify(arg, 2)).join(" ");
+
+  return formatter(`${String(message)}${argsStr ? " " + argsStr : ""}`);
+}
+
+async function emitLog(severityNumber: SeverityNumber, message: string) {
   const loggerInstance = await telemetryManager.getLogger()
-  const safeArgs = args.map((arg) =>
-    typeof arg === "string" ? arg : stringify(arg, 2)
-  );
   loggerInstance.emit({
     severityNumber: severityNumber,
-    body: safeArgs.join(" "),
+    body: message,
   });
 }
 
-function emitLogSync(severityNumber: SeverityNumber, message: any, ...args: any[]) {
-  emitLog(severityNumber, message, ...args).catch(() => {}); // eslint-disable-line
+function emitLogSync(severityNumber: SeverityNumber, message: string) {
+  if (env.BL_DEBUG_TELEMETRY === "true") return
+  emitLog(severityNumber, message).catch(() => {});
 }
 
-console.log = (message: any, ...args: AnyValue[]) => {
-  originalLogger.log(message, ...args);
-  if (env.BL_DEBUG_TELEMETRY === "true") return
-  emitLogSync(SeverityNumber.INFO, message, ...args);
+console.debug = (message: unknown, ...args: unknown[]) => {
+  const msg = formatLogMessage("DEBUG", message, args)
+  originalLogger.log(msg);
+  emitLogSync(SeverityNumber.DEBUG, msg);
 };
 
-console.info = (message: any, ...args: any[]) => {
-  originalLogger.info(message, ...args); // eslint-disable-line
-  if (env.BL_DEBUG_TELEMETRY === "true") return
-  emitLogSync(SeverityNumber.INFO, message, ...args); // eslint-disable-line
+console.log = (message: unknown, ...args: unknown[]) => {
+  const msg = formatLogMessage("INFO", message, args)
+  originalLogger.log(msg);
+  emitLogSync(SeverityNumber.INFO, msg);
 };
 
-console.error = (message: any, ...args: any[]) => {
-  originalLogger.error(message, ...args); // eslint-disable-line
-  if (env.BL_DEBUG_TELEMETRY === "true") return
-  emitLogSync(SeverityNumber.ERROR, message, ...args); // eslint-disable-line
+console.info = (message: unknown, ...args: unknown[]) => {
+  const msg = formatLogMessage("INFO", message, args)
+  originalLogger.log(msg);
+  emitLogSync(SeverityNumber.INFO, msg);
 };
 
-console.warn = (message: any, ...args: any[]) => {
-  originalLogger.warn(message, ...args); // eslint-disable-line
-  if (env.BL_DEBUG_TELEMETRY === "true") return
-  emitLogSync(SeverityNumber.WARN, message, ...args); // eslint-disable-line
+console.error = (message: unknown, ...args: unknown[]) => {
+  const msg = formatLogMessage("ERROR", message, args)
+  originalLogger.log(msg);
+  emitLogSync(SeverityNumber.ERROR, msg);
 };
 
-console.debug = (message: any, ...args: any[]) => {
-  originalLogger.debug(message, ...args); // eslint-disable-line
-  if (env.BL_DEBUG_TELEMETRY === "true") return
-  emitLogSync(SeverityNumber.DEBUG, message, ...args); // eslint-disable-line
+console.warn = (message: unknown, ...args: unknown[]) => {
+  const msg = formatLogMessage("WARN", message, args)
+  originalLogger.log(msg);
+  emitLogSync(SeverityNumber.WARN, msg);
 };
 
 export const logger = console;
