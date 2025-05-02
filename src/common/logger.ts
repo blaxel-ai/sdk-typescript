@@ -3,33 +3,12 @@ import { SeverityNumber } from "@opentelemetry/api-logs";
 import { env } from "process";
 import { telemetryManager } from "../instrumentation/telemetryManager.js";
 
-type LogLevel = "INFO" | "ERROR" | "WARN" | "DEBUG";
-
 const originalLogger = {
   info: console.info,
   error: console.error,
   warn: console.warn,
   debug: console.debug,
   log: console.log,
-};
-
-// ANSI color codes for terminal output
-const colors = {
-  reset: "\x1b[0m",
-  red: "\x1b[31m",
-  green: "\x1b[32m",
-  yellow: "\x1b[33m",
-  blue: "\x1b[34m",
-  magenta: "\x1b[35m",
-  cyan: "\x1b[36m",
-};
-
-// Define log level format functions
-const logLevelFormatters: Record<LogLevel, (text: string) => string> = {
-  INFO: (text: string) => `${colors.green}[INFO ]${colors.reset} ${text}`,
-  ERROR: (text: string) => `${colors.red}[ERROR]${colors.reset} ${text}`,
-  WARN: (text: string) => `${colors.yellow}[WARN ]${colors.reset} ${text}`,
-  DEBUG: (text: string) => `${colors.blue}[DEBUG]${colors.reset} ${text}`,
 };
 
 /**
@@ -62,11 +41,11 @@ export function stringify<T>(obj: T, maxDepth: number = 1, depth: number = 0): s
 }
 
 // Format a log message with appropriate color and prefix
-function formatLogMessage(level: LogLevel, message: unknown, args: unknown[]): string {
-  const formatter = logLevelFormatters[level];
+function formatLogMessage(message: unknown, args: unknown[]): string {
+  const messageStr = typeof message === "string" ? message : stringify(message, 2);
   const argsStr = args.map(arg => typeof arg === "string" ? arg : stringify(arg, 2)).join(" ");
 
-  return formatter(`${String(message)}${argsStr ? " " + argsStr : ""}`);
+  return `${messageStr}${argsStr ? " " + argsStr : ""}`;
 }
 
 async function emitLog(severityNumber: SeverityNumber, message: string) {
@@ -83,31 +62,31 @@ function emitLogSync(severityNumber: SeverityNumber, message: string) {
 }
 
 console.debug = (message: unknown, ...args: unknown[]) => {
-  const msg = formatLogMessage("DEBUG", message, args)
+  const msg = formatLogMessage(message, args)
   originalLogger.log(msg);
   emitLogSync(SeverityNumber.DEBUG, msg);
 };
 
 console.log = (message: unknown, ...args: unknown[]) => {
-  const msg = formatLogMessage("INFO", message, args)
+  const msg = formatLogMessage(message, args)
   originalLogger.log(msg);
   emitLogSync(SeverityNumber.INFO, msg);
 };
 
 console.info = (message: unknown, ...args: unknown[]) => {
-  const msg = formatLogMessage("INFO", message, args)
+  const msg = formatLogMessage(message, args)
   originalLogger.log(msg);
   emitLogSync(SeverityNumber.INFO, msg);
 };
 
 console.error = (message: unknown, ...args: unknown[]) => {
-  const msg = formatLogMessage("ERROR", message, args)
+  const msg = formatLogMessage(message, args)
   originalLogger.log(msg);
   emitLogSync(SeverityNumber.ERROR, msg);
 };
 
 console.warn = (message: unknown, ...args: unknown[]) => {
-  const msg = formatLogMessage("WARN", message, args)
+  const msg = formatLogMessage(message, args)
   originalLogger.log(msg);
   emitLogSync(SeverityNumber.WARN, msg);
 };
