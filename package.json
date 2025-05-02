@@ -67,6 +67,8 @@
 		"docs": "typedoc"
 	},
 	"peerDependencies": {
+	},
+	"dependencies": {
 		"@ai-sdk/anthropic": "^1.2.9",
 		"@ai-sdk/cerebras": "^0.2.9",
 		"@ai-sdk/google": "^1.2.10",
@@ -97,104 +99,7 @@
 		"ai": "^4.3.5",
 		"cohere-ai": "^7.16.0",
 		"langchain": "^0.3.21",
-		"llamaindex": "^0.9.17"
-	},
-	"peerDependenciesMeta": {
-		"@langchain/anthropic": {
-			"optional": true
-		},
-		"@langchain/cohere": {
-			"optional": true
-		},
-		"@langchain/core": {
-			"optional": true
-		},
-		"@langchain/deepseek": {
-			"optional": true
-		},
-		"@langchain/openai": {
-			"optional": true
-		},
-		"@ai-sdk/anthropic": {
-			"optional": true
-		},
-		"@ai-sdk/cerebras": {
-			"optional": true
-		},
-		"@ai-sdk/google": {
-			"optional": true
-		},
-		"@ai-sdk/groq": {
-			"optional": true
-		},
-		"@ai-sdk/openai": {
-			"optional": true
-		},
-		"@llamaindex/anthropic": {
-			"optional": true
-		},
-		"@llamaindex/mistral": {
-			"optional": true
-		},
-		"@llamaindex/openai": {
-			"optional": true
-		},
-		"@google/generative-ai": {
-			"optional": true
-		},
-		"@traceloop/instrumentation-anthropic": {
-			"optional": true
-		},
-		"@traceloop/instrumentation-azure": {
-			"optional": true
-		},
-		"@traceloop/instrumentation-bedrock": {
-			"optional": true
-		},
-		"@traceloop/instrumentation-chromadb": {
-			"optional": true
-		},
-		"@traceloop/instrumentation-cohere": {
-			"optional": true
-		},
-		"@traceloop/instrumentation-langchain": {
-			"optional": true
-		},
-		"@traceloop/instrumentation-llamaindex": {
-			"optional": true
-		},
-		"@traceloop/instrumentation-openai": {
-			"optional": true
-		},
-		"@traceloop/instrumentation-pinecone": {
-			"optional": true
-		},
-		"@traceloop/instrumentation-qdrant": {
-			"optional": true
-		},
-		"@traceloop/instrumentation-vertexai": {
-			"optional": true
-		},
-		"ai": {
-			"optional": true
-		},
-		"cohere-ai": {
-			"optional": true
-		},
-		"llamaindex": {
-			"optional": true
-		},
-		"langchain": {
-			"optional": true
-		},
-		"@opentelemetry/instrumentation-fastify": {
-			"optional": true
-		},
-		"@opentelemetry/instrumentation-express": {
-			"optional": true
-		}
-	},
-	"dependencies": {
+		"llamaindex": "^0.9.17",
 		"@hey-api/client-fetch": "^0.5.7",
 		"@modelcontextprotocol/sdk": "^1.9.0",
 		"@opentelemetry/api": "^1.9.0",
