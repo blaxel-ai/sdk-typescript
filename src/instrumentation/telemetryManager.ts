@@ -14,7 +14,6 @@ import {
   registerInstrumentations,
 } from "@opentelemetry/instrumentation";
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
-import { PinoInstrumentation } from "@opentelemetry/instrumentation-pino";
 import { envDetector, Resource } from "@opentelemetry/resources";
 import {
   BatchLogRecordProcessor,
@@ -196,14 +195,12 @@ class TelemetryManager {
   }
 
   instrumentApp() {
-    const pinoInstrumentation = new PinoInstrumentation();
     const httpInstrumentation = new HttpInstrumentation({
       requireParentforOutgoingSpans: true,
     });
 
     this.instrumentations = this.loadInstrumentation();
     this.instrumentations.push(httpInstrumentation);
-    this.instrumentations.push(pinoInstrumentation);
     registerInstrumentations({
       instrumentations: this.instrumentations,
     });
