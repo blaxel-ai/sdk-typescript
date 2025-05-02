@@ -4,3 +4,4 @@ instrumentation.sh
 .DS_Store
 telemetry.sh
 .env
+pnpm-lock.yaml
