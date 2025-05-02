@@ -18,6 +18,7 @@ const originalLogger = {
  * @param depth Current depth (internal use)
  */
 export function stringify<T>(obj: T, maxDepth: number = 1, depth: number = 0): string {
+  if (obj instanceof Error) return obj.stack || obj.message;
   if (obj === null) return 'null';
   if (obj === undefined) return 'undefined';
 
