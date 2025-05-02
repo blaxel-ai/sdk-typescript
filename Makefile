@@ -8,6 +8,7 @@ sdk-sandbox:
 
 	sed -i.bak 's/from '\''\.\/sdk\.gen'\''/from '\''\.\/sdk\.gen\.js'\''/g' src/sandbox/client/index.ts
 	sed -i.bak 's/from '\''\.\/types\.gen'\''/from '\''\.\/types\.gen\.js'\''/g' src/sandbox/client/index.ts
+	sed -i.bak '1s/^/\/\* eslint-disable \*\/\n/' src/sandbox/client/types.gen.ts
 	rm -f src/sandbox/client/index.ts.bak
 	rm -f src/sandbox/client/types.gen.ts.bak
 	rm -f src/sandbox/client/sdk.gen.ts.bak
@@ -23,8 +24,10 @@ sdk-controlplane:
 	sed -i.bak 's/from '\''\.\/sdk\.gen'\''/from '\''\.\/sdk\.gen\.js'\''/g' src/client/index.ts
 	sed -i.bak 's/from '\''\.\/types\.gen'\''/from '\''\.\/types\.gen\.js'\''/g' src/client/index.ts
 	sed -i.bak 's/from '\''\.\/types\.gen'\''/from '\''\.\/types\.gen\.js'\''/g' src/client/sdk.gen.ts
+	sed -i.bak '1s/^/\/\* eslint-disable \*\/\n/' src/client/types.gen.ts
 	rm -f src/client/index.ts.bak
 	rm -f src/client/sdk.gen.ts.bak
+	rm -f src/client/types.gen.ts.bak
 	rm -rf ./tmp
 	rm definition.yml
 
