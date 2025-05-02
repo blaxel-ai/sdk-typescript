@@ -31,6 +31,19 @@ export type FileRequest = {
     permissions?: string;
 };
 
+export type FileWithContent = {
+    content?: string;
+    group?: string;
+    lastModified?: string;
+    owner?: string;
+    path?: string;
+    /**
+     * swagger:strfmt string
+     */
+    permissions?: string;
+    size?: number;
+};
+
 export type PortMonitorRequest = {
     /**
      * URL to call when a new port is detected
@@ -96,7 +109,7 @@ export type GetFilesystemByPathData = {
     };
 };
 
-export type GetFilesystemByPathResponse = (Directory | FileWithContent);
+export type GetFilesystemByPathResponse = ((Directory | FileWithContent));
 
 export type GetFilesystemByPathError = (ErrorResponse);
 
@@ -238,5 +251,3 @@ export type GetProcessByIdentifierLogsResponse = ({
 });
 
 export type GetProcessByIdentifierLogsError = (ErrorResponse);
-
-export type FileWithContent = File & { content?: string };

@@ -62,12 +62,11 @@ async function testProcess(uvm: SandboxInstance) {
   }
 }
 
-async function testSandbox() {
-  // Create a sandbox, then you can play with it
+async function createSandbox() {
   console.log("Creating sandbox");
-  let sandbox = await SandboxInstance.create({
+  const sandbox = await SandboxInstance.create({
     metadata: {
-      name: "sandbox-test-2"
+      name: "sandbox-test-3"
     },
     spec: {
       runtime: {
@@ -84,31 +83,38 @@ async function testSandbox() {
       }
     }
   })
-  console.log("Waiting for sandbox to be deployed");
-  // Wait for sandbox to be deployed, max wait of 120 seconds and interval of 1 second
   // By default, the interval is 1 second and max wait is 60 seconds
-  await sandbox.wait({ maxWait: 120000, interval: 1000 })
+  // Wait for sandbox to be deployed, max wait of 120 seconds and interval of 1 second
   console.log("Sandbox deployed");
+  await sandbox.wait({ maxWait: 120000, interval: 1000 })
+  return sandbox
+}
+
+async function testSandbox() {
+  let sandbox: SandboxInstance;
+  // Create a sandbox, then you can play with it
+  sandbox = await createSandbox()
+
   console.log("Getting same sandbox");
-  const sameSandbox = await SandboxInstance.get("sandbox-test-2")
+  sandbox = await SandboxInstance.get("sandbox-test-3")
   // Fix this before uncomment
   // console.log(await sameSandbox.fs.ls("/"))
-  return sameSandbox
+  return sandbox
 }
 
 async function main() {
   try {
     // Test with controlplane
     const sandbox = await testSandbox()
+    // const sandbox = await SandboxInstance.get("sandbox-test-3")
 
     await testFilesystem(sandbox);
     await testProcess(sandbox);
-
-    console.log("Deleting sandbox");
-    await SandboxInstance.delete("sandbox-test-2")
   } catch (e) {
     console.error("There was an error => ", e);
-    await SandboxInstance.delete("sandbox-test-2")
+  } finally {
+    console.log("Deleting sandbox");
+    await SandboxInstance.delete("sandbox-test-3")
   }
 }
 
