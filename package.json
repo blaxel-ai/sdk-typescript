@@ -1,6 +1,6 @@
 {
 	"name": "@blaxel/sdk",
-	"version": "0.1.12-dev.23",
+	"version": "0.1.16-preview.2",
 	"description": "Blaxel SDK for TypeScript",
 	"license": "MIT",
 	"author": "Blaxel, INC (https://blaxel.ai)",
@@ -55,7 +55,7 @@
 	],
 	"scripts": {
 		"build": "npm run build:esm && npm run build:cjs",
-		"build:watch": "tsc -p tsconfig.cjs.json --watch",
+		"build:watch": "tsc -p tsconfig.prod.json --watch",
 		"build:esm": "tsc -p tsconfig.prod.json",
 		"build:cjs": "tsc -p tsconfig.cjs.json",
 		"prepack": "npm run build:esm && npm run build:cjs",
