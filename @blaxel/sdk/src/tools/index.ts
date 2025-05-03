@@ -1,7 +1,6 @@
 import { findFromCache } from "../cache/index.js";
 import { Function, getFunction } from "../client/index.js";
 import { env } from "../common/env.js";
-import { handleDynamicImportError } from "../common/errors.js";
 import { getMcpTool } from "./mcpTool.js";
 import { Tool } from "./types.js";
 
@@ -13,46 +12,6 @@ export class BLTools {
   toolNames: string[];
   constructor(toolNames: string[]) {
     this.toolNames = toolNames;
-  }
-
-  async ToLangChain() {
-    try {
-      const { getLangchainTools } = await import("./langchain.js");
-      return getLangchainTools(this.toolNames);
-    } catch (err) {
-      handleDynamicImportError(err);
-      throw err;
-    }
-  }
-
-  async ToLlamaIndex() {
-    try {
-      const { getLlamaIndexTools } = await import("./llamaindex.js");
-      return getLlamaIndexTools(this.toolNames);
-    } catch (err) {
-      handleDynamicImportError(err);
-      throw err;
-    }
-  }
-
-  async ToVercelAI() {
-    try {
-      const { getVercelAITools } = await import("./vertcelai.js");
-      return getVercelAITools(this.toolNames);
-    } catch (err) {
-      handleDynamicImportError(err);
-      throw err;
-    }
-  }
-
-  async ToMastra() {
-    try {
-      const { getMastraTools } = await import("./mastra.js");
-      return getMastraTools(this.toolNames);
-    } catch (err) {
-      handleDynamicImportError(err);
-      throw err;
-    }
   }
 }
 
