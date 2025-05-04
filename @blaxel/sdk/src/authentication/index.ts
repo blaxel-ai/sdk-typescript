@@ -52,7 +52,7 @@ function getCredentials(): CredentialsType | null {
   return null;
 }
 
-export default function authentication() {
+export function authentication() {
   const credentials = getCredentials();
   if (!credentials) {
     return new Credentials();

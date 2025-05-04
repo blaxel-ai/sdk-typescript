@@ -1,5 +1,8 @@
-import { blTools, getTool } from "../src";
-import { logger } from "../src/common/logger";
+import { blTools as langgraphTools } from "@blaxel/langgraph";
+import { blTools as llamaindexTools } from "@blaxel/llamaindex";
+import { blTools as mastraTools } from "@blaxel/mastra";
+import { blTools, getTool, logger } from "@blaxel/sdk";
+import { blTools as vercelTools } from "@blaxel/vercel";
 
 async function main() {
   await test_mcp_tools_langchain();
@@ -10,18 +13,18 @@ async function main() {
 }
 
 async function test_mcp_tools_langchain() {
-  const tools = await blTools(["blaxel-search"]).ToLangChain();
+  const tools = await langgraphTools(["blaxel-search"]);
   if (tools.length === 0) {
     throw new Error("No tools found");
   }
   const result = await tools[0].invoke({
     query: "What is the capital of France?",
   });
-  logger.info(result);
+  console.info(result);
 }
 
 async function test_mcp_tools_llamaindex() {
-  const tools = await blTools(["blaxel-search"]).ToLlamaIndex();
+  const tools = await llamaindexTools(["blaxel-search"]);
   if (tools.length === 0) {
     throw new Error("No tools found");
   }
@@ -32,7 +35,7 @@ async function test_mcp_tools_llamaindex() {
 }
 
 async function test_mcp_tools_vercel() {
-  const tools = await blTools(["blaxel-search"]).ToVercelAI();
+  const tools = await vercelTools(["blaxel-search"]);
   console.log(tools);
   if (!tools.web_search) {
     throw new Error("No tools found");
@@ -44,7 +47,7 @@ async function test_mcp_tools_vercel() {
 }
 
 async function test_mcp_tools_mastra() {
-  const tools = await blTools(["blaxel-search"]).ToMastra();
+  const tools = await mastraTools(["blaxel-search"]);
   if (!tools.web_search) {
     throw new Error("No tools found");
   }

@@ -1,10 +1,9 @@
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import { Span } from "@opentelemetry/api";
 import { v4 as uuidv4 } from "uuid";
 import WebSocket, { WebSocketServer } from "ws";
 import { env } from "../common/env.js";
-import { logger } from "../common/logger";
-import { SpanManager } from "../instrumentation/span";
+import { logger } from "../common/logger.js";
+import { Span, startSpan } from "../telemetry/telemetry.js";
 const spans = new Map<string, Span>();
 
 interface JSONRPCMessage {
@@ -15,8 +14,6 @@ interface JSONRPCMessage {
 }
 
 export class BlaxelMcpServerTransport implements Transport {
-  private spanManager = new SpanManager("blaxel-tracer");
-
   private port: number;
   private wss!: WebSocketServer;
   private clients: Map<string, { ws: WebSocket }> = new Map();
@@ -56,21 +53,25 @@ export class BlaxelMcpServerTransport implements Transport {
       this.onconnection?.(clientId);
 
       ws.on("message", (data: Buffer) => {
-        const msgSpan = this.spanManager.createSpan("message", {
-          "mcp.client.id": clientId,
-          "span.type": "mcp.message",
+        const span = startSpan("message", {
+          attributes: {
+            "mcp.client.id": clientId,
+            "span.type": "mcp.message",
+          },
+          isRoot: false,
         });
+
         try {
           const msg = JSON.parse(data.toString()) as JSONRPCMessage;
           this.messageHandler?.(msg, clientId);
           if ("method" in msg && "id" in msg && "params" in msg) {
-            msgSpan.setAttributes({
+            span.setAttributes({
               "mcp.message.parsed": true,
-              "mcp.method": msg.method,
-              "mcp.messageId": msg.id,
-              "mcp.toolName": msg.params?.name as string | undefined,
+              "mcp.method": msg.method as string,
+              "mcp.messageId": msg.id as string,
+              "mcp.toolName": msg.params?.name as string,
             });
-            spans.set(clientId + ":" + msg.id, msgSpan);
+            spans.set(clientId + ":" + msg.id, span);
           }
 
           // Handle msg.id safely
@@ -91,7 +92,7 @@ export class BlaxelMcpServerTransport implements Transport {
               }
             } catch (err) {
               if (msgSpan) {
-                msgSpan.setStatus({ code: 2 }); // Error status
+                msgSpan.setStatus("error"); // Error status
                 msgSpan.recordException(err as Error);
               }
               throw err;
@@ -106,15 +107,15 @@ export class BlaxelMcpServerTransport implements Transport {
           }
         } catch (err: unknown) {
           if (err instanceof Error) {
-            msgSpan.setStatus({ code: 2 }); // Error status
-            msgSpan.recordException(err);
+            span.setStatus("error"); // Error status
+            span.recordException(err);
             this.onerror?.(err);
           } else {
             this.onerror?.(
               new Error(`Failed to parse message: ${String(err)}`)
             );
           }
-          msgSpan.end();
+          span.end();
         }
       });
 
@@ -151,7 +152,7 @@ export class BlaxelMcpServerTransport implements Transport {
           }
         } catch (err) {
           if (msgSpan) {
-            msgSpan.setStatus({ code: 2 }); // Error status
+            msgSpan.setStatus("error"); // Error status
             msgSpan.recordException(err as Error);
           }
           throw err;

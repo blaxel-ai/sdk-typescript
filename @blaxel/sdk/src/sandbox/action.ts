@@ -1,7 +1,7 @@
 import { env } from "process";
-import { Sandbox } from "../client";
-import { getGlobalUniqueHash } from "../common/internal";
-import settings from "../common/settings";
+import { Sandbox } from "../client/index.js";
+import { getGlobalUniqueHash } from "../common/internal.js";
+import { settings } from "../common/settings.js";
 
 export class ResponseError extends Error {
   constructor(public response: Response, public data: unknown, public error: unknown) {

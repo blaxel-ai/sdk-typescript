@@ -1,0 +1,27 @@
+{
+  "name": "sdk-ts",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "lint": "pnpm -r lint",
+    "build": "pnpm -r build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@blaxel/langgraph": "workspace:*",
+    "@blaxel/llamaindex": "workspace:*",
+    "@blaxel/mastra": "workspace:*",
+    "@blaxel/sdk": "workspace:*",
+    "@blaxel/telemetry": "workspace:*",
+    "@blaxel/vercel": "workspace:*"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.8.0",
+  "devDependencies": {
+    "@types/node": "^22.15.3"
+  }
+}

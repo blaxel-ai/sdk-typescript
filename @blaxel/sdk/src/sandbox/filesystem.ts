@@ -1,6 +1,6 @@
-import { Sandbox } from "../client";
-import { SandboxAction } from "./action";
-import { deleteFilesystemByPath, Directory, getFilesystemByPath, putFilesystemByPath, SuccessResponse } from "./client";
+import { Sandbox } from "../client/types.gen.js";
+import { SandboxAction } from "./action.js";
+import { deleteFilesystemByPath, Directory, getFilesystemByPath, putFilesystemByPath, SuccessResponse } from "./client/index.js";
 
 export type CopyResponse = {
   message: string;

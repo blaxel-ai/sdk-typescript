@@ -1,11 +1,10 @@
-import { handleDynamicImportError } from "../common/errors.js";
-import { getTool } from "./index.js";
-
-export async function getLangchainTool(name: string) {
+import type { Tool } from "@blaxel/sdk";
+import { getTool, handleDynamicImportError } from "@blaxel/sdk";
+import { tool } from "@langchain/core/tools";
+export async function blTool(name: string) {
   try {
-    const { tool } = await import("@langchain/core/tools");
     const blaxelTool = await getTool(name);
-    return blaxelTool.map((t) =>
+    return blaxelTool.map((t: Tool) =>
       tool(t.call.bind(t), {
         name: t.name,
         description: t.description,
@@ -18,7 +17,7 @@ export async function getLangchainTool(name: string) {
   }
 }
 
-export async function getLangchainTools(names: string[]) {
-  const toolArrays = await Promise.all(names.map(getLangchainTool));
+export async function blTools(names: string[]) {
+  const toolArrays = await Promise.all(names.map(blTool));
   return toolArrays.flat();
 }

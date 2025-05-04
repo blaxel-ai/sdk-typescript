@@ -1,5 +1,5 @@
 import { Credentials } from "../authentication/credentials.js";
-import authentication from "../authentication/index.js";
+import { authentication } from "../authentication/index.js";
 import { env } from "../common/env.js";
 export type Config = {
   proxy?: string;
@@ -98,4 +98,4 @@ class Settings {
   }
 }
 
-export default new Settings();
+export const settings = new Settings();

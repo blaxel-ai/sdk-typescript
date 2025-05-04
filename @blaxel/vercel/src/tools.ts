@@ -1,9 +1,8 @@
+import { getTool, handleDynamicImportError } from "@blaxel/sdk";
 import type { Tool } from "ai";
 import { tool } from "ai";
-import { handleDynamicImportError } from "../common/errors.js";
-import { getTool } from "./index.js";
 
-export const getVercelAITool = async (
+export const blTool = async (
   name: string
 ) : Promise<Record<string, Tool>> => {
   try {
@@ -25,10 +24,10 @@ export const getVercelAITool = async (
   }
 };
 
-export const getVercelAITools = async (
+export const blTools = async (
   names: string[]
 ) : Promise<Record<string, Tool>> => {
-  const toolArrays = await Promise.all(names.map(getVercelAITool));
+  const toolArrays = await Promise.all(names.map(blTool));
   const toolFormated: Record<string, Tool> = {};
   for (const toolServer of toolArrays) {
     for (const toolName in toolServer) {
@@ -37,5 +36,3 @@ export const getVercelAITools = async (
   }
   return toolFormated;
 };
-
-export default getVercelAITools;

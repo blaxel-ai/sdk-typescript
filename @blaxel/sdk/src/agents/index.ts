@@ -3,8 +3,9 @@ import { Agent, getAgent } from "../client/index.js";
 import { env } from "../common/env.js";
 import { getGlobalUniqueHash } from "../common/internal.js";
 import { logger } from "../common/logger.js";
-import settings from "../common/settings.js";
-import { SpanManager } from "../instrumentation/span.js";
+import { settings } from "../common/settings.js";
+import { startSpan } from '../telemetry/telemetry.js';
+
 class BlAgent {
   agentName: string;
   constructor(agentName: string) {
@@ -72,41 +73,41 @@ class BlAgent {
     input: Record<string, unknown> | string | undefined
   ): Promise<string> {
     logger.debug(`Agent Calling: ${this.agentName}`);
-    const spanManager = new SpanManager("blaxel-tracer");
-    const result = await spanManager.createActiveSpan(
-      this.agentName,
-      {
+
+    const span = startSpan(this.agentName, {
+      attributes: {
         "agent.name": this.agentName,
         "agent.args": JSON.stringify(input),
         "span.type": "agent.run",
       },
-      async (span) => {
+      isRoot: false,
+    });
+
+    try {
+      const response = await this.call(this.url, input);
+      span.setAttribute("agent.run.result", await response.text());
+      return await response.text();
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        if (!this.fallbackUrl) {
+          span.setAttribute("agent.run.error", err.stack as string);
+          throw err;
+        }
         try {
-          const response = await this.call(this.url, input);
+          const response = await this.call(this.fallbackUrl, input);
           span.setAttribute("agent.run.result", await response.text());
           return await response.text();
         } catch (err: unknown) {
           if (err instanceof Error) {
-            if (!this.fallbackUrl) {
-              span.setAttribute("agent.run.error", err.stack as string);
-              throw err;
-            }
-            try {
-              const response = await this.call(this.fallbackUrl, input);
-              span.setAttribute("agent.run.result", await response.text());
-              return await response.text();
-            } catch (err: unknown) {
-              if (err instanceof Error) {
-                span.setAttribute("agent.run.error", err.stack as string);
-              }
-              throw err;
-            }
+            span.setAttribute("agent.run.error", err.stack as string);
           }
           throw err;
         }
       }
-    );
-    return result as string;
+      throw err;
+    } finally {
+      span.end();
+    }
   }
 }
 

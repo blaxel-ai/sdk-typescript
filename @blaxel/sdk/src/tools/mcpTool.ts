@@ -1,15 +1,14 @@
 import { Client as ModelContextProtocolClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { FunctionSchema } from "../client/types.gen.js";
-import { onLoad } from "../common/autoload.js";
 import { env } from "../common/env.js";
 import { getGlobalUniqueHash } from "../common/internal.js";
 import { logger } from "../common/logger.js";
-import settings from "../common/settings.js";
-import { SpanManager } from "../instrumentation/span.js";
+import { settings } from "../common/settings.js";
+import { authenticate } from "../index.js";
 import { BlaxelMcpClientTransport } from "../mcp/client.js";
+import { startSpan } from "../telemetry/telemetry.js";
 import { Tool } from "./types.js";
 import { schemaToZodSchema } from "./zodSchema.js";
-
 const McpToolCache = new Map<string, McpTool>();
 export class McpTool {
   private name: string;
@@ -74,17 +73,13 @@ export class McpTool {
     return this.externalUrl;
   }
 
-  get spanManager() {
-    return new SpanManager("blaxel-tracer");
-  }
-
   async start() {
     logger.debug(`MCP:${this.name}:start`);
     this.stopCloseTimer();
     logger.debug(`MCP:${this.name}:startPromise`, this.startPromise);
     this.startPromise = this.startPromise || (async () => {
       logger.debug(`MCP:${this.name}:startPromise:onLoad`);
-      await onLoad();
+      await authenticate();
       try {
         logger.debug(`MCP:${this.name}:Connecting`);
         this.transport = new BlaxelMcpClientTransport(
@@ -138,82 +133,84 @@ export class McpTool {
   }
 
   async listTools(): Promise<Tool[]> {
-    const result = this.spanManager.createActiveSpan(
-      this.name,
-      {
+    const span = startSpan(this.name, {
+      attributes: {
         "span.type": "tool.list",
       },
-      async (span) => {
-        logger.debug(`MCP:${this.name}:Listing tools`);
-        await this.start();
-        const { tools } = (await this.client.listTools()) as {
-          tools: Array<{
-            name: string;
-            description: string;
-            inputSchema: FunctionSchema;
-          }>;
+    });
+    try {
+      logger.debug(`MCP:${this.name}:Listing tools`);
+      await this.start();
+      const { tools } = (await this.client.listTools()) as {
+        tools: Array<{
+          name: string;
+          description: string;
+          inputSchema: FunctionSchema;
+        }>;
+      };
+      logger.debug(`MCP:${this.name}:Listed tools result`, tools);
+      await this.close();
+      const result = tools.map((tool) => {
+        return {
+          name: tool.name,
+          description: tool.description,
+          inputSchema: schemaToZodSchema(tool.inputSchema),
+          originalSchema: tool.inputSchema,
+          call: (input: Record<string, unknown> | undefined) => {
+            return this.call(tool.name, input);
+          },
         };
-        logger.debug(`MCP:${this.name}:Listed tools result`, tools);
-        await this.close();
-        const result = tools.map((tool) => {
-          return {
-            name: tool.name,
-            description: tool.description,
-            inputSchema: schemaToZodSchema(tool.inputSchema),
-            originalSchema: tool.inputSchema,
-            call: (input: Record<string, unknown> | undefined) => {
-              return this.call(tool.name, input);
-            },
-          };
-        });
-        span.setAttribute("tool.list.result", JSON.stringify(result));
-        return result;
-      }
-    );
-    return result as Promise<Tool[]>;
+      });
+      span.setAttribute("tool.list.result", JSON.stringify(result));
+      return result;
+    } catch (err) {
+      span.setStatus("error");
+      span.recordException(err as Error);
+      throw err;
+    } finally {
+      span.end();
+    }
   }
 
-  async call(toolName: string, args: Record<string, unknown> | undefined) {
-    const result = this.spanManager.createActiveSpan(
-      this.name + "." + toolName,
-      {
+  async call(toolName: string, args: Record<string, unknown> | undefined): Promise<unknown> {
+    const span = startSpan(this.name + "." + toolName, {
+      attributes: {
         "span.type": "tool.call",
         "tool.name": toolName,
         "tool.args": JSON.stringify(args),
       },
-      async (span) => {
-        try {
-          logger.debug(
-            `MCP:${this.name}:Tool calling`,
-            toolName,
-            JSON.stringify(args)
-          );
-          logger.debug(`MCP:${this.name}:Tool calling:start`);
-          await this.start();
-          logger.debug(`MCP:${this.name}:Tool calling:start2`);
-          const result = await this.client.callTool({
-            name: toolName,
-            arguments: args,
-          });
-          logger.debug(`MCP:${this.name}:Tool calling:result`);
-          await this.close();
-          logger.debug(
-            `MCP:${this.name}:Tool result`,
-            toolName,
-            JSON.stringify(args),
-            // result
-          );
-          span.setAttribute("tool.call.result", JSON.stringify(result));
-          return result;
-        } catch (err: unknown) {
-          if (err instanceof Error) {
-            logger.error(err.stack);
-          }
-          throw err;
-        }
+    });
+    try {
+      logger.debug(
+        `MCP:${this.name}:Tool calling`,
+        toolName,
+        JSON.stringify(args)
+      );
+      logger.debug(`MCP:${this.name}:Tool calling:start`);
+      await this.start();
+      logger.debug(`MCP:${this.name}:Tool calling:start2`);
+      const result = await this.client.callTool({
+        name: toolName,
+        arguments: args,
+      });
+      logger.debug(`MCP:${this.name}:Tool calling:result`);
+      await this.close();
+      logger.debug(
+        `MCP:${this.name}:Tool result`,
+        toolName,
+        JSON.stringify(args),
+        // result
+      );
+      span.setAttribute("tool.call.result", JSON.stringify(result));
+      return result;
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        logger.error(err.stack);
       }
-    );
-    return result;
+      throw err;
+    } finally {
+      span.end();
+    }
   }
 }
 

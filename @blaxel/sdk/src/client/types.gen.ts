@@ -4,7 +4,7 @@
 /**
  * ACL
  */
-export type ACL = TimeFields & {
+export type Acl = TimeFields & {
     /**
      * ACL id
      */
@@ -192,9 +192,6 @@ export type CoreSpec = {
     flavors?: Flavors;
     integrationConnections?: IntegrationConnectionsList;
     policies?: PoliciesList;
-    /**
-     * The private clusters where the model deployment is deployed
-     */
     privateClusters?: ModelPrivateCluster;
     revision?: RevisionConfiguration;
     runtime?: Runtime;
@@ -284,7 +281,7 @@ export type Form = {
 /**
  * Function
  */
-export type Function = {
+export type _Function = {
     events?: CoreEvents;
     metadata?: Metadata;
     spec?: FunctionSpec;
@@ -328,7 +325,7 @@ export type FunctionSchema = {
     /**
      * Enum values
      */
-    enum?: Array<(string)>;
+    enum?: Array<string>;
     /**
      * Format of the schema
      */
@@ -373,7 +370,7 @@ export type FunctionSchema = {
     /**
      * Required properties of the schema
      */
-    required?: Array<(string)>;
+    required?: Array<string>;
     /**
      * Title of the schema
      */
@@ -391,8 +388,6 @@ export type FunctionSchemaOrBool = {
     [key: string]: unknown;
 };
 
-export type FunctionsList = Array<(string)>;
-
 /**
  * Function specification
  */
@@ -407,6 +402,8 @@ export type FunctionSpec = CoreSpec & {
     kit?: Array<FunctionKit>;
     schema?: FunctionSchema;
 };
+
+export type FunctionsList = Array<string>;
 
 /**
  * Histogram bucket
@@ -456,8 +453,6 @@ export type IntegrationConnection = {
     spec?: IntegrationConnectionSpec;
 };
 
-export type IntegrationConnectionsList = Array<(string)>;
-
 /**
  * Integration connection specification
  */
@@ -466,7 +461,7 @@ export type IntegrationConnectionSpec = {
      * Additional configuration for the integration
      */
     config?: {
-        [key: string]: (string);
+        [key: string]: string;
     };
     /**
      * Integration type
@@ -480,9 +475,11 @@ export type IntegrationConnectionSpec = {
      * Integration secret
      */
     secret?: {
-        [key: string]: (string);
+        [key: string]: string;
     };
 };
+
+export type IntegrationConnectionsList = Array<string>;
 
 /**
  * Model obtained from an external authentication provider, such as HuggingFace, OpenAI, etc...
@@ -531,7 +528,7 @@ export type IntegrationModel = {
     /**
      * Provider model tags
      */
-    tags?: Array<(string)>;
+    tags?: Array<string>;
     /**
      * Provider model trending score
      */
@@ -577,8 +574,6 @@ export type Knowledgebase = {
     status?: string;
 };
 
-export type KnowledgebasesList = Array<(string)>;
-
 /**
  * Knowledgebase specification
  */
@@ -604,7 +599,7 @@ export type KnowledgebaseSpec = {
      * Options specific to the knowledge base
      */
     options?: {
-        [key: string]: (string);
+        [key: string]: string;
     };
     policies?: PoliciesList;
     revision?: RevisionConfiguration;
@@ -613,6 +608,8 @@ export type KnowledgebaseSpec = {
      */
     sandbox?: boolean;
 };
+
+export type KnowledgebasesList = Array<string>;
 
 /**
  * Last N requests
@@ -644,21 +641,9 @@ export type LastNRequestsMetric = {
  * Latency metrics
  */
 export type LatencyMetric = {
-    /**
-     * Global histogram
-     */
     globalHistogram?: HistogramBucket;
-    /**
-     * Global stats
-     */
     globalStats?: HistogramStats;
-    /**
-     * Histogram per code
-     */
     histogramPerCode?: HistogramBucket;
-    /**
-     * Stats per code
-     */
     statsPerCode?: HistogramStats;
 };
 
@@ -691,7 +676,7 @@ export type LocationResponse = {
 /**
  * Definition of an MCP from the MCP Hub
  */
-export type MCPDefinition = TimeFields & {
+export type McpDefinition = TimeFields & {
     /**
      * Categories of the artifact
      */
@@ -727,7 +712,7 @@ export type MCPDefinition = TimeFields & {
     /**
      * Hidden secrets of the artifact
      */
-    hiddenSecrets?: Array<(string)>;
+    hiddenSecrets?: Array<string>;
     /**
      * Icon of the artifact
      */
@@ -787,7 +772,7 @@ export type Metadata = TimeFields & OwnerFields & {
  * Labels
  */
 export type MetadataLabels = {
-    [key: string]: (string);
+    [key: string]: string;
 };
 
 /**
@@ -1035,7 +1020,7 @@ export type PodTemplateSpec = {
     [key: string]: unknown;
 };
 
-export type PoliciesList = Array<(string)>;
+export type PoliciesList = Array<string>;
 
 /**
  * Rule that controls how a deployment is made and served (e.g. location restrictions)
@@ -1108,21 +1093,9 @@ export type PolicyResourceTypes = Array<PolicyResourceType>;
  * Policy specification
  */
 export type PolicySpec = {
-    /**
-     * Flavors allowed by the policy. If not set, all flavors are allowed.
-     */
     flavors?: Flavors;
-    /**
-     * Locations allowed by the policy. If not set, all locations are allowed.
-     */
     locations?: PolicyLocations;
-    /**
-     * Max token allowed by the policy. If not set, no max token is allowed.
-     */
     maxTokens?: PolicyMaxTokens;
-    /**
-     * ResourceTypes where the policy is applied. If not set, the policy is applied to all resource types.
-     */
     resourceTypes?: PolicyResourceTypes;
     /**
      * Sandbox mode
@@ -1360,53 +1333,20 @@ export type ResourceLog = {
  * Metrics for a single resource deployment (eg. model deployment, function deployment)
  */
 export type ResourceMetrics = {
-    /**
-     * Historical requests (in last 24 hours) for the model deployment globally
-     */
     inferenceErrorsGlobal?: ArrayMetric;
-    /**
-     * Historical requests (in last 24 hours) for the model deployment globally
-     */
     inferenceGlobal?: ArrayMetric;
-    /**
-     * Historical requests (in last 24 hours) for the model deployment globally
-     */
     lastNRequests?: ArrayMetric;
-    /**
-     * Historical requests (in last 24 hours) for the model deployment globally
-     */
     latency?: LatencyMetric;
-    /**
-     * Historical requests (in last 24 hours) for the model deployment globally
-     */
     latencyPrevious?: LatencyMetric;
-    /**
-     * Memory allocation metrics for the resource
-     */
     memoryAllocation?: MemoryAllocationMetric;
-    /**
-     * Time to first token metrics for model deployments
-     */
     modelTtft?: LatencyMetric;
-    /**
-     * Time to first token metrics over time for model deployments
-     */
     modelTtftOverTime?: TimeToFirstTokenOverTimeMetrics;
-    /**
-     * Historical requests (in last 24 hours) for the model deployment globally
-     */
     requestDurationOverTime?: RequestDurationOverTimeMetrics;
     /**
      * Number of requests for the resource globally
      */
     requestTotal?: number;
-    /**
-     * Historical requests (in last 24 hours) for the model deployment globally
-     */
     requestTotalByOrigin?: RequestTotalByOriginMetric;
-    /**
-     * Historical requests for the previous period for the model deployment globally
-     */
     requestTotalByOriginPrevious?: RequestTotalByOriginMetric;
     /**
      * Number of requests for the resource globally per code
@@ -1444,13 +1384,7 @@ export type ResourceMetrics = {
      * Number of requests per second for the resource globally for the previous period
      */
     rpsPrevious?: number;
-    /**
-     * Historical requests (in last 24 hours) for the model deployment globally
-     */
     tokenRate?: TokenRateMetrics;
-    /**
-     * Historical requests (in last 24 hours) for the model deployment globally
-     */
     tokenTotal?: TokenTotalMetric;
 };
 
@@ -1576,9 +1510,6 @@ export type Runtime = {
      * The organization of the model
      */
     organization?: string;
-    /**
-     * The exposed ports of the resource
-     */
     ports?: Ports;
     /**
      * The readiness probe. Should be a Kubernetes Probe type
@@ -1661,6 +1592,16 @@ export type SandboxDefinition = {
 };
 
 /**
+ * Sandbox specification
+ */
+export type SandboxSpec = CoreSpec & unknown;
+
+/**
+ * Name of a Sandbox definition
+ */
+export type SandboxStoreDefinitionName = unknown;
+
+/**
  * Micro VM for running agentic tasks
  */
 export type Sandboxes = {
@@ -1672,16 +1613,6 @@ export type Sandboxes = {
      */
     status?: string;
 };
-
-/**
- * Sandbox specification
- */
-export type SandboxSpec = CoreSpec & unknown;
-
-/**
- * Name of a Sandbox definition
- */
-export type SandboxStoreDefinitionName = unknown;
 
 /**
  * Configuration for a serverless deployment
@@ -1794,7 +1725,7 @@ export type StoreConfiguration = {
     /**
      * Available models for the configuration
      */
-    availableModels?: Array<(string)>;
+    availableModels?: Array<string>;
     /**
      * Store configuration description
      */
@@ -1887,7 +1818,7 @@ export type Template = {
     /**
      * Topic of the template
      */
-    topics?: Array<(string)>;
+    topics?: Array<string>;
     /**
      * URL of the template
      */
@@ -1979,17 +1910,8 @@ export type TokenRateMetric = {
  * Token rate metrics
  */
 export type TokenRateMetrics = {
-    /**
-     * Token rate
-     */
     tokenRate?: TokenRateMetric;
-    /**
-     * Token rate input
-     */
     tokenRateInput?: TokenRateMetric;
-    /**
-     * Token rate output
-     */
     tokenRateOutput?: TokenRateMetric;
 };
 
@@ -2142,43 +2064,79 @@ export type WorkspaceUser = {
     sub?: string;
 };
 
-export type ListAgentsResponse = (Array<Agent>);
+export type ListAgentsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/agents';
+};
 
-export type ListAgentsError = unknown;
+export type ListAgentsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<Agent>;
+};
+
+export type ListAgentsResponse = ListAgentsResponses[keyof ListAgentsResponses];
 
 export type CreateAgentData = {
     body: Agent;
+    path?: never;
+    query?: never;
+    url: '/agents';
 };
 
-export type CreateAgentResponse = (Agent);
+export type CreateAgentResponses = {
+    /**
+     * successful operation
+     */
+    200: Agent;
+};
 
-export type CreateAgentError = unknown;
+export type CreateAgentResponse = CreateAgentResponses[keyof CreateAgentResponses];
 
 export type DeleteAgentData = {
+    body?: never;
     path: {
         /**
          * Name of the agent
          */
         agentName: string;
     };
+    query?: never;
+    url: '/agents/{agentName}';
 };
 
-export type DeleteAgentResponse = (Agent);
+export type DeleteAgentResponses = {
+    /**
+     * successful operation
+     */
+    200: Agent;
+};
 
-export type DeleteAgentError = unknown;
+export type DeleteAgentResponse = DeleteAgentResponses[keyof DeleteAgentResponses];
 
 export type GetAgentData = {
+    body?: never;
     path: {
         /**
          * Name of the agent
          */
         agentName: string;
     };
+    query?: never;
+    url: '/agents/{agentName}';
 };
 
-export type GetAgentResponse = (Agent);
+export type GetAgentResponses = {
+    /**
+     * successful operation
+     */
+    200: Agent;
+};
 
-export type GetAgentError = unknown;
+export type GetAgentResponse = GetAgentResponses[keyof GetAgentResponses];
 
 export type UpdateAgentData = {
     body: Agent;
@@ -2188,144 +2146,264 @@ export type UpdateAgentData = {
          */
         agentName: string;
     };
+    query?: never;
+    url: '/agents/{agentName}';
 };
 
-export type UpdateAgentResponse = (Agent);
+export type UpdateAgentResponses = {
+    /**
+     * successful operation
+     */
+    200: Agent;
+};
 
-export type UpdateAgentError = unknown;
+export type UpdateAgentResponse = UpdateAgentResponses[keyof UpdateAgentResponses];
 
 export type ListAgentRevisionsData = {
+    body?: never;
     path: {
         /**
          * Name of the agent
          */
         agentName: string;
     };
+    query?: never;
+    url: '/agents/{agentName}/revisions';
 };
 
-export type ListAgentRevisionsResponse = (Array<RevisionMetadata>);
+export type ListAgentRevisionsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<RevisionMetadata>;
+};
 
-export type ListAgentRevisionsError = unknown;
+export type ListAgentRevisionsResponse = ListAgentRevisionsResponses[keyof ListAgentRevisionsResponses];
 
-export type GetConfigurationResponse = (Configuration);
+export type GetConfigurationData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/configuration';
+};
 
-export type GetConfigurationError = unknown;
+export type GetConfigurationResponses = {
+    /**
+     * Configuration of the control plane
+     */
+    200: Configuration;
+};
 
-export type ListFunctionsResponse = (Array<Function>);
+export type GetConfigurationResponse = GetConfigurationResponses[keyof GetConfigurationResponses];
 
-export type ListFunctionsError = unknown;
+export type ListFunctionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/functions';
+};
+
+export type ListFunctionsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<_Function>;
+};
+
+export type ListFunctionsResponse = ListFunctionsResponses[keyof ListFunctionsResponses];
 
 export type CreateFunctionData = {
-    body: Function;
+    body: _Function;
+    path?: never;
+    query?: never;
+    url: '/functions';
 };
 
-export type CreateFunctionResponse = (Function);
+export type CreateFunctionResponses = {
+    /**
+     * successful operation
+     */
+    200: _Function;
+};
 
-export type CreateFunctionError = unknown;
+export type CreateFunctionResponse = CreateFunctionResponses[keyof CreateFunctionResponses];
 
 export type DeleteFunctionData = {
+    body?: never;
     path: {
         /**
          * Name of the function
          */
         functionName: string;
     };
+    query?: never;
+    url: '/functions/{functionName}';
 };
 
-export type DeleteFunctionResponse = (Function);
+export type DeleteFunctionResponses = {
+    /**
+     * successful operation
+     */
+    200: _Function;
+};
 
-export type DeleteFunctionError = unknown;
+export type DeleteFunctionResponse = DeleteFunctionResponses[keyof DeleteFunctionResponses];
 
 export type GetFunctionData = {
+    body?: never;
     path: {
         /**
          * Name of the function
          */
         functionName: string;
     };
+    query?: never;
+    url: '/functions/{functionName}';
 };
 
-export type GetFunctionResponse = (Function);
+export type GetFunctionResponses = {
+    /**
+     * successful operation
+     */
+    200: _Function;
+};
 
-export type GetFunctionError = unknown;
+export type GetFunctionResponse = GetFunctionResponses[keyof GetFunctionResponses];
 
 export type UpdateFunctionData = {
-    body: Function;
+    body: _Function;
     path: {
         /**
          * Name of the function
          */
         functionName: string;
     };
+    query?: never;
+    url: '/functions/{functionName}';
 };
 
-export type UpdateFunctionResponse = (Function);
+export type UpdateFunctionResponses = {
+    /**
+     * successful operation
+     */
+    200: _Function;
+};
 
-export type UpdateFunctionError = unknown;
+export type UpdateFunctionResponse = UpdateFunctionResponses[keyof UpdateFunctionResponses];
 
 export type ListFunctionRevisionsData = {
+    body?: never;
     path: {
         /**
          * Name of the function
          */
         functionName: string;
     };
+    query?: never;
+    url: '/functions/{functionName}/revisions';
 };
 
-export type ListFunctionRevisionsResponse = (Array<RevisionMetadata>);
+export type ListFunctionRevisionsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<RevisionMetadata>;
+};
 
-export type ListFunctionRevisionsError = unknown;
+export type ListFunctionRevisionsResponse = ListFunctionRevisionsResponses[keyof ListFunctionRevisionsResponses];
 
 export type GetIntegrationData = {
+    body?: never;
     path: {
         /**
          * Name of the integration
          */
         integrationName: string;
     };
+    query?: never;
+    url: '/integrations/{integrationName}';
 };
 
-export type GetIntegrationResponse = (unknown);
+export type GetIntegrationResponses = {
+    /**
+     * successful operation
+     */
+    200: unknown;
+};
 
-export type GetIntegrationError = unknown;
+export type ListIntegrationConnectionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/integrations/connections';
+};
 
-export type ListIntegrationConnectionsResponse = (Array<IntegrationConnection>);
+export type ListIntegrationConnectionsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<IntegrationConnection>;
+};
 
-export type ListIntegrationConnectionsError = unknown;
+export type ListIntegrationConnectionsResponse = ListIntegrationConnectionsResponses[keyof ListIntegrationConnectionsResponses];
 
 export type CreateIntegrationConnectionData = {
     body: IntegrationConnection;
+    path?: never;
+    query?: never;
+    url: '/integrations/connections';
 };
 
-export type CreateIntegrationConnectionResponse = (IntegrationConnection);
+export type CreateIntegrationConnectionResponses = {
+    /**
+     * successful operation
+     */
+    200: IntegrationConnection;
+};
 
-export type CreateIntegrationConnectionError = unknown;
+export type CreateIntegrationConnectionResponse = CreateIntegrationConnectionResponses[keyof CreateIntegrationConnectionResponses];
 
 export type DeleteIntegrationConnectionData = {
+    body?: never;
     path: {
         /**
          * Name of the integrationconnection
          */
         connectionName: string;
     };
+    query?: never;
+    url: '/integrations/connections/{connectionName}';
 };
 
-export type DeleteIntegrationConnectionResponse = (IntegrationConnection);
+export type DeleteIntegrationConnectionResponses = {
+    /**
+     * successful operation
+     */
+    200: IntegrationConnection;
+};
 
-export type DeleteIntegrationConnectionError = unknown;
+export type DeleteIntegrationConnectionResponse = DeleteIntegrationConnectionResponses[keyof DeleteIntegrationConnectionResponses];
 
 export type GetIntegrationConnectionData = {
+    body?: never;
     path: {
         /**
          * Name of the integrationconnection
          */
         connectionName: string;
     };
+    query?: never;
+    url: '/integrations/connections/{connectionName}';
 };
 
-export type GetIntegrationConnectionResponse = (IntegrationConnection);
+export type GetIntegrationConnectionResponses = {
+    /**
+     * successful operation
+     */
+    200: IntegrationConnection;
+};
 
-export type GetIntegrationConnectionError = unknown;
+export type GetIntegrationConnectionResponse = GetIntegrationConnectionResponses[keyof GetIntegrationConnectionResponses];
 
 export type UpdateIntegrationConnectionData = {
     body: IntegrationConnection;
@@ -2335,39 +2413,59 @@ export type UpdateIntegrationConnectionData = {
          */
         connectionName: string;
     };
+    query?: never;
+    url: '/integrations/connections/{connectionName}';
 };
 
-export type UpdateIntegrationConnectionResponse = (IntegrationConnection);
+export type UpdateIntegrationConnectionResponses = {
+    /**
+     * successful operation
+     */
+    200: IntegrationConnection;
+};
 
-export type UpdateIntegrationConnectionError = unknown;
+export type UpdateIntegrationConnectionResponse = UpdateIntegrationConnectionResponses[keyof UpdateIntegrationConnectionResponses];
 
 export type GetIntegrationConnectionModelEndpointConfigurationsData = {
+    body?: never;
     path: {
         /**
          * Name of the connection
          */
         connectionName: string;
     };
+    query?: never;
+    url: '/integrations/connections/{connectionName}/endpointConfigurations';
 };
 
-export type GetIntegrationConnectionModelEndpointConfigurationsResponse = (unknown);
-
-export type GetIntegrationConnectionModelEndpointConfigurationsError = unknown;
+export type GetIntegrationConnectionModelEndpointConfigurationsResponses = {
+    /**
+     * successful operation
+     */
+    200: unknown;
+};
 
 export type ListIntegrationConnectionModelsData = {
+    body?: never;
     path: {
         /**
          * Name of the connection
          */
         connectionName: string;
     };
+    query?: never;
+    url: '/integrations/connections/{connectionName}/models';
 };
 
-export type ListIntegrationConnectionModelsResponse = (unknown);
-
-export type ListIntegrationConnectionModelsError = unknown;
+export type ListIntegrationConnectionModelsResponses = {
+    /**
+     * successful operation
+     */
+    200: unknown;
+};
 
 export type GetIntegrationConnectionModelData = {
+    body?: never;
     path: {
         /**
          * Name of the connection
@@ -2378,49 +2476,90 @@ export type GetIntegrationConnectionModelData = {
          */
         modelId: string;
     };
+    query?: never;
+    url: '/integrations/connections/{connectionName}/models/{modelId}';
 };
 
-export type GetIntegrationConnectionModelResponse = (unknown);
+export type GetIntegrationConnectionModelResponses = {
+    /**
+     * successful operation
+     */
+    200: unknown;
+};
 
-export type GetIntegrationConnectionModelError = unknown;
+export type ListKnowledgebasesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/knowledgebases';
+};
 
-export type ListKnowledgebasesResponse = (Array<Knowledgebase>);
+export type ListKnowledgebasesResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<Knowledgebase>;
+};
 
-export type ListKnowledgebasesError = unknown;
+export type ListKnowledgebasesResponse = ListKnowledgebasesResponses[keyof ListKnowledgebasesResponses];
 
 export type CreateKnowledgebaseData = {
     body: Knowledgebase;
+    path?: never;
+    query?: never;
+    url: '/knowledgebases';
 };
 
-export type CreateKnowledgebaseResponse = (Knowledgebase);
+export type CreateKnowledgebaseResponses = {
+    /**
+     * successful operation
+     */
+    200: Knowledgebase;
+};
 
-export type CreateKnowledgebaseError = unknown;
+export type CreateKnowledgebaseResponse = CreateKnowledgebaseResponses[keyof CreateKnowledgebaseResponses];
 
 export type DeleteKnowledgebaseData = {
+    body?: never;
     path: {
         /**
          * Name of the knowledgebase
          */
         knowledgebaseName: string;
     };
+    query?: never;
+    url: '/knowledgebases/{knowledgebaseName}';
 };
 
-export type DeleteKnowledgebaseResponse = (Knowledgebase);
+export type DeleteKnowledgebaseResponses = {
+    /**
+     * successful operation
+     */
+    200: Knowledgebase;
+};
 
-export type DeleteKnowledgebaseError = unknown;
+export type DeleteKnowledgebaseResponse = DeleteKnowledgebaseResponses[keyof DeleteKnowledgebaseResponses];
 
 export type GetKnowledgebaseData = {
+    body?: never;
     path: {
         /**
          * Name of the knowledgebase
          */
         knowledgebaseName: string;
     };
+    query?: never;
+    url: '/knowledgebases/{knowledgebaseName}';
 };
 
-export type GetKnowledgebaseResponse = (Knowledgebase);
+export type GetKnowledgebaseResponses = {
+    /**
+     * successful operation
+     */
+    200: Knowledgebase;
+};
 
-export type GetKnowledgebaseError = unknown;
+export type GetKnowledgebaseResponse = GetKnowledgebaseResponses[keyof GetKnowledgebaseResponses];
 
 export type UpdateKnowledgebaseData = {
     body: Knowledgebase;
@@ -2430,70 +2569,145 @@ export type UpdateKnowledgebaseData = {
          */
         knowledgebaseName: string;
     };
+    query?: never;
+    url: '/knowledgebases/{knowledgebaseName}';
 };
 
-export type UpdateKnowledgebaseResponse = (Knowledgebase);
+export type UpdateKnowledgebaseResponses = {
+    /**
+     * successful operation
+     */
+    200: Knowledgebase;
+};
 
-export type UpdateKnowledgebaseError = unknown;
+export type UpdateKnowledgebaseResponse = UpdateKnowledgebaseResponses[keyof UpdateKnowledgebaseResponses];
 
 export type ListKnowledgebaseRevisionsData = {
+    body?: never;
     path: {
         /**
          * Name of the knowledgebase
          */
         knowledgebaseName: string;
     };
+    query?: never;
+    url: '/knowledgebases/{knowledgebaseName}/revisions';
 };
 
-export type ListKnowledgebaseRevisionsResponse = (Array<RevisionMetadata>);
+export type ListKnowledgebaseRevisionsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<RevisionMetadata>;
+};
 
-export type ListKnowledgebaseRevisionsError = unknown;
+export type ListKnowledgebaseRevisionsResponse = ListKnowledgebaseRevisionsResponses[keyof ListKnowledgebaseRevisionsResponses];
 
-export type ListLocationsResponse = (Array<LocationResponse>);
+export type ListLocationsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/locations';
+};
 
-export type ListLocationsError = unknown;
+export type ListLocationsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<LocationResponse>;
+};
 
-export type ListMcpHubDefinitionsResponse = (Array<MCPDefinition>);
+export type ListLocationsResponse = ListLocationsResponses[keyof ListLocationsResponses];
 
-export type ListMcpHubDefinitionsError = unknown;
+export type ListMcpHubDefinitionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/mcp/hub';
+};
 
-export type ListModelsResponse = (Array<Model>);
+export type ListMcpHubDefinitionsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<McpDefinition>;
+};
 
-export type ListModelsError = unknown;
+export type ListMcpHubDefinitionsResponse = ListMcpHubDefinitionsResponses[keyof ListMcpHubDefinitionsResponses];
+
+export type ListModelsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/models';
+};
+
+export type ListModelsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<Model>;
+};
+
+export type ListModelsResponse = ListModelsResponses[keyof ListModelsResponses];
 
 export type CreateModelData = {
     body: Model;
+    path?: never;
+    query?: never;
+    url: '/models';
 };
 
-export type CreateModelResponse = (Model);
+export type CreateModelResponses = {
+    /**
+     * successful operation
+     */
+    200: Model;
+};
 
-export type CreateModelError = unknown;
+export type CreateModelResponse = CreateModelResponses[keyof CreateModelResponses];
 
 export type DeleteModelData = {
+    body?: never;
     path: {
         /**
          * Name of the model
          */
         modelName: string;
     };
+    query?: never;
+    url: '/models/{modelName}';
 };
 
-export type DeleteModelResponse = (Model);
+export type DeleteModelResponses = {
+    /**
+     * successful operation
+     */
+    200: Model;
+};
 
-export type DeleteModelError = unknown;
+export type DeleteModelResponse = DeleteModelResponses[keyof DeleteModelResponses];
 
 export type GetModelData = {
+    body?: never;
     path: {
         /**
          * Name of the model
          */
         modelName: string;
     };
+    query?: never;
+    url: '/models/{modelName}';
 };
 
-export type GetModelResponse = (Model);
+export type GetModelResponses = {
+    /**
+     * successful operation
+     */
+    200: Model;
+};
 
-export type GetModelError = unknown;
+export type GetModelResponse = GetModelResponses[keyof GetModelResponses];
 
 export type UpdateModelData = {
     body: Model;
@@ -2503,62 +2717,113 @@ export type UpdateModelData = {
          */
         modelName: string;
     };
+    query?: never;
+    url: '/models/{modelName}';
 };
 
-export type UpdateModelResponse = (Model);
+export type UpdateModelResponses = {
+    /**
+     * successful operation
+     */
+    200: Model;
+};
 
-export type UpdateModelError = unknown;
+export type UpdateModelResponse = UpdateModelResponses[keyof UpdateModelResponses];
 
 export type ListModelRevisionsData = {
+    body?: never;
     path: {
         /**
          * Name of the model
          */
         modelName: string;
     };
+    query?: never;
+    url: '/models/{modelName}/revisions';
 };
 
-export type ListModelRevisionsResponse = (Array<RevisionMetadata>);
+export type ListModelRevisionsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<RevisionMetadata>;
+};
 
-export type ListModelRevisionsError = unknown;
+export type ListModelRevisionsResponse = ListModelRevisionsResponses[keyof ListModelRevisionsResponses];
 
-export type ListPoliciesResponse = (Array<Policy>);
+export type ListPoliciesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/policies';
+};
 
-export type ListPoliciesError = unknown;
+export type ListPoliciesResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<Policy>;
+};
+
+export type ListPoliciesResponse = ListPoliciesResponses[keyof ListPoliciesResponses];
 
 export type CreatePolicyData = {
     body: Policy;
+    path?: never;
+    query?: never;
+    url: '/policies';
 };
 
-export type CreatePolicyResponse = (Policy);
+export type CreatePolicyResponses = {
+    /**
+     * successful operation
+     */
+    200: Policy;
+};
 
-export type CreatePolicyError = unknown;
+export type CreatePolicyResponse = CreatePolicyResponses[keyof CreatePolicyResponses];
 
 export type DeletePolicyData = {
+    body?: never;
     path: {
         /**
          * Name of the policy
          */
         policyName: string;
     };
+    query?: never;
+    url: '/policies/{policyName}';
 };
 
-export type DeletePolicyResponse = (Policy);
+export type DeletePolicyResponses = {
+    /**
+     * successful operation
+     */
+    200: Policy;
+};
 
-export type DeletePolicyError = unknown;
+export type DeletePolicyResponse = DeletePolicyResponses[keyof DeletePolicyResponses];
 
 export type GetPolicyData = {
+    body?: never;
     path: {
         /**
          * Name of the policy
          */
         policyName: string;
     };
+    query?: never;
+    url: '/policies/{policyName}';
 };
 
-export type GetPolicyResponse = (Policy);
+export type GetPolicyResponses = {
+    /**
+     * successful operation
+     */
+    200: Policy;
+};
 
-export type GetPolicyError = unknown;
+export type GetPolicyResponse = GetPolicyResponses[keyof GetPolicyResponses];
 
 export type UpdatePolicyData = {
     body: Policy;
@@ -2568,130 +2833,349 @@ export type UpdatePolicyData = {
          */
         policyName: string;
     };
+    query?: never;
+    url: '/policies/{policyName}';
 };
 
-export type UpdatePolicyResponse = (Policy);
+export type UpdatePolicyResponses = {
+    /**
+     * successful operation
+     */
+    200: Policy;
+};
 
-export type UpdatePolicyError = unknown;
+export type UpdatePolicyResponse = UpdatePolicyResponses[keyof UpdatePolicyResponses];
 
-export type ListPrivateClustersResponse = (Array<PrivateCluster>);
+export type ListPrivateClustersData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/privateclusters';
+};
 
-export type ListPrivateClustersError = (unknown);
+export type ListPrivateClustersErrors = {
+    /**
+     * unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * workspace not found
+     */
+    404: unknown;
+};
 
-export type CreatePrivateClusterResponse = (PrivateCluster);
+export type ListPrivateClustersResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<PrivateCluster>;
+};
 
-export type CreatePrivateClusterError = (unknown);
+export type ListPrivateClustersResponse = ListPrivateClustersResponses[keyof ListPrivateClustersResponses];
+
+export type CreatePrivateClusterData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/privateclusters';
+};
+
+export type CreatePrivateClusterErrors = {
+    /**
+     * unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type CreatePrivateClusterResponses = {
+    /**
+     * successful operation
+     */
+    200: PrivateCluster;
+};
+
+export type CreatePrivateClusterResponse = CreatePrivateClusterResponses[keyof CreatePrivateClusterResponses];
 
 export type DeletePrivateClusterData = {
+    body?: never;
     path: {
         /**
          * Name of the private cluster
          */
         privateClusterName: string;
     };
+    query?: never;
+    url: '/privateclusters/{privateClusterName}';
 };
 
-export type DeletePrivateClusterResponse = (PrivateCluster);
+export type DeletePrivateClusterErrors = {
+    /**
+     * unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
 
-export type DeletePrivateClusterError = (unknown);
+export type DeletePrivateClusterResponses = {
+    /**
+     * successful operation
+     */
+    200: PrivateCluster;
+};
+
+export type DeletePrivateClusterResponse = DeletePrivateClusterResponses[keyof DeletePrivateClusterResponses];
 
 export type GetPrivateClusterData = {
+    body?: never;
     path: {
         /**
          * Name of the private cluster
          */
         privateClusterName: string;
     };
+    query?: never;
+    url: '/privateclusters/{privateClusterName}';
 };
 
-export type GetPrivateClusterResponse = (PrivateCluster);
+export type GetPrivateClusterErrors = {
+    /**
+     * unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * private cluster not found
+     */
+    404: unknown;
+};
 
-export type GetPrivateClusterError = (unknown);
+export type GetPrivateClusterResponses = {
+    /**
+     * successful operation
+     */
+    200: PrivateCluster;
+};
+
+export type GetPrivateClusterResponse = GetPrivateClusterResponses[keyof GetPrivateClusterResponses];
 
 export type UpdatePrivateClusterData = {
+    body?: never;
     path: {
         /**
          * Name of the private cluster
          */
         privateClusterName: string;
     };
+    query?: never;
+    url: '/privateclusters/{privateClusterName}';
 };
 
-export type UpdatePrivateClusterResponse = (PrivateCluster);
+export type UpdatePrivateClusterErrors = {
+    /**
+     * unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
 
-export type UpdatePrivateClusterError = (unknown);
+export type UpdatePrivateClusterResponses = {
+    /**
+     * successful operation
+     */
+    200: PrivateCluster;
+};
+
+export type UpdatePrivateClusterResponse = UpdatePrivateClusterResponses[keyof UpdatePrivateClusterResponses];
 
 export type GetPrivateClusterHealthData = {
+    body?: never;
     path: {
         /**
          * Name of the private cluster
          */
         privateClusterName: string;
     };
+    query?: never;
+    url: '/privateclusters/{privateClusterName}/health';
 };
 
-export type GetPrivateClusterHealthResponse = (unknown);
+export type GetPrivateClusterHealthErrors = {
+    /**
+     * unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
 
-export type GetPrivateClusterHealthError = (unknown);
+export type GetPrivateClusterHealthResponses = {
+    /**
+     * successful operation
+     */
+    200: unknown;
+};
 
 export type UpdatePrivateClusterHealthData = {
+    body?: never;
     path: {
         /**
          * Name of the private cluster
          */
         privateClusterName: string;
     };
+    query?: never;
+    url: '/privateclusters/{privateClusterName}/health';
 };
 
-export type UpdatePrivateClusterHealthResponse = (unknown);
+export type UpdatePrivateClusterHealthErrors = {
+    /**
+     * unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
 
-export type UpdatePrivateClusterHealthError = (unknown);
+export type UpdatePrivateClusterHealthResponses = {
+    /**
+     * successful operation
+     */
+    200: unknown;
+};
 
-export type ListAllPendingInvitationsResponse = (Array<PendingInvitationRender>);
+export type ListAllPendingInvitationsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/profile/invitations';
+};
 
-export type ListAllPendingInvitationsError = (unknown);
+export type ListAllPendingInvitationsErrors = {
+    /**
+     * no pending invitations
+     */
+    404: unknown;
+};
 
-export type ListSandboxHubDefinitionsResponse = (Array<SandboxDefinition>);
+export type ListAllPendingInvitationsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<PendingInvitationRender>;
+};
 
-export type ListSandboxHubDefinitionsError = unknown;
+export type ListAllPendingInvitationsResponse = ListAllPendingInvitationsResponses[keyof ListAllPendingInvitationsResponses];
 
-export type ListSandboxesResponse = (Array<Sandbox>);
+export type ListSandboxHubDefinitionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/sandbox/hub';
+};
 
-export type ListSandboxesError = unknown;
+export type ListSandboxHubDefinitionsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<SandboxDefinition>;
+};
+
+export type ListSandboxHubDefinitionsResponse = ListSandboxHubDefinitionsResponses[keyof ListSandboxHubDefinitionsResponses];
+
+export type ListSandboxesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/sandboxes';
+};
+
+export type ListSandboxesResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<Sandbox>;
+};
+
+export type ListSandboxesResponse = ListSandboxesResponses[keyof ListSandboxesResponses];
 
 export type CreateSandboxData = {
     body: Sandbox;
+    path?: never;
+    query?: never;
+    url: '/sandboxes';
 };
 
-export type CreateSandboxResponse = (Sandbox);
+export type CreateSandboxResponses = {
+    /**
+     * successful operation
+     */
+    200: Sandbox;
+};
 
-export type CreateSandboxError = unknown;
+export type CreateSandboxResponse = CreateSandboxResponses[keyof CreateSandboxResponses];
 
 export type DeleteSandboxData = {
+    body?: never;
     path: {
         /**
          * Name of the Sandbox
          */
         sandboxName: string;
     };
+    query?: never;
+    url: '/sandboxes/{sandboxName}';
 };
 
-export type DeleteSandboxResponse = (Sandbox);
+export type DeleteSandboxResponses = {
+    /**
+     * successful operation
+     */
+    200: Sandbox;
+};
 
-export type DeleteSandboxError = unknown;
+export type DeleteSandboxResponse = DeleteSandboxResponses[keyof DeleteSandboxResponses];
 
 export type GetSandboxData = {
+    body?: never;
     path: {
         /**
          * Name of the Sandbox
          */
         sandboxName: string;
     };
+    query?: never;
+    url: '/sandboxes/{sandboxName}';
 };
 
-export type GetSandboxResponse = (Sandbox);
+export type GetSandboxResponses = {
+    /**
+     * successful operation
+     */
+    200: Sandbox;
+};
 
-export type GetSandboxError = unknown;
+export type GetSandboxResponse = GetSandboxResponses[keyof GetSandboxResponses];
 
 export type UpdateSandboxData = {
     body: Sandbox;
@@ -2701,62 +3185,111 @@ export type UpdateSandboxData = {
          */
         sandboxName: string;
     };
+    query?: never;
+    url: '/sandboxes/{sandboxName}';
 };
 
-export type UpdateSandboxResponse = (Sandbox);
+export type UpdateSandboxResponses = {
+    /**
+     * successful operation
+     */
+    200: Sandbox;
+};
 
-export type UpdateSandboxError = unknown;
+export type UpdateSandboxResponse = UpdateSandboxResponses[keyof UpdateSandboxResponses];
 
 export type StartSandboxData = {
+    body?: never;
     path: {
         /**
          * Name of the Sandbox
          */
         sandboxName: string;
     };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/start';
 };
 
-export type StartSandboxResponse = (StartSandbox);
+export type StartSandboxErrors = {
+    /**
+     * Sandbox is already running
+     */
+    409: unknown;
+};
 
-export type StartSandboxError = (unknown);
+export type StartSandboxResponses = {
+    /**
+     * successful operation
+     */
+    200: StartSandbox;
+};
+
+export type StartSandboxResponse = StartSandboxResponses[keyof StartSandboxResponses];
 
 export type StopSandboxData = {
+    body?: never;
     path: {
         /**
          * Name of the Sandbox
          */
         sandboxName: string;
     };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/stop';
 };
 
-export type StopSandboxResponse = (StopSandbox);
+export type StopSandboxErrors = {
+    /**
+     * Sandbox is not running
+     */
+    409: unknown;
+};
 
-export type StopSandboxError = (unknown);
+export type StopSandboxResponses = {
+    /**
+     * successful operation
+     */
+    200: StopSandbox;
+};
 
-export type GetWorkspaceServiceAccountsResponse = (Array<{
-    /**
-     * Service account client ID
-     */
-    client_id?: string;
-    /**
-     * Creation timestamp
-     */
-    created_at?: string;
-    /**
-     * Service account description
-     */
-    description?: string;
-    /**
-     * Service account name
-     */
-    name?: string;
-    /**
-     * Last update timestamp
-     */
-    updated_at?: string;
-}>);
+export type StopSandboxResponse = StopSandboxResponses[keyof StopSandboxResponses];
 
-export type GetWorkspaceServiceAccountsError = unknown;
+export type GetWorkspaceServiceAccountsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/service_accounts';
+};
+
+export type GetWorkspaceServiceAccountsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<{
+        /**
+         * Service account client ID
+         */
+        client_id?: string;
+        /**
+         * Creation timestamp
+         */
+        created_at?: string;
+        /**
+         * Service account description
+         */
+        description?: string;
+        /**
+         * Service account name
+         */
+        name?: string;
+        /**
+         * Last update timestamp
+         */
+        updated_at?: string;
+    }>;
+};
+
+export type GetWorkspaceServiceAccountsResponse = GetWorkspaceServiceAccountsResponses[keyof GetWorkspaceServiceAccountsResponses];
 
 export type CreateWorkspaceServiceAccountData = {
     body: {
@@ -2769,70 +3302,86 @@ export type CreateWorkspaceServiceAccountData = {
          */
         name: string;
     };
+    path?: never;
+    query?: never;
+    url: '/service_accounts';
 };
 
-export type CreateWorkspaceServiceAccountResponse = ({
+export type CreateWorkspaceServiceAccountResponses = {
     /**
-     * Service account client ID
+     * successful operation
      */
-    client_id?: string;
-    /**
-     * Service account client secret (only returned on creation)
-     */
-    client_secret?: string;
-    /**
-     * Creation timestamp
-     */
-    created_at?: string;
-    /**
-     * Service account description
-     */
-    description?: string;
-    /**
-     * Service account name
-     */
-    name?: string;
-    /**
-     * Last update timestamp
-     */
-    updated_at?: string;
-});
+    200: {
+        /**
+         * Service account client ID
+         */
+        client_id?: string;
+        /**
+         * Service account client secret (only returned on creation)
+         */
+        client_secret?: string;
+        /**
+         * Creation timestamp
+         */
+        created_at?: string;
+        /**
+         * Service account description
+         */
+        description?: string;
+        /**
+         * Service account name
+         */
+        name?: string;
+        /**
+         * Last update timestamp
+         */
+        updated_at?: string;
+    };
+};
 
-export type CreateWorkspaceServiceAccountError = unknown;
+export type CreateWorkspaceServiceAccountResponse = CreateWorkspaceServiceAccountResponses[keyof CreateWorkspaceServiceAccountResponses];
 
 export type DeleteWorkspaceServiceAccountData = {
+    body?: never;
     path: {
         /**
          * Client ID
          */
         clientId: string;
     };
+    query?: never;
+    url: '/service_accounts/{clientId}';
 };
 
-export type DeleteWorkspaceServiceAccountResponse = ({
+export type DeleteWorkspaceServiceAccountResponses = {
     /**
-     * Service account client ID
+     * successful operation
      */
-    client_id?: string;
-    /**
-     * Creation timestamp
-     */
-    created_at?: string;
-    /**
-     * Service account description
-     */
-    description?: string;
-    /**
-     * Service account name
-     */
-    name?: string;
-    /**
-     * Last update timestamp
-     */
-    updated_at?: string;
-});
+    200: {
+        /**
+         * Service account client ID
+         */
+        client_id?: string;
+        /**
+         * Creation timestamp
+         */
+        created_at?: string;
+        /**
+         * Service account description
+         */
+        description?: string;
+        /**
+         * Service account name
+         */
+        name?: string;
+        /**
+         * Last update timestamp
+         */
+        updated_at?: string;
+    };
+};
 
-export type DeleteWorkspaceServiceAccountError = unknown;
+export type DeleteWorkspaceServiceAccountResponse = DeleteWorkspaceServiceAccountResponses[keyof DeleteWorkspaceServiceAccountResponses];
 
 export type UpdateWorkspaceServiceAccountData = {
     body: {
@@ -2851,45 +3400,60 @@ export type UpdateWorkspaceServiceAccountData = {
          */
         clientId: string;
     };
+    query?: never;
+    url: '/service_accounts/{clientId}';
 };
 
-export type UpdateWorkspaceServiceAccountResponse = ({
+export type UpdateWorkspaceServiceAccountResponses = {
     /**
-     * Service account client ID
+     * successful operation
      */
-    client_id?: string;
-    /**
-     * Creation timestamp
-     */
-    created_at?: string;
-    /**
-     * Service account description
-     */
-    description?: string;
-    /**
-     * Service account name
-     */
-    name?: string;
-    /**
-     * Last update timestamp
-     */
-    updated_at?: string;
-});
+    200: {
+        /**
+         * Service account client ID
+         */
+        client_id?: string;
+        /**
+         * Creation timestamp
+         */
+        created_at?: string;
+        /**
+         * Service account description
+         */
+        description?: string;
+        /**
+         * Service account name
+         */
+        name?: string;
+        /**
+         * Last update timestamp
+         */
+        updated_at?: string;
+    };
+};
 
-export type UpdateWorkspaceServiceAccountError = unknown;
+export type UpdateWorkspaceServiceAccountResponse = UpdateWorkspaceServiceAccountResponses[keyof UpdateWorkspaceServiceAccountResponses];
 
 export type ListApiKeysForServiceAccountData = {
+    body?: never;
     path: {
         /**
          * Client ID
          */
         clientId: string;
     };
+    query?: never;
+    url: '/service_accounts/{clientId}/api_keys';
 };
 
-export type ListApiKeysForServiceAccountResponse = (Array<ApiKey>);
+export type ListApiKeysForServiceAccountResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<ApiKey>;
+};
 
-export type ListApiKeysForServiceAccountError = unknown;
+export type ListApiKeysForServiceAccountResponse = ListApiKeysForServiceAccountResponses[keyof ListApiKeysForServiceAccountResponses];
 
 export type CreateApiKeyForServiceAccountData = {
     body: {
@@ -2908,70 +3472,131 @@ export type CreateApiKeyForServiceAccountData = {
          */
         clientId: string;
     };
+    query?: never;
+    url: '/service_accounts/{clientId}/api_keys';
 };
 
-export type CreateApiKeyForServiceAccountResponse = (ApiKey);
+export type CreateApiKeyForServiceAccountResponses = {
+    /**
+     * successful operation
+     */
+    200: ApiKey;
+};
 
-export type CreateApiKeyForServiceAccountError = unknown;
+export type CreateApiKeyForServiceAccountResponse = CreateApiKeyForServiceAccountResponses[keyof CreateApiKeyForServiceAccountResponses];
 
 export type DeleteApiKeyForServiceAccountData = {
+    body?: never;
     path: {
-        /**
-         * Api key id
-         */
-        apiKeyId: string;
         /**
          * Client ID
          */
         clientId: string;
+        /**
+         * Api key id
+         */
+        apiKeyId: string;
     };
+    query?: never;
+    url: '/service_accounts/{clientId}/api_keys/{apiKeyId}';
 };
 
-export type DeleteApiKeyForServiceAccountResponse = (unknown);
+export type DeleteApiKeyForServiceAccountResponses = {
+    /**
+     * successful operation
+     */
+    200: unknown;
+};
 
-export type DeleteApiKeyForServiceAccountError = unknown;
+export type ListTemplatesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/templates';
+};
 
-export type ListTemplatesResponse = (Array<Template>);
+export type ListTemplatesResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<Template>;
+};
 
-export type ListTemplatesError = unknown;
+export type ListTemplatesResponse = ListTemplatesResponses[keyof ListTemplatesResponses];
 
 export type GetTemplateData = {
+    body?: never;
     path: {
         /**
          * Name of the template
          */
         templateName: string;
     };
+    query?: never;
+    url: '/templates/{templateName}';
 };
 
-export type GetTemplateResponse = (Template);
+export type GetTemplateResponses = {
+    /**
+     * successful operation
+     */
+    200: Template;
+};
 
-export type GetTemplateError = unknown;
+export type GetTemplateResponse = GetTemplateResponses[keyof GetTemplateResponses];
 
 export type GetTemplateContentsData = {
+    body?: never;
     path: {
         templateName: string;
     };
+    query?: never;
+    url: '/templates/{templateName}/contents';
 };
 
-export type GetTemplateContentsResponse = (Array<(string)>);
+export type GetTemplateContentsResponses = {
+    /**
+     * List of files in the template
+     */
+    200: Array<string>;
+};
 
-export type GetTemplateContentsError = unknown;
+export type GetTemplateContentsResponse = GetTemplateContentsResponses[keyof GetTemplateContentsResponses];
 
 export type GetTemplateFileContentsData = {
+    body?: never;
     path: {
-        fileName: string;
         templateName: string;
+        fileName: string;
     };
+    query?: never;
+    url: '/templates/{templateName}/contents/{fileName}';
 };
 
-export type GetTemplateFileContentsResponse = (string);
+export type GetTemplateFileContentsResponses = {
+    /**
+     * Content of the file
+     */
+    200: string;
+};
 
-export type GetTemplateFileContentsError = unknown;
+export type GetTemplateFileContentsResponse = GetTemplateFileContentsResponses[keyof GetTemplateFileContentsResponses];
 
-export type ListWorkspaceUsersResponse = (Array<WorkspaceUser>);
+export type ListWorkspaceUsersData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/users';
+};
 
-export type ListWorkspaceUsersError = unknown;
+export type ListWorkspaceUsersResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<WorkspaceUser>;
+};
+
+export type ListWorkspaceUsersResponse = ListWorkspaceUsersResponses[keyof ListWorkspaceUsersResponses];
 
 export type InviteWorkspaceUserData = {
     /**
@@ -2980,24 +3605,56 @@ export type InviteWorkspaceUserData = {
     body: {
         email?: string;
     };
+    path?: never;
+    query?: never;
+    url: '/users';
 };
 
-export type InviteWorkspaceUserResponse = (PendingInvitation);
+export type InviteWorkspaceUserErrors = {
+    /**
+     * invalid email format
+     */
+    400: unknown;
+    /**
+     * workspace not found
+     */
+    404: unknown;
+};
 
-export type InviteWorkspaceUserError = (unknown);
+export type InviteWorkspaceUserResponses = {
+    /**
+     * successful operation
+     */
+    200: PendingInvitation;
+};
+
+export type InviteWorkspaceUserResponse = InviteWorkspaceUserResponses[keyof InviteWorkspaceUserResponses];
 
 export type RemoveWorkspaceUserData = {
+    body?: never;
     path: {
         /**
          * Sub or email of the user
          */
         subOrEmail: string;
     };
+    query?: never;
+    url: '/users/{subOrEmail}';
 };
 
-export type RemoveWorkspaceUserResponse = (unknown);
+export type RemoveWorkspaceUserErrors = {
+    /**
+     * Workspace or user not found
+     */
+    404: unknown;
+};
 
-export type RemoveWorkspaceUserError = (unknown);
+export type RemoveWorkspaceUserResponses = {
+    /**
+     * User successfully removed or invitation revoked
+     */
+    200: unknown;
+};
 
 export type UpdateWorkspaceUserRoleData = {
     body: {
@@ -3012,49 +3669,103 @@ export type UpdateWorkspaceUserRoleData = {
          */
         subOrEmail: string;
     };
+    query?: never;
+    url: '/users/{subOrEmail}';
 };
 
-export type UpdateWorkspaceUserRoleResponse = (WorkspaceUser);
+export type UpdateWorkspaceUserRoleErrors = {
+    /**
+     * Invalid role provided
+     */
+    400: unknown;
+    /**
+     * Workspace or user not found
+     */
+    404: unknown;
+};
 
-export type UpdateWorkspaceUserRoleError = (unknown);
+export type UpdateWorkspaceUserRoleResponses = {
+    /**
+     * User role updated successfully
+     */
+    200: WorkspaceUser;
+};
 
-export type ListWorkspacesResponse = (Array<Workspace>);
+export type UpdateWorkspaceUserRoleResponse = UpdateWorkspaceUserRoleResponses[keyof UpdateWorkspaceUserRoleResponses];
 
-export type ListWorkspacesError = unknown;
+export type ListWorkspacesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/workspaces';
+};
+
+export type ListWorkspacesResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<Workspace>;
+};
+
+export type ListWorkspacesResponse = ListWorkspacesResponses[keyof ListWorkspacesResponses];
 
 export type CreateWorspaceData = {
     body: Workspace;
+    path?: never;
+    query?: never;
+    url: '/workspaces';
 };
 
-export type CreateWorspaceResponse = (Workspace);
+export type CreateWorspaceResponses = {
+    /**
+     * successful operation
+     */
+    200: Workspace;
+};
 
-export type CreateWorspaceError = unknown;
+export type CreateWorspaceResponse = CreateWorspaceResponses[keyof CreateWorspaceResponses];
 
 export type DeleteWorkspaceData = {
+    body?: never;
     path: {
         /**
          * Name of the workspace
          */
         workspaceName: string;
     };
+    query?: never;
+    url: '/workspaces/{workspaceName}';
 };
 
-export type DeleteWorkspaceResponse = (Workspace);
+export type DeleteWorkspaceResponses = {
+    /**
+     * successful operation
+     */
+    200: Workspace;
+};
 
-export type DeleteWorkspaceError = unknown;
+export type DeleteWorkspaceResponse = DeleteWorkspaceResponses[keyof DeleteWorkspaceResponses];
 
 export type GetWorkspaceData = {
+    body?: never;
     path: {
         /**
          * Name of the workspace
          */
         workspaceName: string;
     };
+    query?: never;
+    url: '/workspaces/{workspaceName}';
 };
 
-export type GetWorkspaceResponse = (Workspace);
+export type GetWorkspaceResponses = {
+    /**
+     * successful operation
+     */
+    200: Workspace;
+};
 
-export type GetWorkspaceError = unknown;
+export type GetWorkspaceResponse = GetWorkspaceResponses[keyof GetWorkspaceResponses];
 
 export type UpdateWorkspaceData = {
     body: Workspace;
@@ -3064,47 +3775,114 @@ export type UpdateWorkspaceData = {
          */
         workspaceName: string;
     };
+    query?: never;
+    url: '/workspaces/{workspaceName}';
 };
 
-export type UpdateWorkspaceResponse = (Workspace);
+export type UpdateWorkspaceResponses = {
+    /**
+     * successful operation
+     */
+    200: Workspace;
+};
 
-export type UpdateWorkspaceError = unknown;
+export type UpdateWorkspaceResponse = UpdateWorkspaceResponses[keyof UpdateWorkspaceResponses];
 
 export type DeclineWorkspaceInvitationData = {
+    body?: never;
     path: {
         /**
          * Name of the workspace
          */
         workspaceName: string;
     };
+    query?: never;
+    url: '/workspaces/{workspaceName}/decline';
 };
 
-export type DeclineWorkspaceInvitationResponse = (PendingInvitation);
+export type DeclineWorkspaceInvitationResponses = {
+    /**
+     * Invitation successfully declined
+     */
+    200: PendingInvitation;
+};
 
-export type DeclineWorkspaceInvitationError = unknown;
+export type DeclineWorkspaceInvitationResponse = DeclineWorkspaceInvitationResponses[keyof DeclineWorkspaceInvitationResponses];
 
 export type AcceptWorkspaceInvitationData = {
+    body?: never;
     path: {
         /**
          * Name of the workspace
          */
         workspaceName: string;
     };
+    query?: never;
+    url: '/workspaces/{workspaceName}/join';
 };
 
-export type AcceptWorkspaceInvitationResponse = (PendingInvitationAccept);
+export type AcceptWorkspaceInvitationErrors = {
+    /**
+     * Workspace or invitation not found
+     */
+    404: unknown;
+};
 
-export type AcceptWorkspaceInvitationError = (unknown);
+export type AcceptWorkspaceInvitationResponses = {
+    /**
+     * Invitation successfully accepted
+     */
+    200: PendingInvitationAccept;
+};
+
+export type AcceptWorkspaceInvitationResponse = AcceptWorkspaceInvitationResponses[keyof AcceptWorkspaceInvitationResponses];
 
 export type LeaveWorkspaceData = {
+    body?: never;
     path: {
         /**
          * Name of the workspace
          */
         workspaceName: string;
     };
+    query?: never;
+    url: '/workspaces/{workspaceName}/leave';
 };
 
-export type LeaveWorkspaceResponse = (Workspace);
+export type LeaveWorkspaceErrors = {
+    /**
+     * Workspace not found
+     */
+    404: unknown;
+};
 
-export type LeaveWorkspaceError = (unknown);
+export type LeaveWorkspaceResponses = {
+    /**
+     * Workspace successfully left
+     */
+    200: Workspace;
+};
+
+export type LeaveWorkspaceResponse = LeaveWorkspaceResponses[keyof LeaveWorkspaceResponses];
+
+export type CheckWorkspaceAvailabilityData = {
+    body: {
+        name: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/workspaces/availability';
+};
+
+export type CheckWorkspaceAvailabilityResponses = {
+    /**
+     * successful operation
+     */
+    200: boolean;
+};
+
+export type CheckWorkspaceAvailabilityResponse = CheckWorkspaceAvailabilityResponses[keyof CheckWorkspaceAvailabilityResponses];
+
+export type ClientOptions = {
+    baseUrl: 'https://api.blaxel.ai/v0' | 'https://run.blaxel.ai' | (string & {});
+};

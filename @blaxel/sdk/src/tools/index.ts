@@ -1,5 +1,5 @@
 import { findFromCache } from "../cache/index.js";
-import { Function, getFunction } from "../client/index.js";
+import { Function, getFunction } from "../client/client.js";
 import { env } from "../common/env.js";
 import { getMcpTool } from "./mcpTool.js";
 import { Tool } from "./types.js";

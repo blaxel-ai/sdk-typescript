@@ -1,17 +1,11 @@
-import { client } from "../client/index.js";
+import { client } from "../client/client.gen.js";
 import { interceptors } from "../client/interceptors.js";
-import { client as clientSandbox } from "../sandbox/client/index.js";
-import settings, { Config } from "./settings.js";
+import { client as clientSandbox } from "../sandbox/client/client.gen.js";
+import { Config, settings } from "./settings.js";
 
-let withAutoload = true;
-
-export function initialize(config: Config) {
-  withAutoload = false;
-  settings.setConfig(config);
-  client.setConfig({
-    baseUrl: settings.baseUrl,
-  });
-}
+client.setConfig({
+  baseUrl: settings.baseUrl,
+});
 
 for (const interceptor of interceptors) {
   // @ts-expect-error - Interceptor is not typed
@@ -19,25 +13,15 @@ for (const interceptor of interceptors) {
   // @ts-expect-error - Interceptor is not typed
   clientSandbox.interceptors.request.use(interceptor);
 }
-// telemetryManager.initialize(settings);
 
-async function autoload() {
-  if (withAutoload) {
-    client.setConfig({
-      baseUrl: settings.baseUrl,
-    });
-    await settings.authenticate();
-    // await telemetryManager.setConfiguration(settings);
-  }
+// Allow to set custom configuration for browser environment
+export function initialize(config: Config) {
+  settings.setConfig(config);
+  client.setConfig({
+    baseUrl: settings.baseUrl,
+  });
 }
 
-const autoloadPromise = autoload();
-
-export const onLoad = function (): Promise<void> {
-  return autoloadPromise;
-};
-
-autoloadPromise.catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+export function authenticate() {
+  return settings.authenticate();
+}

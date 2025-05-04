@@ -1,10 +1,10 @@
-import type { ToolCallLLM, ToolCallLLMMessageOptions } from "llamaindex" with { "resolution-mode": "import" };
-import { onLoad } from "../common/autoload";
-import settings from "../common/settings";
-import { getModelMetadata } from "./index";
-import { handleDynamicImportError } from "../common/errors";
+import { authenticate, getModelMetadata, handleDynamicImportError, settings } from "@blaxel/sdk";
+import { anthropic, AnthropicSession } from "@llamaindex/anthropic";
+import { mistral } from '@llamaindex/mistral';
+import { openai } from "@llamaindex/openai";
+import type { ToolCallLLM, ToolCallLLMMessageOptions } from "llamaindex";
 
-export const getLlamaIndexModel = async (
+export const blModel = async (
   model: string,
   options?: Record<string, unknown>
 ): Promise<ToolCallLLM<object, ToolCallLLMMessageOptions>> => {
@@ -13,11 +13,10 @@ export const getLlamaIndexModel = async (
   if (!modelData) {
     throw new Error(`Model ${model} not found`);
   }
-  await onLoad();
+  await authenticate();
   const type = modelData?.spec?.runtime?.type || "openai";
   try {
     if (type === "mistral") {
-      const { mistral } = await import("@llamaindex/mistral");
       const llm = mistral({
         // @ts-expect-error - We have dynamic model name, we don't want to check it here
         model: modelData?.spec?.runtime?.model,
@@ -32,7 +31,7 @@ export const getLlamaIndexModel = async (
     }
 
     if (type === "anthropic") {
-      const { anthropic, AnthropicSession } = await import("@llamaindex/anthropic");
+
       const llm = anthropic({
         model: modelData?.spec?.runtime?.model,
         session: new AnthropicSession({
@@ -46,8 +45,6 @@ export const getLlamaIndexModel = async (
         supportToolCall: true,
       } as unknown as ToolCallLLM<object, ToolCallLLMMessageOptions>;
     }
-
-    const { openai } = await import("@llamaindex/openai");
     return openai({
       model: modelData?.spec?.runtime?.model,
       apiKey: settings.token,

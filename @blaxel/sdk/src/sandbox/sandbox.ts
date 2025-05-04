@@ -1,8 +1,8 @@
-import { createSandbox, deleteSandbox, getSandbox, listSandboxes, Sandbox as SandboxModel } from "../client";
-import { logger } from "../common/logger";
-import { SandboxFileSystem } from "./filesystem";
-import { SandboxNetwork } from "./network";
-import { SandboxProcess } from "./process";
+import { createSandbox, deleteSandbox, getSandbox, listSandboxes, Sandbox as SandboxModel } from "../client/index.js";
+import { logger } from "../common/logger.js";
+import { SandboxFileSystem } from "./filesystem.js";
+import { SandboxNetwork } from "./network.js";
+import { SandboxProcess } from "./process.js";
 
 export class SandboxInstance {
   fs: SandboxFileSystem;
@@ -45,7 +45,7 @@ export class SandboxInstance {
         logger.info(`Waiting for sandbox to be deployed, status: ${data.status}`);
         this.sandbox = data;
       } catch(e) {
-        console.error("Could not retrieve sandbox", e);
+        logger.error("Could not retrieve sandbox", e);
       }
       if (this.sandbox.status === "FAILED") {
         throw new Error("Sandbox failed to deploy");

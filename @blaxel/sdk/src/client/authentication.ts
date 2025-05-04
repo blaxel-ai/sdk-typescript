@@ -1,5 +1,5 @@
 import { OptionsLegacyParser } from "@hey-api/client-fetch";
-import { client } from "./index.js";
+import { client } from "./client.gen.js";
 
 type OauthTokenData = {
   body: {
@@ -28,7 +28,7 @@ type OauthTokenError = {
  */
 export const oauthToken = <ThrowOnError extends boolean = false>(options: OptionsLegacyParser<OauthTokenData, ThrowOnError>) => {
   options.authenticated = false
-  return (options?.client ?? client).post<OauthTokenResponse, OauthTokenError, ThrowOnError>({
+  return client.post<OauthTokenResponse, OauthTokenError, ThrowOnError>({
     ...options,
     url: '/oauth/token',
   });

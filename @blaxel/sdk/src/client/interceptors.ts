@@ -1,4 +1,4 @@
-import settings from "../common/settings";
+import { settings } from "../common/settings.js";
 
 type Interceptor = (
   request: Request,

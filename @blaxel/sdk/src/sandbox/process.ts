@@ -1,6 +1,6 @@
-import { Sandbox } from "../client";
-import { SandboxAction } from "./action";
-import { DeleteProcessByIdentifierKillResponse, DeleteProcessByIdentifierResponse, GetProcessByIdentifierResponse, GetProcessResponse, PostProcessResponse, ProcessRequest, deleteProcessByIdentifier, deleteProcessByIdentifierKill, getProcess, getProcessByIdentifier, getProcessByIdentifierLogs, postProcess } from "./client";
+import { Sandbox } from "../client/types.gen.js";
+import { SandboxAction } from "./action.js";
+import { DeleteProcessByIdentifierKillResponse, DeleteProcessByIdentifierResponse, GetProcessByIdentifierResponse, GetProcessResponse, PostProcessResponse, ProcessRequest, deleteProcessByIdentifier, deleteProcessByIdentifierKill, getProcess, getProcessByIdentifier, getProcessByIdentifierLogs, postProcess } from "./client/index.js";
 
 export class SandboxProcess extends SandboxAction {
   constructor(sandbox: Sandbox) {

@@ -1,9 +1,8 @@
 // @ts-ignore - Required for build time due to missing types in 'llamaindex'
+import { getTool, handleDynamicImportError } from "@blaxel/sdk";
 import { tool } from "llamaindex";
-import { handleDynamicImportError } from "../common/errors.js";
-import { getTool } from "./index.js";
 
-export const getLlamaIndexTool = async (name: string) => {
+export const blTool = async (name: string) => {
   try {
     const blaxelTool = await getTool(name);
     const tools = blaxelTool.map((t) => {
@@ -21,9 +20,7 @@ export const getLlamaIndexTool = async (name: string) => {
   }
 };
 
-export const getLlamaIndexTools = async (names: string[]) => {
-  const toolArrays = await Promise.all(names.map(getLlamaIndexTool));
+export const blTools = async (names: string[]) => {
+  const toolArrays = await Promise.all(names.map(blTool));
   return toolArrays.flat();
 };
-
-export default getLlamaIndexTools;

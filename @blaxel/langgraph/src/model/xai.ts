@@ -1,3 +1,4 @@
+import { Serialized } from "@langchain/core/load/serializable";
 import { getEnvironmentVariable } from "@langchain/core/utils/env";
 import { ChatOpenAI } from "@langchain/openai";
 
@@ -62,7 +63,7 @@ export class ChatXAI extends ChatOpenAI {
    * Serializes the instance to JSON, removing sensitive information.
    * @returns The serialized JSON object.
    */
-  toJSON() {
+  toJSON(): Serialized {
     const result = super.toJSON();
     if (
       "kwargs" in result &&

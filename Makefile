@@ -1,9 +1,12 @@
 ARGS:= $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 
+install:
+	cd @blaxel/sdk && pnpm install
+
 sdk-sandbox:
 	cp ../sandbox/sandbox-api/docs/openapi.yml ./definition.yml
 	rm -rf @blaxel/sdk/src/sandbox/client/types.gen.ts @blaxel/sdk/src/sandbox/client/sdk.gen.ts
-	npx @hey-api/openapi-ts@0.61.0 -i ./definition.yml -o ./tmp/ -c @hey-api/client-fetch
+	npx @hey-api/openapi-ts@0.66.0 -i ./definition.yml -o ./tmp/ -c @hey-api/client-fetch
 	cp -r ./tmp/* @blaxel/sdk/src/sandbox/client
 
 	sed -i.bak 's/from '\''\.\/sdk\.gen'\''/from '\''\.\/sdk\.gen\.js'\''/g' @blaxel/sdk/src/sandbox/client/index.ts
@@ -18,7 +21,7 @@ sdk-sandbox:
 sdk-controlplane:
 	cp ../controlplane/api/api/definitions/controlplane.yml ./definition.yml
 	rm -rf @blaxel/sdk/src/client/types.gen.ts @blaxel/sdk/src/client/sdk.gen.ts
-	npx @hey-api/openapi-ts@0.61.0 -i ./definition.yml -o ./tmp/ -c @hey-api/client-fetch
+	npx @hey-api/openapi-ts@0.66.0 -i ./definition.yml -o ./tmp/ -c @hey-api/client-fetch
 	cp -r ./tmp/* @blaxel/sdk/src/client
 
 	sed -i.bak 's/from '\''\.\/sdk\.gen'\''/from '\''\.\/sdk\.gen\.js'\''/g' @blaxel/sdk/src/client/index.ts
