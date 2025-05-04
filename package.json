@@ -1,6 +1,6 @@
 {
   "name": "sdk-ts",
-  "version": "1.0.0",
+  "version": "0.2.0",
   "description": "",
   "main": "index.js",
   "type": "module",
@@ -27,6 +27,8 @@
     "@langchain/openai": "^0.5.10",
     "@mastra/core": "^0.9.1",
     "@modelcontextprotocol/sdk": "^1.11.0",
+    "@opentelemetry/api-logs": "^0.200.0",
+    "@opentelemetry/exporter-logs-otlp-http": "^0.200.0",
     "@types/node": "^22.15.3",
     "ai": "^4.3.13",
     "dotenv": "^16.5.0",
