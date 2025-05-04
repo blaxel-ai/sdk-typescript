@@ -62,6 +62,17 @@ async function testProcess(uvm: SandboxInstance) {
   }
 }
 
+async function testProcessWatch(uvm: SandboxInstance) {
+  await uvm.process.exec({
+    name: "testlong",
+    command: "sleep 10",
+  });
+  const process = await uvm.process.wait("testlong");
+  if (process.status !== "completed") {
+    throw new Error("Process did not complete");
+  }
+}
+
 async function createSandbox() {
   console.log("Creating sandbox");
   const sandbox = await SandboxInstance.create({
@@ -110,6 +121,7 @@ async function main() {
 
     await testFilesystem(sandbox);
     await testProcess(sandbox);
+    await testProcessWatch(sandbox);
   } catch (e) {
     console.error("There was an error => ", e);
   } finally {

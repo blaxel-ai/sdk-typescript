@@ -1,4 +1,5 @@
 import { Sandbox } from "../client";
+import { logger } from "../common/logger";
 import { SandboxAction } from "./action";
 import { DeleteProcessByIdentifierKillResponse, DeleteProcessByIdentifierResponse, GetProcessByIdentifierResponse, GetProcessResponse, PostProcessResponse, ProcessRequest, deleteProcessByIdentifier, deleteProcessByIdentifierKill, getProcess, getProcessByIdentifier, getProcessByIdentifierLogs, postProcess } from "./client";
 
@@ -23,6 +24,29 @@ export class SandboxProcess extends SandboxAction {
     });
     this.handleResponseError(response, data, error);
     return data as GetProcessByIdentifierResponse;
+  }
+
+  async wait(identifier: string, {
+    maxWait = 60000,
+    interval = 1000,
+  }: {
+    maxWait?: number,
+    interval?: number,
+  } = {}): Promise<GetProcessByIdentifierResponse> {
+    const startTime = Date.now();
+    let data = await this.get(identifier);
+    while (data.status === "running") {
+      await new Promise((resolve) => setTimeout(resolve, interval));
+      data = await this.get(identifier);
+      logger.info(`Waiting for process to be deployed, status: ${data.status}`);
+      if (data.status === "failed") {
+        throw new Error("Process failed");
+      }
+      if (Date.now() - startTime > maxWait) {
+        throw new Error("Process did not deploy in time");
+      }
+    }
+    return data;
   }
 
   async list(): Promise<GetProcessResponse> {
