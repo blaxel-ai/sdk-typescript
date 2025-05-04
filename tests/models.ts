@@ -17,6 +17,7 @@ const MODEL = "gpt-4o-mini";
 async function langchain() {
   const model = await blModelLangGraph(MODEL);
   const result = await model.invoke("Hello, world!");
+  // @ts-ignore
   logger.info(`langchain: ${result.content as string}`);
 }
 
