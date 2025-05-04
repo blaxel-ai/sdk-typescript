@@ -1,11 +1,8 @@
 /* eslint-disable no-console */
 import { authenticate, env, logger, settings } from "@blaxel/core";
 import {
-  diag,
-  DiagConsoleLogger,
-  DiagLogLevel,
   metrics,
-  Span,
+  Span
 } from "@opentelemetry/api";
 import { Logger, logs } from "@opentelemetry/api-logs";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
@@ -15,7 +12,7 @@ import {
   registerInstrumentations
 } from "@opentelemetry/instrumentation";
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
-import { envDetector, Resource } from "@opentelemetry/resources";
+import { envDetector, RawResourceAttribute, Resource } from "@opentelemetry/resources";
 import {
   BatchLogRecordProcessor,
   LoggerProvider,
@@ -32,7 +29,30 @@ import {
   SpanProcessor,
 } from "@opentelemetry/sdk-trace-node";
 
-export class BlaxelDefaultAttributesSpanProcessor implements SpanProcessor {
+export class BlaxelResource implements Resource {
+  attributes: Record<string, string>;
+
+  constructor(attributes: Record<string, string>) {
+    this.attributes = attributes;
+  }
+
+  merge(other: Resource | null): Resource {
+    if (other?.attributes) {
+      for (const [key, value] of Object.entries(other.attributes)) {
+        if (typeof value === "string") {
+          this.attributes[key] = value;
+        }
+      }
+    }
+    return this;
+  }
+
+  getRawAttributes(): RawResourceAttribute[] {
+    return Object.entries(this.attributes).map(([key, value]) => [key, value]);
+  }
+}
+
+export class DefaultAttributesSpanProcessor implements SpanProcessor {
   constructor(private defaultAttributes: Record<string, string>) {}
 
   onStart(span: Span): void {
@@ -51,24 +71,57 @@ export class BlaxelDefaultAttributesSpanProcessor implements SpanProcessor {
 }
 
 
+export type TelemetryOptions = {
+  workspace: string | null;
+  name: string | null;
+  authorization: string | null;
+  type: string | null;
+};
+
 class HasBeenProcessedSpanProcessor extends BatchSpanProcessor {
   onEnd(span: ReadableSpan) {
     super.onEnd(span);
   }
 }
 
-class BlaxelTelemetry {
+class TelemetryManager {
   private nodeTracerProvider: NodeTracerProvider | null;
   private meterProvider: MeterProvider | null;
   private loggerProvider: LoggerProvider | null;
   private otelLogger: Logger | null;
+  private initialized: boolean;
   private configured: boolean;
   constructor() {
     this.nodeTracerProvider = null;
     this.meterProvider = null;
     this.loggerProvider = null;
     this.otelLogger = null;
+    this.initialized = false;
     this.configured = false;
+  }
+
+  // This method need to stay sync to avoid non booted instrumentations
+  initialize() {
+    if (!this.enabled || this.initialized) {
+      return;
+    }
+    this.instrumentApp();
+    this.setupSignalHandler();
+    this.initialized = true;
+    this.setConfiguration().catch((error) => {
+      console.error("Error setting configuration:", error);
+    });
+  }
+
+  async setConfiguration() {
+    if (!this.enabled || this.configured) {
+      return;
+    }
+    await authenticate();
+    await this.setExporters();
+    this.otelLogger = logs.getLogger("blaxel");
+    console.debug("Telemetry ready");
+    this.configured = true;
   }
 
   get enabled() {
@@ -77,8 +130,8 @@ class BlaxelTelemetry {
 
   get authHeaders() {
     const headers: Record<string, string> = {};
-    if (settings.credentials.authorization) {
-      headers["x-blaxel-authorization"] = settings.credentials.authorization;
+    if (settings.authorization) {
+      headers["x-blaxel-authorization"] = settings.authorization;
     }
     if (settings.workspace) {
       headers["x-blaxel-workspace"] = settings.workspace;
@@ -86,12 +139,39 @@ class BlaxelTelemetry {
     return headers;
   }
 
+  async sleep(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async getLogger(): Promise<Logger> {
+    if (!this.otelLogger) {
+      await this.sleep(100);
+      return this.getLogger();
+    }
+    return this.otelLogger;
+  }
+
+  setupSignalHandler() {
+    const signals = ["SIGINT", "SIGTERM", "uncaughtException", "exit"];
+    for (const signal of signals) {
+      process.on(signal, (error: Error) => {
+        if (signal !== "exit") {
+          logger.error(error.stack);
+        }
+        this.shutdownApp().catch((error) => {
+          console.debug("Fatal error during shutdown:", error);
+          process.exit(0);
+        });
+      });
+    }
+  }
+
   /**
    * Get resource attributes for OpenTelemetry.
    */
   async getResourceAttributes() {
     const resource = await envDetector.detect();
-    const attributes = resource?.attributes || {};
+    const attributes = resource.attributes || {};
     if (settings.name) {
       attributes["service.name"] = settings.name;
       attributes["workload.id"] = settings.name;
@@ -102,7 +182,12 @@ class BlaxelTelemetry {
     if (settings.type) {
       attributes["workload.type"] = settings.type+"s";
     }
-    return attributes;
+    // Only keep string values
+    const stringAttrs: Record<string, string> = {};
+    for (const [k, v] of Object.entries(attributes)) {
+      if (typeof v === "string") stringAttrs[k] = v;
+    }
+    return stringAttrs;
   }
 
   /**
@@ -127,38 +212,12 @@ class BlaxelTelemetry {
    * Initialize and return the OTLP Log Exporter.
    */
   getLogExporter() {
-    console.log('getLogExporter', this.authHeaders)
     return new OTLPLogExporter({
       headers: this.authHeaders,
     });
   }
 
-  /**
-   * Initialize and return the Blaxel Log instance.
-   */
-  async getLogger(): Promise<Logger> {
-    if (!this.otelLogger) {
-      await this.sleep(100);
-      return this.getLogger();
-    }
-    return this.otelLogger;
-  }
-
-  get debug() {
-    return env.BL_DEBUG_TELEMETRY === "true";
-  }
-
-  // Synchronous initialization
-  init() {
-    if (!this.enabled || this.configured) {
-      return;
-    }
-    if (this.debug) {
-      diag.setLogger(new DiagConsoleLogger(), { logLevel: DiagLogLevel.DEBUG });
-    }
-    console.debug('Start Blaxel Telemetry')
-    this.setupSignalHandler();
-
+  instrumentApp() {
     const httpInstrumentation = new HttpInstrumentation({
       requireParentforOutgoingSpans: true,
     });
@@ -166,25 +225,16 @@ class BlaxelTelemetry {
     registerInstrumentations({
       instrumentations: [httpInstrumentation],
     });
-
-    this.ainit().catch(console.error);
   }
 
-  // Asynchronous initialization
-  async ainit() {
-    await authenticate();
-    const resource = await this.getResourceAttributes() as unknown as Resource;
-
+  async setExporters() {
+    const resource = new BlaxelResource(await this.getResourceAttributes());
     const logExporter = this.getLogExporter();
     this.loggerProvider = new LoggerProvider({
       resource,
     });
     this.loggerProvider.addLogRecordProcessor(
-      new BatchLogRecordProcessor(logExporter, {
-        maxQueueSize: 1000,
-        scheduledDelayMillis: 1000,
-        exportTimeoutMillis: 5000,
-      })
+      new BatchLogRecordProcessor(logExporter)
     );
     logs.setGlobalLoggerProvider(this.loggerProvider);
     const traceExporter = this.getTraceExporter();
@@ -192,9 +242,9 @@ class BlaxelTelemetry {
       resource,
       sampler: new AlwaysOnSampler(),
       spanProcessors: [
-        new BlaxelDefaultAttributesSpanProcessor({
+        new DefaultAttributesSpanProcessor({
           "workload.id": settings.name || "",
-          "workload.type": settings.type || "",
+          "workload.type": settings.type? settings.type+"s" : "",
           workspace: settings.workspace || "",
         }),
         new BatchSpanProcessor(traceExporter),
@@ -213,39 +263,8 @@ class BlaxelTelemetry {
       ],
     });
     metrics.setGlobalMeterProvider(this.meterProvider);
-    this.otelLogger = logs.getLogger("blaxel");
-    this.configured = true;
-    console.debug("Telemetry ready");
   }
 
-  /**
-   * Setup a signal handler to handle shutdown events.
-   */
-  setupSignalHandler() {
-    const signals = ["SIGINT", "SIGTERM", "uncaughtException", "exit"];
-    for (const signal of signals) {
-      process.on(signal, (error: Error) => {
-        if (signal !== "exit") {
-          logger.error(error.stack);
-        }
-        this.shutdownApp().catch((error) => {
-          console.debug("Fatal error during shutdown:", error);
-          process.exit(0);
-        });
-      });
-    }
-  }
-
-  /**
-   * Sleep for a given number of milliseconds.
-   */
-  async sleep(ms: number) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  /**
-   * Shutdown the application.
-   */
   async shutdownApp() {
     try {
       const maxSleepTime = 5000;
@@ -298,9 +317,6 @@ class BlaxelTelemetry {
       process.exit(1);
     }
   }
-
 }
 
-const blaxelTelemetry = new BlaxelTelemetry();
-
-export default blaxelTelemetry;
+export const blaxelTelemetry = new TelemetryManager();

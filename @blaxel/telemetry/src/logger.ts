@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 import { SeverityNumber } from "@opentelemetry/api-logs";
-import blaxelTelemetry from "./telemetry";
+import { blaxelTelemetry } from "./telemetry";
 
 export const originalLogger = {
   info: console.info,
@@ -9,7 +9,6 @@ export const originalLogger = {
   debug: console.debug,
   log: console.log,
 };
-
 
 /**
  * Stringify an object with a limited depth

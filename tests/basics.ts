@@ -1,15 +1,8 @@
-import { authenticate } from "@blaxel/core";
-import { blaxelTelemetry } from '@blaxel/telemetry';
-import { SeverityNumber } from "@opentelemetry/api-logs";
+import '@blaxel/telemetry';
+
 async function main() {
-  await authenticate()
   setInterval(async () => {
-    const loggerInstance = await blaxelTelemetry.getLogger()
-    loggerInstance.emit({
-      severityNumber: SeverityNumber.INFO,
-      body: 'hello',
-    });
-    console.log('emitted')
+    console.log("hello world")
   }, 1000)
 }
 
