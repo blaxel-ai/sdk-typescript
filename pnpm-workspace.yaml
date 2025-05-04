@@ -1,2 +1,7 @@
 packages:
-  - '@blaxel/*'
+  - '@blaxel/core'
+  - '@blaxel/telemetry'
+  - '@blaxel/langgraph'
+  - '@blaxel/llamaindex'
+  - '@blaxel/vercel'
+  - '@blaxel/mastra'

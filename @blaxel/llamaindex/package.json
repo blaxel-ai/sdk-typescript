@@ -6,6 +6,7 @@
 	"author": "Blaxel, INC (https://blaxel.ai)",
 	"homepage": "https://blaxel.ai",
 	"scripts": {
+		"lint": "eslint src/",
 		"build": "tsc"
 	},
 	"repository": {
@@ -63,6 +64,7 @@
 		"llamaindex": "^0.10.3"
 	},
 	"devDependencies": {
+		"@eslint/js": "^9.26.0",
 		"typescript": "^5.0.0",
 		"typescript-eslint": "^8.31.1"
 	}

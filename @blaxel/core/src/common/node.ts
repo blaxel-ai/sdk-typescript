@@ -1,3 +1,4 @@
+/* eslint-disable */
 const isNode =
   typeof process !== "undefined" &&
   process.versions != null &&

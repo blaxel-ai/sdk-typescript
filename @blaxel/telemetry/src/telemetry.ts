@@ -118,7 +118,7 @@ class TelemetryManager {
       return;
     }
     await authenticate();
-    await this.setExporters();
+    this.setExporters();
     this.otelLogger = logs.getLogger("blaxel");
     console.debug("Telemetry ready");
     this.configured = true;
@@ -169,8 +169,8 @@ class TelemetryManager {
   /**
    * Get resource attributes for OpenTelemetry.
    */
-  async getResourceAttributes() {
-    const resource = await envDetector.detect();
+  get resourceAttributes() {
+    const resource = envDetector.detect();
     const attributes = resource.attributes || {};
     if (settings.name) {
       attributes["service.name"] = settings.name;
@@ -227,8 +227,8 @@ class TelemetryManager {
     });
   }
 
-  async setExporters() {
-    const resource = new BlaxelResource(await this.getResourceAttributes());
+  setExporters() {
+    const resource = new BlaxelResource(this.resourceAttributes);
     const logExporter = this.getLogExporter();
     this.loggerProvider = new LoggerProvider({
       resource,

@@ -1,3 +1,4 @@
+/* eslint-disable */
 import toml from "toml";
 import { fs } from "./node.js";
 

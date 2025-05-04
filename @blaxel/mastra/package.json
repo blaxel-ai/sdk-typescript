@@ -6,7 +6,8 @@
 	"author": "Blaxel, INC (https://blaxel.ai)",
 	"homepage": "https://blaxel.ai",
 	"scripts": {
-		"build": "tsc"
+		"build": "tsc",
+		"lint": "eslint src/"
 	},
 	"repository": {
 		"type": "git",
@@ -59,6 +60,7 @@
 		"@blaxel/vercel": "workspace:*"
 	},
 	"devDependencies": {
+		"@eslint/js": "^9.26.0",
 		"typescript": "^5.0.0",
 		"typescript-eslint": "^8.31.1"
 	}

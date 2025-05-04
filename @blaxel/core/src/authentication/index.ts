@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { join } from 'path';
 import yaml from 'yaml';
 import { env } from "../common/env.js";

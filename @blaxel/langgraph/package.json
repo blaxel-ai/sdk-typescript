@@ -6,6 +6,7 @@
 	"author": "Blaxel, INC (https://blaxel.ai)",
 	"homepage": "https://blaxel.ai",
 	"scripts": {
+		"lint": "eslint src/",
 		"build": "tsc"
 	},
 	"repository": {
@@ -68,6 +69,7 @@
 		"zod-to-json-schema": "^3.24.5"
 	},
 	"devDependencies": {
+		"@eslint/js": "^9.26.0",
 		"typescript": "^5.0.0",
 		"typescript-eslint": "^8.31.1"
 	}
