@@ -1,7 +1,6 @@
+import { BlaxelMcpClientTransport, env } from "@blaxel/core";
 import { Client as ModelContextProtocolClient } from "@modelcontextprotocol/sdk/client/index.js";
 import dotenv from 'dotenv';
-import { env } from "../src/common/env.js";
-import { BlaxelMcpClientTransport } from "../src/mcp/client.js";
 
 // Load environment variables from .env file
 dotenv.config();

@@ -1,5 +1,5 @@
 // @ts-ignore - Required for build time due to missing types in 'llamaindex'
-import { getTool, handleDynamicImportError } from "@blaxel/sdk";
+import { getTool, handleDynamicImportError } from "@blaxel/core";
 import { tool } from "llamaindex";
 
 export const blTool = async (name: string) => {

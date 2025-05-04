@@ -56,7 +56,7 @@
 		"dist"
 	],
 	"dependencies": {
-		"@blaxel/sdk": "workspace:*",
+		"@blaxel/core": "workspace:*",
 		"@llamaindex/anthropic": "^0.3.4",
 		"@llamaindex/mistral": "^0.1.3",
 		"@llamaindex/openai": "^0.3.5",

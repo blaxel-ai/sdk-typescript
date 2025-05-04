@@ -1,5 +1,5 @@
+import { BlaxelMcpClientTransport, logger } from "@blaxel/core";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { BlaxelMcpClientTransport, logger } from "../src/index.js";
 
 const transport = new BlaxelMcpClientTransport(
   'wss://0nav5pgjxbn4l0hyc4.host-002-141.us-west-2.dev.aws.beamlit.net'

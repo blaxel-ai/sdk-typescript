@@ -1,5 +1,9 @@
+import { logger } from "@blaxel/core";
+import { blModel as blModelLangGraph } from "@blaxel/langgraph";
+import { blModel as blModelLlamaIndex } from "@blaxel/llamaindex";
+import { blModel as blModelMastra } from "@blaxel/mastra";
+import { blModel as blModelVercel } from "@blaxel/vercel";
 import { generateText } from "ai";
-import { blModel, logger } from "../src/index.js";
 
 const MODEL = "gpt-4o-mini";
 // const MODEL = "claude-3-5-sonnet"
@@ -11,19 +15,19 @@ const MODEL = "gpt-4o-mini";
 // const MODEL = "cerebras-llama-3-3-70b"
 
 async function langchain() {
-  const model = await blModel(MODEL).ToLangChain();
+  const model = await blModelLangGraph(MODEL);
   const result = await model.invoke("Hello, world!");
   logger.info(`langchain: ${result.content as string}`);
 }
 
 async function llamaindex() {
-  const model = await blModel(MODEL).ToLlamaIndex();
+  const model = await blModelLlamaIndex(MODEL);
   const result = await model.complete({ prompt: "Hello, world!" });
   logger.info(`llamaindex: ${result.text}`);
 }
 
 async function mastra() {
-  const model = await blModel(MODEL).ToMastra();
+  const model = await blModelMastra(MODEL);
   const result = await generateText({
     model,
     prompt: "Hello, world!",
@@ -32,7 +36,7 @@ async function mastra() {
 }
 
 async function vercelai() {
-  const model = await blModel(MODEL).ToVercelAI();
+  const model = await blModelVercel(MODEL);
   const result = await generateText({
     model,
     prompt: "Hello, world!",

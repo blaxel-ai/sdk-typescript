@@ -3,7 +3,7 @@ import { createCerebras } from "@ai-sdk/cerebras";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
 import { createOpenAI } from "@ai-sdk/openai";
-import { authenticate, getModelMetadata, handleDynamicImportError, settings } from "@blaxel/sdk";
+import { authenticate, getModelMetadata, handleDynamicImportError, settings } from "@blaxel/core";
 
 export const blModel = async (
   model: string,

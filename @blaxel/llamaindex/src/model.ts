@@ -1,4 +1,4 @@
-import { authenticate, getModelMetadata, handleDynamicImportError, settings } from "@blaxel/sdk";
+import { authenticate, getModelMetadata, handleDynamicImportError, settings } from "@blaxel/core";
 import { anthropic, AnthropicSession } from "@llamaindex/anthropic";
 import { mistral } from '@llamaindex/mistral';
 import { openai } from "@llamaindex/openai";

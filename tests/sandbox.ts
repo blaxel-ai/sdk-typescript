@@ -1,5 +1,4 @@
-import { SandboxInstance } from "../src";
-import { Directory } from "../src/sandbox/client";
+import { Directory, SandboxInstance } from "@blaxel/core";
 
 async function testFilesystem(sandbox: SandboxInstance) {
   const user = process.env.USER;

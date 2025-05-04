@@ -1,9 +1,10 @@
+import { env, logger } from "@blaxel/core";
+import { blModel, blTools } from "@blaxel/langgraph";
 import { HumanMessage } from "@langchain/core/messages";
 import { tool } from "@langchain/core/tools";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import Fastify from "fastify";
 import { z } from "zod";
-import { blModel, blTools, env, logger } from "../src/index.js";
 import { prompt } from "./prompt.js";
 
 interface RequestBody {
@@ -25,9 +26,9 @@ async function agent(input: string) {
     }
   );
   const response = await createReactAgent({
-    llm: await blModel("gpt-4o-mini").ToLangChain(),
+    llm: await blModel("gpt-4o-mini"),
     prompt: prompt,
-    tools: [...(await blTools(["blaxel-search"]).ToLangChain()), weatherTool],
+    tools: [...(await blTools(["blaxel-search"])), weatherTool],
   }).invoke({
     messages: [new HumanMessage(input)],
   });

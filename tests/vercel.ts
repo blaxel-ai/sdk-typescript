@@ -1,14 +1,15 @@
+import { logger } from "@blaxel/core";
+import { blModel, blTools } from "@blaxel/vercel";
 import { streamText, tool } from "ai";
 import { z } from "zod";
-import { blModel, blTools, logger } from "../src/index.js";
 import { prompt } from "./prompt";
 async function main() {
   const stream = streamText({
-    model: await blModel("gpt-4o-mini").ToVercelAI(),
+    model: await blModel("gpt-4o-mini"),
     messages: [{ role: "user", content: process.argv[2] }],
     system: prompt,
     tools: {
-      ...(await blTools(["blaxel-search"]).ToVercelAI()),
+      ...(await blTools(["blaxel-search"])),
       weather: tool({
         description: "Get the weather in a specific city",
         parameters: z.object({

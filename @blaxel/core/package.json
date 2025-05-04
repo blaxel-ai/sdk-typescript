@@ -1,7 +1,7 @@
 {
-  "name": "@blaxel/sdk",
+  "name": "@blaxel/core",
   "version": "0.2.0",
-	"description": "Blaxel SDK for TypeScript",
+	"description": "Blaxel Core SDK for TypeScript",
 	"license": "MIT",
 	"author": "Blaxel, INC (https://blaxel.ai)",
 	"homepage": "https://blaxel.ai",

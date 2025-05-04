@@ -1,4 +1,4 @@
-import { authenticate, getModelMetadata, handleDynamicImportError, settings } from "@blaxel/sdk";
+import { authenticate, getModelMetadata, handleDynamicImportError, settings } from "@blaxel/core";
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatCohere } from "@langchain/cohere";
 import { LanguageModelLike } from "@langchain/core/language_models/base";

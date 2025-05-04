@@ -1,5 +1,5 @@
-import type { Tool } from "@blaxel/sdk";
-import { getTool, handleDynamicImportError } from "@blaxel/sdk";
+import type { Tool } from "@blaxel/core";
+import { getTool, handleDynamicImportError } from "@blaxel/core";
 import { tool } from "@langchain/core/tools";
 export async function blTool(name: string) {
   try {

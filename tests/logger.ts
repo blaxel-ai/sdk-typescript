@@ -1,4 +1,4 @@
-import { logger, onLoad } from "../src/index.js";
+import { logger } from "@blaxel/core";
 
 const deepObject = {
   a: {
@@ -17,7 +17,6 @@ const deepObject = {
 };
 
 async function main() {
-  await onLoad();
   logger.debug("Hello, world!");
   logger.log("Hello, world!");
   logger.info("Hello, world!");

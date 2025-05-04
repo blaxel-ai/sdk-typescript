@@ -1,14 +1,15 @@
+import { blModel, blTools } from "@blaxel/langgraph";
 import { HumanMessage } from "@langchain/core/messages";
 import { tool } from "@langchain/core/tools";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
+import console from "console";
 import { z } from "zod";
-import { blModel, blTools, logger } from "../src/index.js";
 import { prompt } from "./prompt.js";
 
 async function main() {
   const weatherTool = tool(
     (input: { city: string }): string => {
-      logger.debug("TOOLCALLING: local weather", input);
+      console.debug("TOOLCALLING: local weather", input);
       return `The weather in ${input.city} is sunny`;
     },
     {
@@ -20,9 +21,9 @@ async function main() {
     }
   );
   const response = await createReactAgent({
-    llm: await blModel("gpt-4o-mini").ToLangChain(),
+    llm: await blModel("gpt-4o-mini"),
     prompt: prompt,
-    tools: [...(await blTools(["blaxel-search"]).ToLangChain()), weatherTool],
+    tools: [...(await blTools(["blaxel-search"])), weatherTool],
   }).invoke({
     messages: [new HumanMessage(process.argv[2])],
   });

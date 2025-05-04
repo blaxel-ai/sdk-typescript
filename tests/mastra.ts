@@ -1,16 +1,17 @@
+import { logger } from "@blaxel/core";
+import { blModel, blTools } from "@blaxel/mastra";
 import { Agent } from "@mastra/core/agent";
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
-import { blModel, blTools, logger } from "../src/index.js";
 import { prompt } from "./prompt";
 
 async function main() {
   const agent = new Agent({
     name: "blaxel-agent-mastra",
-    model: await blModel("gpt-4o-mini").ToMastra(),
+    model: await blModel("gpt-4o-mini"),
     instructions: prompt,
     tools: {
-      ...(await blTools(["blaxel-search"]).ToMastra()),
+      ...(await blTools(["blaxel-search"])),
       weatherTool: createTool({
         id: "weatherTool",
         description: "Get the weather in a specific city",

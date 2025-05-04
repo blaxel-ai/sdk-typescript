@@ -1,9 +1,10 @@
+import { blModel } from "@blaxel/vercel";
 import { generateObject } from "ai";
 import { z } from "zod";
-import { blModel } from "../src/index.js";
+
 async function main() {
   const firstResponse = await generateObject({
-    model: await blModel("gpt-4o-mini").ToVercelAI(),
+    model: await blModel("gpt-4o-mini"),
     system:
       "You are a first point of contact for a loan company. Your job is to turn client conversation into loan application.",
     schema: z.object({
@@ -27,7 +28,7 @@ async function main() {
   });
 
   const gateResponse = await generateObject({
-    model: await blModel("gpt-4o-mini").ToVercelAI(),
+    model: await blModel("gpt-4o-mini"),
     system:
       "You are a loan specialist. Based on the given json file with client data, your job is to decide if a client can be further processed.",
     schema: z.object({

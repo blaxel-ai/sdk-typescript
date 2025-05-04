@@ -63,13 +63,13 @@ It only need a require of our SDK on top of your main entrypoint file.
 It will directly plug our backend (when deployed on blaxel) with open telemetry standard.
 
 ```ts
-import "@blaxel/sdk";
+import "@blaxel/core";
 ```
 
 ### Connect tools and model from blaxel platform to your agent
 
 ```ts
-import { blTools, blModel } from "@blaxel/sdk";
+import { blTools, blModel } from "@blaxel/core";
 ```
 
 Then you need to use it in your agent
@@ -228,7 +228,7 @@ You can also set an agent as a tool, depending of framework you use.
 
 ```ts
 // In this example, we call the first agent as a tool, you can use the example above to expose the first one
-import { blAgent, blModel, blTools, logger } from "@blaxel/sdk";
+import { blAgent, blModel, blTools, logger } from "@blaxel/core";
 import { streamText, tool } from "ai";
 import { z } from "zod";
 
@@ -286,7 +286,7 @@ We need an HTTP Server
 For example with expressjs we will have this configuration
 
 ```ts
-import { env } from "@blaxel/sdk";
+import { env } from "@blaxel/core";
 const port = parseInt(env.BL_SERVER_PORT || "3000");
 const host = env.BL_SERVER_HOST || "0.0.0.0";
 
@@ -347,7 +347,7 @@ We follow current standard for tool development over MCP Server.
 Example of a tool which is sending fake information about the weather:
 
 ```ts
-import { env, BlaxelMcpServerTransport, logger } from "@blaxel/sdk";
+import { env, BlaxelMcpServerTransport, logger } from "@blaxel/core";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -399,13 +399,13 @@ type = "function"
 Connect the observability layer
 
 ```ts
-import "@blaxel/sdk";
+import "@blaxel/core";
 ```
 
 Load blaxel transport
 
 ```ts
-import { env, BlaxelMcpServerTransport } from "@blaxel/sdk";
+import { env, BlaxelMcpServerTransport } from "@blaxel/core";
 ```
 
 Update your entrypoint to support our transport instead of StdioServerTransport
@@ -441,7 +441,7 @@ DEFAULT_CITY = "San Francisco"
 Then you can use it in your agent or function with the following syntax:
 
 ```ts
-import { env, logger } from "@blaxel/sdk";
+import { env, logger } from "@blaxel/core";
 logger.info(env.DEFAULT_CITY); // San Francisco
 ```
 
@@ -457,7 +457,7 @@ DEFAULT_CITY_PASSWORD=123456
 Then you can use it in your agent or function with the following syntax:
 
 ```ts
-import { env, logger } from "@blaxel/sdk";
+import { env, logger } from "@blaxel/core";
 logger.info(env.DEFAULT_CITY_PASSWORD); // 123456
 ```
 

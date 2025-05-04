@@ -56,7 +56,7 @@
 		"dist"
 	],
 	"dependencies": {
-		"@blaxel/sdk": "workspace:*",
+		"@blaxel/core": "workspace:*",
 		"@google/generative-ai": "^0.24.1",
 		"@langchain/anthropic": "^0.3.20",
 		"@langchain/cohere": "^0.3.3",

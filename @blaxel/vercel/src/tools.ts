@@ -1,4 +1,4 @@
-import { getTool, handleDynamicImportError } from "@blaxel/sdk";
+import { getTool, handleDynamicImportError } from "@blaxel/core";
 import type { Tool } from "ai";
 import { tool } from "ai";
 

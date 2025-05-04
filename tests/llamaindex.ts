@@ -1,11 +1,12 @@
+import { logger } from "@blaxel/core";
+import { blModel, blTools } from "@blaxel/llamaindex";
 import { agent, AgentStream, tool } from "llamaindex";
 import { z } from "zod";
-import { blModel, blTools, logger } from "../src/index.js";
 import { prompt } from "./prompt";
 
 async function main() {
-  const tools = await blTools(["blaxel-search"]).ToLlamaIndex();
-  const llm = await blModel("gpt-4o-mini").ToLlamaIndex();
+  const tools = await blTools(["blaxel-search"]);
+  const llm = await blModel("gpt-4o-mini");
   const stream = agent({
     llm,
     tools: [
