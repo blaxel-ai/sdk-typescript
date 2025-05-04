@@ -2,13 +2,14 @@
   "name": "sdk-ts",
   "version": "0.2.0",
   "description": "",
+  "private": true,
   "main": "index.js",
   "type": "module",
   "scripts": {
     "lint": "pnpm -r lint",
     "build": "pnpm -r build",
     "set-version": "pnpm -r exec -- pnpm version",
-    "publish-dev": "pnpm -r publish --tag dev --access public --no-git-checks"
+    "publish-dev": "pnpm build && pnpm -r publish --tag dev --access public --no-git-checks"
   },
   "dependencies": {
     "@blaxel/core": "workspace:*",

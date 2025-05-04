@@ -4,11 +4,11 @@ const isNode =
   process.versions != null &&
   process.versions.node != null;
 
-let fs: any = null;
-let os: any = null;
+let fs: typeof import("fs") | null = null;
+let os: typeof import("os") | null = null;
 if (isNode) {
-  fs = require("fs");
-  os = require("os");
+  fs = eval("require")("fs");
+  os = eval("require")("os");
 }
 
 export { fs, os };
