@@ -7,8 +7,8 @@
   "scripts": {
     "lint": "pnpm -r lint",
     "build": "pnpm -r build",
-    "version-all": "pnpm -r --workspace-concurrency=1 exec -- npm version $npm_config_version --no-git-tag-version",
-    "publish-all": "pnpm -r publish --tag dev --access public"
+    "set-version": "pnpm -r exec -- pnpm version",
+    "publish-dev": "pnpm -r publish --tag dev --access public --no-git-checks"
   },
   "dependencies": {
     "@blaxel/core": "workspace:*",
