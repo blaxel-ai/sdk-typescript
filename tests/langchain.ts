@@ -2,7 +2,6 @@ import { blModel, blTools } from "@blaxel/langgraph";
 import { HumanMessage } from "@langchain/core/messages";
 import { tool } from "@langchain/core/tools";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
-import console from "console";
 import { z } from "zod";
 import { prompt } from "./prompt.js";
 
@@ -25,7 +24,7 @@ async function main() {
     prompt: prompt,
     tools: [...(await blTools(["blaxel-search"])), weatherTool],
   }).invoke({
-    messages: [new HumanMessage(process.argv[2])],
+    messages: [new HumanMessage("Give me info about troyes")],
   });
   console.log(response.messages[response.messages.length - 1].content);
 }

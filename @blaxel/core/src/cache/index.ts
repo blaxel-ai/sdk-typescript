@@ -1,22 +1,24 @@
-// import fs from "fs";
-// import yaml from "yaml";
+import yaml from "yaml";
+import { fs } from "../common/node.js";
 
 const cache = new Map<string, any>();
 
 try {
-  // const cacheString = fs.readFileSync(".cache.yaml", "utf8");
-  // const cacheData = yaml.parseAllDocuments(cacheString);
-  // for (const doc of cacheData) {
-  //   type JsonDoc = {
-  //     kind: string;
-  //     metadata: {
-  //       name: string;
-  //     };
-  //   };
-  //   const jsonDoc = doc.toJSON() as unknown as JsonDoc;
-  //   const cacheKey = `${jsonDoc.kind}/${jsonDoc.metadata.name}`;
-  //   cache.set(cacheKey, jsonDoc);
-  // }
+  if (fs) {
+    const cacheString = fs.readFileSync(".cache.yaml", "utf8");
+    const cacheData = yaml.parseAllDocuments(cacheString);
+    for (const doc of cacheData) {
+      type JsonDoc = {
+        kind: string;
+        metadata: {
+          name: string;
+        };
+      };
+      const jsonDoc = doc.toJSON() as unknown as JsonDoc;
+      const cacheKey = `${jsonDoc.kind}/${jsonDoc.metadata.name}`;
+      cache.set(cacheKey, jsonDoc);
+    }
+  }
   /* eslint-disable */
 } catch (error) {}
 

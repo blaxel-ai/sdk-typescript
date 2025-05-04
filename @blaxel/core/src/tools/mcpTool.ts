@@ -76,9 +76,7 @@ export class McpTool {
   async start() {
     logger.debug(`MCP:${this.name}:start`);
     this.stopCloseTimer();
-    logger.debug(`MCP:${this.name}:startPromise`, this.startPromise);
     this.startPromise = this.startPromise || (async () => {
-      logger.debug(`MCP:${this.name}:startPromise:onLoad`);
       await authenticate();
       try {
         logger.debug(`MCP:${this.name}:Connecting`);

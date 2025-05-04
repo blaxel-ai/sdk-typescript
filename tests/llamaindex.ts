@@ -24,7 +24,7 @@ async function main() {
       }),
     ],
     systemPrompt: prompt,
-  }).run(process.argv[2]);
+  }).run("Give me info about troyes");
 
   for await (const event of stream) {
     if (event instanceof AgentStream) {

@@ -24,6 +24,7 @@
   "devDependencies": {
     "@langchain/core": "^0.3.51",
     "@langchain/langgraph": "^0.2.67",
+    "@langchain/openai": "^0.5.10",
     "@mastra/core": "^0.9.1",
     "@modelcontextprotocol/sdk": "^1.11.0",
     "@types/node": "^22.15.3",

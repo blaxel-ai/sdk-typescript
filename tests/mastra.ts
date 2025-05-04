@@ -32,7 +32,7 @@ async function main() {
   });
 
   const stream = await agent.stream([
-    { role: "user", content: process.argv[2] },
+    { role: "user", content: "Give me info about troyes" },
   ]);
 
   for await (const chunk of stream.textStream) {

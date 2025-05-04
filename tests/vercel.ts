@@ -6,7 +6,7 @@ import { prompt } from "./prompt";
 async function main() {
   const stream = streamText({
     model: await blModel("gpt-4o-mini"),
-    messages: [{ role: "user", content: process.argv[2] }],
+    messages: [{ role: "user", content: "Give me info about troyes" }],
     system: prompt,
     tools: {
       ...(await blTools(["blaxel-search"])),

@@ -40,6 +40,7 @@ async function test_mcp_tools_vercel() {
   if (!tools.web_search) {
     throw new Error("No tools found");
   }
+  // @ts-ignore
   const result = await tools.web_search.execute({
     query: "What is the capital of France?",
   });
@@ -51,6 +52,7 @@ async function test_mcp_tools_mastra() {
   if (!tools.web_search) {
     throw new Error("No tools found");
   }
+  // @ts-ignore
   const result = await tools.web_search.execute({
     query: "What is the capital of France?",
   });
