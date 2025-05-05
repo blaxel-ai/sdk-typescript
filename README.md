@@ -30,7 +30,7 @@ Supported AI frameworks:
 
 - Vercel AI
 - LlamaIndex
-- LangChain
+- LangGraph
 - Mastra
   Supported Tools frameworks:
 - MCP
@@ -69,17 +69,17 @@ import "@blaxel/core";
 ### Connect tools and model from blaxel platform to your agent
 
 ```ts
-import { blTools, blModel } from "@blaxel/core";
 ```
 
 Then you need to use it in your agent
 
 ```ts
+import { blTools, blModel } from "@blaxel/llamaindex";
 // Example with llamaIndex
 const stream = agent({
-  llm: await blModel("gpt-4o-mini").ToLlamaIndex(),
+  llm: await blModel("gpt-4o-mini"),
   tools: [
-    ...(await blTools(["blaxel-search", "webcrawl"]).ToLlamaIndex()),
+    ...(await blTools(["blaxel-search", "webcrawl"])),
     tool({
       name: "weather",
       description: "Get the weather in a specific city",
@@ -87,7 +87,7 @@ const stream = agent({
         city: z.string(),
       }),
       execute: async (input) => {
-        logger.debug("TOOLCALLING: local weather", input);
+        console.debug("TOOLCALLING: local weather", input);
         return `The weather in ${input.city} is sunny`;
       },
     }),
@@ -96,20 +96,20 @@ const stream = agent({
 }).run(process.argv[2]);
 
 // With Vercel AI
-
+import { blTools, blModel } from "@blaxel/vercel";
 const stream = streamText({
-  model: await blModel("gpt-4o-mini").ToVercelAI(),
+  model: await blModel("gpt-4o-mini"),
   messages: [{ role: "user", content: process.argv[2] }],
   system: prompt,
   tools: {
-    ...(await blTools(["blaxel-search", "webcrawl"]).ToVercelAI()),
+    ...(await blTools(["blaxel-search", "webcrawl"])),
     weather: tool({
       description: "Get the weather in a specific city",
       parameters: z.object({
         city: z.string(),
       }),
       execute: async (input) => {
-        logger.debug("TOOLCALLING: local weather", input);
+        console.debug("TOOLCALLING: local weather", input);
         return `The weather in ${input.city} is sunny`;
       },
     }),
@@ -117,15 +117,16 @@ const stream = streamText({
   maxSteps: 5,
 });
 
-// With LangChain
+// With Langgraph
+import { blTools, blModel } from "@blaxel/langgraph";
 const stream = await createReactAgent({
-  llm: await blModel("gpt-4o-mini").ToLangChain(),
+  llm: await blModel("gpt-4o-mini"),
   prompt: prompt,
   tools: [
-    ...(await blTools(["blaxel-search", "webcrawl"]).ToLangChain()),
+    ...(await blTools(["blaxel-search", "webcrawl"])),
     tool(
       async (input: any) => {
-        logger.debug("TOOLCALLING: local weather", input);
+        console.debug("TOOLCALLING: local weather", input);
         return `The weather in ${input.city} is sunny`;
       },
       {
@@ -142,12 +143,13 @@ const stream = await createReactAgent({
 });
 
 // With Mastra
+import { blTools, blModel } from "@blaxel/mastra";
 const agent = new Agent({
   name: "blaxel-agent-mastra",
-  model: await blModel("gpt-4o-mini").ToMastra(),
+  model: await blModel("gpt-4o-mini"),
   instructions: prompt,
   tools: {
-    ...(await blTools(["blaxel-search", "webcrawl"]).ToMastra()),
+    ...(await blTools(["blaxel-search", "webcrawl"])),
     weatherTool: createTool({
       id: "weatherTool",
       description: "Get the weather in a specific city",
@@ -158,7 +160,7 @@ const agent = new Agent({
         weather: z.string(),
       }),
       execute: async ({ context }) => {
-        logger.debug("TOOLCALLING: local weather", context);
+        console.debug("TOOLCALLING: local weather", context);
         return `The weather in ${context.city} is sunny`;
       },
     }),
@@ -178,10 +180,11 @@ This allow complexe agentic logic, with multiple agents calling each other, orch
 // First agent, which is a simple one
 // He will expose himself with an endpoint (can be done with getting started example)
 // POST / {input: string}
+import { blTools, blModel } from "@blaxel/vercel";
 export default async function agent(input: string): Promise<any> {
   const firstResponse = await generateObject({
     experimental_telemetry: { isEnabled: true },
-    model: await blModel("gpt-4o-mini").ToVercelAI(),
+    model: await blModel("gpt-4o-mini"),
     system:
       "You are a first point of contact for a loan company. Your job is to turn client conversation into loan application.",
     schema: z.object({
@@ -202,13 +205,14 @@ export default async function agent(input: string): Promise<any> {
 }
 
 // Second agent, which will call the first one, then do another processing
+import { blTools, blModel } from "@blaxel/vercel";
 export default async function agent(input: string): Promise<any> {
   let firstResponse = await blAgent("vercel-first").run({
     inputs: input,
   });
   const gateResponse = await generateObject({
     experimental_telemetry: { isEnabled: true },
-    model: await blModel("gpt-4o-mini").ToVercelAI(),
+    model: await blModel("gpt-4o-mini"),
     system:
       "You are a loan specialist. Based on the given json file with client data, your job is to decide if a client can be further processed.",
     schema: z.object({
@@ -228,7 +232,8 @@ You can also set an agent as a tool, depending of framework you use.
 
 ```ts
 // In this example, we call the first agent as a tool, you can use the example above to expose the first one
-import { blAgent, blModel, blTools, logger } from "@blaxel/core";
+import { blModel, blTools } from "@blaxel/vercel";
+import { blAgent } from "@blaxel/core";
 import { streamText, tool } from "ai";
 import { z } from "zod";
 
@@ -243,9 +248,9 @@ export default async function agent(
 ): Promise<void> {
   const response = streamText({
     experimental_telemetry: { isEnabled: true },
-    model: await blModel("gpt-4o-mini").ToVercelAI(),
+    model: await blModel("gpt-4o-mini"),
     tools: {
-      ...(await blTools(["blaxel-search"]).ToVercelAI()),
+      ...(await blTools(["blaxel-search"])),
       "vercel-first": tool({
         description: "Get a json for load from input",
         parameters: z.object({
@@ -261,7 +266,7 @@ export default async function agent(
           city: z.string(),
         }),
         execute: async (args: { city: string }) => {
-          logger.debug("TOOLCALLING: local weather", args);
+          console.debug("TOOLCALLING: local weather", args);
           return `The weather in ${args.city} is sunny`;
         },
       }),
@@ -291,7 +296,7 @@ const port = parseInt(env.BL_SERVER_PORT || "3000");
 const host = env.BL_SERVER_HOST || "0.0.0.0";
 
 app.listen(port, host, () => {
-  logger.info(`Server is running on port ${host}:${port}`);
+  console.info(`Server is running on port ${host}:${port}`);
 });
 ```
 
@@ -347,7 +352,7 @@ We follow current standard for tool development over MCP Server.
 Example of a tool which is sending fake information about the weather:
 
 ```ts
-import { env, BlaxelMcpServerTransport, logger } from "@blaxel/core";
+import { env, BlaxelMcpServerTransport } from "@blaxel/core";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -365,7 +370,7 @@ server.tool(
     city: z.string(),
   },
   async ({ city }) => {
-    logger.info(`Weather in ${city}`);
+    console.info(`Weather in ${city}`);
     return {
       content: [{ type: "text", text: `The weather in ${city} is sunny` }],
     };
@@ -380,7 +385,7 @@ function main() {
     transport = new StdioServerTransport();
   }
   server.connect(transport);
-  logger.info("Server started");
+  console.info("Server started");
 }
 
 main();
@@ -399,7 +404,7 @@ type = "function"
 Connect the observability layer
 
 ```ts
-import "@blaxel/core";
+import "@blaxel/telemetry";
 ```
 
 Load blaxel transport
@@ -420,7 +425,7 @@ function main() {
     transport = new StdioServerTransport();
   }
   server.connect(transport);
-  logger.info("Server started");
+  console.info("Server started");
 }
 ```
 
@@ -441,8 +446,8 @@ DEFAULT_CITY = "San Francisco"
 Then you can use it in your agent or function with the following syntax:
 
 ```ts
-import { env, logger } from "@blaxel/core";
-logger.info(env.DEFAULT_CITY); // San Francisco
+import { env } from "@blaxel/core";
+console.info(env.DEFAULT_CITY); // San Francisco
 ```
 
 You can also add secrets variables to a .env files in your project root. (goal is to not commit this file)
@@ -457,8 +462,8 @@ DEFAULT_CITY_PASSWORD=123456
 Then you can use it in your agent or function with the following syntax:
 
 ```ts
-import { env, logger } from "@blaxel/core";
-logger.info(env.DEFAULT_CITY_PASSWORD); // 123456
+import { env } from "@blaxel/core";
+console.info(env.DEFAULT_CITY_PASSWORD); // 123456
 ```
 
 ## Contributing
