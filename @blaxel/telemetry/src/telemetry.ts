@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import { authenticate, env, logger, settings } from "@blaxel/core";
+import { authenticate, env, logger, settings, telemetryRegistry } from "@blaxel/core";
 import {
   metrics,
   Span
@@ -28,7 +28,7 @@ import {
   ReadableSpan,
   SpanProcessor,
 } from "@opentelemetry/sdk-trace-node";
-
+import { OtelTelemetryProvider } from "./telemetry_provider";
 export class BlaxelResource implements Resource {
   attributes: Record<string, string>;
 
@@ -218,6 +218,7 @@ class TelemetryManager {
   }
 
   instrumentApp() {
+    telemetryRegistry.registerProvider(new OtelTelemetryProvider());
     const httpInstrumentation = new HttpInstrumentation({
       requireParentforOutgoingSpans: true,
     });

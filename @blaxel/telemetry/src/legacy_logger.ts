@@ -2,6 +2,39 @@
 import { SeverityNumber } from "@opentelemetry/api-logs";
 import { blaxelTelemetry } from "./telemetry";
 
+export function setLegacyLogger() {
+  console.debug = (message: unknown, ...args: unknown[]) => {
+    const msg = formatLogMessage(message, args)
+    originalLogger.log(msg);
+    emitLogSync(SeverityNumber.DEBUG, msg);
+  };
+
+  console.log = (message: unknown, ...args: unknown[]) => {
+    const msg = formatLogMessage(message, args)
+    originalLogger.log(msg);
+    emitLogSync(SeverityNumber.INFO, msg);
+  };
+
+  console.info = (message: unknown, ...args: unknown[]) => {
+    const msg = formatLogMessage(message, args)
+    originalLogger.log(msg);
+    emitLogSync(SeverityNumber.INFO, msg);
+  };
+
+  console.error = (message: unknown, ...args: unknown[]) => {
+    const msg = formatLogMessage(message, args)
+    originalLogger.log(msg);
+    emitLogSync(SeverityNumber.ERROR, msg);
+  };
+
+  console.warn = (message: unknown, ...args: unknown[]) => {
+    const msg = formatLogMessage(message, args)
+    originalLogger.log(msg);
+    emitLogSync(SeverityNumber.WARN, msg);
+  };
+}
+
+
 export const originalLogger = {
   info: console.info,
   error: console.error,
@@ -60,32 +93,3 @@ function emitLogSync(severityNumber: SeverityNumber, message: string) {
   emitLog(severityNumber, message).catch(() => {});
 }
 
-console.debug = (message: unknown, ...args: unknown[]) => {
-  const msg = formatLogMessage(message, args)
-  originalLogger.log(msg);
-  emitLogSync(SeverityNumber.DEBUG, msg);
-};
-
-console.log = (message: unknown, ...args: unknown[]) => {
-  const msg = formatLogMessage(message, args)
-  originalLogger.log(msg);
-  emitLogSync(SeverityNumber.INFO, msg);
-};
-
-console.info = (message: unknown, ...args: unknown[]) => {
-  const msg = formatLogMessage(message, args)
-  originalLogger.log(msg);
-  emitLogSync(SeverityNumber.INFO, msg);
-};
-
-console.error = (message: unknown, ...args: unknown[]) => {
-  const msg = formatLogMessage(message, args)
-  originalLogger.log(msg);
-  emitLogSync(SeverityNumber.ERROR, msg);
-};
-
-console.warn = (message: unknown, ...args: unknown[]) => {
-  const msg = formatLogMessage(message, args)
-  originalLogger.log(msg);
-  emitLogSync(SeverityNumber.WARN, msg);
-};

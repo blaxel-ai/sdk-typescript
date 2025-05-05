@@ -93,6 +93,10 @@ class Settings {
     return env.BL_RUN_INTERNAL_PROTOCOL || "https";
   }
 
+  get loggerType() {
+    return env.BL_LOGGER || "http";
+  }
+
   async authenticate() {
     await this.credentials.authenticate();
   }

@@ -10,6 +10,7 @@ export * from "./common/settings.js";
 export * from "./mcp/index.js";
 export * from "./models/index.js";
 export * from "./sandbox/index.js";
+export * from "./telemetry/telemetry.js";
 export * from "./tools/index.js";
 export * from "./tools/types.js";
 

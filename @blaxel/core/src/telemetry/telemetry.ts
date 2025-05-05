@@ -3,7 +3,7 @@
 /**
  * Options for creating a span
  */
-export interface SpanOptions {
+export interface BlaxelSpanOptions {
   /** Key-value attributes to attach to the span */
   attributes?: Record<string, string | number | boolean>;
   /** Parent span context, if any */
@@ -15,7 +15,7 @@ export interface SpanOptions {
 /**
  * Represents a telemetry span
  */
-export interface Span {
+export interface BlaxelSpan {
   /** Add an attribute to the span */
   setAttribute(key: string, value: string | number | boolean): void;
   /** Add multiple attributes to the span */
@@ -33,15 +33,15 @@ export interface Span {
 /**
  * Provider interface for telemetry functionality
  */
-export interface TelemetryProvider {
+export interface BlaxelTelemetryProvider {
   /** Create a new span */
-  startSpan(name: string, options?: SpanOptions): Span;
+  startSpan(name: string, options?: BlaxelSpanOptions): BlaxelSpan;
 }
 
 /**
  * No-operation implementation of Span
  */
-class NoopSpan implements Span {
+class NoopSpan implements BlaxelSpan {
   setAttribute(): void {}
   setAttributes(): void {}
   recordException(): void {}
@@ -53,8 +53,8 @@ class NoopSpan implements Span {
 /**
  * No-operation implementation of TelemetryProvider
  */
-class NoopTelemetryProvider implements TelemetryProvider {
-  startSpan(): Span {
+class NoopTelemetryProvider implements BlaxelTelemetryProvider {
+  startSpan(): BlaxelSpan {
     return new NoopSpan();
   }
 }
@@ -64,7 +64,7 @@ class NoopTelemetryProvider implements TelemetryProvider {
  */
 class TelemetryRegistry {
   private static instance: TelemetryRegistry;
-  private provider: TelemetryProvider = new NoopTelemetryProvider();
+  private provider: BlaxelTelemetryProvider = new NoopTelemetryProvider();
 
   private constructor() {}
 
@@ -78,14 +78,14 @@ class TelemetryRegistry {
   /**
    * Register a telemetry provider implementation
    */
-  registerProvider(provider: TelemetryProvider): void {
+  registerProvider(provider: BlaxelTelemetryProvider): void {
     this.provider = provider;
   }
 
   /**
    * Get the current telemetry provider
    */
-  getProvider(): TelemetryProvider {
+  getProvider(): BlaxelTelemetryProvider {
     return this.provider;
   }
 }
@@ -98,6 +98,6 @@ export const telemetryRegistry = TelemetryRegistry.getInstance();
 /**
  * Create a span with the registered provider
  */
-export function startSpan(name: string, options?: SpanOptions): Span {
+export function startSpan(name: string, options?: BlaxelSpanOptions): BlaxelSpan {
   return telemetryRegistry.getProvider().startSpan(name, options);
 }
