@@ -1,8 +1,9 @@
 import { authenticate, getModelMetadata, handleDynamicImportError, settings } from "@blaxel/core";
 import { anthropic, AnthropicSession } from "@llamaindex/anthropic";
+import type { ToolCallLLM, ToolCallLLMMessageOptions } from '@llamaindex/core/llms' with { "resolution-mode": "import" };
 import { mistral } from '@llamaindex/mistral';
 import { openai } from "@llamaindex/openai";
-import type { ToolCallLLM, ToolCallLLMMessageOptions } from "llamaindex";
+
 
 export const blModel = async (
   model: string,
