@@ -44,7 +44,7 @@ export class BlaxelMcpClientTransport implements Transport {
         return;
       } catch (error) {
         if (error instanceof Error) {
-          logger.warn(error.stack);
+          logger.warn(error.stack ?? error.message);
         }
         attempts++;
         if (attempts === MAX_RETRIES) {

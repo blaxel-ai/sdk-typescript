@@ -109,7 +109,7 @@ class TelemetryManager {
     this.setupSignalHandler();
     this.initialized = true;
     this.setConfiguration().catch((error) => {
-      console.error("Error setting configuration:", error);
+      logger.error("Error setting configuration:", error);
     });
   }
 
@@ -120,7 +120,7 @@ class TelemetryManager {
     await authenticate();
     this.setExporters();
     this.otelLogger = logs.getLogger("blaxel");
-    console.debug("Telemetry ready");
+    logger.debug("Telemetry ready");
     this.configured = true;
   }
 
@@ -156,10 +156,10 @@ class TelemetryManager {
     for (const signal of signals) {
       process.on(signal, (error: Error) => {
         if (signal !== "exit") {
-          logger.error(error.stack);
+          logger.error(error);
         }
         this.shutdownApp().catch((error) => {
-          console.debug("Fatal error during shutdown:", error);
+          logger.debug("Fatal error during shutdown:", error);
           process.exit(0);
         });
       });
@@ -280,7 +280,7 @@ class TelemetryManager {
           this.nodeTracerProvider
             .shutdown()
             .catch((error) =>
-              console.debug("Error shutting down tracer provider:", error)
+              logger.debug("Error shutting down tracer provider:", error)
             )
         );
       }
@@ -290,7 +290,7 @@ class TelemetryManager {
           this.meterProvider
             .shutdown()
             .catch((error) =>
-              console.debug("Error shutting down meter provider:", error)
+              logger.debug("Error shutting down meter provider:", error)
             )
         );
       }
@@ -300,7 +300,7 @@ class TelemetryManager {
           this.loggerProvider
             .shutdown()
             .catch((error) =>
-              console.debug("Error shutting down logger provider:", error)
+              logger.debug("Error shutting down logger provider:", error)
             )
         );
       }
@@ -310,11 +310,11 @@ class TelemetryManager {
         Promise.all(shutdownPromises),
         new Promise((resolve) => setTimeout(resolve, 5000)), // 5 second timeout
       ]);
-      console.debug("Instrumentation shutdown complete");
+      logger.debug("Instrumentation shutdown complete");
 
       process.exit(0);
     } catch (error) {
-      console.error("Error during shutdown:", error);
+      logger.error("Error during shutdown:", error);
       process.exit(1);
     }
   }

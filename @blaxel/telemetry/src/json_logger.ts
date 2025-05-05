@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
 
+import { stringify } from '@blaxel/core';
 import { trace } from '@opentelemetry/api';
 
 
@@ -38,36 +39,6 @@ export const originalLogger = {
   debug: console.debug,
   log: console.log,
 };
-
-/**
- * Stringify an object with a limited depth
- * @param obj The object to stringify
- * @param maxDepth Maximum depth (default: 1)
- * @param depth Current depth (internal use)
- */
-export function stringify<T>(obj: T, maxDepth: number = 1, depth: number = 0): string {
-  if (obj instanceof Error) return obj.stack || obj.message;
-  if (obj === null) return 'null';
-  if (obj === undefined) return 'undefined';
-
-  // If we've reached max depth or it's not an object
-  if (depth >= maxDepth || typeof obj !== 'object') {
-    return typeof obj === 'object' ? `[${Array.isArray(obj) ? 'Array' : 'object'}]` :
-           typeof obj === 'string' ? `"${obj}"` : String(obj);
-  }
-
-  // Handle arrays
-  if (Array.isArray(obj)) {
-    return `[${obj.map(item => stringify(item, maxDepth, depth + 1)).join(', ')}]`;
-  }
-
-  // Handle objects
-  const pairs = Object.entries(obj as Record<string, unknown>).map(([key, val]) =>
-    `"${key}": ${stringify(val, maxDepth, depth + 1)}`
-  );
-
-  return `{${pairs.join(', ')}}`;
-}
 
 // Format a log message with appropriate color and prefix
 function formatLogMessage(severity: string, message: unknown, args: unknown[]): string {
