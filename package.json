@@ -10,7 +10,8 @@
     "build": "pnpm -r build",
     "set-version": "pnpm -r exec -- pnpm version",
     "publish-dev": "pnpm build && pnpm -r publish --tag dev --access public --no-git-checks",
-    "publish-preview": "pnpm build && pnpm -r publish --tag preview --access public --no-git-checks"
+    "publish-preview": "pnpm build && pnpm -r publish --tag preview --access public --no-git-checks",
+    "publish-prod": "pnpm build && pnpm -r publish --tag latest --access public --no-git-checks"
   },
   "dependencies": {
     "@blaxel/core": "workspace:*",

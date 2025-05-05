@@ -29,12 +29,11 @@ jobs:
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#v}"
           echo "Setting version to $VERSION"
-          pnpm version $VERSION --no-git-tag-version
+          pnpm set-version $VERSION
       - name: Publish to NPM
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          pnpm i
-          pnpm build
-          pnpm publish --access public --no-git-checks
+          pnpm install
+          pnpm publish-prod

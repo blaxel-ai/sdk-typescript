@@ -33,12 +33,11 @@ jobs:
           patch=$((patch + 1))
           VERSION="${major}.${minor}.${patch}"
           echo "Current version: $VERSION"
-          pnpm version --no-git-tag-version $VERSION-dev.${{ github.run_number }}
+          pnpm set-version $VERSION-dev.${{ github.run_number }}
       - name: Publish to NPM
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          pnpm i
-          pnpm build
-          pnpm publish --access public --no-git-checks --tag dev
+          pnpm install
+          pnpm publish-dev
