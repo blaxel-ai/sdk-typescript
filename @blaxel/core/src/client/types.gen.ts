@@ -1131,6 +1131,114 @@ export type Port = {
 export type Ports = Array<Port>;
 
 /**
+ * Preview of a Resource
+ */
+export type Preview = {
+    metadata?: PreviewMetadata;
+    spec?: PreviewSpec;
+};
+
+/**
+ * PreviewMetadata
+ */
+export type PreviewMetadata = TimeFields & OwnerFields & {
+    /**
+     * Model display name
+     */
+    displayName?: string;
+    /**
+     * Preview name
+     */
+    name?: string;
+    /**
+     * Resource name
+     */
+    resourceName?: string;
+    /**
+     * Resource type
+     */
+    resourceType?: string;
+    /**
+     * Workspace name
+     */
+    workspace?: string;
+};
+
+/**
+ * Preview of a Resource
+ */
+export type PreviewSpec = {
+    /**
+     * Port of the preview
+     */
+    port?: number;
+    /**
+     * Whether the preview is public
+     */
+    public?: boolean;
+    /**
+     * URL of the preview
+     */
+    url?: string;
+};
+
+/**
+ * Token for a Preview
+ */
+export type PreviewToken = {
+    metadata?: PreviewTokenMetadata;
+    spec?: PreviewTokenSpec;
+};
+
+/**
+ * PreviewTokenMetadata
+ */
+export type PreviewTokenMetadata = {
+    /**
+     * Token name
+     */
+    name?: string;
+    /**
+     * Preview name
+     */
+    previewName?: string;
+    /**
+     * Resource name
+     */
+    resourceName?: string;
+    /**
+     * Resource type
+     */
+    resourceType?: string;
+    /**
+     * Workspace name
+     */
+    workspace?: string;
+};
+
+/**
+ * Spec for a Preview Token
+ */
+export type PreviewTokenSpec = {
+    /**
+     * Whether the token is expired
+     */
+    expired?: boolean;
+    /**
+     * Expiration time of the token
+     */
+    expiresAt?: string;
+    /**
+     * JWT token
+     */
+    jwt?: string;
+    /**
+     * Whether the token is public
+     */
+    public?: boolean;
+};
+
+/**
  * A private cluster where models can be located on.
  */
 export type PrivateCluster = TimeFields & OwnerFields & {
@@ -3197,6 +3305,221 @@ export type UpdateSandboxResponses = {
 };
 
 export type UpdateSandboxResponse = UpdateSandboxResponses[keyof UpdateSandboxResponses];
+
+export type ListSandboxPreviewsData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/previews';
+};
+
+export type ListSandboxPreviewsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<Preview>;
+};
+
+export type ListSandboxPreviewsResponse = ListSandboxPreviewsResponses[keyof ListSandboxPreviewsResponses];
+
+export type CreateSandboxPreviewData = {
+    body: Preview;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/previews';
+};
+
+export type CreateSandboxPreviewResponses = {
+    /**
+     * successful operation
+     */
+    200: Preview;
+};
+
+export type CreateSandboxPreviewResponse = CreateSandboxPreviewResponses[keyof CreateSandboxPreviewResponses];
+
+export type DeleteSandboxPreviewData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+        /**
+         * Name of the Preview
+         */
+        previewName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/previews/{previewName}';
+};
+
+export type DeleteSandboxPreviewResponses = {
+    /**
+     * successful operation
+     */
+    200: Preview;
+};
+
+export type DeleteSandboxPreviewResponse = DeleteSandboxPreviewResponses[keyof DeleteSandboxPreviewResponses];
+
+export type GetSandboxPreviewData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+        /**
+         * Name of the Preview
+         */
+        previewName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/previews/{previewName}';
+};
+
+export type GetSandboxPreviewResponses = {
+    /**
+     * successful operation
+     */
+    200: Preview;
+};
+
+export type GetSandboxPreviewResponse = GetSandboxPreviewResponses[keyof GetSandboxPreviewResponses];
+
+export type UpdateSandboxPreviewData = {
+    body: Preview;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+        /**
+         * Name of the Preview
+         */
+        previewName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/previews/{previewName}';
+};
+
+export type UpdateSandboxPreviewResponses = {
+    /**
+     * successful operation
+     */
+    200: Preview;
+};
+
+export type UpdateSandboxPreviewResponse = UpdateSandboxPreviewResponses[keyof UpdateSandboxPreviewResponses];
+
+export type GetSandboxPreviewTokensData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+        /**
+         * Name of the Preview
+         */
+        previewName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/previews/{previewName}/tokens';
+};
+
+export type GetSandboxPreviewTokensResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<{
+        /**
+         * When the token was created
+         */
+        created_at?: string;
+        /**
+         * The name of the token
+         */
+        name?: string;
+    }>;
+};
+
+export type GetSandboxPreviewTokensResponse = GetSandboxPreviewTokensResponses[keyof GetSandboxPreviewTokensResponses];
+
+export type CreateSandboxPreviewTokenData = {
+    body: PreviewToken;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+        /**
+         * Name of the Preview
+         */
+        previewName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/previews/{previewName}/tokens';
+};
+
+export type CreateSandboxPreviewTokenResponses = {
+    /**
+     * successful operation
+     */
+    200: {
+        /**
+         * The generated token for the preview
+         */
+        token?: string;
+    };
+};
+
+export type CreateSandboxPreviewTokenResponse = CreateSandboxPreviewTokenResponses[keyof CreateSandboxPreviewTokenResponses];
+
+export type DeleteSandboxPreviewTokenData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+        /**
+         * Name of the Preview
+         */
+        previewName: string;
+        /**
+         * Name of the Token
+         */
+        tokenName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/previews/{previewName}/tokens/{tokenName}';
+};
+
+export type DeleteSandboxPreviewTokenResponses = {
+    /**
+     * successful operation
+     */
+    200: {
+        /**
+         * Success message
+         */
+        message?: string;
+    };
+};
+
+export type DeleteSandboxPreviewTokenResponse = DeleteSandboxPreviewTokenResponses[keyof DeleteSandboxPreviewTokenResponses];
 
 export type StartSandboxData = {
     body?: never;

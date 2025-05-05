@@ -61,6 +61,41 @@ async function testProcess(uvm: SandboxInstance) {
   }
 }
 
+async function testPreviews(sandbox: SandboxInstance) {
+  try {
+    await sandbox.previews.create({
+      metadata: {
+        name: "preview-test-1"
+      },
+      spec: {
+        port: 443,
+        public: true
+      }
+    })
+    const previews = await sandbox.previews.list()
+    if (previews.length < 1) {
+      throw new Error("No previews found");
+    }
+    const preview = await sandbox.previews.get("preview-test-1")
+    if (preview.name !== "preview-test-1") {
+      throw new Error("Preview name is not correct");
+    }
+    const url = preview.spec?.url
+    if (!url) {
+      throw new Error("Preview URL is not correct");
+    }
+    const response = await fetch(`${url}/health`)
+    if (response.status !== 200) {
+      throw new Error("Preview is not working");
+    }
+    console.log("Preview is healthy :)")
+  } catch (e) {
+    console.log("ERROR IN PREVIEWS NOT EXPECTED => ", e.error);
+  } finally {
+    await sandbox.previews.delete("preview-test-1")
+  }
+}
+
 async function createSandbox() {
   console.log("Creating sandbox");
   const sandbox = await SandboxInstance.create({
@@ -69,9 +104,8 @@ async function createSandbox() {
     },
     spec: {
       runtime: {
-        image: "blaxel/prod-base:14769328323",
+        image: "blaxel/prod-base:latest",
         memory: 2048,
-        cpu: 2,
         ports: [
           {
             name: "sandbox-api",
@@ -109,6 +143,7 @@ async function main() {
 
     await testFilesystem(sandbox);
     await testProcess(sandbox);
+    await testPreviews(sandbox);
   } catch (e) {
     console.error("There was an error => ", e);
   } finally {
