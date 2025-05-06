@@ -1,8 +1,7 @@
 /* eslint-disable no-console */
 
-import { stringify } from '@blaxel/core';
+import { env, stringify } from '@blaxel/core';
 import { trace } from '@opentelemetry/api';
-
 
 export function setJsonLogger() {
   console.debug = (message: unknown, ...args: unknown[]) => {
@@ -46,20 +45,25 @@ function formatLogMessage(severity: string, message: unknown, args: unknown[]): 
   const argsStr = args.map(arg => typeof arg === "string" ? arg : stringify(arg, 2)).join(" ");
 
   let msg = `${messageStr}${argsStr ? " " + argsStr : ""}`;
-  return JSON.stringify({
-    message: msg,
-    severity,
-    labels:getLabels()
-  })
-}
 
-function getLabels() {
+  const logEntry: any = {
+    message: msg,
+    severity
+  };
+
   const currentSpan = trace.getActiveSpan();
   if (currentSpan) {
-    const {traceId,spanId} = currentSpan.spanContext();
-    return {
-      "trace-id": traceId,
-      "span-id": spanId
-    }
+    const {traceId, spanId} = currentSpan.spanContext();
+
+    const traceIdName = env.BL_LOGGER_TRACE_ID || 'trace_id'
+    const spanIdName = env.BL_LOGGER_SPAN_ID || 'span_id'
+    const traceIdPrefix = env.BL_LOGGER_TRACE_ID_PREFIX || ''
+    const spanIdPrefix = env.BL_LOGGER_SPAN_ID_PREFIX || ''
+
+    logEntry[traceIdName] = `${traceIdPrefix}${traceId}`;
+    logEntry[spanIdName] = `${spanIdPrefix}${spanId}`;
+
   }
+
+  return JSON.stringify(logEntry);
 }
