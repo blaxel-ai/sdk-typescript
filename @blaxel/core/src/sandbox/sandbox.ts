@@ -2,17 +2,19 @@ import { createSandbox, deleteSandbox, getSandbox, listSandboxes, Sandbox as San
 import { logger } from "../common/logger.js";
 import { SandboxFileSystem } from "./filesystem.js";
 import { SandboxNetwork } from "./network.js";
+import { SandboxPreviews } from "./preview.js";
 import { SandboxProcess } from "./process.js";
 
 export class SandboxInstance {
   fs: SandboxFileSystem;
   network: SandboxNetwork;
   process: SandboxProcess;
-
+  previews: SandboxPreviews;
   constructor(private sandbox: SandboxModel) {
     this.fs = new SandboxFileSystem(sandbox);
     this.network = new SandboxNetwork(sandbox);
     this.process = new SandboxProcess(sandbox);
+    this.previews = new SandboxPreviews(sandbox);
   }
 
   get metadata() {

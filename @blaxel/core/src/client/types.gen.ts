@@ -843,6 +843,10 @@ export type Metrics = {
     rpsPerCode?: {
         [key: string]: unknown;
     };
+    /**
+     * Metrics for sandboxes
+     */
+    sandboxes?: unknown;
 };
 
 /**
@@ -1129,6 +1133,114 @@ export type Port = {
  * Set of ports for a resource
  */
 export type Ports = Array<Port>;
+
+/**
+ * Preview of a Resource
+ */
+export type Preview = {
+    metadata?: PreviewMetadata;
+    spec?: PreviewSpec;
+};
+
+/**
+ * PreviewMetadata
+ */
+export type PreviewMetadata = TimeFields & OwnerFields & {
+    /**
+     * Model display name
+     */
+    displayName?: string;
+    /**
+     * Preview name
+     */
+    name?: string;
+    /**
+     * Resource name
+     */
+    resourceName?: string;
+    /**
+     * Resource type
+     */
+    resourceType?: string;
+    /**
+     * Workspace name
+     */
+    workspace?: string;
+};
+
+/**
+ * Preview of a Resource
+ */
+export type PreviewSpec = {
+    /**
+     * Port of the preview
+     */
+    port?: number;
+    /**
+     * Whether the preview is public
+     */
+    public?: boolean;
+    /**
+     * URL of the preview
+     */
+    url?: string;
+};
+
+/**
+ * Token for a Preview
+ */
+export type PreviewToken = {
+    metadata?: PreviewTokenMetadata;
+    spec?: PreviewTokenSpec;
+};
+
+/**
+ * PreviewTokenMetadata
+ */
+export type PreviewTokenMetadata = {
+    /**
+     * Token name
+     */
+    name?: string;
+    /**
+     * Preview name
+     */
+    previewName?: string;
+    /**
+     * Resource name
+     */
+    resourceName?: string;
+    /**
+     * Resource type
+     */
+    resourceType?: string;
+    /**
+     * Workspace name
+     */
+    workspace?: string;
+};
+
+/**
+ * Spec for a Preview Token
+ */
+export type PreviewTokenSpec = {
+    /**
+     * Whether the token is expired
+     */
+    expired?: boolean;
+    /**
+     * Expiration time of the token
+     */
+    expiresAt?: string;
+    /**
+     * Whether the token is public
+     */
+    public?: boolean;
+    /**
+     * Token
+     */
+    token?: string;
+};
 
 /**
  * A private cluster where models can be located on.
@@ -3197,6 +3309,207 @@ export type UpdateSandboxResponses = {
 };
 
 export type UpdateSandboxResponse = UpdateSandboxResponses[keyof UpdateSandboxResponses];
+
+export type ListSandboxPreviewsData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/previews';
+};
+
+export type ListSandboxPreviewsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<Preview>;
+};
+
+export type ListSandboxPreviewsResponse = ListSandboxPreviewsResponses[keyof ListSandboxPreviewsResponses];
+
+export type CreateSandboxPreviewData = {
+    body: Preview;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/previews';
+};
+
+export type CreateSandboxPreviewResponses = {
+    /**
+     * successful operation
+     */
+    200: Preview;
+};
+
+export type CreateSandboxPreviewResponse = CreateSandboxPreviewResponses[keyof CreateSandboxPreviewResponses];
+
+export type DeleteSandboxPreviewData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+        /**
+         * Name of the Preview
+         */
+        previewName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/previews/{previewName}';
+};
+
+export type DeleteSandboxPreviewResponses = {
+    /**
+     * successful operation
+     */
+    200: Preview;
+};
+
+export type DeleteSandboxPreviewResponse = DeleteSandboxPreviewResponses[keyof DeleteSandboxPreviewResponses];
+
+export type GetSandboxPreviewData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+        /**
+         * Name of the Preview
+         */
+        previewName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/previews/{previewName}';
+};
+
+export type GetSandboxPreviewResponses = {
+    /**
+     * successful operation
+     */
+    200: Preview;
+};
+
+export type GetSandboxPreviewResponse = GetSandboxPreviewResponses[keyof GetSandboxPreviewResponses];
+
+export type UpdateSandboxPreviewData = {
+    body: Preview;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+        /**
+         * Name of the Preview
+         */
+        previewName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/previews/{previewName}';
+};
+
+export type UpdateSandboxPreviewResponses = {
+    /**
+     * successful operation
+     */
+    200: Preview;
+};
+
+export type UpdateSandboxPreviewResponse = UpdateSandboxPreviewResponses[keyof UpdateSandboxPreviewResponses];
+
+export type ListSandboxPreviewTokensData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+        /**
+         * Name of the Preview
+         */
+        previewName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/previews/{previewName}/tokens';
+};
+
+export type ListSandboxPreviewTokensResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<PreviewToken>;
+};
+
+export type ListSandboxPreviewTokensResponse = ListSandboxPreviewTokensResponses[keyof ListSandboxPreviewTokensResponses];
+
+export type CreateSandboxPreviewTokenData = {
+    body: PreviewToken;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+        /**
+         * Name of the Preview
+         */
+        previewName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/previews/{previewName}/tokens';
+};
+
+export type CreateSandboxPreviewTokenResponses = {
+    /**
+     * successful operation
+     */
+    200: PreviewToken;
+};
+
+export type CreateSandboxPreviewTokenResponse = CreateSandboxPreviewTokenResponses[keyof CreateSandboxPreviewTokenResponses];
+
+export type DeleteSandboxPreviewTokenData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+        /**
+         * Name of the Preview
+         */
+        previewName: string;
+        /**
+         * Name of the Token
+         */
+        tokenName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/previews/{previewName}/tokens/{tokenName}';
+};
+
+export type DeleteSandboxPreviewTokenResponses = {
+    /**
+     * successful operation
+     */
+    200: {
+        /**
+         * Success message
+         */
+        message?: string;
+    };
+};
+
+export type DeleteSandboxPreviewTokenResponse = DeleteSandboxPreviewTokenResponses[keyof DeleteSandboxPreviewTokenResponses];
 
 export type StartSandboxData = {
     body?: never;
