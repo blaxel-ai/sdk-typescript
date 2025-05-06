@@ -843,6 +843,10 @@ export type Metrics = {
     rpsPerCode?: {
         [key: string]: unknown;
     };
+    /**
+     * Metrics for sandboxes
+     */
+    sandboxes?: unknown;
 };
 
 /**
@@ -1229,13 +1233,13 @@ export type PreviewTokenSpec = {
      */
     expiresAt?: string;
     /**
-     * JWT token
-     */
-    jwt?: string;
-    /**
      * Whether the token is public
      */
     public?: boolean;
+    /**
+     * Token
+     */
+    token?: string;
 };
 
 /**
@@ -3423,7 +3427,7 @@ export type UpdateSandboxPreviewResponses = {
 
 export type UpdateSandboxPreviewResponse = UpdateSandboxPreviewResponses[keyof UpdateSandboxPreviewResponses];
 
-export type GetSandboxPreviewTokensData = {
+export type ListSandboxPreviewTokensData = {
     body?: never;
     path: {
         /**
@@ -3439,23 +3443,14 @@ export type GetSandboxPreviewTokensData = {
     url: '/sandboxes/{sandboxName}/previews/{previewName}/tokens';
 };
 
-export type GetSandboxPreviewTokensResponses = {
+export type ListSandboxPreviewTokensResponses = {
     /**
      * successful operation
      */
-    200: Array<{
-        /**
-         * When the token was created
-         */
-        created_at?: string;
-        /**
-         * The name of the token
-         */
-        name?: string;
-    }>;
+    200: Array<PreviewToken>;
 };
 
-export type GetSandboxPreviewTokensResponse = GetSandboxPreviewTokensResponses[keyof GetSandboxPreviewTokensResponses];
+export type ListSandboxPreviewTokensResponse = ListSandboxPreviewTokensResponses[keyof ListSandboxPreviewTokensResponses];
 
 export type CreateSandboxPreviewTokenData = {
     body: PreviewToken;
@@ -3477,12 +3472,7 @@ export type CreateSandboxPreviewTokenResponses = {
     /**
      * successful operation
      */
-    200: {
-        /**
-         * The generated token for the preview
-         */
-        token?: string;
-    };
+    200: PreviewToken;
 };
 
 export type CreateSandboxPreviewTokenResponse = CreateSandboxPreviewTokenResponses[keyof CreateSandboxPreviewTokenResponses];

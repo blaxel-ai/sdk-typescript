@@ -1,7 +1,74 @@
-import { createSandboxPreview, deleteSandboxPreview, getSandboxPreview, listSandboxPreviews, Preview, Sandbox } from "../client/index.js";
+import { createSandboxPreview, createSandboxPreviewToken, deleteSandboxPreview, deleteSandboxPreviewToken, getSandboxPreview, listSandboxPreviews, listSandboxPreviewTokens, Preview, PreviewToken, Sandbox } from "../client/index.js";
+
+export class SandboxPreviewToken {
+  constructor(private previewToken: PreviewToken) {}
+
+  get value() {
+    return this.previewToken.spec?.token ?? "";
+  }
+
+  get expiresAt() {
+    return this.previewToken.spec?.expiresAt ?? new Date();
+  }
+}
+
+export class SandboxPreviewTokens {
+  constructor(private preview: Preview) {}
+
+  get previewName() {
+    return this.preview.metadata?.name ?? "";
+  }
+
+  get resourceName() {
+    return this.preview.metadata?.resourceName ?? "";
+  }
+
+  async create(expiresAt: Date) {
+    const { data } = await createSandboxPreviewToken({
+      path: {
+        sandboxName: this.resourceName,
+        previewName: this.previewName,
+      },
+      body: {
+        spec: {
+          expiresAt: expiresAt.toISOString(),
+        },
+      },
+      throwOnError: true,
+    });
+    return new SandboxPreviewToken(data);
+  }
+
+  async list() {
+    const { data } = await listSandboxPreviewTokens({
+      path: {
+        sandboxName: this.resourceName,
+        previewName: this.previewName,
+      },
+      throwOnError: true,
+    }) as { response: Response; data: PreviewToken[] };
+    return data.map((token) => new SandboxPreviewToken(token));
+  }
+
+  async delete(tokenName: string) {
+    const { data } = await deleteSandboxPreviewToken({
+      path: {
+        sandboxName: this.resourceName,
+        previewName: this.previewName,
+        tokenName,
+      },
+      throwOnError: true,
+    });
+    return data;
+  }
+}
 
 export class SandboxPreview {
-  constructor(private preview: Preview) {}
+  tokens: SandboxPreviewTokens;
+
+  constructor(private preview: Preview) {
+    this.tokens = new SandboxPreviewTokens(this);
+  }
 
   get name() {
     return this.preview.metadata?.name ?? "";

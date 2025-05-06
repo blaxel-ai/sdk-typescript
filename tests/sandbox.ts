@@ -61,11 +61,11 @@ async function testProcess(uvm: SandboxInstance) {
   }
 }
 
-async function testPreviews(sandbox: SandboxInstance) {
+async function testPreviewPublic(sandbox: SandboxInstance) {
   try {
     await sandbox.previews.create({
       metadata: {
-        name: "preview-test-1"
+        name: "preview-test-public"
       },
       spec: {
         port: 443,
@@ -76,8 +76,8 @@ async function testPreviews(sandbox: SandboxInstance) {
     if (previews.length < 1) {
       throw new Error("No previews found");
     }
-    const preview = await sandbox.previews.get("preview-test-1")
-    if (preview.name !== "preview-test-1") {
+    const preview = await sandbox.previews.get("preview-test-public")
+    if (preview.name !== "preview-test-public") {
       throw new Error("Preview name is not correct");
     }
     const url = preview.spec?.url
@@ -90,10 +90,58 @@ async function testPreviews(sandbox: SandboxInstance) {
     }
     console.log("Preview is healthy :)")
   } catch (e) {
-    console.log("ERROR IN PREVIEWS NOT EXPECTED => ", e.error);
+    console.log("ERROR IN PREVIEWS NOT EXPECTED => ", e);
   } finally {
-    await sandbox.previews.delete("preview-test-1")
+    await sandbox.previews.delete("preview-test-public")
   }
+  }
+
+async function testPreviewToken(sandbox: SandboxInstance) {
+  try {
+    const preview = await sandbox.previews.create({
+      metadata: {
+        name: "preview-test-private"
+      },
+      spec: {
+        port: 443,
+        public: false
+      }
+    })
+    const url = preview.spec?.url
+    if (!url) {
+      throw new Error("Preview URL is not correct");
+    }
+    const token = await preview.tokens.create(new Date(Date.now() + 1000 * 60 * 10)) // 10 minutes expiration
+    console.log("Token created => ", token.value)
+    const tokens = await preview.tokens.list()
+    if (tokens.length < 1) {
+      throw new Error("No tokens found");
+    }
+    if (!tokens.find((t) => t.value === token.value)) {
+      throw new Error("Token not found in list");
+    }
+    console.log("Token created => ", token.value)
+    const response = await fetch(`${url}/health`)
+    if (response.status !== 401) {
+      throw new Error(`Preview is not protected by token, response => ${response.status}`);
+    }
+
+    const responseWithToken = await fetch(`${url}/health?bl_preview_token=${token.value}`)
+    if (responseWithToken.status !== 200) {
+      throw new Error(`Preview is not working with token, response => ${responseWithToken.status}`);
+    }
+    console.log("Preview is healthy with token :)")
+    await preview.tokens.delete(token.value)
+  } catch (e) {
+    console.log("ERROR IN PREVIEWS NOT EXPECTED => ", e);
+  } finally {
+    await sandbox.previews.delete("preview-test-private")
+  }
+}
+
+async function testPreviews(sandbox: SandboxInstance) {
+  await testPreviewPublic(sandbox)
+  await testPreviewToken(sandbox)
 }
 
 async function createSandbox() {
@@ -131,7 +179,7 @@ async function testSandbox() {
   console.log("Getting same sandbox");
   sandbox = await SandboxInstance.get("sandbox-test-3")
   // Fix this before uncomment
-  // console.log(await sameSandbox.fs.ls("/"))
+  // console.log(await sandbox.fs.ls("/"))
   return sandbox
 }
 
