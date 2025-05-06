@@ -7,11 +7,8 @@ async function main() {
     // Test with controlplane
     const sandbox = await SandboxInstance.get(sandboxName)
 
-    const process = await sandbox.process.exec({
-      name: "test",
-      command: "echo 'Hello world'",
-    })
-    console.log(process)
+    const result = await sandbox.fs.ls("/")
+    console.log(result)
   } catch (e) {
     console.error("There was an error => ", e);
   } finally {

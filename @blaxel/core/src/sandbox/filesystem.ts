@@ -130,6 +130,9 @@ export class SandboxFileSystem extends SandboxAction {
   }
 
   private formatPath(path: string): string {
+    if (path === "/") {
+      return path;
+    }
     if (path.startsWith("/")) {
       path = path.slice(1);
     }
