@@ -1,5 +1,7 @@
 import { Directory, SandboxInstance } from "@blaxel/core";
 
+const sandboxName = "sandbox-test-3"
+
 async function testFilesystem(sandbox: SandboxInstance) {
   const user = process.env.USER;
   await sandbox.fs.write(`/Users/${user}/Downloads/test`, "Hello world");
@@ -148,7 +150,7 @@ async function createSandbox() {
   console.log("Creating sandbox");
   const sandbox = await SandboxInstance.create({
     metadata: {
-      name: "sandbox-test-3"
+      name: sandboxName
     },
     spec: {
       runtime: {
@@ -177,7 +179,7 @@ async function testSandbox() {
   sandbox = await createSandbox()
 
   console.log("Getting same sandbox");
-  sandbox = await SandboxInstance.get("sandbox-test-3")
+  sandbox = await SandboxInstance.get(sandboxName)
   // Fix this before uncomment
   // console.log(await sandbox.fs.ls("/"))
   return sandbox
@@ -187,7 +189,7 @@ async function main() {
   try {
     // Test with controlplane
     const sandbox = await testSandbox()
-    // const sandbox = await SandboxInstance.get("sandbox-test-3")
+    // const sandbox = await SandboxInstance.get(sandboxName)
 
     await testFilesystem(sandbox);
     await testProcess(sandbox);
@@ -196,7 +198,7 @@ async function main() {
     console.error("There was an error => ", e);
   } finally {
     console.log("Deleting sandbox");
-    await SandboxInstance.delete("sandbox-test-3")
+    await SandboxInstance.delete(sandboxName)
   }
 }
 
