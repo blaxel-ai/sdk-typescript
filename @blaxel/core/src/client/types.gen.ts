@@ -446,6 +446,33 @@ export type HistogramStats = {
 };
 
 /**
+ * Integration
+ */
+export type Integration = {
+    /**
+     * Integration additional infos
+     */
+    additionalInfos?: {
+        [key: string]: string;
+    };
+    endpoints?: IntegrationEndpoints;
+    headers?: IntegrationHeaders;
+    /**
+     * Integration name
+     */
+    name?: string;
+    /**
+     * Integration organizations
+     */
+    organizations?: Array<IntegrationOrganization>;
+    params?: IntegrationQueryParams;
+    /**
+     * Integration repositories
+     */
+    repositories?: Array<IntegrationRepository>;
+};
+
+/**
  * Integration Connection
  */
 export type IntegrationConnection = {
@@ -480,6 +507,66 @@ export type IntegrationConnectionSpec = {
 };
 
 export type IntegrationConnectionsList = Array<string>;
+
+/**
+ * Integration endpoint
+ */
+export type IntegrationEndpoint = {
+    /**
+     * Integration endpoint body
+     */
+    body?: string;
+    /**
+     * Integration endpoint ignore models
+     */
+    ignoreModels?: Array<unknown>;
+    /**
+     * Integration endpoint method
+     */
+    method?: string;
+    /**
+     * Integration endpoint models
+     */
+    models?: Array<unknown>;
+    /**
+     * Integration endpoint stream key
+     */
+    streamKey?: string;
+    streamToken?: IntegrationEndpointToken;
+    token?: IntegrationEndpointToken;
+};
+
+/**
+ * Integration endpoint token
+ */
+export type IntegrationEndpointToken = {
+    /**
+     * Integration endpoint token received
+     */
+    received?: string;
+    /**
+     * Integration endpoint token sent
+     */
+    sent?: string;
+    /**
+     * Integration endpoint token total
+     */
+    total?: string;
+};
+
+/**
+ * Integration endpoints
+ */
+export type IntegrationEndpoints = {
+    [key: string]: IntegrationEndpoint;
+};
+
+/**
+ * Integration headers
+ */
+export type IntegrationHeaders = {
+    [key: string]: string;
+};
 
 /**
  * Model obtained from an external authentication provider, such as HuggingFace, OpenAI, etc...
@@ -533,6 +620,35 @@ export type IntegrationModel = {
      * Provider model trending score
      */
     trending_score?: number;
+};
+
+/**
+ * Integration organization
+ */
+export type IntegrationOrganization = {
+    /**
+     * Provider organization avatar URL
+     */
+    avatar_url?: string;
+    /**
+     * Provider organization display name
+     */
+    displayName?: string;
+    /**
+     * Provider organization ID
+     */
+    id?: string;
+    /**
+     * Provider organization name
+     */
+    name?: string;
+};
+
+/**
+ * Integration query params
+ */
+export type IntegrationQueryParams = {
+    [key: string]: string;
 };
 
 /**
@@ -1714,19 +1830,6 @@ export type SandboxSpec = CoreSpec & unknown;
 export type SandboxStoreDefinitionName = unknown;
 
 /**
- * Micro VM for running agentic tasks
- */
-export type Sandboxes = {
-    events?: CoreEvents;
-    metadata?: Metadata;
-    spec?: SandboxSpec;
-    /**
-     * Sandbox status
-     */
-    status?: string;
-};
-
-/**
  * Configuration for a serverless deployment
  */
 export type ServerlessConfig = {
@@ -2440,8 +2543,10 @@ export type GetIntegrationResponses = {
     /**
      * successful operation
      */
-    200: unknown;
+    200: Integration;
 };
+
+export type GetIntegrationResponse = GetIntegrationResponses[keyof GetIntegrationResponses];
 
 export type ListIntegrationConnectionsData = {
     body?: never;
