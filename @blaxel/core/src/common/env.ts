@@ -1,4 +1,5 @@
 /* eslint-disable */
+import dotenv from "dotenv";
 import toml from "toml";
 import { fs } from "./node.js";
 
@@ -20,13 +21,8 @@ if (fs !== null) {
   } catch (error) {}
   try {
     const secretFile = fs.readFileSync(".env", "utf8");
-    secretFile.split("\n").forEach((line: string) => {
-      if (line.startsWith("#")) {
-        return;
-      }
-      const [key, value] = line.split("=");
-      secretEnv[key] = value;
-    });
+    const parsed = dotenv.parse(secretFile);
+    Object.assign(secretEnv, parsed);
   } catch (error) {}
 }
 

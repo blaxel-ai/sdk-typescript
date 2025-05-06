@@ -1,12 +1,13 @@
 {
 	"name": "@blaxel/core",
-	"version": "0.2.0-dev19",
+	"version": "0.2.0-dev20",
 	"description": "Blaxel Core SDK for TypeScript",
 	"license": "MIT",
 	"author": "Blaxel, INC (https://blaxel.ai)",
 	"homepage": "https://blaxel.ai",
 	"scripts": {
 		"lint": "eslint src/",
+		"dev": "tsc --watch",
 		"build": "tsc"
 	},
 	"repository": {
@@ -60,6 +61,7 @@
 		"@hey-api/client-fetch": "^0.10.0",
 		"@modelcontextprotocol/sdk": "^1.11.0",
 		"crypto": "^1.0.1",
+		"dotenv": "^16.5.0",
 		"jwt-decode": "^4.0.0",
 		"toml": "^3.0.0",
 		"uuid": "^11.1.0",

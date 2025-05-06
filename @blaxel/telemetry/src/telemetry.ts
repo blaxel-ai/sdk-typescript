@@ -154,10 +154,7 @@ class TelemetryManager {
   setupSignalHandler() {
     const signals = ["SIGINT", "SIGTERM", "uncaughtException", "exit"];
     for (const signal of signals) {
-      process.on(signal, (error: Error) => {
-        if (signal !== "exit") {
-          logger.error(error);
-        }
+      process.on(signal, () => {
         this.shutdownApp().catch((error) => {
           logger.debug("Fatal error during shutdown:", error);
           process.exit(0);

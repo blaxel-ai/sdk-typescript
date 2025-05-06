@@ -1,12 +1,13 @@
 {
 	"name": "@blaxel/mastra",
-	"version": "0.2.0-dev19",
+	"version": "0.2.0-dev20",
 	"description": "Blaxel SDK for TypeScript",
 	"license": "MIT",
 	"author": "Blaxel, INC (https://blaxel.ai)",
 	"homepage": "https://blaxel.ai",
 	"scripts": {
 		"build": "tsc",
+		"dev": "tsc --watch",
 		"lint": "eslint src/"
 	},
 	"repository": {
