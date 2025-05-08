@@ -1,6 +1,6 @@
 {
 	"name": "@blaxel/langgraph",
-	"version": "0.2.0-dev20",
+	"version": "0.2.0",
 	"description": "Blaxel SDK for TypeScript",
 	"license": "MIT",
 	"author": "Blaxel, INC (https://blaxel.ai)",
