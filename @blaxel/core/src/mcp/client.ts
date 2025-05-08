@@ -74,18 +74,15 @@ export class BlaxelMcpClientTransport implements Transport {
       };
 
       this._socket.onopen = () => {
-        logger.debug("WebSocket opened");
         resolve();
       };
 
       this._socket.onclose = () => {
-        logger.debug("WebSocket closed");
         this.onclose?.();
         this._socket = undefined;
       };
 
       this._socket.onmessage = (event: WebSocket.MessageEvent) => {
-        logger.debug("WebSocket message received");
         let message: JSONRPCMessage;
         try {
           let dataString: string;
