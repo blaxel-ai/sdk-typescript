@@ -93,6 +93,10 @@ class Settings {
     return env.BL_RUN_INTERNAL_PROTOCOL || "https";
   }
 
+  get blCloud() {
+    return env.BL_CLOUD === "true";
+  }
+
   get loggerType() {
     return env.BL_LOGGER || "http";
   }
