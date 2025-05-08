@@ -1,0 +1,80 @@
+{
+	"name": "@blaxel/langgraph",
+	"version": "0.2.0-dev20",
+	"description": "Blaxel SDK for TypeScript",
+	"license": "MIT",
+	"author": "Blaxel, INC (https://blaxel.ai)",
+	"homepage": "https://blaxel.ai",
+	"scripts": {
+		"lint": "eslint src/",
+		"dev": "tsc --watch",
+		"build": "tsc"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/blaxel/toolkit/sdk-ts"
+	},
+	"engines": {
+		"node": ">=18"
+	},
+	"keywords": [
+		"blaxel",
+		"agent",
+		"mcp"
+	],
+	"main": "dist/index.js",
+	"module": "./dist/index.js",
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"import": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			},
+			"require": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			}
+		},
+		"./*": {
+			"import": {
+				"types": "./dist/*.d.ts",
+				"default": "./dist/*.js"
+			},
+			"require": {
+				"types": "./dist/*.d.ts",
+				"default": "./dist/*.js"
+			}
+		}
+	},
+	"typesVersions": {
+		"*": {
+			"*": [
+				"./dist/*"
+			]
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"dependencies": {
+		"@blaxel/core": "workspace:*",
+		"@google/generative-ai": "^0.24.1",
+		"@langchain/anthropic": "^0.3.20",
+		"@langchain/cohere": "^0.3.3",
+		"@langchain/core": "^0.3.51",
+		"@langchain/deepseek": "^0.0.1",
+		"@langchain/openai": "^0.5.10",
+		"@opentelemetry/instrumentation": "^0.200.0",
+		"@traceloop/instrumentation-langchain": "^0.13.0",
+		"cohere-ai": "^7.17.1",
+		"langchain": "^0.3.24",
+		"zod": "^3.24.3",
+		"zod-to-json-schema": "^3.24.5"
+	},
+	"devDependencies": {
+		"@eslint/js": "^9.26.0",
+		"typescript": "^5.0.0",
+		"typescript-eslint": "^8.31.1"
+	}
+}

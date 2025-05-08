@@ -1,4 +1,7 @@
-onlyBuiltDependencies:
-  - '@swc/core'
-  - esbuild
-  - onnxruntime-node
+packages:
+  - '@blaxel/core'
+  - '@blaxel/telemetry'
+  - '@blaxel/langgraph'
+  - '@blaxel/llamaindex'
+  - '@blaxel/vercel'
+  - '@blaxel/mastra'

@@ -1,0 +1,68 @@
+{
+	"name": "@blaxel/mastra",
+	"version": "0.2.0-dev20",
+	"description": "Blaxel SDK for TypeScript",
+	"license": "MIT",
+	"author": "Blaxel, INC (https://blaxel.ai)",
+	"homepage": "https://blaxel.ai",
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"lint": "eslint src/"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/blaxel/toolkit/sdk-ts"
+	},
+	"engines": {
+		"node": ">=18"
+	},
+	"keywords": [
+		"blaxel",
+		"agent",
+		"mcp"
+	],
+	"main": "dist/index.js",
+	"module": "./dist/index.js",
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"import": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			},
+			"require": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			}
+		},
+		"./*": {
+			"import": {
+				"types": "./dist/*.d.ts",
+				"default": "./dist/*.js"
+			},
+			"require": {
+				"types": "./dist/*.d.ts",
+				"default": "./dist/*.js"
+			}
+		}
+	},
+	"typesVersions": {
+		"*": {
+			"*": [
+				"./dist/*"
+			]
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"dependencies": {
+		"@blaxel/vercel": "workspace:*"
+	},
+	"devDependencies": {
+		"@eslint/js": "^9.26.0",
+		"typescript": "^5.0.0",
+		"typescript-eslint": "^8.31.1"
+	}
+}
