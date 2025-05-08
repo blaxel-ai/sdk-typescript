@@ -15,8 +15,8 @@ class BlJob {
     }
 
     const response = await fetch(env.BL_BATCH_DATA_URL);
-    const data = await response.json() as {args: BatchArgs};
-    return data.args[this.index] ?? {};
+    const data = await response.json() as {tasks: BatchArgs};
+    return data.tasks[this.index] ?? {};
   }
 
   get indexKey(): string {
