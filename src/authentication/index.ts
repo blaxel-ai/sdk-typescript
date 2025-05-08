@@ -1,7 +1,3 @@
-import fs from "fs";
-import os from "os";
-import { join } from "path";
-import yaml from "yaml";
 import { env } from "../common/env.js";
 import { ApiKey } from "./apikey.js";
 import { ClientCredentials } from "./clientcredentials.js";
@@ -22,36 +18,7 @@ function getCredentials(): CredentialsType | null {
       workspace: env.BL_WORKSPACE,
     };
   }
-  try {
-    const homeDir = os.homedir();
-    const config = fs.readFileSync(
-      join(homeDir, ".blaxel/config.yaml"),
-      "utf8"
-    );
-    type AuthWorkspace = {
-      name: string;
-      credentials: CredentialsType;
-    };
-    type AuthConfig = {
-      context: {
-        workspace: string;
-      };
-      workspaces: AuthWorkspace[];
-    };
-
-    const configJson = yaml.parse(config) as AuthConfig;
-    const workspaceName = env.BL_WORKSPACE || configJson.context.workspace;
-    const credentials = configJson.workspaces.find(
-      (wk: AuthWorkspace) => wk.name === workspaceName
-    )?.credentials;
-    if (!credentials) {
-      return null;
-    }
-    credentials.workspace = workspaceName;
-    return credentials;
-  } catch {
-    return null;
-  }
+  return null;
 }
 
 export default function authentication() {
