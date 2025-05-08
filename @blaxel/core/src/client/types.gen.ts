@@ -1293,6 +1293,10 @@ export type PreviewSpec = {
      */
     port?: number;
     /**
+     * Prefix URL
+     */
+    prefixUrl?: string;
+    /**
      * Whether the preview is public
      */
     public?: boolean;
@@ -1348,10 +1352,6 @@ export type PreviewTokenSpec = {
      * Expiration time of the token
      */
     expiresAt?: string;
-    /**
-     * Whether the token is public
-     */
-    public?: boolean;
     /**
      * Token
      */

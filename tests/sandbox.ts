@@ -1,4 +1,4 @@
-import { Directory, SandboxInstance } from "@blaxel/core";
+import { Directory, SandboxInstance, settings } from "@blaxel/core";
 
 const sandboxName = "sandbox-test-3"
 
@@ -71,6 +71,7 @@ async function testPreviewPublic(sandbox: SandboxInstance) {
       },
       spec: {
         port: 443,
+        prefixUrl: "small-prefix",
         public: true
       }
     })
@@ -86,9 +87,12 @@ async function testPreviewPublic(sandbox: SandboxInstance) {
     if (!url) {
       throw new Error("Preview URL is not correct");
     }
+    if (url !== `https://small-prefix-${settings.workspace}.preview.bl.run`) {
+      throw new Error(`Preview URL is not correct => ${url}`);
+    }
     const response = await fetch(`${url}/health`)
     if (response.status !== 200) {
-      throw new Error("Preview is not working");
+      throw new Error(`Preview is not working => ${response.status}:${await response.text()}`);
     }
     console.log("Preview is healthy :)")
   } catch (e) {
@@ -113,6 +117,8 @@ async function testPreviewToken(sandbox: SandboxInstance) {
     if (!url) {
       throw new Error("Preview URL is not correct");
     }
+    const retrievedPreview = await sandbox.previews.get("preview-test-private")
+    console.log(`Retrieved preview => url = ${retrievedPreview.spec?.url}`)
     const token = await preview.tokens.create(new Date(Date.now() + 1000 * 60 * 10)) // 10 minutes expiration
     console.log("Token created => ", token.value)
     const tokens = await preview.tokens.list()

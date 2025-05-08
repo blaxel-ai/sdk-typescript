@@ -1,5 +1,6 @@
 import { env, logger } from "@blaxel/core";
 import { blModel, blTools } from "@blaxel/langgraph";
+import "@blaxel/telemetry";
 import { HumanMessage } from "@langchain/core/messages";
 import { tool } from "@langchain/core/tools";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
