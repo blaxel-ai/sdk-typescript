@@ -56,7 +56,9 @@ export class SandboxAction {
 
   get url(): string {
     if (this.forcedUrl) return this.forcedUrl;
-    if (settings.runInternalHostname) return this.internalUrl;
+    // Uncomment and use this when agent and mcp are available in mk3
+    // Update all requests made in this package to use fallbackUrl when internalUrl is not working
+    // if (settings.runInternalHostname) return this.internalUrl;
     return this.externalUrl;
   }
 
