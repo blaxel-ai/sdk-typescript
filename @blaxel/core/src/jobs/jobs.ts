@@ -2,25 +2,25 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { env } from '../common/env.js';
 
-type BatchArgs = {
+type ExecutionArgs = {
   [key: number]: any;
 }[];
 
 class BlJob {
   async getArguments() {
-    if(!env.BL_BATCH_DATA_URL) {
+    if(!env.BL_EXECUTION_DATA_URL) {
       const argv = await yargs(hideBin(process.argv))
         .parseAsync();
       return argv;
     }
 
-    const response = await fetch(env.BL_BATCH_DATA_URL);
-    const data = await response.json() as {tasks: BatchArgs};
+    const response = await fetch(env.BL_EXECUTION_DATA_URL);
+    const data = await response.json() as {tasks: ExecutionArgs};
     return data.tasks[this.index] ?? {};
   }
 
   get indexKey(): string {
-    return env.BL_BATCH_INDEX_KEY ?? "TASK_INDEX";
+    return env.BL_EXECUTION_INDEX_KEY ?? "TASK_INDEX";
   }
 
   get index(): number {
