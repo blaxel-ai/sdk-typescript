@@ -172,7 +172,6 @@ async function testProcessLogs(sandbox: SandboxInstance) {
     },
   );
   const stream = sandbox.process.streamLogs(name, {
-    ws: true,
     onLog: (log) => {
       logCalled = true;
       console.log("onLog", log);
@@ -244,7 +243,6 @@ async function testWatch(sandbox: SandboxInstance) {
         }
       },
       {
-        ws: true,
         onError: (error) => {
           console.error(error);
         },
@@ -342,7 +340,7 @@ async function main() {
     console.error("There was an error => ", e);
   } finally {
     console.log("Deleting sandbox");
-    // await SandboxInstance.delete(sandboxName)
+    await SandboxInstance.delete(sandboxName)
   }
 }
 
