@@ -1,7 +1,8 @@
+import { WebSocket } from "http";
 import { Sandbox } from "../client/types.gen.js";
+import { settings } from "../common/settings.js";
 import { SandboxAction } from "./action.js";
 import { deleteFilesystemByPath, Directory, getFilesystemByPath, putFilesystemByPath, SuccessResponse } from "./client/index.js";
-import { getWatchFilesystemByPath } from "./client/sdk.gen.js";
 
 export type CopyResponse = {
   message: string;
@@ -147,61 +148,117 @@ export class SandboxFileSystem extends SandboxAction {
   ) {
     path = this.formatPath(path);
     let closed = false;
-    let controller: AbortController | null = new AbortController();
+    let ws: WebSocket | null = null;
+    // Build ws:// or wss:// URL from baseUrl
+    let baseUrl = this.url.replace(/^http/, 'ws');
+    if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+    const wsUrl = `${baseUrl}/ws/watch/filesystem${path.startsWith('/') ? path : '/' + path}?token=${settings.token}`;
 
-    const start = async () => {
-      const { response, data, error } = await getWatchFilesystemByPath({
-        path: { path },
-        baseUrl: this.url,
-        parseAs: 'stream',
-        signal: controller!.signal,
-      });
-      if (error) throw error;
-      const stream: ReadableStream | null = (data as any) ?? response.body;
-      if (!stream) throw new Error('No stream returned');
-      const reader = (stream as ReadableStream<Uint8Array>).getReader();
-      let buffer = '';
-      const decoder = new TextDecoder();
+    // Use isomorphic WebSocket: browser or Node.js
+    let WS: typeof WebSocket | any = undefined;
+    if (typeof globalThis.WebSocket !== 'undefined') {
+      WS = globalThis.WebSocket;
+    } else {
       try {
-        while (!closed) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          let lines = buffer.split('\n');
-          buffer = lines.pop()!;
-          for (const line of lines) {
-            const filePath = line.trim();
-            if (!filePath) continue;
-            if (options?.withContent) {
-              try {
-                const content = await this.read(filePath);
-                await callback(filePath, content);
-              } catch (e) {
-                await callback(filePath, undefined);
-              }
-            } else {
-              await callback(filePath);
-            }
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        WS = require('ws');
+      } catch {
+        WS = undefined;
+      }
+    }
+    if (!WS) throw new Error('WebSocket is not available in this environment');
+    try {
+      // In Node.js, WS is the 'ws' module, which is a function, not a class
+      ws = typeof WS === 'function' ? new WS(wsUrl) : new (WS as any)(wsUrl);
+    } catch (err) {
+      if (options?.onError) options.onError(err as Error);
+      throw err;
+    }
+
+    let pingInterval: NodeJS.Timeout | number | null = null;
+    let pongTimeout: NodeJS.Timeout | number | null = null;
+    const PING_INTERVAL_MS = 30000;
+    const PONG_TIMEOUT_MS = 10000;
+
+    function sendPing() {
+      if (ws && ws.readyState === ws.OPEN) {
+        try {
+          ws.send(JSON.stringify({ type: 'ping' }));
+        } catch {}
+        // Set pong timeout
+        if (pongTimeout) clearTimeout(pongTimeout as any);
+        pongTimeout = setTimeout(() => {
+          // No pong received in time, close connection
+          if (ws && typeof ws.close === 'function') ws.close();
+        }, PONG_TIMEOUT_MS);
+      }
+    }
+
+    if (ws) {
+      ws.onmessage = async (event: MessageEvent | { data: string }) => {
+        if (closed) return;
+        let data: any;
+        try {
+          data = typeof event.data === 'string' ? event.data : (event as any).data;
+          if (!data) return;
+          // Accept both JSON and plain string (file path)
+          let payload: any;
+          try {
+            payload = JSON.parse(data);
+          } catch {
+            payload = { name: data, event: undefined };
           }
+          // Handle ping/pong
+          if (payload.type === 'ping') {
+            // Respond to ping with pong
+            if (ws && ws.readyState === ws.OPEN) {
+              try { ws.send(JSON.stringify({ type: 'pong' })); } catch {}
+            }
+            return;
+          }
+          if (payload.type === 'pong') {
+            // Pong received, clear pong timeout
+            if (pongTimeout) clearTimeout(pongTimeout as any);
+            pongTimeout = null;
+            return;
+          }
+          const filePath = payload.name || payload.path || data;
+          if (!filePath) return;
+          if (options?.withContent) {
+            try {
+              const content = await this.read(filePath);
+              await callback(filePath, content);
+            } catch (e) {
+              await callback(filePath, undefined);
+            }
+          } else {
+            await callback(filePath);
+          }
+        } catch (err) {
+          if (options?.onError) options.onError(err as Error);
         }
-      } finally {
-        reader.releaseLock();
-      }
-    };
-    start().catch((err) => {
-      // Suppress AbortError when closing
-      if (!(err && err.name === 'AbortError')) {
-        if (options?.onError) {
-          options.onError(err);
-        }
-      }
-      closed = true;
-      controller?.abort();
-    });
+      };
+      ws.onerror = (err: any) => {
+        if (options?.onError) options.onError(err instanceof Error ? err : new Error(String(err)));
+        closed = true;
+        if (ws && typeof ws.close === 'function') ws.close();
+      };
+      ws.onclose = () => {
+        closed = true;
+        ws = null;
+        if (pingInterval) clearInterval(pingInterval as any);
+        if (pongTimeout) clearTimeout(pongTimeout as any);
+      };
+      // Start ping interval
+      pingInterval = setInterval(sendPing, PING_INTERVAL_MS);
+    }
     return {
       close: () => {
         closed = true;
-        controller?.abort();
+        if (ws && typeof ws.close === 'function') ws.close();
+        ws = null;
+        if (pingInterval) clearInterval(pingInterval as any);
+        if (pongTimeout) clearTimeout(pongTimeout as any);
       },
     };
   }

@@ -327,20 +327,20 @@ async function localSandbox() {
 async function main() {
   try {
     // Test with controlplane
-    // const sandbox = await testSandbox()
+    const sandbox = await testSandbox()
     // const sandbox = await SandboxInstance.get(sandboxName)
-    const sandbox = await localSandbox()
+    // const sandbox = await localSandbox()
 
-    // await testFilesystem(sandbox);
-    // await testProcess(sandbox);
-    // await testPreviews(sandbox);
-    // await testWatch(sandbox);
+    await testFilesystem(sandbox);
+    await testProcess(sandbox);
+    await testPreviews(sandbox);
+    await testWatch(sandbox);
     await testProcessLogs(sandbox);
   } catch (e) {
     console.error("There was an error => ", e);
   } finally {
     console.log("Deleting sandbox");
-    // await SandboxInstance.delete(sandboxName)
+    await SandboxInstance.delete(sandboxName)
   }
 }
 

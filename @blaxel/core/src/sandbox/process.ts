@@ -17,50 +17,116 @@ export class SandboxProcess extends SandboxAction {
       onStderr?: (stderr: string) => void,
     }
   ): { close: () => void } {
-    const controller = new AbortController();
-    (async () => {
+    let closed = false;
+    let ws: WebSocket | null = null;
+    // Build ws:// or wss:// URL from baseUrl
+    let baseUrl = this.url.replace(/^http/, 'ws');
+    if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+    const wsUrl = `${baseUrl}/ws/process/${identifier}/logs/stream?token=${settings.token}`;
+
+    // Use isomorphic WebSocket: browser or Node.js
+    let WS: typeof WebSocket | any = undefined;
+    if (typeof globalThis.WebSocket !== 'undefined') {
+      WS = globalThis.WebSocket;
+    } else {
       try {
-        const stream = await fetch(`${this.url}/process/${identifier}/logs/stream`, {
-          method: 'GET',
-          signal: controller.signal,
-          headers: settings.headers,
-        });
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        WS = require('ws');
+      } catch {
+        WS = undefined;
+      }
+    }
+    if (!WS) throw new Error('WebSocket is not available in this environment');
+    try {
+      ws = typeof WS === 'function' ? new WS(wsUrl) : new (WS as any)(wsUrl);
+    } catch (err) {
+      console.error('WebSocket connection error:', err);
+      throw err;
+    }
 
-        if (stream.status !== 200) {
-          throw new Error(`Failed to stream logs: ${await stream.text()}`);
-        }
-        if (!stream.body) throw new Error('No stream body');
+    let pingInterval: NodeJS.Timeout | number | null = null;
+    let pongTimeout: NodeJS.Timeout | number | null = null;
+    const PING_INTERVAL_MS = 30000;
+    const PONG_TIMEOUT_MS = 10000;
 
-        const reader = stream.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          let lines = buffer.split(/\r?\n/);
-          buffer = lines.pop()!;
-          for (const line of lines) {
-            if (line.startsWith('stdout:')) {
-              options.onStdout?.(line.slice(7));
-              options.onLog?.(line.slice(7));
-            } else if (line.startsWith('stderr:')) {
-              options.onStderr?.(line.slice(7));
-              options.onLog?.(line.slice(7));
+    function sendPing() {
+      if (ws && ws.readyState === ws.OPEN) {
+        try {
+          ws.send(JSON.stringify({ type: 'ping' }));
+        } catch {}
+        // Set pong timeout
+        if (pongTimeout) clearTimeout(pongTimeout as any);
+        pongTimeout = setTimeout(() => {
+          // No pong received in time, close connection
+          if (ws && typeof ws.close === 'function') ws.close();
+        }, PONG_TIMEOUT_MS);
+      }
+    }
+
+    if (ws) {
+      ws.onmessage = (event: MessageEvent | { data: string }) => {
+        if (closed) return;
+        let data: any;
+        try {
+          data = typeof event.data === 'string' ? event.data : (event as any).data;
+          if (!data) return;
+          let payload: any;
+          try {
+            payload = JSON.parse(data);
+          } catch {
+            payload = { log: data };
+          }
+          // Handle ping/pong
+          if (payload.type === 'ping') {
+            // Respond to ping with pong
+            if (ws && ws.readyState === ws.OPEN) {
+              try { ws.send(JSON.stringify({ type: 'pong' })); } catch {}
+            }
+            return;
+          }
+          if (payload.type === 'pong') {
+            // Pong received, clear pong timeout
+            if (pongTimeout) clearTimeout(pongTimeout as any);
+            pongTimeout = null;
+            return;
+          }
+          const logLine = payload.log || data;
+          if (typeof logLine === 'string') {
+            if (logLine.startsWith('stdout:')) {
+              options.onStdout?.(logLine.slice(7));
+              options.onLog?.(logLine.slice(7));
+            } else if (logLine.startsWith('stderr:')) {
+              options.onStderr?.(logLine.slice(7));
+              options.onLog?.(logLine.slice(7));
             } else {
-              options.onLog?.(line);
+              options.onLog?.(logLine);
             }
           }
+        } catch (err) {
+          console.error('WebSocket log stream error:', err);
         }
-      } catch (err: any) {
-        if (err && err.name !== 'AbortError') {
-          console.error("Stream error:", err);
-          throw err;
-        }
-      }
-    })();
+      };
+      ws.onerror = (err: any) => {
+        closed = true;
+        if (ws && typeof ws.close === 'function') ws.close();
+      };
+      ws.onclose = () => {
+        closed = true;
+        ws = null;
+        if (pingInterval) clearInterval(pingInterval as any);
+        if (pongTimeout) clearTimeout(pongTimeout as any);
+      };
+      // Start ping interval
+      pingInterval = setInterval(sendPing, PING_INTERVAL_MS);
+    }
     return {
-      close: () => controller.abort(),
+      close: () => {
+        closed = true;
+        if (ws && typeof ws.close === 'function') ws.close();
+        ws = null;
+        if (pingInterval) clearInterval(pingInterval as any);
+        if (pongTimeout) clearTimeout(pongTimeout as any);
+      },
     };
   }
 
