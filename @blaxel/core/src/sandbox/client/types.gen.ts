@@ -50,7 +50,6 @@ export type ProcessKillRequest = {
 export type ProcessRequest = {
     command: string;
     name?: string;
-    streamLogs?: boolean;
     timeout?: number;
     waitForCompletion?: boolean;
     waitForPorts?: Array<number>;
@@ -460,12 +459,7 @@ export type GetProcessByIdentifierLogsData = {
          */
         identifier: string;
     };
-    query?: {
-        /**
-         * Stream logs
-         */
-        stream?: boolean;
-    };
+    query?: never;
     url: '/process/{identifier}/logs';
 };
 
@@ -501,12 +495,7 @@ export type GetProcessByIdentifierLogsStreamData = {
          */
         identifier: string;
     };
-    query?: {
-        /**
-         * Stream logs
-         */
-        stream?: boolean;
-    };
+    query?: never;
     url: '/process/{identifier}/logs/stream';
 };
 
@@ -525,14 +514,46 @@ export type GetProcessByIdentifierLogsStreamError = GetProcessByIdentifierLogsSt
 
 export type GetProcessByIdentifierLogsStreamResponses = {
     /**
-     * Process logs
+     * Stream of process logs, one line per log (prefixed with stdout:/stderr:)
      */
-    200: {
-        [key: string]: string;
-    };
+    200: string;
 };
 
 export type GetProcessByIdentifierLogsStreamResponse = GetProcessByIdentifierLogsStreamResponses[keyof GetProcessByIdentifierLogsStreamResponses];
+
+export type GetWatchFilesystemByPathData = {
+    body?: never;
+    path: {
+        /**
+         * Directory path to watch
+         */
+        path: string;
+    };
+    query?: never;
+    url: '/watch/filesystem/{path}';
+};
+
+export type GetWatchFilesystemByPathErrors = {
+    /**
+     * Invalid path
+     */
+    400: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type GetWatchFilesystemByPathError = GetWatchFilesystemByPathErrors[keyof GetWatchFilesystemByPathErrors];
+
+export type GetWatchFilesystemByPathResponses = {
+    /**
+     * Stream of modified file paths, one per line
+     */
+    200: string;
+};
+
+export type GetWatchFilesystemByPathResponse = GetWatchFilesystemByPathResponses[keyof GetWatchFilesystemByPathResponses];
 
 export type ClientOptions = {
     baseUrl: `${string}://localhost:8080` | (string & {});
