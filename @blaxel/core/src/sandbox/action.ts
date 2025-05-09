@@ -65,4 +65,33 @@ export class SandboxAction {
       throw new ResponseError(response, data, error);
     }
   }
+
+  websocket(path: string) {
+    let ws: WebSocket | null = null;
+    // Build ws:// or wss:// URL from baseUrl
+    let baseUrl = this.url.replace(/^http/, 'ws');
+    if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+    const wsUrl = `${baseUrl}/ws/${path}?token=${settings.token}`;
+
+    // Use isomorphic WebSocket: browser or Node.js
+    let WS: typeof WebSocket | any = undefined;
+    if (typeof globalThis.WebSocket !== 'undefined') {
+      WS = globalThis.WebSocket;
+    } else {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        WS = require('ws');
+      } catch {
+        WS = undefined;
+      }
+    }
+    if (!WS) throw new Error('WebSocket is not available in this environment');
+    try {
+      ws = typeof WS === 'function' ? new WS(wsUrl) : new (WS as any)(wsUrl);
+    } catch (err) {
+      console.error('WebSocket connection error:', err);
+      throw err;
+    }
+    return ws;
+  }
 }
