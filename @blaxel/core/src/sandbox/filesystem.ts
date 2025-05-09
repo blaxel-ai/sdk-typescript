@@ -1,4 +1,6 @@
+import { WebSocket } from "http";
 import { Sandbox } from "../client/types.gen.js";
+import { settings } from "../common/settings.js";
 import { SandboxAction } from "./action.js";
 import { deleteFilesystemByPath, Directory, getFilesystemByPath, putFilesystemByPath, SuccessResponse } from "./client/index.js";
 
@@ -127,6 +129,138 @@ export class SandboxFileSystem extends SandboxAction {
       }
     }
     throw new Error("Unsupported file type");
+  }
+
+  /**
+   * Watch for changes in a directory. Calls the callback with the changed file path (and optionally its content).
+   * Returns a handle with a close() method to stop watching.
+   * @param path Directory to watch
+   * @param callback Function called on each change: (filePath, content?)
+   * @param withContent If true, also fetches and passes the file content (default: false)
+   */
+  watch(
+    path: string,
+    callback: (filePath: string, content?: string) => void | Promise<void>,
+    options?: {
+      onError?: (error: Error) => void,
+      withContent: boolean
+    }
+  ) {
+    path = this.formatPath(path);
+    let closed = false;
+    let ws: WebSocket | null = null;
+    // Build ws:// or wss:// URL from baseUrl
+    let baseUrl = this.url.replace(/^http/, 'ws');
+    if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+    const wsUrl = `${baseUrl}/ws/watch/filesystem${path.startsWith('/') ? path : '/' + path}?token=${settings.token}`;
+
+    // Use isomorphic WebSocket: browser or Node.js
+    let WS: typeof WebSocket | any = undefined;
+    if (typeof globalThis.WebSocket !== 'undefined') {
+      WS = globalThis.WebSocket;
+    } else {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        WS = require('ws');
+      } catch {
+        WS = undefined;
+      }
+    }
+    if (!WS) throw new Error('WebSocket is not available in this environment');
+    try {
+      // In Node.js, WS is the 'ws' module, which is a function, not a class
+      ws = typeof WS === 'function' ? new WS(wsUrl) : new (WS as any)(wsUrl);
+    } catch (err) {
+      if (options?.onError) options.onError(err as Error);
+      throw err;
+    }
+
+    let pingInterval: NodeJS.Timeout | number | null = null;
+    let pongTimeout: NodeJS.Timeout | number | null = null;
+    const PING_INTERVAL_MS = 30000;
+    const PONG_TIMEOUT_MS = 10000;
+
+    function sendPing() {
+      if (ws && ws.readyState === ws.OPEN) {
+        try {
+          ws.send(JSON.stringify({ type: 'ping' }));
+        } catch {}
+        // Set pong timeout
+        if (pongTimeout) clearTimeout(pongTimeout as any);
+        pongTimeout = setTimeout(() => {
+          // No pong received in time, close connection
+          if (ws && typeof ws.close === 'function') ws.close();
+        }, PONG_TIMEOUT_MS);
+      }
+    }
+
+    if (ws) {
+      ws.onmessage = async (event: MessageEvent | { data: string }) => {
+        if (closed) return;
+        let data: any;
+        try {
+          data = typeof event.data === 'string' ? event.data : (event as any).data;
+          if (!data) return;
+          // Accept both JSON and plain string (file path)
+          let payload: any;
+          try {
+            payload = JSON.parse(data);
+          } catch {
+            payload = { name: data, event: undefined };
+          }
+          // Handle ping/pong
+          if (payload.type === 'ping') {
+            // Respond to ping with pong
+            if (ws && ws.readyState === ws.OPEN) {
+              try { ws.send(JSON.stringify({ type: 'pong' })); } catch {}
+            }
+            return;
+          }
+          if (payload.type === 'pong') {
+            // Pong received, clear pong timeout
+            if (pongTimeout) clearTimeout(pongTimeout as any);
+            pongTimeout = null;
+            return;
+          }
+          const filePath = payload.name || payload.path || data;
+          if (!filePath) return;
+          if (options?.withContent) {
+            try {
+              const content = await this.read(filePath);
+              await callback(filePath, content);
+            } catch (e) {
+              await callback(filePath, undefined);
+            }
+          } else {
+            await callback(filePath);
+          }
+        } catch (err) {
+          if (options?.onError) options.onError(err as Error);
+        }
+      };
+      ws.onerror = (err: any) => {
+        if (options?.onError) options.onError(err instanceof Error ? err : new Error(String(err)));
+        closed = true;
+        if (ws && typeof ws.close === 'function') ws.close();
+      };
+      ws.onclose = () => {
+        closed = true;
+        ws = null;
+        if (pingInterval) clearInterval(pingInterval as any);
+        if (pongTimeout) clearTimeout(pongTimeout as any);
+      };
+      // Start ping interval
+      pingInterval = setInterval(sendPing, PING_INTERVAL_MS);
+    }
+    return {
+      close: () => {
+        closed = true;
+        if (ws && typeof ws.close === 'function') ws.close();
+        ws = null;
+        if (pingInterval) clearInterval(pingInterval as any);
+        if (pongTimeout) clearTimeout(pongTimeout as any);
+      },
+    };
   }
 
   private formatPath(path: string): string {

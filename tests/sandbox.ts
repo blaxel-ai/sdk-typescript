@@ -39,8 +39,8 @@ async function testFilesystem(sandbox: SandboxInstance) {
   await sandbox.fs.rm(`/Users/${user}/Downloads/test2`, true);
 }
 
-async function testProcess(uvm: SandboxInstance) {
-  const process = await uvm.process.exec({
+async function testProcess(sandbox: SandboxInstance) {
+  const process = await sandbox.process.exec({
     name: "test",
     command: "echo 'Hello world'",
   });
@@ -48,16 +48,16 @@ async function testProcess(uvm: SandboxInstance) {
     throw new Error("Process did complete without waiting");
   }
   await new Promise((resolve) => setTimeout(resolve, 10));
-  const completedProcess = await uvm.process.get("test");
+  const completedProcess = await sandbox.process.get("test");
   if (completedProcess.status !== "completed") {
     throw new Error("Process did not complete");
   }
-  const logs = await uvm.process.logs("test");
+  const logs = await sandbox.process.logs("test");
   if (logs != 'Hello world\n') {
     throw new Error("Logs are not correct");
   }
   try {
-    await uvm.process.kill("test");
+    await sandbox.process.kill("test");
   } catch (e) {
     console.log("That is expected => ", e.error);
   }
@@ -152,6 +152,129 @@ async function testPreviews(sandbox: SandboxInstance) {
   await testPreviewToken(sandbox)
 }
 
+// Test process.exec with onLog, onStdout, and onStderr handlers
+async function testProcessLogs(sandbox: SandboxInstance) {
+  let logCalled = false;
+  let stdoutCalled = false;
+  let stderrCalled = false;
+  let logOutput = '';
+  let stdoutOutput = '';
+  let stderrOutput = '';
+
+  // This command will output to both stdout and stderr 5 times with a 5 second sleep between each
+  const command = `sh -c 'for i in $(seq 1 5); do echo "Hello from stdout $i"; echo "Hello from stderr $i" 1>&2; sleep 1; done'`;
+
+  const name = "test-2"
+  await sandbox.process.exec(
+    {
+      command,
+      name,
+    },
+  );
+  const stream = sandbox.process.streamLogs(name, {
+    onLog: (log) => {
+      logCalled = true;
+      console.log("onLog", log);
+
+      logOutput += log + '\n';
+    },
+    onStdout: (stdout) => {
+      stdoutCalled = true;
+      console.log("onStdout", stdout);
+      stdoutOutput += stdout + '\n';
+    },
+    onStderr: (stderr) => {
+      stderrCalled = true;
+      console.log("onStderr", stderr);
+      stderrOutput += stderr + '\n';
+    },
+  })
+
+  await sandbox.process.wait(name)
+
+  stream.close();
+
+  // Check that all handlers were called and received the expected output
+  if (!logCalled) throw new Error("onLog was not called");
+  if (!stdoutCalled) throw new Error("onStdout was not called");
+  if (!stderrCalled) throw new Error("onStderr was not called");
+  if (!logOutput.includes("Hello from stdout") || !logOutput.includes("Hello from stderr")) {
+    throw new Error(`onLog did not receive expected output: ${logOutput}`);
+  }
+  if (!stdoutOutput.includes("Hello from stdout")) {
+    throw new Error(`onStdout did not receive expected output: ${stdoutOutput}`);
+  }
+  if (!stderrOutput.includes("Hello from stderr")) {
+    throw new Error(`onStderr did not receive expected output: ${stderrOutput}`);
+  }
+  console.log("testProcessLogs passed");
+}
+
+// Test the watch functionality of SandboxFileSystem
+async function testWatch(sandbox: SandboxInstance) {
+  try {
+    const user = process.env.USER;
+    const testDir = `/Users/${user}/Downloads/watchtest`;
+    const testFile = `${testDir}/file.txt`;
+
+    // Ensure correct type for fs
+    const fs = sandbox.fs;
+
+    // Clean up before test
+    try { await fs.rm(testDir, true); } catch {}
+    await fs.mkdir(testDir);
+
+    let callbackCalled = false;
+    let callbackWithContentCalled = false;
+
+    // Watch without content
+    const handle = fs.watch(testDir, (filePath) => {
+      if (filePath.endsWith("file.txt")) {
+        callbackCalled = true;
+      }
+    });
+
+    // Watch with content
+    const handleWithContent = fs.watch(
+      testDir,
+      (filePath, content) => {
+        if (filePath.endsWith("file.txt") && content === "new content") {
+          callbackWithContentCalled = true;
+        }
+      },
+      {
+        onError: (error) => {
+          console.error(error);
+        },
+        withContent: true
+      }
+    );
+
+    // Trigger a file change
+    await fs.write(testFile, "new content");
+
+    // Wait for callbacks to be called
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    handle.close();
+    handleWithContent.close();
+
+    // Clean up after test
+    await fs.rm(testDir, true);
+
+    if (!callbackCalled) {
+      throw new Error("Watch callback (without content) was not called");
+    }
+    if (!callbackWithContentCalled) {
+      throw new Error("Watch callback (with content) was not called or content was incorrect");
+    }
+    console.log("testWatch passed");
+  } catch (e) {
+    console.error("There was an error => ", e);
+  }
+}
+
+
 async function createSandbox() {
   console.log("Creating sandbox");
   const sandbox = await SandboxInstance.create({
@@ -191,15 +314,28 @@ async function testSandbox() {
   return sandbox
 }
 
+async function localSandbox() {
+  process.env[`BL_SANDBOX_${sandboxName.replace(/-/g, "_").toUpperCase()}_URL`] = "http://localhost:8080"
+  const sandbox = new SandboxInstance({
+    metadata: {
+      name: sandboxName
+    },
+  })
+  return sandbox
+}
+
 async function main() {
   try {
     // Test with controlplane
     const sandbox = await testSandbox()
     // const sandbox = await SandboxInstance.get(sandboxName)
+    // const sandbox = await localSandbox()
 
     await testFilesystem(sandbox);
     await testProcess(sandbox);
     await testPreviews(sandbox);
+    await testWatch(sandbox);
+    await testProcessLogs(sandbox);
   } catch (e) {
     console.error("There was an error => ", e);
   } finally {
