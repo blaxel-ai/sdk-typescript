@@ -1,6 +1,7 @@
 import { Sandbox } from "../client/types.gen.js";
 import { SandboxAction } from "./action.js";
 import { deleteFilesystemByPath, Directory, getFilesystemByPath, putFilesystemByPath, SuccessResponse } from "./client/index.js";
+import { getWatchFilesystemByPath } from "./client/sdk.gen.js";
 
 export type CopyResponse = {
   message: string;
@@ -127,6 +128,82 @@ export class SandboxFileSystem extends SandboxAction {
       }
     }
     throw new Error("Unsupported file type");
+  }
+
+  /**
+   * Watch for changes in a directory. Calls the callback with the changed file path (and optionally its content).
+   * Returns a handle with a close() method to stop watching.
+   * @param path Directory to watch
+   * @param callback Function called on each change: (filePath, content?)
+   * @param withContent If true, also fetches and passes the file content (default: false)
+   */
+  watch(
+    path: string,
+    callback: (filePath: string, content?: string) => void | Promise<void>,
+    options?: {
+      onError?: (error: Error) => void,
+      withContent: boolean
+    }
+  ) {
+    path = this.formatPath(path);
+    let closed = false;
+    let controller: AbortController | null = new AbortController();
+
+    const start = async () => {
+      const { response, data, error } = await getWatchFilesystemByPath({
+        path: { path },
+        baseUrl: this.url,
+        parseAs: 'stream',
+        signal: controller!.signal,
+      });
+      if (error) throw error;
+      const stream: ReadableStream | null = (data as any) ?? response.body;
+      if (!stream) throw new Error('No stream returned');
+      const reader = (stream as ReadableStream<Uint8Array>).getReader();
+      let buffer = '';
+      const decoder = new TextDecoder();
+      try {
+        while (!closed) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let lines = buffer.split('\n');
+          buffer = lines.pop()!;
+          for (const line of lines) {
+            const filePath = line.trim();
+            if (!filePath) continue;
+            if (options?.withContent) {
+              try {
+                const content = await this.read(filePath);
+                await callback(filePath, content);
+              } catch (e) {
+                await callback(filePath, undefined);
+              }
+            } else {
+              await callback(filePath);
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    };
+    start().catch((err) => {
+      // Suppress AbortError when closing
+      if (!(err && err.name === 'AbortError')) {
+        if (options?.onError) {
+          options.onError(err);
+        }
+      }
+      closed = true;
+      controller?.abort();
+    });
+    return {
+      close: () => {
+        closed = true;
+        controller?.abort();
+      },
+    };
   }
 
   private formatPath(path: string): string {

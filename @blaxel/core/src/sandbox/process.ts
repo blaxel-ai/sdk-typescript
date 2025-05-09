@@ -1,10 +1,67 @@
 import { Sandbox } from "../client/types.gen.js";
+import { logger } from "../common/logger.js";
+import { settings } from "../common/settings.js";
 import { SandboxAction } from "./action.js";
 import { DeleteProcessByIdentifierKillResponse, DeleteProcessByIdentifierResponse, GetProcessByIdentifierResponse, GetProcessResponse, PostProcessResponse, ProcessRequest, deleteProcessByIdentifier, deleteProcessByIdentifierKill, getProcess, getProcessByIdentifier, getProcessByIdentifierLogs, postProcess } from "./client/index.js";
 
 export class SandboxProcess extends SandboxAction {
   constructor(sandbox: Sandbox) {
     super(sandbox);
+  }
+
+  public streamLogs(
+    identifier: string,
+    options: {
+      onLog?: (log: string) => void,
+      onStdout?: (stdout: string) => void,
+      onStderr?: (stderr: string) => void,
+    }
+  ): { close: () => void } {
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const stream = await fetch(`${this.url}/process/${identifier}/logs/stream`, {
+          method: 'GET',
+          signal: controller.signal,
+          headers: settings.headers,
+        });
+
+        if (stream.status !== 200) {
+          throw new Error(`Failed to stream logs: ${await stream.text()}`);
+        }
+        if (!stream.body) throw new Error('No stream body');
+
+        const reader = stream.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let lines = buffer.split(/\r?\n/);
+          buffer = lines.pop()!;
+          for (const line of lines) {
+            if (line.startsWith('stdout:')) {
+              options.onStdout?.(line.slice(7));
+              options.onLog?.(line.slice(7));
+            } else if (line.startsWith('stderr:')) {
+              options.onStderr?.(line.slice(7));
+              options.onLog?.(line.slice(7));
+            } else {
+              options.onLog?.(line);
+            }
+          }
+        }
+      } catch (err: any) {
+        if (err && err.name !== 'AbortError') {
+          console.error("Stream error:", err);
+          throw err;
+        }
+      }
+    })();
+    return {
+      close: () => controller.abort(),
+    };
   }
 
   async exec(process: ProcessRequest): Promise<PostProcessResponse> {
@@ -14,6 +71,25 @@ export class SandboxProcess extends SandboxAction {
     });
     this.handleResponseError(response, data, error);
     return data as PostProcessResponse;
+  }
+
+  async wait(identifier: string, {maxWait = 60000, interval = 1000}: {maxWait?: number, interval?: number} = {}): Promise<GetProcessByIdentifierResponse> {
+    const startTime = Date.now();
+    let status = "running";
+    let data = await this.get(identifier);
+    while (status === "running") {
+      await new Promise((resolve) => setTimeout(resolve, interval));
+      try {
+        data = await this.get(identifier);
+        status = data.status ?? "running";
+      } catch(e) {
+        logger.error("Could not retrieve process", e);
+      }
+      if (Date.now() - startTime > maxWait) {
+        throw new Error("Process did not finish in time");
+      }
+    }
+    return data;
   }
 
   async get(identifier: string): Promise<GetProcessByIdentifierResponse> {
