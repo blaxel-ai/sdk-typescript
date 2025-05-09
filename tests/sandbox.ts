@@ -39,8 +39,8 @@ async function testFilesystem(sandbox: SandboxInstance) {
   await sandbox.fs.rm(`/Users/${user}/Downloads/test2`, true);
 }
 
-async function testProcess(uvm: SandboxInstance) {
-  const process = await uvm.process.exec({
+async function testProcess(sandbox: SandboxInstance) {
+  const process = await sandbox.process.exec({
     name: "test",
     command: "echo 'Hello world'",
   });
@@ -48,16 +48,16 @@ async function testProcess(uvm: SandboxInstance) {
     throw new Error("Process did complete without waiting");
   }
   await new Promise((resolve) => setTimeout(resolve, 10));
-  const completedProcess = await uvm.process.get("test");
+  const completedProcess = await sandbox.process.get("test");
   if (completedProcess.status !== "completed") {
     throw new Error("Process did not complete");
   }
-  const logs = await uvm.process.logs("test");
+  const logs = await sandbox.process.logs("test");
   if (logs != 'Hello world\n') {
     throw new Error("Logs are not correct");
   }
   try {
-    await uvm.process.kill("test");
+    await sandbox.process.kill("test");
   } catch (e) {
     console.log("That is expected => ", e.error);
   }
