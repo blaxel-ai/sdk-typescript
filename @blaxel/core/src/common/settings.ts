@@ -86,11 +86,18 @@ class Settings {
   }
 
   get runInternalHostname() {
+    if(!this.generation) {
+      return ""
+    }
     return env.BL_RUN_INTERNAL_HOSTNAME || "";
   }
 
   get runInternalProtocol() {
     return env.BL_RUN_INTERNAL_PROTOCOL || "https";
+  }
+
+  get generation() {
+    return env.BL_GENERATION || "";
   }
 
   get loggerType() {

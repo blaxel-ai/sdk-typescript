@@ -1,11 +1,8 @@
 import crypto from "crypto";
 
-export function getAlphanumericLimitedHash(input: string, maxSize: number): string {
-  const hash = crypto.createHash("sha256").update(input).digest("base64");
-  const alphanumeric = hash.replace(/[^a-z0-9]+/g, "");
-  return alphanumeric.length > maxSize
-    ? alphanumeric.substring(0, maxSize)
-    : alphanumeric;
+export function getAlphanumericLimitedHash(input: string, maxSize: number = 48): string {
+  const hash = crypto.createHash('md5').update(input).digest('hex');
+  return hash.length > maxSize ? hash.substring(0, maxSize) : hash;
 }
 
 export function getGlobalUniqueHash(
