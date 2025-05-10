@@ -86,6 +86,9 @@ class Settings {
   }
 
   get runInternalHostname() {
+    if(!this.generation) {
+      return ""
+    }
     return env.BL_RUN_INTERNAL_HOSTNAME || "";
   }
 
@@ -95,6 +98,10 @@ class Settings {
 
   get blCloud() {
     return env.BL_CLOUD === "true";
+  }
+
+  get generation() {
+    return env.BL_GENERATION || "";
   }
 
   get loggerType() {
