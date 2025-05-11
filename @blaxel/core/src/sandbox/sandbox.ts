@@ -4,17 +4,22 @@ import { SandboxFileSystem } from "./filesystem.js";
 import { SandboxNetwork } from "./network.js";
 import { SandboxPreviews } from "./preview.js";
 import { SandboxProcess } from "./process.js";
+import { SandboxSessions } from "./session.js";
+import { SandboxConfiguration, SessionWithToken } from "./types.js";
 
 export class SandboxInstance {
   fs: SandboxFileSystem;
   network: SandboxNetwork;
   process: SandboxProcess;
   previews: SandboxPreviews;
-  constructor(private sandbox: SandboxModel) {
+  sessions: SandboxSessions;
+
+  constructor(private sandbox: SandboxConfiguration) {
     this.fs = new SandboxFileSystem(sandbox);
     this.network = new SandboxNetwork(sandbox);
     this.process = new SandboxProcess(sandbox);
     this.previews = new SandboxPreviews(sandbox);
+    this.sessions = new SandboxSessions(sandbox);
   }
 
   get metadata() {
@@ -94,5 +99,9 @@ export class SandboxInstance {
       throwOnError: true,
     });
     return data;
+  }
+
+  static async fromSession(session: SessionWithToken) {
+    return new SandboxInstance({ forceUrl: session.url, params: { bl_preview_token: session.token}, headers: { "X-Blaxel-Preview-Token": session.token } });
   }
 }

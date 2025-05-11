@@ -132,10 +132,11 @@ export class SandboxProcess extends SandboxAction {
     const controller = new AbortController();
     (async () => {
       try {
+        const headers = this.sandbox.forceUrl ? this.sandbox.headers : settings.headers;
         const stream = await fetch(`${this.url}/process/${identifier}/logs/stream`, {
           method: 'GET',
           signal: controller.signal,
-          headers: settings.headers,
+          headers,
         });
 
         if (stream.status !== 200) {
@@ -180,6 +181,7 @@ export class SandboxProcess extends SandboxAction {
     const { response, data, error } = await postProcess({
       body: process,
       baseUrl: this.url,
+      client: this.client,
     });
     this.handleResponseError(response, data, error);
     return data as PostProcessResponse;
@@ -208,6 +210,7 @@ export class SandboxProcess extends SandboxAction {
     const { response, data, error } = await getProcessByIdentifier({
       path: { identifier },
       baseUrl: this.url,
+      client: this.client,
     });
     this.handleResponseError(response, data, error);
     return data as GetProcessByIdentifierResponse;
@@ -216,6 +219,7 @@ export class SandboxProcess extends SandboxAction {
   async list(): Promise<GetProcessResponse> {
     const { response, data, error } = await getProcess({
       baseUrl: this.url,
+      client: this.client,
     });
     this.handleResponseError(response, data, error);
     return data as GetProcessResponse;
@@ -225,6 +229,7 @@ export class SandboxProcess extends SandboxAction {
     const { response, data, error } = await deleteProcessByIdentifier({
       path: { identifier },
       baseUrl: this.url,
+      client: this.client,
     });
     this.handleResponseError(response, data, error);
     return data as DeleteProcessByIdentifierResponse;
@@ -234,6 +239,7 @@ export class SandboxProcess extends SandboxAction {
     const { response, data, error } = await deleteProcessByIdentifierKill({
       path: { identifier },
       baseUrl: this.url,
+      client: this.client,
     });
     this.handleResponseError(response, data, error);
     return data as DeleteProcessByIdentifierKillResponse;
@@ -243,6 +249,7 @@ export class SandboxProcess extends SandboxAction {
     const { response, data, error } = await getProcessByIdentifierLogs({
       path: { identifier },
       baseUrl: this.url,
+      client: this.client,
     });
     this.handleResponseError(response, data, error);
     if (data && type in data) {
