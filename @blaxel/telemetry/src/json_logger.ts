@@ -60,11 +60,16 @@ function formatLogMessage(severity: string, message: unknown, args: unknown[]): 
     const labelsName = env.BL_LOGGER_LABELS || 'labels'
     const traceIdPrefix = env.BL_LOGGER_TRACE_ID_PREFIX || ''
     const spanIdPrefix = env.BL_LOGGER_SPAN_ID_PREFIX || ''
-    const taskId = env.BL_TASK_ID || ''
+
 
     logEntry[traceIdName] = `${traceIdPrefix}${traceId}`;
     logEntry[spanIdName] = `${spanIdPrefix}${spanId}`;
     logEntry[labelsName] = {}
+
+
+    const taskIndex = env.BL_EXECUTION_INDEX_KEY || 'TASK_INDEX'
+
+    const taskId = env[taskIndex] || null
     if (taskId) {
       logEntry[labelsName].task_id = taskId
     }
