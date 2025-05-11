@@ -57,11 +57,17 @@ function formatLogMessage(severity: string, message: unknown, args: unknown[]): 
 
     const traceIdName = env.BL_LOGGER_TRACE_ID || 'trace_id'
     const spanIdName = env.BL_LOGGER_SPAN_ID || 'span_id'
+    const labelsName = env.BL_LOGGER_LABELS || 'labels'
     const traceIdPrefix = env.BL_LOGGER_TRACE_ID_PREFIX || ''
     const spanIdPrefix = env.BL_LOGGER_SPAN_ID_PREFIX || ''
+    const taskId = env.BL_TASK_ID || ''
 
     logEntry[traceIdName] = `${traceIdPrefix}${traceId}`;
     logEntry[spanIdName] = `${spanIdPrefix}${spanId}`;
+    logEntry[labelsName] = {}
+    if (taskId) {
+      logEntry[labelsName].task_id = taskId
+    }
 
   }
 
