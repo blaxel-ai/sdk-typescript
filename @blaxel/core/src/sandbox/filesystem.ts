@@ -19,6 +19,7 @@ export class SandboxFileSystem extends SandboxAction {
       path: { path },
       body: { isDirectory: true, permissions },
       baseUrl: this.url,
+      client: this.client,
     });
     this.handleResponseError(response, data, error);
     return data as SuccessResponse;
@@ -31,6 +32,7 @@ export class SandboxFileSystem extends SandboxAction {
       path: { path },
       body: { content },
       baseUrl: this.url,
+      client: this.client,
     });
     this.handleResponseError(response, data, error);
     return data as SuccessResponse;
@@ -38,9 +40,11 @@ export class SandboxFileSystem extends SandboxAction {
 
   async read(path: string): Promise<string> {
     path = this.formatPath(path);
+
     const { response, data, error } = await getFilesystemByPath({
       path: { path },
       baseUrl: this.url,
+      client: this.client,
     });
     this.handleResponseError(response, data, error);
     if (data && 'content' in data) {
@@ -55,6 +59,7 @@ export class SandboxFileSystem extends SandboxAction {
       path: { path },
       query: { recursive },
       baseUrl: this.url,
+      client: this.client,
     });
     this.handleResponseError(response, data, error);
     return data as SuccessResponse;
@@ -65,6 +70,7 @@ export class SandboxFileSystem extends SandboxAction {
     const { response, data, error } = await getFilesystemByPath({
       path: { path },
       baseUrl: this.url,
+      client: this.client,
     });
     this.handleResponseError(response, data, error);
     if (!data || !('files' in data || 'subdirectories' in data)) {
@@ -79,6 +85,7 @@ export class SandboxFileSystem extends SandboxAction {
     const { response, data, error } = await getFilesystemByPath({
       path: { path: source },
       baseUrl: this.url,
+      client: this.client,
     });
     this.handleResponseError(response, data, error);
     if (data && ('files' in data || 'subdirectories' in data)) {
@@ -265,10 +272,12 @@ export class SandboxFileSystem extends SandboxAction {
 
     const start = async () => {
       const { response, data, error } = await getWatchFilesystemByPath({
+        client: this.client,
         path: { path },
         baseUrl: this.url,
         parseAs: 'stream',
         signal: controller!.signal,
+
       });
       if (error) throw error;
       const stream: ReadableStream | null = (data as any) ?? response.body;
