@@ -20,7 +20,7 @@ class BlJob {
   }
 
   get indexKey(): string {
-    return env.BL_EXECUTION_INDEX_KEY ?? "TASK_INDEX";
+    return env.BL_TASK_KEY ?? "TASK_INDEX";
   }
 
   get index(): number {

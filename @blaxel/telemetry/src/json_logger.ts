@@ -45,7 +45,8 @@ const spanIdName = env.BL_LOGGER_SPAN_ID || 'span_id'
 const labelsName = env.BL_LOGGER_LABELS || 'labels'
 const traceIdPrefix = env.BL_LOGGER_TRACE_ID_PREFIX || ''
 const spanIdPrefix = env.BL_LOGGER_SPAN_ID_PREFIX || ''
-const taskIndex = env.BL_EXECUTION_INDEX_KEY || 'TASK_INDEX'
+const taskIndex = env.BL_TASK_KEY || 'TASK_INDEX'
+const taskPrefix = env.BL_TASK_PREFIX || ''
 const executionKey = env.BL_EXECUTION_KEY || 'BL_EXECUTION_ID'
 const executionPrefix = env.BL_EXECUTION_PREFIX || ''
 
@@ -72,7 +73,7 @@ function formatLogMessage(severity: string, message: unknown, args: unknown[]): 
 
   const taskId = env[taskIndex] || null
   if (taskId) {
-    logEntry[labelsName]['blaxel-task'] = taskId
+    logEntry[labelsName]['blaxel-task'] = `${taskPrefix}${taskId}`
   }
 
   const executionId = env[executionKey] || null
