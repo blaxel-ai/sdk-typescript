@@ -37,11 +37,11 @@ async function test_mcp_tools_llamaindex() {
 async function test_mcp_tools_vercel() {
   const tools = await vercelTools(["blaxel-search"]);
   console.log(tools);
-  if (!tools.web_search) {
+  if (!tools.web_search_exa) {
     throw new Error("No tools found");
   }
   // @ts-ignore
-  const result = await tools.web_search.execute({
+  const result = await tools.web_search_exa.execute({
     query: "What is the capital of France?",
   });
   logger.info(result);
@@ -49,11 +49,11 @@ async function test_mcp_tools_vercel() {
 
 async function test_mcp_tools_mastra() {
   const tools = await mastraTools(["blaxel-search"]);
-  if (!tools.web_search) {
+  if (!tools.web_search_exa) {
     throw new Error("No tools found");
   }
   // @ts-ignore
-  const result = await tools.web_search.execute({
+  const result = await tools.web_search_exa.execute({
     query: "What is the capital of France?",
   });
   logger.info(result);
