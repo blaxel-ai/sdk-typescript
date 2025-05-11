@@ -101,3 +101,16 @@ export const telemetryRegistry = TelemetryRegistry.getInstance();
 export function startSpan(name: string, options?: BlaxelSpanOptions): BlaxelSpan {
   return telemetryRegistry.getProvider().startSpan(name, options);
 }
+
+export function withSpan<T>(name: string, fn: () => T, options?: BlaxelSpanOptions): T {
+  const span = startSpan(name, options);
+  try {
+    const result = fn();
+    span.end();
+    return result;
+  } catch (error) {
+    span.recordException(error as Error);
+    span.end();
+    throw error;
+  }
+}

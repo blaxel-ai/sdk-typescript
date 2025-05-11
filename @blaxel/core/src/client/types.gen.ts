@@ -678,6 +678,24 @@ export type IntegrationRepository = {
 };
 
 /**
+ * Job
+ */
+export type Job = {
+    events?: CoreEvents;
+    metadata?: Metadata;
+    spec?: JobSpec;
+    /**
+     * Job status
+     */
+    status?: string;
+};
+
+/**
+ * Job specification
+ */
+export type JobSpec = CoreSpec & unknown;
+
+/**
  * Knowledgebase
  */
 export type Knowledgebase = {
@@ -1715,6 +1733,10 @@ export type Runtime = {
      */
     image?: string;
     /**
+     * The maximum number of retries for the deployment
+     */
+    maxRetries?: number;
+    /**
      * The minimum number of replicas for the deployment. Can be 0 or 1 (in which case the deployment is always running in at least one location).
      */
     maxScale?: number;
@@ -1839,6 +1861,10 @@ export type ServerlessConfig = {
     configuration?: {
         [key: string]: unknown;
     };
+    /**
+     * The maximum number of retries for the deployment
+     */
+    maxRetries?: number;
     /**
      * The minimum number of replicas for the deployment. Can be 0 or 1 (in which case the deployment is always running in at least one location).
      */
@@ -2703,6 +2729,122 @@ export type GetIntegrationConnectionModelResponses = {
      */
     200: unknown;
 };
+
+export type ListJobsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/jobs';
+};
+
+export type ListJobsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<Job>;
+};
+
+export type ListJobsResponse = ListJobsResponses[keyof ListJobsResponses];
+
+export type CreateJobData = {
+    body: Job;
+    path?: never;
+    query?: never;
+    url: '/jobs';
+};
+
+export type CreateJobResponses = {
+    /**
+     * successful operation
+     */
+    200: Job;
+};
+
+export type CreateJobResponse = CreateJobResponses[keyof CreateJobResponses];
+
+export type DeleteJobData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the job
+         */
+        jobId: string;
+    };
+    query?: never;
+    url: '/jobs/{jobId}';
+};
+
+export type DeleteJobResponses = {
+    /**
+     * successful operation
+     */
+    200: Job;
+};
+
+export type DeleteJobResponse = DeleteJobResponses[keyof DeleteJobResponses];
+
+export type GetJobData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the job
+         */
+        jobId: string;
+    };
+    query?: never;
+    url: '/jobs/{jobId}';
+};
+
+export type GetJobResponses = {
+    /**
+     * successful operation
+     */
+    200: Model;
+};
+
+export type GetJobResponse = GetJobResponses[keyof GetJobResponses];
+
+export type UpdateJobData = {
+    body: Job;
+    path: {
+        /**
+         * Name of the job
+         */
+        jobId: string;
+    };
+    query?: never;
+    url: '/jobs/{jobId}';
+};
+
+export type UpdateJobResponses = {
+    /**
+     * successful operation
+     */
+    200: Job;
+};
+
+export type UpdateJobResponse = UpdateJobResponses[keyof UpdateJobResponses];
+
+export type ListJobRevisionsData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the job
+         */
+        jobId: string;
+    };
+    query?: never;
+    url: '/jobs/{jobId}/revisions';
+};
+
+export type ListJobRevisionsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<RevisionMetadata>;
+};
+
+export type ListJobRevisionsResponse = ListJobRevisionsResponses[keyof ListJobRevisionsResponses];
 
 export type ListKnowledgebasesData = {
     body?: never;
