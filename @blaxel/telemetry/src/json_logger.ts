@@ -47,7 +47,7 @@ const traceIdPrefix = env.BL_LOGGER_TRACE_ID_PREFIX || ''
 const spanIdPrefix = env.BL_LOGGER_SPAN_ID_PREFIX || ''
 const taskIndex = env.BL_EXECUTION_INDEX_KEY || 'TASK_INDEX'
 const executionKey = env.BL_EXECUTION_KEY || 'BL_EXECUTION_ID'
-
+const executionPrefix = env.BL_EXECUTION_PREFIX || ''
 
 // Format a log message with appropriate color and prefix
 function formatLogMessage(severity: string, message: unknown, args: unknown[]): string {
@@ -77,7 +77,7 @@ function formatLogMessage(severity: string, message: unknown, args: unknown[]): 
 
   const executionId = env[executionKey] || null
   if (executionId) {
-    logEntry[labelsName]['blaxel-execution'] = executionId.split('-').pop()
+    logEntry[labelsName]['blaxel-execution'] = `${executionPrefix}${executionId.split('-').pop()}`;
   }
 
   return JSON.stringify(logEntry);
