@@ -1,5 +1,4 @@
-import yargs from 'yargs';
-import { hideBin } from 'yargs/helpers';
+// import yargs from 'yargs';
 import { env } from '../common/env.js';
 
 type ExecutionArgs = {
@@ -9,10 +8,12 @@ type ExecutionArgs = {
 class BlJob {
   async getArguments() {
     if(!env.BL_EXECUTION_DATA_URL) {
-      const argv = await yargs(hideBin(process.argv))
-        .parseAsync();
-      return argv;
+      throw new Error('BL_EXECUTION_DATA_URL is not set');
     }
+    //   const argv = await yargs(hideBin(process.argv))
+    //     .parseAsync();
+    //   return argv;
+    // }
 
     const response = await fetch(env.BL_EXECUTION_DATA_URL);
     const data = await response.json() as {tasks: ExecutionArgs};
