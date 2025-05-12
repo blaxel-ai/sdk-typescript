@@ -7,8 +7,12 @@ const isNode =
 let fs: typeof import("fs") | null = null;
 let os: typeof import("os") | null = null;
 if (isNode) {
-  fs = eval("require")("fs");
-  os = eval("require")("os");
+  try {
+    fs = eval("require")("fs");
+    os = eval("require")("os");
+  } catch (e) {
+    console.warn("fs and os are not available in this environment");
+  }
 }
 
 export { fs, os };
