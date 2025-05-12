@@ -12,7 +12,10 @@
     "publish-dev": "pnpm build && pnpm -r publish --tag dev --access public --no-git-checks",
     "publish-preview": "pnpm build && pnpm -r publish --tag preview --access public --no-git-checks",
     "publish-prod": "pnpm build && pnpm -r publish --tag latest --access public --no-git-checks",
-    "dev": "turbo dev"
+    "dev": "turbo dev",
+    "test": "turbo test",
+    "test:watch": "turbo test:watch",
+    "test:ui": "turbo test:ui"
   },
   "dependencies": {
     "@blaxel/core": "workspace:*",

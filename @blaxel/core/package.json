@@ -8,7 +8,9 @@
 	"scripts": {
 		"lint": "eslint src/",
 		"dev": "tsc --watch",
-		"build": "tsc"
+		"build": "tsc",
+		"test": "vitest --run",
+		"test:watch": "vitest --watch"
 	},
 	"repository": {
 		"type": "git",
@@ -71,8 +73,12 @@
 	},
 	"devDependencies": {
 		"@eslint/js": "^9.26.0",
+		"@testing-library/dom": "^9.3.0",
 		"@types/ws": "^8.18.1",
+		"jsdom": "^26.1.0",
 		"typescript": "^5.0.0",
-		"typescript-eslint": "^8.31.1"
+		"typescript-eslint": "^8.31.1",
+		"vite": "^5.2.0",
+		"vitest": "^1.5.0"
 	}
 }
