@@ -1,7 +1,9 @@
+import { createClient } from "@hey-api/client-fetch";
 import { env } from "process";
-import { Sandbox } from "../client/index.js";
 import { getGlobalUniqueHash } from "../common/internal.js";
 import { settings } from "../common/settings.js";
+import { client as defaultClient } from "./client/client.gen.js";
+import { SandboxConfiguration } from "./types.js";
 
 export class ResponseError extends Error {
   constructor(public response: Response, public data: unknown, public error: unknown) {
@@ -23,7 +25,7 @@ export class ResponseError extends Error {
 }
 
 export class SandboxAction {
-  constructor(private sandbox: Sandbox) {}
+  constructor(protected sandbox: SandboxConfiguration) {}
 
   get name() {
     return this.sandbox.metadata?.name ?? "";
@@ -45,7 +47,18 @@ export class SandboxAction {
     return `${settings.runInternalProtocol}://bl-${settings.env}-${hash}.${settings.runInternalHostname}`
   }
 
+  get client() {
+    if (this.sandbox.forceUrl) {
+      return createClient({
+        baseUrl: this.sandbox.forceUrl,
+        headers: this.sandbox.headers,
+      })
+    }
+    return defaultClient
+  }
+
   get forcedUrl() {
+    if (this.sandbox.forceUrl) return this.sandbox.forceUrl;
     const envVar = this.name.replace(/-/g, "_").toUpperCase();
     const envName = `BL_SANDBOX_${envVar}_URL`
     if (env[envName]) {
@@ -66,34 +79,5 @@ export class SandboxAction {
     if (!response.ok || !data) {
       throw new ResponseError(response, data, error);
     }
-  }
-
-  websocket(path: string) {
-    let ws: WebSocket | null = null;
-    // Build ws:// or wss:// URL from baseUrl
-    let baseUrl = this.url.replace(/^http/, 'ws');
-    if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-    const wsUrl = `${baseUrl}/ws/${path}?token=${settings.token}`;
-
-    // Use isomorphic WebSocket: browser or Node.js
-    let WS: typeof WebSocket | any = undefined;
-    if (typeof globalThis.WebSocket !== 'undefined') {
-      WS = globalThis.WebSocket;
-    } else {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        WS = require('ws');
-      } catch {
-        WS = undefined;
-      }
-    }
-    if (!WS) throw new Error('WebSocket is not available in this environment');
-    try {
-      ws = typeof WS === 'function' ? new WS(wsUrl) : new (WS as any)(wsUrl);
-    } catch (err) {
-      console.error('WebSocket connection error:', err);
-      throw err;
-    }
-    return ws;
   }
 }

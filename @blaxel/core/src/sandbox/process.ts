@@ -11,119 +11,6 @@ export class SandboxProcess extends SandboxAction {
   public streamLogs(
     identifier: string,
     options: {
-      ws?: boolean,
-      onLog?: (log: string) => void,
-      onStdout?: (stdout: string) => void,
-      onStderr?: (stderr: string) => void,
-    }
-  ): { close: () => void } {
-    if (options.ws) {
-      return this.wsStreamLogs(identifier, options);
-    }
-    return this.sseStreamLogs(identifier, options);
-  }
-
-  public wsStreamLogs(
-    identifier: string,
-    options: {
-      onLog?: (log: string) => void,
-      onStdout?: (stdout: string) => void,
-      onStderr?: (stderr: string) => void,
-    }
-  ): { close: () => void } {
-    let closed = false;
-    let ws: WebSocket | null = this.websocket(`process/${identifier}/logs/stream`)
-    let pingInterval: NodeJS.Timeout | number | null = null;
-    let pongTimeout: NodeJS.Timeout | number | null = null;
-    const PING_INTERVAL_MS = 30000;
-    const PONG_TIMEOUT_MS = 10000;
-
-    function sendPing() {
-      if (ws && ws.readyState === ws.OPEN) {
-        try {
-          ws.send(JSON.stringify({ type: 'ping' }));
-        } catch {}
-        // Set pong timeout
-        if (pongTimeout) clearTimeout(pongTimeout as any);
-        pongTimeout = setTimeout(() => {
-          // No pong received in time, close connection
-          if (ws && typeof ws.close === 'function') ws.close();
-        }, PONG_TIMEOUT_MS);
-      }
-    }
-
-    if (ws) {
-      ws.onmessage = (event: MessageEvent | { data: string }) => {
-        if (closed) return;
-        let data: any;
-        try {
-          data = typeof event.data === 'string' ? event.data : (event as any).data;
-          if (!data) return;
-          let payload: any;
-          try {
-            payload = JSON.parse(data);
-          } catch {
-            payload = { log: data };
-          }
-          // Handle ping/pong
-          if (payload.type === 'ping') {
-            // Respond to ping with pong
-            if (ws && ws.readyState === ws.OPEN) {
-              try { ws.send(JSON.stringify({ type: 'pong' })); } catch {}
-            }
-            return;
-          }
-          if (payload.type === 'pong') {
-            // Pong received, clear pong timeout
-            if (pongTimeout) clearTimeout(pongTimeout as any);
-            pongTimeout = null;
-            return;
-          }
-          if (payload.type === 'log') {
-            const logLine = payload.log || "";
-            if (typeof logLine === 'string') {
-              if (logLine.startsWith('stdout:')) {
-              options.onStdout?.(logLine.slice(7));
-              options.onLog?.(logLine.slice(7));
-            } else if (logLine.startsWith('stderr:')) {
-              options.onStderr?.(logLine.slice(7));
-              options.onLog?.(logLine.slice(7));
-            } else {
-              options.onLog?.(logLine);
-              }
-            }
-          }
-        } catch (err) {
-          console.error('WebSocket log stream error:', err);
-        }
-      };
-      ws.onerror = (err: any) => {
-        closed = true;
-        if (ws && typeof ws.close === 'function') ws.close();
-      };
-      ws.onclose = () => {
-        closed = true;
-        ws = null;
-        if (pingInterval) clearInterval(pingInterval as any);
-        if (pongTimeout) clearTimeout(pongTimeout as any);
-      };
-      // Start ping interval
-      pingInterval = setInterval(sendPing, PING_INTERVAL_MS);
-    }
-    return {
-      close: () => {
-        closed = true;
-        if (ws && typeof ws.close === 'function') ws.close();
-        ws = null;
-        if (pingInterval) clearInterval(pingInterval as any);
-        if (pongTimeout) clearTimeout(pongTimeout as any);
-      },
-    };
-  }
-
-  public sseStreamLogs(
-    identifier: string,
-    options: {
       onLog?: (log: string) => void,
       onStdout?: (stdout: string) => void,
       onStderr?: (stderr: string) => void,
@@ -132,10 +19,11 @@ export class SandboxProcess extends SandboxAction {
     const controller = new AbortController();
     (async () => {
       try {
+        const headers = this.sandbox.forceUrl ? this.sandbox.headers : settings.headers;
         const stream = await fetch(`${this.url}/process/${identifier}/logs/stream`, {
           method: 'GET',
           signal: controller.signal,
-          headers: settings.headers,
+          headers,
         });
 
         if (stream.status !== 200) {
@@ -180,6 +68,7 @@ export class SandboxProcess extends SandboxAction {
     const { response, data, error } = await postProcess({
       body: process,
       baseUrl: this.url,
+      client: this.client,
     });
     this.handleResponseError(response, data, error);
     return data as PostProcessResponse;
@@ -208,6 +97,7 @@ export class SandboxProcess extends SandboxAction {
     const { response, data, error } = await getProcessByIdentifier({
       path: { identifier },
       baseUrl: this.url,
+      client: this.client,
     });
     this.handleResponseError(response, data, error);
     return data as GetProcessByIdentifierResponse;
@@ -216,6 +106,7 @@ export class SandboxProcess extends SandboxAction {
   async list(): Promise<GetProcessResponse> {
     const { response, data, error } = await getProcess({
       baseUrl: this.url,
+      client: this.client,
     });
     this.handleResponseError(response, data, error);
     return data as GetProcessResponse;
@@ -225,6 +116,7 @@ export class SandboxProcess extends SandboxAction {
     const { response, data, error } = await deleteProcessByIdentifier({
       path: { identifier },
       baseUrl: this.url,
+      client: this.client,
     });
     this.handleResponseError(response, data, error);
     return data as DeleteProcessByIdentifierResponse;
@@ -234,6 +126,7 @@ export class SandboxProcess extends SandboxAction {
     const { response, data, error } = await deleteProcessByIdentifierKill({
       path: { identifier },
       baseUrl: this.url,
+      client: this.client,
     });
     this.handleResponseError(response, data, error);
     return data as DeleteProcessByIdentifierKillResponse;
@@ -243,6 +136,7 @@ export class SandboxProcess extends SandboxAction {
     const { response, data, error } = await getProcessByIdentifierLogs({
       path: { identifier },
       baseUrl: this.url,
+      client: this.client,
     });
     this.handleResponseError(response, data, error);
     if (data && type in data) {
