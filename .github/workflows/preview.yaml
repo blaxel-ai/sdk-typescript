@@ -1,0 +1,41 @@
+name: TS SDK dev
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+
+jobs:
+  npm-publish:
+    name: Upload to NPM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        name: Checkout
+        with:
+          fetch-tags: true
+          fetch-depth: 0
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
+      - name: Set version
+        run: |
+          VERSION=$(git describe --tags --abbrev=0)
+          VERSION="${VERSION#v}"
+          # Split version into parts and increment minor version
+          IFS='.' read -r major minor patch <<< "$VERSION"
+          patch=$((patch + 1))
+          VERSION="${major}.${minor}.${patch}"
+          echo "Current version: $VERSION"
+          pnpm set-version $VERSION-preview.${{ github.run_number }}
+      - name: Publish to NPM
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          pnpm install
+          pnpm publish-preview
