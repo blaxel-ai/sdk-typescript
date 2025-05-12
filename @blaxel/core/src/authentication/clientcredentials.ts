@@ -43,11 +43,27 @@ export class ClientCredentials extends Credentials {
     if (!this.needRefresh()) {
       return this.currentPromise || Promise.resolve();
     }
-    this.currentPromise = this.process();
+    this.currentPromise = this.processWithRetry();
     return this.currentPromise;
   }
 
-  async process() {
+  private sleep(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async processWithRetry(retry=3): Promise<void> {
+    try {
+      return await this.process();
+    } catch (error) {
+      if (retry > 0) {
+        await this.sleep(1000);
+        return this.processWithRetry(retry - 1);
+      }
+      throw error;
+    }
+  }
+
+  async process(): Promise<void> {
     const response = await oauthToken({
       headers: {
         Authorization: `Basic ${this.clientCredentials}`,
