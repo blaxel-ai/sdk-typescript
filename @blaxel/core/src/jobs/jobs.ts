@@ -1,5 +1,3 @@
-import yargs from 'yargs';
-import { hideBin } from 'yargs/helpers';
 import { env } from '../common/env.js';
 
 type ExecutionArgs = {
@@ -9,9 +7,8 @@ type ExecutionArgs = {
 class BlJob {
   async getArguments() {
     if(!env.BL_EXECUTION_DATA_URL) {
-      const argv = await yargs(hideBin(process.argv))
-        .parseAsync();
-      return argv;
+      const args = this.parseCommandLineArgs()
+      return args
     }
 
     const response = await fetch(env.BL_EXECUTION_DATA_URL);
@@ -19,8 +16,29 @@ class BlJob {
     return data.tasks[this.index] ?? {};
   }
 
+  private parseCommandLineArgs(): Record<string, string> {
+    const args = process.argv.slice(2);
+    const result: Record<string, string> = {};
+
+    for (let i = 0; i < args.length; i++) {
+      const arg = args[i];
+      if (arg.startsWith('--')) {
+        const key = arg.slice(2);
+        const value = args[i + 1];
+        if (value && !value.startsWith('--')) {
+          result[key] = value;
+          i++;
+        } else {
+          result[key] = 'true';
+        }
+      }
+    }
+
+    return result;
+  }
+
   get indexKey(): string {
-    return env.BL_EXECUTION_INDEX_KEY ?? "TASK_INDEX";
+    return env.BL_TASK_KEY ?? "TASK_INDEX";
   }
 
   get index(): number {

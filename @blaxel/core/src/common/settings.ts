@@ -89,7 +89,7 @@ class Settings {
     if(!this.generation) {
       return ""
     }
-    return env.BL_RUN_INTERNAL_HOSTNAME || "";
+    return env.BL_RUN_INTERNAL_HOST || "";
   }
 
   get runInternalProtocol() {

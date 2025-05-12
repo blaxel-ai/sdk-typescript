@@ -39,6 +39,17 @@ export const originalLogger = {
   log: console.log,
 };
 
+
+const traceIdName = env.BL_LOGGER_TRACE_ID || 'trace_id'
+const spanIdName = env.BL_LOGGER_SPAN_ID || 'span_id'
+const labelsName = env.BL_LOGGER_LABELS || 'labels'
+const traceIdPrefix = env.BL_LOGGER_TRACE_ID_PREFIX || ''
+const spanIdPrefix = env.BL_LOGGER_SPAN_ID_PREFIX || ''
+const taskIndex = env.BL_TASK_KEY || 'TASK_INDEX'
+const taskPrefix = env.BL_TASK_PREFIX || ''
+const executionKey = env.BL_EXECUTION_KEY || 'BL_EXECUTION_ID'
+const executionPrefix = env.BL_EXECUTION_PREFIX || ''
+
 // Format a log message with appropriate color and prefix
 function formatLogMessage(severity: string, message: unknown, args: unknown[]): string {
   const messageStr = typeof message === "string" ? message : stringify(message, 2);
@@ -51,18 +62,23 @@ function formatLogMessage(severity: string, message: unknown, args: unknown[]): 
     severity
   };
 
+  logEntry[labelsName] = {}
+
   const currentSpan = trace.getActiveSpan();
   if (currentSpan) {
     const {traceId, spanId} = currentSpan.spanContext();
-
-    const traceIdName = env.BL_LOGGER_TRACE_ID || 'trace_id'
-    const spanIdName = env.BL_LOGGER_SPAN_ID || 'span_id'
-    const traceIdPrefix = env.BL_LOGGER_TRACE_ID_PREFIX || ''
-    const spanIdPrefix = env.BL_LOGGER_SPAN_ID_PREFIX || ''
-
     logEntry[traceIdName] = `${traceIdPrefix}${traceId}`;
     logEntry[spanIdName] = `${spanIdPrefix}${spanId}`;
+  }
 
+  const taskId = env[taskIndex] || null
+  if (taskId) {
+    logEntry[labelsName]['blaxel-task'] = `${taskPrefix}${taskId}`
+  }
+
+  const executionId = env[executionKey] || null
+  if (executionId) {
+    logEntry[labelsName]['blaxel-execution'] = `${executionPrefix}${executionId.split('-').pop()}`;
   }
 
   return JSON.stringify(logEntry);
