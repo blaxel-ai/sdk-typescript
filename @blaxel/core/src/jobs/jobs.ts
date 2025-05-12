@@ -1,4 +1,3 @@
-// import yargs from 'yargs';
 import { env } from '../common/env.js';
 
 type ExecutionArgs = {
@@ -8,16 +7,34 @@ type ExecutionArgs = {
 class BlJob {
   async getArguments() {
     if(!env.BL_EXECUTION_DATA_URL) {
-      throw new Error('BL_EXECUTION_DATA_URL is not set');
+      const args = this.parseCommandLineArgs()
+      return args
     }
-    //   const argv = await yargs(hideBin(process.argv))
-    //     .parseAsync();
-    //   return argv;
-    // }
 
     const response = await fetch(env.BL_EXECUTION_DATA_URL);
     const data = await response.json() as {tasks: ExecutionArgs};
     return data.tasks[this.index] ?? {};
+  }
+
+  private parseCommandLineArgs(): Record<string, string> {
+    const args = process.argv.slice(2);
+    const result: Record<string, string> = {};
+
+    for (let i = 0; i < args.length; i++) {
+      const arg = args[i];
+      if (arg.startsWith('--')) {
+        const key = arg.slice(2);
+        const value = args[i + 1];
+        if (value && !value.startsWith('--')) {
+          result[key] = value;
+          i++;
+        } else {
+          result[key] = 'true';
+        }
+      }
+    }
+
+    return result;
   }
 
   get indexKey(): string {
