@@ -1,4 +1,4 @@
-name: TS SDK dev
+name: TS SDK preview
 
 on:
   workflow_dispatch:
