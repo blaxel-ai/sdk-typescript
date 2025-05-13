@@ -1,4 +1,5 @@
 import { Directory, SandboxInstance, settings } from "@blaxel/core";
+import { createOrGetSandbox } from "../utils";
 
 const sandboxName = "sandbox-test-3"
 
@@ -228,8 +229,8 @@ async function testWatch(sandbox: SandboxInstance) {
     let callbackWithContentCalled = false;
 
     // Watch without content
-    const handle = fs.watch(testDir, (filePath) => {
-      if (filePath.endsWith("file.txt")) {
+    const handle = fs.watch(testDir, (fileEvent) => {
+      if (fileEvent.name === "file.txt") {
         callbackCalled = true;
       }
     });
@@ -237,8 +238,8 @@ async function testWatch(sandbox: SandboxInstance) {
     // Watch with content
     const handleWithContent = fs.watch(
       testDir,
-      (filePath, content) => {
-        if (filePath.endsWith("file.txt") && content === "new content") {
+      (fileEvent) => {
+        if (fileEvent.name === "file.txt" && fileEvent.content === "new content") {
           callbackWithContentCalled = true;
         }
       },
@@ -274,62 +275,10 @@ async function testWatch(sandbox: SandboxInstance) {
   }
 }
 
-
-async function createSandbox() {
-  console.log("Creating sandbox");
-  const sandbox = await SandboxInstance.create({
-    metadata: {
-      name: sandboxName
-    },
-    spec: {
-      runtime: {
-        image: "blaxel/prod-base:latest",
-        memory: 2048,
-        ports: [
-          {
-            name: "sandbox-api",
-            target: 8080,
-            protocol: "HTTP",
-          }
-        ]
-      }
-    }
-  })
-  // By default, the interval is 1 second and max wait is 60 seconds
-  // Wait for sandbox to be deployed, max wait of 120 seconds and interval of 1 second
-  console.log("Sandbox deployed");
-  await sandbox.wait({ maxWait: 120000, interval: 1000 })
-  return sandbox
-}
-
-async function testSandbox() {
-  let sandbox: SandboxInstance;
-  // Create a sandbox, then you can play with it
-  sandbox = await createSandbox()
-
-  console.log("Getting same sandbox");
-  sandbox = await SandboxInstance.get(sandboxName)
-  // Fix this before uncomment
-  // console.log(await sandbox.fs.ls("/"))
-  return sandbox
-}
-
-async function localSandbox() {
-  process.env[`BL_SANDBOX_${sandboxName.replace(/-/g, "_").toUpperCase()}_URL`] = "http://localhost:8080"
-  const sandbox = new SandboxInstance({
-    metadata: {
-      name: sandboxName
-    },
-  })
-  return sandbox
-}
-
 async function main() {
   try {
     // Test with controlplane
-    const sandbox = await testSandbox()
-    // const sandbox = await SandboxInstance.get(sandboxName)
-    // const sandbox = await localSandbox()
+    const sandbox = await createOrGetSandbox(sandboxName)
 
     await testFilesystem(sandbox);
     await testProcess(sandbox);
