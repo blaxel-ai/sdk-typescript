@@ -1,38 +1,12 @@
 import { SandboxInstance } from "@blaxel/core";
+import { createOrGetSandbox } from "../utils";
 
 const sandboxName = "sandbox-test-3"
-
-async function createOrGetSandbox() {
-  try {
-    return await SandboxInstance.get(sandboxName)
-  } catch (e) {
-    const sandbox = await SandboxInstance.create({
-      metadata: {
-        name: sandboxName
-      },
-      spec: {
-        runtime: {
-          image: "blaxel/prod-base:latest",
-          memory: 2048,
-          ports: [
-            {
-              name: "sandbox-api",
-              target: 8080,
-              protocol: "HTTP",
-            }
-          ]
-        }
-      }
-    })
-    await sandbox.wait({ maxWait: 120000, interval: 1000 })
-    return sandbox
-  }
-}
 
 async function main() {
   try {
     // Test with controlplane
-    const sandbox = await createOrGetSandbox()
+    const sandbox = await createOrGetSandbox(sandboxName)
 
     const sessions = await sandbox.sessions.list()
     for (const session of sessions) {
