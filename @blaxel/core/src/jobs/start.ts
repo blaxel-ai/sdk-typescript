@@ -1,3 +1,4 @@
+import { authenticate } from '../common/autoload.js';
 import { env } from '../common/env.js';
 import { startSpan } from '../telemetry/telemetry.js';
 import { ExecutionArgs } from './types.js';
@@ -46,6 +47,7 @@ class BlJobWrapper {
     Run a job defined in a function, it's run in the current process
   */
   async start(func: (args: any) => Promise<void>) {
+    await authenticate();
     let span = startSpan(`blStartJob-${func.name}`, {
       attributes: {
         'job.name': func.name,
@@ -71,5 +73,8 @@ class BlJobWrapper {
 
 export const blStartJob = (func: (args: any) => Promise<void>) => {
   const job = new BlJobWrapper();
-  job.start(func);
+  job.start(func).catch((error) => {
+    console.error('Job execution failed:', error);
+    process.exit(1);
+  });
 }
