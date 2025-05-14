@@ -64,9 +64,8 @@ class BlJobWrapper {
     } catch (error) {
       span.recordException(error as Error);
       span.setStatus('error', 'Job execution failed');
-      console.error('Job execution failed:', error);
       span.end();
-      process.exit(1);
+      throw error;
     }
   }
 }
