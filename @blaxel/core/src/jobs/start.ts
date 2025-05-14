@@ -51,7 +51,8 @@ class BlJobWrapper {
         'job.name': func.name,
         'job.index': this.index,
         'job.args': JSON.stringify(this.getArguments()),
-      }
+      },
+      isRoot: true,
     })
     try {
       const parsedArgs = await this.getArguments();
