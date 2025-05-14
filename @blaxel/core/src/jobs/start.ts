@@ -58,14 +58,13 @@ class BlJobWrapper {
       const parsedArgs = await this.getArguments();
       await func(parsedArgs);
       span.setStatus('ok');
-      process.exit(0);
+      span.end();
     } catch (error) {
       span.recordException(error as Error);
       span.setStatus('error', 'Job execution failed');
       console.error('Job execution failed:', error);
-      process.exit(1);
-    } finally {
       span.end();
+      process.exit(1);
     }
   }
 }
