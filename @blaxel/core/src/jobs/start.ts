@@ -56,7 +56,7 @@ class BlJobWrapper {
   }
 }
 
-export const startJob = (func: (args: any) => Promise<void>) => {
+export const blStartJob = (func: (args: any) => Promise<void>) => {
   const job = new BlJobWrapper();
   job.start(func);
 }
