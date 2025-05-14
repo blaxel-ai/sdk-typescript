@@ -3,6 +3,7 @@ import {
   Span as OtelApiSpan,
   context as otelContext, SpanOptions as OtelSpanOptions, SpanStatusCode, trace
 } from "@opentelemetry/api";
+import { blaxelTelemetry } from "./telemetry";
 
 class OtelSpan implements BlaxelSpan {
   private span: OtelApiSpan;
@@ -61,5 +62,9 @@ export class OtelTelemetryProvider implements BlaxelTelemetryProvider {
     // Start the span
     const span = tracer.startSpan(name, otelOptions, ctx);
     return new OtelSpan(span);
+  }
+
+  async flush(): Promise<void> {
+    await blaxelTelemetry.flush();
   }
 }

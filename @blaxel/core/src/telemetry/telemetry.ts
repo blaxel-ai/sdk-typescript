@@ -36,6 +36,8 @@ export interface BlaxelSpan {
 export interface BlaxelTelemetryProvider {
   /** Create a new span */
   startSpan(name: string, options?: BlaxelSpanOptions): BlaxelSpan;
+  /** Flush the telemetry provider */
+  flush(): Promise<void>;
 }
 
 /**
@@ -56,6 +58,9 @@ class NoopSpan implements BlaxelSpan {
 class NoopTelemetryProvider implements BlaxelTelemetryProvider {
   startSpan(): BlaxelSpan {
     return new NoopSpan();
+  }
+  flush(): Promise<void> {
+    return Promise.resolve();
   }
 }
 
@@ -113,4 +118,8 @@ export function withSpan<T>(name: string, fn: () => T, options?: BlaxelSpanOptio
     span.end();
     throw error;
   }
+}
+
+export async function flush() {
+  await telemetryRegistry.getProvider().flush();
 }

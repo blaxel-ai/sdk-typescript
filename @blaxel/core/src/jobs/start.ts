@@ -1,6 +1,6 @@
 import { authenticate } from '../common/autoload.js';
 import { env } from '../common/env.js';
-import { startSpan } from '../telemetry/telemetry.js';
+import { flush, startSpan } from '../telemetry/telemetry.js';
 import { ExecutionArgs } from './types.js';
 class BlJobWrapper {
   async getArguments() {
@@ -72,7 +72,9 @@ class BlJobWrapper {
 
 export const blStartJob = (func: (args: any) => Promise<void>) => {
   const job = new BlJobWrapper();
-  job.start(func).catch((error) => {
+  job.start(func).then(async () => {
+    await flush()
+  }).catch((error) => {
     console.error('Job execution failed:', error);
     process.exit(1);
   });
