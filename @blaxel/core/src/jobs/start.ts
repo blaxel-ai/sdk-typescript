@@ -1,4 +1,5 @@
 import { env } from '../common/env.js';
+import { startSpan } from '../telemetry/telemetry.js';
 import { ExecutionArgs } from './types.js';
 class BlJobWrapper {
   async getArguments() {
@@ -45,13 +46,25 @@ class BlJobWrapper {
     Run a job defined in a function, it's run in the current process
   */
   async start(func: (args: any) => Promise<void>) {
+    let span = startSpan(`blStartJob-${func.name}`, {
+      attributes: {
+        'job.name': func.name,
+        'job.index': this.index,
+        'job.args': JSON.stringify(this.getArguments()),
+      }
+    })
     try {
       const parsedArgs = await this.getArguments();
       await func(parsedArgs);
+      span.setStatus('ok');
       process.exit(0);
     } catch (error) {
+      span.recordException(error as Error);
+      span.setStatus('error', 'Job execution failed');
       console.error('Job execution failed:', error);
       process.exit(1);
+    } finally {
+      span.end();
     }
   }
 }
