@@ -27,10 +27,10 @@ export const blModel = async (
         ...options,
       })(modelId);
     } else if (type === "anthropic") {
-
       return createAnthropic({
         apiKey: settings.token,
-        baseURL: `${url}`,
+        baseURL: `${url}/v1`,
+        headers: settings.headers,
         ...options,
       })(modelId);
     } else if (type === "groq") {
