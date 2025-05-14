@@ -13,7 +13,7 @@ async function localSandbox(sandboxName: string) {
 
 
 export async function createOrGetSandbox(sandboxName: string) {
-  return localSandbox(sandboxName)
+  // return localSandbox(sandboxName)
   try {
     return await SandboxInstance.get(sandboxName)
   } catch (e) {

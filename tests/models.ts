@@ -5,11 +5,11 @@ import { blModel as blModelMastra } from "@blaxel/mastra";
 import { blModel as blModelVercel } from "@blaxel/vercel";
 import { generateText } from "ai";
 
-const MODEL = "gpt-4o-mini";
-// const MODEL = "claude-3-5-sonnet"
+// const MODEL = "gpt-4o-mini";
+// const MODEL = "claude-3-7-sonnet-20250219"
 // const MODEL = "xai-grok-beta"
 // const MODEL = "cohere-command-r-plus"
-// const MODEL = "gemini-2-0-flash"
+const MODEL = "gemini-2-5-pro-preview-03-25"
 // const MODEL = "deepseek-chat"
 // const MODEL = "mistral-large-latest"
 // const MODEL = "cerebras-llama-3-3-70b"
@@ -23,8 +23,8 @@ async function langchain() {
 
 async function llamaindex() {
   const model = await blModelLlamaIndex(MODEL);
-  const result = await model.complete({ prompt: "Hello, world!" });
-  logger.info(`llamaindex: ${result.text}`);
+  const result = await model.chat({messages: [{role: "user", content: "Hello, world!"}]})
+  logger.info(`llamaindex: ${result.message.content.toString()}`);
 }
 
 async function mastra() {
