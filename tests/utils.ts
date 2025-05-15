@@ -23,12 +23,17 @@ export async function createOrGetSandbox(sandboxName: string) {
       },
       spec: {
         runtime: {
-          image: "blaxel/prod-base:latest",
-          memory: 2048,
+          image: "blaxel/prod-nextjs:latest",
+          memory: 4096,
           ports: [
             {
               name: "sandbox-api",
               target: 8080,
+              protocol: "HTTP",
+            },
+            {
+              name: "preview",
+              target: 3000,
               protocol: "HTTP",
             }
           ]

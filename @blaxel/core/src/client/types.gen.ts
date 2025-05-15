@@ -691,9 +691,191 @@ export type Job = {
 };
 
 /**
+ * Configuration for a job execution
+ */
+export type JobExecutionConfig = {
+    /**
+     * The maximum number of concurrent tasks for an execution
+     */
+    maxConcurrentTasks?: number;
+    /**
+     * The maximum number of retries for the job execution
+     */
+    maxRetries?: number;
+    /**
+     * The timeout for the job execution in seconds
+     */
+    timeout?: number;
+};
+
+/**
+ * Metrics for job
+ */
+export type JobMetrics = {
+    /**
+     * Billable time
+     */
+    billableTime?: Array<unknown>;
+    /**
+     * CPU usage
+     */
+    cpuUsage?: Array<unknown>;
+    /**
+     * Executions chart
+     */
+    executionsChart?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Executions running
+     */
+    executionsRunning?: Array<unknown>;
+    /**
+     * Total executions
+     */
+    executionsTotal?: {
+        [key: string]: unknown;
+    };
+    /**
+     * RAM usage
+     */
+    ramUsage?: Array<unknown>;
+    /**
+     * Tasks chart
+     */
+    tasksChart?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Tasks running
+     */
+    tasksRunning?: Array<unknown>;
+    /**
+     * Total tasks
+     */
+    tasksTotal?: {
+        [key: string]: unknown;
+    };
+};
+
+/**
  * Job specification
  */
 export type JobSpec = CoreSpec & unknown;
+
+/**
+ * Jobs chart
+ */
+export type JobsChart = {
+    failed?: JobsChartValue;
+    success?: JobsChartValue;
+};
+
+/**
+ * Jobs CPU usage
+ */
+export type JobsChartValue = {
+    /**
+     * Metric timestamp
+     */
+    timestamp?: string;
+    /**
+     * Metric value
+     */
+    value?: number;
+};
+
+/**
+ * Jobs executions
+ */
+export type JobsExecutions = {
+    /**
+     * Failed executions
+     */
+    failed?: number;
+    /**
+     * Running executions
+     */
+    running?: number;
+    /**
+     * Success executions
+     */
+    success?: number;
+    /**
+     * Total executions
+     */
+    total?: number;
+};
+
+/**
+ * Jobs chart
+ */
+export type JobsNetworkChart = {
+    received?: JobsChartValue;
+    sent?: JobsChartValue;
+};
+
+/**
+ * Jobs chart
+ */
+export type JobsSuccessFailedChart = {
+    failed?: JobsChartValue;
+    retried?: JobsChartValue;
+    success?: JobsChartValue;
+    /**
+     * Metric timestamp
+     */
+    timestamp?: string;
+    total?: JobsChartValue;
+};
+
+/**
+ * Jobs tasks
+ */
+export type JobsTasks = {
+    /**
+     * Failed executions
+     */
+    failed?: number;
+    /**
+     * Running executions
+     */
+    running?: number;
+    /**
+     * Success executions
+     */
+    success?: number;
+    /**
+     * Total executions
+     */
+    total?: number;
+};
+
+/**
+ * Jobs executions
+ */
+export type JobsTotal = {
+    /**
+     * Failed executions
+     */
+    failed?: number;
+    /**
+     * Retried executions
+     */
+    retried?: number;
+    /**
+     * Running executions
+     */
+    running?: number;
+    /**
+     * Success executions
+     */
+    success?: number;
+    /**
+     * Total executions
+     */
+    total?: number;
+};
 
 /**
  * Knowledgebase
@@ -1319,6 +1501,18 @@ export type PreviewSpec = {
      */
     public?: boolean;
     /**
+     * Those headers will be set in all requests to your preview. This is especially useful to set the Authorization header.
+     */
+    requestHeaders?: {
+        [key: string]: string;
+    };
+    /**
+     * Those headers will be set in all responses of your preview. This is especially useful to set the CORS headers.
+     */
+    responseHeaders?: {
+        [key: string]: string;
+    };
+    /**
      * URL of the preview
      */
     url?: string;
@@ -1732,6 +1926,10 @@ export type Runtime = {
      * The Docker image for the deployment
      */
     image?: string;
+    /**
+     * The maximum number of concurrent task for an execution
+     */
+    maxConcurrentTasks?: number;
     /**
      * The maximum number of retries for the deployment
      */
@@ -4104,43 +4302,6 @@ export type GetTemplateResponses = {
 };
 
 export type GetTemplateResponse = GetTemplateResponses[keyof GetTemplateResponses];
-
-export type GetTemplateContentsData = {
-    body?: never;
-    path: {
-        templateName: string;
-    };
-    query?: never;
-    url: '/templates/{templateName}/contents';
-};
-
-export type GetTemplateContentsResponses = {
-    /**
-     * List of files in the template
-     */
-    200: Array<string>;
-};
-
-export type GetTemplateContentsResponse = GetTemplateContentsResponses[keyof GetTemplateContentsResponses];
-
-export type GetTemplateFileContentsData = {
-    body?: never;
-    path: {
-        templateName: string;
-        fileName: string;
-    };
-    query?: never;
-    url: '/templates/{templateName}/contents/{fileName}';
-};
-
-export type GetTemplateFileContentsResponses = {
-    /**
-     * Content of the file
-     */
-    200: string;
-};
-
-export type GetTemplateFileContentsResponse = GetTemplateFileContentsResponses[keyof GetTemplateFileContentsResponses];
 
 export type ListWorkspaceUsersData = {
     body?: never;
