@@ -8,6 +8,13 @@ export type CopyResponse = {
   destination: string;
 }
 
+export type WatchEvent = {
+  op: "CREATE" | "WRITE" | "REMOVE";
+  path: string;
+  name: string;
+  content?: string;
+}
+
 export class SandboxFileSystem extends SandboxAction {
   constructor(sandbox: Sandbox) {
     super(sandbox);
@@ -138,7 +145,7 @@ export class SandboxFileSystem extends SandboxAction {
 
   watch(
     path: string,
-    callback: (filePath: string, content?: string) => void | Promise<void>,
+    callback: (fileEvent: WatchEvent) => void | Promise<void>,
     options?: {
       onError?: (error: Error) => void,
       withContent: boolean
@@ -171,17 +178,27 @@ export class SandboxFileSystem extends SandboxAction {
           let lines = buffer.split('\n');
           buffer = lines.pop()!;
           for (const line of lines) {
-            const filePath = line.trim();
-            if (!filePath) continue;
-            if (options?.withContent) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            const fileEvent = JSON.parse(line.trim()) as WatchEvent;
+            if (options?.withContent && ["CREATE", "WRITE"].includes(fileEvent.op)) {
               try {
+                let filePath = ""
+                if (fileEvent.path.endsWith("/")) {
+                  filePath = fileEvent.path + fileEvent.name;
+                } else {
+                  filePath = fileEvent.path + "/" + fileEvent.name;
+                }
+
                 const content = await this.read(filePath);
-                await callback(filePath, content);
+                await callback({ ...fileEvent, content });
               } catch (e) {
-                await callback(filePath, undefined);
+                console.log(e);
+
+                await callback({ ...fileEvent, content: undefined });
               }
             } else {
-              await callback(filePath);
+              await callback(fileEvent);
             }
           }
         }
