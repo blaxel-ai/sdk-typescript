@@ -37,9 +37,11 @@ You can find other packages to help you integrate with your favorite AI framewor
 ## Prerequisites
 
 - **Node.js:** v18 or later.
-- **Blaxel CLI:** Ensure you have the Blaxel CLI installed. If not, install it globally:
+- **Blaxel CLI:** Ensure you have the Blaxel CLI installed. If not, [install it](https://docs.blaxel.ai/cli-reference/introduction) globally:
   ```bash
-  curl -fsSL https://raw.githubusercontent.com/beamlit/toolkit/preview/install.sh | BINDIR=$HOME/.local/bin sh
+  curl -fsSL \
+  https://raw.githubusercontent.com/blaxel-ai/toolkit/main/install.sh \
+  | BINDIR=/usr/local/bin sudo -E sh
   ```
 - **Blaxel login:** Login to Blaxel platform
   ```bash
@@ -58,11 +60,12 @@ bl serve --hotreload
 
 ### Set-up blaxel observability
 
+
 It only need a require of our SDK on top of your main entrypoint file.
 It will directly plug our backend (when deployed on blaxel) with open telemetry standard.
 
 ```ts
-import "@blaxel/core";
+import "@blaxel/telemetry";
 ```
 
 ### Connect tools and model from blaxel platform to your agent
