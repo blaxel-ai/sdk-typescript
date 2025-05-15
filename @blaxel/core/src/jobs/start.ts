@@ -73,7 +73,11 @@ class BlJobWrapper {
 export const blStartJob = (func: (args: any) => Promise<void>) => {
   const job = new BlJobWrapper();
   job.start(func).then(async () => {
-    await flush()
+    try {
+      await flush()
+    } catch (error) {
+      console.error('Error flushing telemetry:', error);
+    }
   }).catch((error) => {
     console.error('Job execution failed:', error);
     process.exit(1);
