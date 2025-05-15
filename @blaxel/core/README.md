@@ -28,20 +28,18 @@ Currently in preview, feel free to send us feedback or contribute to the project
 Blaxel SDK is split between multiple packages, core is the minimal package to connect to Blaxel.
 You can find other packages to help you integrate with your favorite AI framework and set up telemetry.
 
-- [@blaxel/telemetry](@blaxel/telemetry/README.md)
-- [@blaxel/vercel](@blaxel/vercel/README.md)
-- [@blaxel/llamaindex](@blaxel/llamaindex/README.md)
-- [@blaxel/langgraph](@blaxel/langgraph/README.md)
-- [@blaxel/mastra](@blaxel/mastra/README.md)
+- [@blaxel/telemetry](https://www.npmjs.com/package/@blaxel/telemetry)
+- [@blaxel/vercel](https://www.npmjs.com/package/@blaxel/vercel)
+- [@blaxel/llamaindex](https://www.npmjs.com/package/@blaxel/llamaindex)
+- [@blaxel/langgraph](https://www.npmjs.com/package/@blaxel/langgraph)
+- [@blaxel/mastra](https://www.npmjs.com/package/@blaxel/mastra)
 
 ## Prerequisites
 
 - **Node.js:** v18 or later.
-- **Blaxel CLI:** Ensure you have the Blaxel CLI installed. If not, [install it](https://docs.blaxel.ai/cli-reference/introduction) globally:
+- **Blaxel CLI:** Ensure you have the Blaxel CLI installed. If not, install it globally:
   ```bash
-  curl -fsSL \
-  https://raw.githubusercontent.com/blaxel-ai/toolkit/main/install.sh \
-  | BINDIR=/usr/local/bin sudo -E sh
+  curl -fsSL https://raw.githubusercontent.com/beamlit/toolkit/preview/install.sh | BINDIR=$HOME/.local/bin sh
   ```
 - **Blaxel login:** Login to Blaxel platform
   ```bash
@@ -61,25 +59,89 @@ bl serve --hotreload
 ### Set-up blaxel observability
 
 It only need a require of our SDK on top of your main entrypoint file.
+It will directly plug our backend (when deployed on blaxel) with open telemetry standard.
+
 ```ts
-import "@blaxel/telemetry";
+import "@blaxel/core";
 ```
 
-For more details, you can read the [@blaxel/telemetry](@blaxel/telemetry/README.md) documentation.
-
-
-### Connect tools and model from Blaxel platform to your agent
-
-Depending of the framework you use, you can use the following libraries:
-
-- [@blaxel/llamaindex](@blaxel/llamaindex/README.md)
-- [@blaxel/langgraph](@blaxel/langgraph/README.md)
-- [@blaxel/vercel](@blaxel/vercel/README.md)
-- [@blaxel/mastra](@blaxel/mastra/README.md)
-
-Example with mastra framework:
+### Connect tools and model from blaxel platform to your agent
 
 ```ts
+```
+
+Then you need to use it in your agent
+
+```ts
+import { blTools, blModel } from "@blaxel/llamaindex";
+// Example with llamaIndex
+const stream = agent({
+  llm: await blModel("gpt-4o-mini"),
+  tools: [
+    ...(await blTools(["blaxel-search", "webcrawl"])),
+    tool({
+      name: "weather",
+      description: "Get the weather in a specific city",
+      parameters: z.object({
+        city: z.string(),
+      }),
+      execute: async (input) => {
+        console.debug("TOOLCALLING: local weather", input);
+        return `The weather in ${input.city} is sunny`;
+      },
+    }),
+  ],
+  systemPrompt: prompt,
+}).run(process.argv[2]);
+
+// With Vercel AI
+import { blTools, blModel } from "@blaxel/vercel";
+const stream = streamText({
+  model: await blModel("gpt-4o-mini"),
+  messages: [{ role: "user", content: process.argv[2] }],
+  system: prompt,
+  tools: {
+    ...(await blTools(["blaxel-search", "webcrawl"])),
+    weather: tool({
+      description: "Get the weather in a specific city",
+      parameters: z.object({
+        city: z.string(),
+      }),
+      execute: async (input) => {
+        console.debug("TOOLCALLING: local weather", input);
+        return `The weather in ${input.city} is sunny`;
+      },
+    }),
+  },
+  maxSteps: 5,
+});
+
+// With Langgraph
+import { blTools, blModel } from "@blaxel/langgraph";
+const stream = await createReactAgent({
+  llm: await blModel("gpt-4o-mini"),
+  prompt: prompt,
+  tools: [
+    ...(await blTools(["blaxel-search", "webcrawl"])),
+    tool(
+      async (input: any) => {
+        console.debug("TOOLCALLING: local weather", input);
+        return `The weather in ${input.city} is sunny`;
+      },
+      {
+        name: "weather",
+        description: "Get the weather in a specific city",
+        schema: z.object({
+          city: z.string(),
+        }),
+      }
+    ),
+  ],
+}).stream({
+  messages: [new HumanMessage(process.argv[2])],
+});
+
+// With Mastra
 import { blTools, blModel } from "@blaxel/mastra";
 const agent = new Agent({
   name: "blaxel-agent-mastra",
@@ -271,15 +333,6 @@ type = "agent"
 
 functions = ["blaxel-search"]
 models = ["sandbox-openai"]
-# policies = ["na-only"]
-
-# [runtime]
-# memory = 1024
-# maxScale = 10
-# timeout = 900
-
-# [env]
-# DEFAULT_CITY = "San Francisco"
 ```
 
 It allow to customize the requirements for your agent, it can be usefull if you have many models and functions in your workspace.
@@ -345,16 +398,6 @@ You need to have a "blaxel.toml" file in your project root
 name = "weather"
 workspace = "my-workspace"
 type = "function"
-
-# policies = ["na-only"]
-
-# [runtime]
-# memory = 1024
-# maxScale = 10
-# timeout = 900
-
-# [env]
-# DEFAULT_CITY = "San Francisco"
 ```
 
 Connect the observability layer
