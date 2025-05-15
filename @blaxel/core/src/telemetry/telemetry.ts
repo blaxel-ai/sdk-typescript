@@ -107,10 +107,10 @@ export function startSpan(name: string, options?: BlaxelSpanOptions): BlaxelSpan
   return telemetryRegistry.getProvider().startSpan(name, options);
 }
 
-export function withSpan<T>(name: string, fn: () => T, options?: BlaxelSpanOptions): T {
+export async function withSpan<T>(name: string, fn: () => Promise<T>, options?: BlaxelSpanOptions): Promise<T> {
   const span = startSpan(name, options);
   try {
-    const result = fn();
+    const result = await fn();
     span.end();
     return result;
   } catch (error) {
