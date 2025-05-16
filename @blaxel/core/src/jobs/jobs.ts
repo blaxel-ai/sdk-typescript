@@ -1,62 +1,110 @@
-import { env } from '../common/env.js';
-
-type ExecutionArgs = {
-  [key: number]: any;
-}[];
+import { env } from "../common/env.js";
+import { getGlobalUniqueHash } from "../common/internal.js";
+import { logger } from "../common/logger.js";
+import { settings } from "../common/settings.js";
+import { startSpan } from '../telemetry/telemetry.js';
 
 class BlJob {
-  async getArguments() {
-    if(!env.BL_EXECUTION_DATA_URL) {
-      const args = this.parseCommandLineArgs()
-      return args
-    }
-
-    const response = await fetch(env.BL_EXECUTION_DATA_URL);
-    const data = await response.json() as {tasks: ExecutionArgs};
-    return data.tasks[this.index] ?? {};
+  jobName: string;
+  constructor(jobName: string) {
+    this.jobName = jobName;
   }
 
-  private parseCommandLineArgs(): Record<string, string> {
-    const args = process.argv.slice(2);
-    const result: Record<string, string> = {};
+  get fallbackUrl() {
+    if (this.externalUrl != this.url) {
+      return this.externalUrl;
+    }
+    return null;
+  }
 
-    for (let i = 0; i < args.length; i++) {
-      const arg = args[i];
-      if (arg.startsWith('--')) {
-        const key = arg.slice(2);
-        const value = args[i + 1];
-        if (value && !value.startsWith('--')) {
-          result[key] = value;
-          i++;
-        } else {
-          result[key] = 'true';
+  get externalUrl() {
+    return new URL(
+      `${settings.runUrl}/${settings.workspace}/jobs/${this.jobName}`
+    );
+  }
+
+  get internalUrl() {
+    const hash = getGlobalUniqueHash(
+      settings.workspace,
+      "job",
+      this.jobName
+    );
+    return new URL(
+      `${settings.runInternalProtocol}://bl-${settings.env}-${hash}.${settings.runInternalHostname}`
+    );
+  }
+
+  get forcedUrl() {
+    const envVar = this.jobName.replace(/-/g, "_").toUpperCase();
+    if (env[`BL_JOB_${envVar}_URL`]) {
+      return new URL(env[`BL_JOB_${envVar}_URL`] as string);
+    }
+    return null;
+  }
+
+  get url() {
+    if (this.forcedUrl) return this.forcedUrl;
+    if (settings.runInternalHostname) return this.internalUrl;
+    return this.externalUrl;
+  }
+
+  async call(
+    url: URL,
+    tasks: Record<string, unknown>[],
+  ): Promise<Response> {
+    let body = {
+      tasks: tasks
+    }
+    const response = await fetch(url+"/executions", {
+      method: "POST",
+      headers: {
+        ...settings.headers,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    return response;
+  }
+
+  async run(
+    tasks: Record<string, unknown>[],
+  ): Promise<string> {
+    logger.debug(`Job Calling: ${this.jobName}`);
+
+    const span = startSpan(this.jobName, {
+      attributes: {
+        "job.name": this.jobName,
+        "span.type": "job.run",
+      },
+      isRoot: false,
+    });
+
+    try {
+      const response = await this.call(this.url, tasks);
+      return await response.text();
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        if (!this.fallbackUrl) {
+          span.setAttribute("job.run.error", err.stack as string);
+          throw err;
+        }
+        try {
+          const response = await this.call(this.fallbackUrl, tasks);
+          return await response.text();
+        } catch (err: unknown) {
+          if (err instanceof Error) {
+            span.setAttribute("job.run.error", err.stack as string);
+          }
+          throw err;
         }
       }
-    }
-
-    return result;
-  }
-
-  get indexKey(): string {
-    return env.BL_TASK_KEY ?? "TASK_INDEX";
-  }
-
-  get index(): number {
-    return env[this.indexKey] ? Number(env[this.indexKey]) ?? 0 : 0;
-  }
-
-  /*
-    Run a job defined in a function, it's run in the current process
-  */
-  async start(func: (args: any) => Promise<void>) {
-    try {
-      const parsedArgs = await this.getArguments();
-      await func(parsedArgs);
-      process.exit(0);
-    } catch (error) {
-      console.error('Job execution failed:', error);
-      process.exit(1);
+      throw err;
+    } finally {
+      span.end();
     }
   }
 }
-export const blJob = new BlJob();
+
+export const blJob = (jobName: string) => {
+  return new BlJob(jobName);
+};

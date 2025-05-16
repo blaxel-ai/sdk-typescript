@@ -4,7 +4,8 @@
   <img src="https://blaxel.ai/logo.png" alt="Blaxel"/>
 </p>
 
-**Blaxel is a computing platform for AI agent builders, with all the services and infrastructure to build and deploy agents efficiently.** This repository contains the TypeScript SDK to create and manage resources on Blaxel.
+**Blaxel is a computing platform for AI agent builders, with all the services and infrastructure to build and deploy agents efficiently.** This repository contains the TypeScript SDK to interact with Blaxel resources using LangChain/LangGraph format.
+
 
 ## Table of Contents
 
@@ -20,17 +21,17 @@
 
 ## Installation
 
-Install Blaxel core SDK, which lets you manage Blaxel resources.
+Install Blaxel SDK for LangChain/LangGraph, which lets you retrieve Blaxel resources in LangChain/LangGraph format.
 
 ```bash
 ## npm
-npm install @blaxel/core
+npm install @blaxel/langgraph
 
 ## pnpm
-pnpm i @blaxel/core
+pnpm i @blaxel/langgraph
 
 ## yarn
-yarn add @blaxel/core
+yarn add @blaxel/langgraph
 ```
 
 
@@ -38,10 +39,7 @@ yarn add @blaxel/core
 Blaxel SDK is split between multiple packages. *core* is the minimal package to connect to Blaxel. You can find other packages to help you integrate with your favorite AI framework, or set up telemetry.
 
 - [@blaxel/telemetry](@blaxel/telemetry/README.md)
-- [@blaxel/vercel](@blaxel/vercel/README.md)
-- [@blaxel/llamaindex](@blaxel/llamaindex/README.md)
-- [@blaxel/langgraph](@blaxel/langgraph/README.md)
-- [@blaxel/mastra](@blaxel/mastra/README.md)
+- [@blaxel/core](@blaxel/core/README.md)
 
 Instrumentation happens automatically when workloads run on Blaxel. To enable telemetry, simply require the SDK in your project's entry point.
 ```ts
@@ -64,16 +62,40 @@ When running Blaxel SDK from a remote server that is not Blaxel-hosted, we recom
 
 
 ## Features
-- Agents & MCP servers
-  - [Create MCP servers](https://docs.blaxel.ai/Functions/Create-MCP-server)
-  - [Connect to MCP servers and model APIs hosted on Blaxel](https://docs.blaxel.ai/Agents/Develop-an-agent-ts)
-  - [Call agents from another agent](https://docs.blaxel.ai/Agents/Develop-an-agent-ts#connect-to-another-agent-multi-agent-chaining)
-  - [Deploy on Blaxel](https://docs.blaxel.ai/Agents/Deploy-an-agent)
-- Sandboxes
-  - [Create and update sandboxes and sandbox previews](https://docs.blaxel.ai/Sandboxes/Overview)
-  - [Run filesystem operations and processes on a sandbox](https://docs.blaxel.ai/Sandboxes/Processes)
-- [Use environment variables or secrets](https://docs.blaxel.ai/Agents/Variables-and-secrets)
+- [Connect to MCP servers hosted on Blaxel](https://docs.blaxel.ai/Agents/Develop-an-agent-ts)
+- [Connect to model APIs hosted on Blaxel](https://docs.blaxel.ai/Agents/Develop-an-agent-ts)
 
+
+## Connect to MCP server tools and models on Blaxel
+
+```ts
+// With Langgraph
+import { blTools, blModel } from "@blaxel/langgraph";
+
+const stream = await createReactAgent({
+  llm: await blModel("gpt-4o-mini"),
+  prompt: prompt,
+  tools: [
+    ...(await blTools(["blaxel-search", "webcrawl"])),
+    tool(
+      async (input: any) => {
+        console.debug("TOOLCALLING: local weather", input);
+        return `The weather in ${input.city} is sunny`;
+      },
+      {
+        name: "weather",
+        description: "Get the weather in a specific city",
+        schema: z.object({
+          city: z.string(),
+        }),
+      }
+    ),
+  ],
+}).stream({
+  messages: [new HumanMessage(process.argv[2])],
+});
+
+```
 
 
 ## Quickstart

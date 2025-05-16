@@ -1,11 +1,17 @@
 import { BlaxelSpan, BlaxelSpanOptions, BlaxelTelemetryProvider } from "@blaxel/core";
 import {
   Span as OtelApiSpan,
-  context as otelContext, SpanOptions as OtelSpanOptions, SpanStatusCode, trace
+  context as otelContext,
+  SpanOptions as OtelSpanOptions,
+  ROOT_CONTEXT,
+  SpanContext,
+  SpanStatusCode, trace
 } from "@opentelemetry/api";
+import { blaxelTelemetry } from "./telemetry";
 
 class OtelSpan implements BlaxelSpan {
   private span: OtelApiSpan;
+  public closed = false;
 
   constructor(span: OtelApiSpan) {
     this.span = span;
@@ -32,6 +38,7 @@ class OtelSpan implements BlaxelSpan {
   }
 
   end(): void {
+    this.closed = true;
     this.span.end();
   }
 
@@ -40,26 +47,35 @@ class OtelSpan implements BlaxelSpan {
   }
 }
 
-
 export class OtelTelemetryProvider implements BlaxelTelemetryProvider {
+  private spans: OtelSpan[] = [];
+
+  retrieveActiveSpanContext() {
+    for(let i = this.spans.length - 1; i >= 0; i--) {
+      const span = this.spans[i];
+      if(!span.closed) {
+        return trace.setSpanContext(ROOT_CONTEXT, span.getContext() as SpanContext);
+      }
+    }
+    return otelContext.active();
+  }
+
   startSpan(name: string, options?: BlaxelSpanOptions): BlaxelSpan {
-    // Use the tracer from the registered NodeTracerProvider
     const tracer = trace.getTracer("blaxel");
 
-    // Prepare OpenTelemetry span options
     const otelOptions: OtelSpanOptions = {
       attributes: options?.attributes,
       root: options?.isRoot,
     };
 
-    // Handle parent context if provided
-    let ctx = otelContext.active();
-    if (options?.parentContext) {
-      ctx = options.parentContext as typeof ctx;
-    }
+    let ctx = this.retrieveActiveSpanContext();
+    let span = new OtelSpan(tracer.startSpan(name, otelOptions, ctx));
+    this.spans.push(span);
 
-    // Start the span
-    const span = tracer.startSpan(name, otelOptions, ctx);
-    return new OtelSpan(span);
+    return span;
+  }
+
+  async flush(): Promise<void> {
+    await blaxelTelemetry.flush();
   }
 }
