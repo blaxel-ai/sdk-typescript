@@ -14,7 +14,7 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/blaxel/toolkit/sdk-ts"
+		"url": "https://github.com/blaxel-ai/sdk-typescript"
 	},
 	"engines": {
 		"node": ">=18"
