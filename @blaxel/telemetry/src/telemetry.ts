@@ -143,6 +143,18 @@ class TelemetryManager {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  async flush() {
+    if (this.nodeTracerProvider) {
+      await this.nodeTracerProvider.shutdown();
+    }
+    if (this.meterProvider) {
+      await this.meterProvider.shutdown();
+    }
+    if (this.loggerProvider) {
+      await this.loggerProvider.shutdown();
+    }
+  }
+
   async getLogger(): Promise<Logger> {
     if (!this.otelLogger) {
       await this.sleep(100);
