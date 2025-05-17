@@ -1,6 +1,6 @@
 import { createSandbox, deleteSandbox, getSandbox, listSandboxes, Sandbox as SandboxModel } from "../client/index.js";
 import { logger } from "../common/logger.js";
-import { SandboxFileSystem } from "./filesystem.js";
+import { SandboxFileSystem } from "./filesystem/index.js";
 import { SandboxNetwork } from "./network.js";
 import { SandboxPreviews } from "./preview.js";
 import { SandboxProcess } from "./process.js";

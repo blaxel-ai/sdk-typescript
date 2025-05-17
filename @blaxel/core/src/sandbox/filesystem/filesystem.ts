@@ -1,19 +1,8 @@
-import { z } from "zod";
-import { Sandbox } from "../client/types.gen.js";
-import { SandboxAction } from "./action.js";
-import { deleteFilesystemByPath, Directory, getFilesystemByPath, getWatchFilesystemByPath, putFilesystemByPath, SuccessResponse } from "./client/index.js";
-export type CopyResponse = {
-  message: string;
-  source: string;
-  destination: string;
-}
-
-export type WatchEvent = {
-  op: "CREATE" | "WRITE" | "REMOVE";
-  path: string;
-  name: string;
-  content?: string;
-}
+import z from "zod";
+import { CopyResponse, WatchEvent } from ".";
+import { Sandbox } from "../../client";
+import { SandboxAction } from "../action";
+import { deleteFilesystemByPath, Directory, getFilesystemByPath, getWatchFilesystemByPath, putFilesystemByPath, SuccessResponse } from "../client";
 
 export class SandboxFileSystem extends SandboxAction {
   constructor(sandbox: Sandbox) {
