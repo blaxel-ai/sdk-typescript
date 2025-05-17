@@ -19,6 +19,8 @@ export class SandboxSessions {
       spec: {
         port: 443,
         public: false,
+        requestHeaders: options.requestHeaders,
+        responseHeaders: options.responseHeaders,
       },
     };
     const { data } = await createSandboxPreview({
