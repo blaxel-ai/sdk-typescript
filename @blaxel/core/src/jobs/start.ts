@@ -78,6 +78,7 @@ export const blStartJob = (func: (args: any) => Promise<void>) => {
     } catch (error) {
       console.error('Error flushing telemetry:', error);
     }
+    process.exit(0);
   }).catch((error) => {
     console.error('Job execution failed:', error);
     process.exit(1);
