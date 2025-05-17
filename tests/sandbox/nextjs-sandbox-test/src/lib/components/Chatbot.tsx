@@ -1,23 +1,21 @@
 'use client';
 
 import { useChat } from '@ai-sdk/react';
-
-export function Chatbot({ sandboxId, className }: { sandboxId: string, className?: string }) {
-  console.log(sandboxId);
-
-  const { messages, input, handleInputChange, handleSubmit, isLoading, error } = useChat({
+import { SandboxInstance } from '@blaxel/core';
+export function Chatbot({ sandbox, className }: { sandbox: SandboxInstance, className?: string }) {
+  const { messages, input, handleInputChange, handleSubmit, status, error } = useChat({
     api: '/api/chat',
-    initialMessages: [
-      {
-        id: 'welcome',
-        role: 'assistant',
-        content: 'Hey create a NextJS app with my help, just describe what you want and I will handle the rest'
-      }
-    ],
     maxSteps: 5, // Enable multi-step tool calling
     // Handle client-side tool calling
     async onToolCall({ toolCall }) {
-      console.log(toolCall);
+      const tool = sandbox.fs.tools[toolCall.toolName as keyof typeof sandbox.fs.tools]
+      if (tool) {
+        // @ts-expect-error just let it be
+        const result = await tool.execute(toolCall.args)
+        return result
+      } else {
+        console.error('Tool not found', toolCall.toolName)
+      }
     }
   });
 
@@ -48,7 +46,7 @@ export function Chatbot({ sandboxId, className }: { sandboxId: string, className
           </div>
         ))}
 
-        {isLoading && (
+        {status === 'submitted' && (
           <div className="flex justify-start">
             <div className="bg-gray-100 rounded-lg px-3 py-2 max-w-[80%]">
               <div className="flex space-x-2">
@@ -75,16 +73,16 @@ export function Chatbot({ sandboxId, className }: { sandboxId: string, className
             onChange={handleInputChange}
             placeholder="Type your message..."
             className="flex-grow px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isLoading}
+            disabled={status === 'submitted'}
           />
           <button
             type="submit"
             className={`px-4 py-2 rounded-r-md ${
-              isLoading
+              status === 'submitted'
                 ? 'bg-gray-300 text-gray-500'
                 : 'bg-blue-600 text-white hover:bg-blue-700'
             }`}
-            disabled={isLoading}
+            disabled={status === 'submitted'}
           >
             Send
           </button>

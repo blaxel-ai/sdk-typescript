@@ -1,7 +1,7 @@
+import { z } from "zod";
 import { Sandbox } from "../client/types.gen.js";
 import { SandboxAction } from "./action.js";
 import { deleteFilesystemByPath, Directory, getFilesystemByPath, getWatchFilesystemByPath, putFilesystemByPath, SuccessResponse } from "./client/index.js";
-
 export type CopyResponse = {
   message: string;
   source: string;
@@ -232,5 +232,185 @@ export class SandboxFileSystem extends SandboxAction {
       path = path.slice(1);
     }
     return path;
+  }
+
+  get tools(): {
+    cp: {
+      description: string;
+      parameters: z.ZodObject<{
+        source: z.ZodString;
+        destination: z.ZodString;
+      }>;
+      execute: (args: { source: string; destination: string }) => Promise<string>;
+    };
+    mkdir: {
+      description: string;
+      parameters: z.ZodObject<{
+        path: z.ZodString;
+        permissions: z.ZodDefault<z.ZodOptional<z.ZodString>>;
+      }>;
+      execute: (args: { path: string; permissions: string }) => Promise<string>;
+    };
+    ls: {
+      description: string;
+      parameters: z.ZodObject<{
+        path: z.ZodString;
+      }>;
+      execute: (args: { path: string }) => Promise<string>;
+    };
+    rm: {
+      description: string;
+      parameters: z.ZodObject<{
+        path: z.ZodString;
+        recursive: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
+      }>;
+      execute: (args: { path: string; recursive: boolean }) => Promise<string>;
+    };
+    read: {
+      description: string;
+      parameters: z.ZodObject<{
+        path: z.ZodString;
+      }>;
+      execute: (args: { path: string }) => Promise<string>;
+    };
+    write: {
+      description: string;
+      parameters: z.ZodObject<{
+        path: z.ZodString;
+        content: z.ZodString;
+      }>;
+      execute: (args: { path: string; content: string }) => Promise<string>;
+    };
+  } {
+    return {
+      cp: {
+        description: "Copy a file or directory",
+        parameters: z.object({
+          source: z.string(),
+          destination: z.string(),
+        }),
+        execute: async (args: z.infer<typeof this.tools.cp.parameters>) => {
+          try {
+            const result = await this.cp(args.source, args.destination);
+            return JSON.stringify(result);
+          } catch (e) {
+            if (e instanceof Error) {
+              return JSON.stringify({
+                message: e.message,
+                source: args.source,
+                destination: args.destination
+              })
+            }
+            return "An unknown error occurred"
+          }
+        }
+      },
+      mkdir: {
+        description: "Create a directory",
+        parameters: z.object({
+          path: z.string(),
+          permissions: z.string().optional().default("0755"),
+        }),
+        execute: async (args: z.infer<typeof this.tools.mkdir.parameters>) => {
+          try {
+            const result = await this.mkdir(args.path, args.permissions);
+            return JSON.stringify(result);
+          } catch (e) {
+            if (e instanceof Error) {
+              return JSON.stringify({
+                message: e.message,
+                path: args.path,
+                permissions: args.permissions
+              })
+            }
+            return "An unknown error occurred"
+          }
+        }
+      },
+      ls: {
+        description: "List a directory",
+        parameters: z.object({
+          path: z.string(),
+        }),
+        execute: async (args: z.infer<typeof this.tools.ls.parameters>) => {
+          try {
+            const result = await this.ls(args.path);
+            return JSON.stringify(result);
+          } catch (e) {
+            if (e instanceof Error) {
+              return JSON.stringify({
+                message: e.message,
+                path: args.path
+              })
+            }
+            return "An unknown error occurred"
+          }
+        }
+      },
+      rm: {
+        description: "Remove a file or directory",
+        parameters: z.object({
+          path: z.string(),
+          recursive: z.boolean().optional().default(false),
+        }),
+        execute: async (args: z.infer<typeof this.tools.rm.parameters>) => {
+          try {
+            const result = await this.rm(args.path, args.recursive);
+            return JSON.stringify(result);
+          } catch (e) {
+            if (e instanceof Error) {
+              return JSON.stringify({
+                message: e.message,
+                path: args.path,
+                recursive: args.recursive
+              })
+            }
+            return "An unknown error occurred"
+          }
+        }
+      },
+      read: {
+        description: "Read a file",
+        parameters: z.object({
+          path: z.string(),
+        }),
+        execute: async (args: z.infer<typeof this.tools.read.parameters>) => {
+          try {
+            const result = await this.read(args.path);
+            return JSON.stringify(result);
+          } catch (e) {
+            if (e instanceof Error) {
+              return JSON.stringify({
+                message: e.message,
+                path: args.path
+              })
+            }
+            return "An unknown error occurred"
+          }
+        }
+      },
+      write: {
+        description: "Write a file",
+        parameters: z.object({
+          path: z.string(),
+          content: z.string(),
+        }),
+        execute: async (args: z.infer<typeof this.tools.write.parameters>) => {
+          try {
+            const result = await this.write(args.path, args.content);
+            return JSON.stringify(result);
+          } catch (e) {
+            if (e instanceof Error) {
+              return JSON.stringify({
+                message: e.message,
+                path: args.path,
+                content: args.content
+              })
+            }
+            return "An unknown error occurred"
+          }
+        }
+      }
+    }
   }
 }

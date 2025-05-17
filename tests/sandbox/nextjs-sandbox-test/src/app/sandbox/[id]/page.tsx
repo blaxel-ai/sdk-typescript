@@ -307,7 +307,7 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
             {/* Chatbot section - 70% of the height */}
             <div className="flex-grow h-[70%] mb-3 overflow-hidden flex flex-col">
               <InfoCard title="Sandbox Assistant" className="flex-grow flex flex-col h-full overflow-hidden">
-                {sandbox && <Chatbot sandboxId={sandbox.id.toString()} className="flex-grow" />}
+                {sandboxInstance && <Chatbot sandbox={sandboxInstance} className="flex-grow" />}
               </InfoCard>
             </div>
 
