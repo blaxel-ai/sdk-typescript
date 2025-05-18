@@ -50,6 +50,12 @@ export type ProcessKillRequest = {
     signal?: string;
 };
 
+export type ProcessLogs = {
+    logs?: string;
+    stderr?: string;
+    stdout?: string;
+};
+
 export type ProcessRequest = {
     command: string;
     name?: string;
@@ -66,7 +72,7 @@ export type ProcessResponse = {
     name?: string;
     pid?: string;
     startedAt?: string;
-    status?: string;
+    status?: 'failed' | 'killed' | 'stopped' | 'running' | 'completed';
     workingDir?: string;
 };
 
@@ -102,9 +108,9 @@ export type DeleteFilesystemByPathErrors = {
      */
     404: ErrorResponse;
     /**
-     * Internal server error
+     * Unprocessable entity
      */
-    500: ErrorResponse;
+    422: ErrorResponse;
 };
 
 export type DeleteFilesystemByPathError = DeleteFilesystemByPathErrors[keyof DeleteFilesystemByPathErrors];
@@ -136,9 +142,9 @@ export type GetFilesystemByPathErrors = {
      */
     404: ErrorResponse;
     /**
-     * Internal server error
+     * Unprocessable entity
      */
-    500: ErrorResponse;
+    422: ErrorResponse;
 };
 
 export type GetFilesystemByPathError = GetFilesystemByPathErrors[keyof GetFilesystemByPathErrors];
@@ -154,7 +160,7 @@ export type GetFilesystemByPathResponse = GetFilesystemByPathResponses[keyof Get
 
 export type PutFilesystemByPathData = {
     /**
-     * File or directory information
+     * File or directory details
      */
     body: FileRequest;
     path: {
@@ -169,13 +175,13 @@ export type PutFilesystemByPathData = {
 
 export type PutFilesystemByPathErrors = {
     /**
-     * Invalid request
+     * Bad request
      */
     400: ErrorResponse;
     /**
-     * Internal server error
+     * Unprocessable entity
      */
-    500: ErrorResponse;
+    422: ErrorResponse;
 };
 
 export type PutFilesystemByPathError = PutFilesystemByPathErrors[keyof PutFilesystemByPathErrors];
@@ -207,9 +213,9 @@ export type DeleteNetworkProcessByPidMonitorErrors = {
      */
     400: ErrorResponse;
     /**
-     * Internal server error
+     * Unprocessable entity
      */
-    500: ErrorResponse;
+    422: ErrorResponse;
 };
 
 export type DeleteNetworkProcessByPidMonitorError = DeleteNetworkProcessByPidMonitorErrors[keyof DeleteNetworkProcessByPidMonitorErrors];
@@ -246,9 +252,9 @@ export type PostNetworkProcessByPidMonitorErrors = {
      */
     400: ErrorResponse;
     /**
-     * Internal server error
+     * Unprocessable entity
      */
-    500: ErrorResponse;
+    422: ErrorResponse;
 };
 
 export type PostNetworkProcessByPidMonitorError = PostNetworkProcessByPidMonitorErrors[keyof PostNetworkProcessByPidMonitorErrors];
@@ -282,9 +288,9 @@ export type GetNetworkProcessByPidPortsErrors = {
      */
     400: ErrorResponse;
     /**
-     * Internal server error
+     * Unprocessable entity
      */
-    500: ErrorResponse;
+    422: ErrorResponse;
 };
 
 export type GetNetworkProcessByPidPortsError = GetNetworkProcessByPidPortsErrors[keyof GetNetworkProcessByPidPortsErrors];
@@ -332,9 +338,9 @@ export type PostProcessErrors = {
      */
     400: ErrorResponse;
     /**
-     * Internal server error
+     * Unprocessable entity
      */
-    500: ErrorResponse;
+    422: ErrorResponse;
 };
 
 export type PostProcessError = PostProcessErrors[keyof PostProcessErrors];
@@ -366,9 +372,9 @@ export type DeleteProcessByIdentifierErrors = {
      */
     404: ErrorResponse;
     /**
-     * Internal server error
+     * Unprocessable entity
      */
-    500: ErrorResponse;
+    422: ErrorResponse;
 };
 
 export type DeleteProcessByIdentifierError = DeleteProcessByIdentifierErrors[keyof DeleteProcessByIdentifierErrors];
@@ -433,9 +439,9 @@ export type DeleteProcessByIdentifierKillErrors = {
      */
     404: ErrorResponse;
     /**
-     * Internal server error
+     * Unprocessable entity
      */
-    500: ErrorResponse;
+    422: ErrorResponse;
 };
 
 export type DeleteProcessByIdentifierKillError = DeleteProcessByIdentifierKillErrors[keyof DeleteProcessByIdentifierKillErrors];
@@ -467,9 +473,9 @@ export type GetProcessByIdentifierLogsErrors = {
      */
     404: ErrorResponse;
     /**
-     * Internal server error
+     * Unprocessable entity
      */
-    500: ErrorResponse;
+    422: ErrorResponse;
 };
 
 export type GetProcessByIdentifierLogsError = GetProcessByIdentifierLogsErrors[keyof GetProcessByIdentifierLogsErrors];
@@ -478,9 +484,7 @@ export type GetProcessByIdentifierLogsResponses = {
     /**
      * Process logs
      */
-    200: {
-        [key: string]: string;
-    };
+    200: ProcessLogs;
 };
 
 export type GetProcessByIdentifierLogsResponse = GetProcessByIdentifierLogsResponses[keyof GetProcessByIdentifierLogsResponses];
@@ -503,9 +507,9 @@ export type GetProcessByIdentifierLogsStreamErrors = {
      */
     404: ErrorResponse;
     /**
-     * Internal server error
+     * Unprocessable entity
      */
-    500: ErrorResponse;
+    422: ErrorResponse;
 };
 
 export type GetProcessByIdentifierLogsStreamError = GetProcessByIdentifierLogsStreamErrors[keyof GetProcessByIdentifierLogsStreamErrors];
@@ -571,9 +575,9 @@ export type GetWsProcessByIdentifierLogsStreamErrors = {
      */
     404: ErrorResponse;
     /**
-     * Internal server error
+     * Unprocessable entity
      */
-    500: ErrorResponse;
+    422: ErrorResponse;
 };
 
 export type GetWsProcessByIdentifierLogsStreamError = GetWsProcessByIdentifierLogsStreamErrors[keyof GetWsProcessByIdentifierLogsStreamErrors];

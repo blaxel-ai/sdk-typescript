@@ -1,4 +1,5 @@
 import { Sandbox } from "../client/types.gen.js";
+import { fs, path } from "../common/node.js";
 import { SandboxAction } from "./action.js";
 import { deleteFilesystemByPath, Directory, getFilesystemByPath, getWatchFilesystemByPath, putFilesystemByPath, SuccessResponse } from "./client/index.js";
 
@@ -13,6 +14,11 @@ export type WatchEvent = {
   path: string;
   name: string;
   content?: string;
+}
+
+export type SandboxFilesystemFile = {
+  path: string;
+  content: string;
 }
 
 export class SandboxFileSystem extends SandboxAction {
@@ -43,6 +49,83 @@ export class SandboxFileSystem extends SandboxAction {
     });
     this.handleResponseError(response, data, error);
     return data as SuccessResponse;
+  }
+
+  async writeFiles(files: SandboxFilesystemFile[], destinationPath: string | null = null) {
+    const batchSize = 10;
+    for (let i = 0; i < files.length; i += batchSize) {
+      const batch = files.slice(i, i + batchSize);
+      await Promise.all(
+        batch.map(async (file) => {
+          let destPath = "";
+          if (!destinationPath) {
+            destPath = file.path;
+          } else {
+            destPath = `${destinationPath}/${file.path}`;
+          }
+          await this.write(destPath, file.content);
+        })
+      );
+    }
+  }
+
+  async writeDir(directoryPath: string, destinationPath: string | null = null) {
+    // Read all files in the local directory
+    if (!fs) {
+      throw new Error("fs is not available in this environment");
+    }
+    if (!path) {
+      throw new Error("path is not available in this environment");
+    }
+
+    const files = fs.readdirSync(directoryPath);
+    // Map files to objects with path and data
+    const filesArray = files
+      .filter(file => {
+        if (!path) return false
+        if (!fs) return false
+        const fullPath = path.join(directoryPath, file);
+        // Skip if it's a directory
+        if (!fs.statSync(fullPath).isFile()) return false;
+
+        // Skip problematic file types (binary, compressed, etc.)
+        const ext = path.extname(file).toLowerCase();
+        const excludedExtensions = [
+          '.zip', '.tar', '.gz', '.tgz', '.rar', '.7z',
+          '.bin', '.exe', '.dll', '.so', '.dylib',
+          '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.ico', '.webp',
+          '.mp3', '.mp4', '.avi', '.mov', '.pdf'
+        ];
+        if (excludedExtensions.includes(ext)) {
+          console.log(`Skipping file ${file} because it has an excluded extension: ${ext}`);
+        };
+        return true;
+      })
+      .map(file => {
+        if (!path) return null
+        if (!fs) return null
+        const filePath = path.join(directoryPath, file);
+
+        // Read the content of each file
+        return {
+          path: filePath,
+          data: fs.readFileSync(filePath, 'utf8')
+        };
+      });
+    const batchSize = 5;
+    for (let i = 0; i < filesArray.length; i += batchSize) {
+      const batch = filesArray.slice(i, i + batchSize);
+      await Promise.all(
+        batch.map(async (file) => {
+          if (!file) return
+          let destPath = `${directoryPath}/${file.path}`;
+          if (destinationPath) {
+            destPath = `${destinationPath}/${file.path}`;
+          }
+          await this.write(destPath, file.data);
+        })
+      );
+    }
   }
 
   async read(path: string): Promise<string> {
