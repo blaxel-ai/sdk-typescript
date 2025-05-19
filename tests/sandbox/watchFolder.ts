@@ -54,11 +54,28 @@ async function testWatch(sandbox: SandboxInstance) {
   }
 }
 
+async function testWatchWithIgnore(sandbox: SandboxInstance) {
+  const fs = sandbox.fs;
+  const handle = fs.watch("/", (fileEvent) => {
+    console.log(fileEvent)
+  }, {
+    withContent: true,
+    ignore: ["test2.txt"]
+  });
+  await fs.write("test.txt", "content");
+  await fs.write("test2.txt", "content");
+  await fs.write("test3.txt", "content");
+  await fs.write("test2.txt", "content");
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  handle.close();
+}
+
 async function main() {
   const sandboxName = "sandbox-test-watch-folder"
   try {
     const sandbox = await createOrGetSandbox(sandboxName)
     await testWatch(sandbox)
+    await testWatchWithIgnore(sandbox)
   } catch (e) {
     console.error("There was an error => ", e);
   } finally {

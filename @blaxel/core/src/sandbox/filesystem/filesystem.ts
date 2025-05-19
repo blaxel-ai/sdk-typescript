@@ -217,7 +217,8 @@ export class SandboxFileSystem extends SandboxAction {
     callback: (fileEvent: WatchEvent) => void | Promise<void>,
     options?: {
       onError?: (error: Error) => void,
-      withContent: boolean
+      withContent: boolean,
+      ignore?: string[]
     }
   ) {
     path = this.formatPath(path);
@@ -225,13 +226,17 @@ export class SandboxFileSystem extends SandboxAction {
     let controller: AbortController | null = new AbortController();
 
     const start = async () => {
+      const query: { ignore?: string } = {}
+      if (options?.ignore) {
+        query.ignore = options.ignore.join(",");
+      }
       const { response, data, error } = await getWatchFilesystemByPath({
         client: this.client,
         path: { path },
+        query,
         baseUrl: this.url,
         parseAs: 'stream',
         signal: controller!.signal,
-
       });
       if (error) throw error;
       const stream: ReadableStream | null = (data as any) ?? response.body;
