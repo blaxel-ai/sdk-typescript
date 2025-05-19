@@ -115,6 +115,10 @@ export type DeleteFilesystemByPathErrors = {
      * Unprocessable entity
      */
     422: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
 };
 
 export type DeleteFilesystemByPathError = DeleteFilesystemByPathErrors[keyof DeleteFilesystemByPathErrors];
@@ -149,6 +153,10 @@ export type GetFilesystemByPathErrors = {
      * Unprocessable entity
      */
     422: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
 };
 
 export type GetFilesystemByPathError = GetFilesystemByPathErrors[keyof GetFilesystemByPathErrors];
@@ -186,6 +194,10 @@ export type PutFilesystemByPathErrors = {
      * Unprocessable entity
      */
     422: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
 };
 
 export type PutFilesystemByPathError = PutFilesystemByPathErrors[keyof PutFilesystemByPathErrors];
@@ -220,6 +232,10 @@ export type DeleteNetworkProcessByPidMonitorErrors = {
      * Unprocessable entity
      */
     422: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
 };
 
 export type DeleteNetworkProcessByPidMonitorError = DeleteNetworkProcessByPidMonitorErrors[keyof DeleteNetworkProcessByPidMonitorErrors];
@@ -259,6 +275,10 @@ export type PostNetworkProcessByPidMonitorErrors = {
      * Unprocessable entity
      */
     422: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
 };
 
 export type PostNetworkProcessByPidMonitorError = PostNetworkProcessByPidMonitorErrors[keyof PostNetworkProcessByPidMonitorErrors];
@@ -295,6 +315,10 @@ export type GetNetworkProcessByPidPortsErrors = {
      * Unprocessable entity
      */
     422: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
 };
 
 export type GetNetworkProcessByPidPortsError = GetNetworkProcessByPidPortsErrors[keyof GetNetworkProcessByPidPortsErrors];
@@ -345,6 +369,10 @@ export type PostProcessErrors = {
      * Unprocessable entity
      */
     422: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
 };
 
 export type PostProcessError = PostProcessErrors[keyof PostProcessErrors];
@@ -379,6 +407,10 @@ export type DeleteProcessByIdentifierErrors = {
      * Unprocessable entity
      */
     422: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
 };
 
 export type DeleteProcessByIdentifierError = DeleteProcessByIdentifierErrors[keyof DeleteProcessByIdentifierErrors];
@@ -446,6 +478,10 @@ export type DeleteProcessByIdentifierKillErrors = {
      * Unprocessable entity
      */
     422: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
 };
 
 export type DeleteProcessByIdentifierKillError = DeleteProcessByIdentifierKillErrors[keyof DeleteProcessByIdentifierKillErrors];
@@ -480,6 +516,10 @@ export type GetProcessByIdentifierLogsErrors = {
      * Unprocessable entity
      */
     422: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
 };
 
 export type GetProcessByIdentifierLogsError = GetProcessByIdentifierLogsErrors[keyof GetProcessByIdentifierLogsErrors];
@@ -514,6 +554,10 @@ export type GetProcessByIdentifierLogsStreamErrors = {
      * Unprocessable entity
      */
     422: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
 };
 
 export type GetProcessByIdentifierLogsStreamError = GetProcessByIdentifierLogsStreamErrors[keyof GetProcessByIdentifierLogsStreamErrors];
@@ -535,7 +579,12 @@ export type GetWatchFilesystemByPathData = {
          */
         path: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Ignore patterns (comma-separated)
+         */
+        ignore?: string;
+    };
     url: '/watch/filesystem/{path}';
 };
 
@@ -582,6 +631,10 @@ export type GetWsProcessByIdentifierLogsStreamErrors = {
      * Unprocessable entity
      */
     422: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
 };
 
 export type GetWsProcessByIdentifierLogsStreamError = GetWsProcessByIdentifierLogsStreamErrors[keyof GetWsProcessByIdentifierLogsStreamErrors];

@@ -990,42 +990,6 @@ export type LocationResponse = {
 };
 
 /**
- * Response for logs
- */
-export type LogsResponse = {
-    /**
-     * Data
-     */
-    data?: Array<unknown>;
-};
-
-/**
- * Response data for logs
- */
-export type LogsResponseData = {
-    /**
-     * Body of the log
-     */
-    body?: string;
-    /**
-     * Log attributes
-     */
-    logAttributes?: unknown;
-    /**
-     * Severity number of the log
-     */
-    severityNumber?: number;
-    /**
-     * Timestamp of the log
-     */
-    timestamp?: string;
-    /**
-     * Trace ID of the log
-     */
-    traceId?: string;
-};
-
-/**
  * Definition of an MCP from the MCP Hub
  */
 export type McpDefinition = TimeFields & {
@@ -1784,24 +1748,6 @@ export type RequestTotalResponseData = {
 };
 
 /**
- * Resource
- */
-export type Resource = {
-    /**
-     * Name of the resource
-     */
-    name?: string;
-    /**
-     * Type of the resource
-     */
-    type?: string;
-    /**
-     * Workspace of the resource
-     */
-    workspace?: string;
-};
-
-/**
  * Log for a resource deployment (eg. model deployment, function deployment)
  */
 export type ResourceLog = {
@@ -1821,62 +1767,6 @@ export type ResourceLog = {
      * Trace ID of the log
      */
     trace_id?: string;
-};
-
-/**
- * Chart for a resource log
- */
-export type ResourceLogChart = {
-    /**
-     * Count of the log
-     */
-    count?: number;
-    /**
-     * Debug count of the log
-     */
-    debug?: number;
-    /**
-     * Error count of the log
-     */
-    error?: number;
-    /**
-     * Fatal count of the log
-     */
-    fatal?: number;
-    /**
-     * Info count of the log
-     */
-    info?: number;
-    /**
-     * Timestamp of the log
-     */
-    timestamp?: string;
-    /**
-     * Trace count of the log
-     */
-    trace?: number;
-    /**
-     * Unknown count of the log
-     */
-    unknown?: number;
-    /**
-     * Warning count of the log
-     */
-    warning?: number;
-};
-
-/**
- * Response for a resource log
- */
-export type ResourceLogResponse = {
-    /**
-     * Chart
-     */
-    chart?: Array<unknown>;
-    /**
-     * Logs
-     */
-    logs?: Array<unknown>;
 };
 
 /**
