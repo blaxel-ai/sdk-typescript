@@ -1,7 +1,9 @@
+import axios from "axios";
 import { Sandbox } from "../client/types.gen.js";
-import { fs, path } from "../common/node.js";
+import { FormData } from "../common/node.js";
+import { settings } from "../common/settings.js";
 import { SandboxAction } from "./action.js";
-import { deleteFilesystemByPath, Directory, getFilesystemByPath, getWatchFilesystemByPath, putFilesystemByPath, SuccessResponse } from "./client/index.js";
+import { deleteFilesystemByPath, Directory, getFilesystemByPath, getWatchFilesystemByPath, putFilesystemByPath, PutFilesystemByPathError, SuccessResponse } from "./client/index.js";
 
 export type CopyResponse = {
   message: string;
@@ -10,7 +12,7 @@ export type CopyResponse = {
 }
 
 export type WatchEvent = {
-  op: "CREATE" | "WRITE" | "REMOVE";
+  op: "CREATE" | "WRITE" | "REMOVE" | "RENAME" | "CHMOD";
   path: string;
   name: string;
   content?: string;
@@ -40,7 +42,6 @@ export class SandboxFileSystem extends SandboxAction {
 
   async write(path: string, content: string): Promise<SuccessResponse> {
     path = this.formatPath(path);
-
     const { response, data, error } = await putFilesystemByPath({
       path: { path },
       body: { content },
@@ -51,81 +52,80 @@ export class SandboxFileSystem extends SandboxAction {
     return data as SuccessResponse;
   }
 
-  async writeFiles(files: SandboxFilesystemFile[], destinationPath: string | null = null) {
-    const batchSize = 10;
-    for (let i = 0; i < files.length; i += batchSize) {
-      const batch = files.slice(i, i + batchSize);
-      await Promise.all(
-        batch.map(async (file) => {
-          let destPath = "";
-          if (!destinationPath) {
-            destPath = file.path;
-          } else {
-            destPath = `${destinationPath}/${file.path}`;
-          }
-          await this.write(destPath, file.content);
-        })
-      );
+  async writeBinary(path: string, content: Buffer | Blob | File | Uint8Array) {
+    path = this.formatPath(path);
+
+    let formData: any;
+    if (typeof globalThis !== "undefined" && typeof globalThis.FormData !== "undefined" && !(typeof process !== "undefined" && process.versions && process.versions.node)) {
+      // Browser environment
+      formData = new globalThis.FormData();
+      formData.append("permissions", "0644");
+      formData.append("path", path);
+      let fileContent: Blob | File;
+      if (content instanceof Blob || content instanceof File) {
+        fileContent = content;
+      } else if (content instanceof Uint8Array) {
+        fileContent = new Blob([content]);
+      } else {
+        fileContent = new Blob([content]);
+      }
+      formData.append("file", fileContent, "test-binary.bin");
+    } else {
+      // Node.js environment
+      // @ts-expect-error: Only available in Node.js
+      formData = new FormData();
+      let fileContent: Buffer;
+      if (Buffer.isBuffer(content)) {
+        fileContent = content;
+      } else if (content instanceof Uint8Array) {
+        fileContent = Buffer.from(content);
+      } else {
+        throw new Error("Unsupported content type in Node.js");
+      }
+      formData.append("file", fileContent, "test-binary.bin");
     }
+
+    // Get the correct headers from form-data
+    const formHeaders = formData.getHeaders ? formData.getHeaders() : {};
+    let url = `${this.url}/filesystem/${path}`;
+    if (this.sandbox.forceUrl) {
+      url = `${this.sandbox.forceUrl}/filesystem/${path}`;
+    }
+    let headers = { ...settings.headers, ...formHeaders };
+    if (this.sandbox.headers) {
+      headers = { ...headers, ...this.sandbox.headers };
+    }
+
+    const response = await axios.put(url, formData, {
+      headers,
+    });
+    if (response.status !== 200) {
+      throw new Error(response.data);
+    }
+    return response.data;
   }
 
-  async writeDir(directoryPath: string, destinationPath: string | null = null) {
-    // Read all files in the local directory
-    if (!fs) {
-      throw new Error("fs is not available in this environment");
+  async writeTree(files: SandboxFilesystemFile[], destinationPath: string | null = null) {
+    const options = {
+      body: {
+        files: files.reduce((acc, file) => {
+          acc[file.path] = file.content;
+          return acc;
+        }, {} as Record<string, string>),
+      },
+      baseUrl: this.url,
+      client: this.client,
     }
-    if (!path) {
-      throw new Error("path is not available in this environment");
-    }
-
-    const files = fs.readdirSync(directoryPath);
-    // Map files to objects with path and data
-    const filesArray = files
-      .filter(file => {
-        if (!path) return false
-        if (!fs) return false
-        const fullPath = path.join(directoryPath, file);
-        // Skip if it's a directory
-        if (!fs.statSync(fullPath).isFile()) return false;
-
-        // Skip problematic file types (binary, compressed, etc.)
-        const ext = path.extname(file).toLowerCase();
-        const excludedExtensions = [
-          '.zip', '.tar', '.gz', '.tgz', '.rar', '.7z',
-          '.bin', '.exe', '.dll', '.so', '.dylib',
-          '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.ico', '.webp',
-          '.mp3', '.mp4', '.avi', '.mov', '.pdf'
-        ];
-        if (excludedExtensions.includes(ext)) {
-          console.log(`Skipping file ${file} because it has an excluded extension: ${ext}`);
-        };
-        return true;
-      })
-      .map(file => {
-        if (!path) return null
-        if (!fs) return null
-        const filePath = path.join(directoryPath, file);
-
-        // Read the content of each file
-        return {
-          path: filePath,
-          data: fs.readFileSync(filePath, 'utf8')
-        };
-      });
-    const batchSize = 5;
-    for (let i = 0; i < filesArray.length; i += batchSize) {
-      const batch = filesArray.slice(i, i + batchSize);
-      await Promise.all(
-        batch.map(async (file) => {
-          if (!file) return
-          let destPath = `${directoryPath}/${file.path}`;
-          if (destinationPath) {
-            destPath = `${destinationPath}/${file.path}`;
-          }
-          await this.write(destPath, file.data);
-        })
-      );
-    }
+    const path = destinationPath ?? ""
+    const { response, data, error } = await this.client.put<Directory, PutFilesystemByPathError>({
+      url: `/filesystem/tree/${path}`,
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    })
+    this.handleResponseError(response, data, error);
+    return data;
   }
 
   async read(path: string): Promise<string> {
@@ -276,8 +276,6 @@ export class SandboxFileSystem extends SandboxAction {
                 const content = await this.read(filePath);
                 await callback({ ...fileEvent, content });
               } catch (e) {
-                console.log(e);
-
                 await callback({ ...fileEvent, content: undefined });
               }
             } else {

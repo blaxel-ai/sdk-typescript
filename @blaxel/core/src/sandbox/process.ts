@@ -132,15 +132,19 @@ export class SandboxProcess extends SandboxAction {
     return data as DeleteProcessByIdentifierKillResponse;
   }
 
-  async logs(identifier: string, type: "stdout" | "stderr" = "stdout"): Promise<string> {
+  async logs(identifier: string, type: "stdout" | "stderr" | "all" = "all"): Promise<string> {
     const { response, data, error } = await getProcessByIdentifierLogs({
       path: { identifier },
       baseUrl: this.url,
       client: this.client,
     });
     this.handleResponseError(response, data, error);
-    if (data && type in data) {
-      return data[type];
+    if (type === "all") {
+      return data?.logs || "";
+    } else if (type === "stdout") {
+      return data?.stdout || "";
+    } else if (type === "stderr") {
+      return data?.stderr || "";
     }
     throw new Error("Unsupported log type");
   }

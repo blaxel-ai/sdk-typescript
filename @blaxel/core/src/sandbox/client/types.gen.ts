@@ -3,6 +3,7 @@
 
 export type Directory = {
     files?: Array<File>;
+    name?: string;
     path?: string;
     /**
      * @name Subdirectories
@@ -17,6 +18,7 @@ export type ErrorResponse = {
 export type File = {
     group?: string;
     lastModified?: string;
+    name?: string;
     owner?: string;
     path?: string;
     permissions?: string;
@@ -33,6 +35,7 @@ export type FileWithContent = {
     content?: string;
     group?: string;
     lastModified?: string;
+    name?: string;
     owner?: string;
     path?: string;
     permissions?: string;
@@ -77,6 +80,7 @@ export type ProcessResponse = {
 };
 
 export type Subdirectory = {
+    name?: string;
     path?: string;
 };
 
