@@ -7,10 +7,15 @@ export type CopyResponse = {
 }
 
 export type WatchEvent = {
-  op: "CREATE" | "WRITE" | "REMOVE";
+  op: "CREATE" | "WRITE" | "REMOVE" | "RENAME" | "CHMOD";
   path: string;
   name: string;
   content?: string;
+}
+
+export type SandboxFilesystemFile = {
+  path: string;
+  content: string;
 }
 
 export type ToolWithExecute = {
