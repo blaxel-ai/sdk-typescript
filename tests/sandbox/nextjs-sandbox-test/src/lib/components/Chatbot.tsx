@@ -40,7 +40,7 @@ export function Chatbot({ sandbox, className }: { sandbox: SandboxInstance, clas
         className="px-4 py-2 rounded-t-lg flex justify-between items-center"
         style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
       >
-        <h3 className="text-sm font-medium">Sandbox Assistant</h3>
+        <h3 className="text-sm font-medium">App Assistant</h3>
       </div>
 
       <div className="flex-grow overflow-y-auto p-4 space-y-4">
