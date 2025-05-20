@@ -62,7 +62,9 @@
 	"dependencies": {
 		"@hey-api/client-fetch": "^0.10.0",
 		"@modelcontextprotocol/sdk": "^1.11.0",
+		"axios": "^1.9.0",
 		"dotenv": "^16.5.0",
+		"form-data": "^4.0.2",
 		"jwt-decode": "^4.0.0",
 		"toml": "^3.0.0",
 		"uuid": "^11.1.0",

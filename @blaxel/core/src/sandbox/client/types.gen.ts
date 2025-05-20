@@ -3,6 +3,7 @@
 
 export type Directory = {
     files?: Array<File>;
+    name?: string;
     path?: string;
     /**
      * @name Subdirectories
@@ -17,6 +18,7 @@ export type ErrorResponse = {
 export type File = {
     group?: string;
     lastModified?: string;
+    name?: string;
     owner?: string;
     path?: string;
     permissions?: string;
@@ -33,6 +35,7 @@ export type FileWithContent = {
     content?: string;
     group?: string;
     lastModified?: string;
+    name?: string;
     owner?: string;
     path?: string;
     permissions?: string;
@@ -48,6 +51,12 @@ export type PortMonitorRequest = {
 
 export type ProcessKillRequest = {
     signal?: string;
+};
+
+export type ProcessLogs = {
+    logs?: string;
+    stderr?: string;
+    stdout?: string;
 };
 
 export type ProcessRequest = {
@@ -66,11 +75,12 @@ export type ProcessResponse = {
     name?: string;
     pid?: string;
     startedAt?: string;
-    status?: string;
+    status?: 'failed' | 'killed' | 'stopped' | 'running' | 'completed';
     workingDir?: string;
 };
 
 export type Subdirectory = {
+    name?: string;
     path?: string;
 };
 
@@ -101,6 +111,10 @@ export type DeleteFilesystemByPathErrors = {
      * File or directory not found
      */
     404: ErrorResponse;
+    /**
+     * Unprocessable entity
+     */
+    422: ErrorResponse;
     /**
      * Internal server error
      */
@@ -136,6 +150,10 @@ export type GetFilesystemByPathErrors = {
      */
     404: ErrorResponse;
     /**
+     * Unprocessable entity
+     */
+    422: ErrorResponse;
+    /**
      * Internal server error
      */
     500: ErrorResponse;
@@ -154,7 +172,7 @@ export type GetFilesystemByPathResponse = GetFilesystemByPathResponses[keyof Get
 
 export type PutFilesystemByPathData = {
     /**
-     * File or directory information
+     * File or directory details
      */
     body: FileRequest;
     path: {
@@ -169,9 +187,13 @@ export type PutFilesystemByPathData = {
 
 export type PutFilesystemByPathErrors = {
     /**
-     * Invalid request
+     * Bad request
      */
     400: ErrorResponse;
+    /**
+     * Unprocessable entity
+     */
+    422: ErrorResponse;
     /**
      * Internal server error
      */
@@ -206,6 +228,10 @@ export type DeleteNetworkProcessByPidMonitorErrors = {
      * Invalid process ID
      */
     400: ErrorResponse;
+    /**
+     * Unprocessable entity
+     */
+    422: ErrorResponse;
     /**
      * Internal server error
      */
@@ -246,6 +272,10 @@ export type PostNetworkProcessByPidMonitorErrors = {
      */
     400: ErrorResponse;
     /**
+     * Unprocessable entity
+     */
+    422: ErrorResponse;
+    /**
      * Internal server error
      */
     500: ErrorResponse;
@@ -281,6 +311,10 @@ export type GetNetworkProcessByPidPortsErrors = {
      * Invalid process ID
      */
     400: ErrorResponse;
+    /**
+     * Unprocessable entity
+     */
+    422: ErrorResponse;
     /**
      * Internal server error
      */
@@ -332,6 +366,10 @@ export type PostProcessErrors = {
      */
     400: ErrorResponse;
     /**
+     * Unprocessable entity
+     */
+    422: ErrorResponse;
+    /**
      * Internal server error
      */
     500: ErrorResponse;
@@ -365,6 +403,10 @@ export type DeleteProcessByIdentifierErrors = {
      * Process not found
      */
     404: ErrorResponse;
+    /**
+     * Unprocessable entity
+     */
+    422: ErrorResponse;
     /**
      * Internal server error
      */
@@ -433,6 +475,10 @@ export type DeleteProcessByIdentifierKillErrors = {
      */
     404: ErrorResponse;
     /**
+     * Unprocessable entity
+     */
+    422: ErrorResponse;
+    /**
      * Internal server error
      */
     500: ErrorResponse;
@@ -467,6 +513,10 @@ export type GetProcessByIdentifierLogsErrors = {
      */
     404: ErrorResponse;
     /**
+     * Unprocessable entity
+     */
+    422: ErrorResponse;
+    /**
      * Internal server error
      */
     500: ErrorResponse;
@@ -478,9 +528,7 @@ export type GetProcessByIdentifierLogsResponses = {
     /**
      * Process logs
      */
-    200: {
-        [key: string]: string;
-    };
+    200: ProcessLogs;
 };
 
 export type GetProcessByIdentifierLogsResponse = GetProcessByIdentifierLogsResponses[keyof GetProcessByIdentifierLogsResponses];
@@ -502,6 +550,10 @@ export type GetProcessByIdentifierLogsStreamErrors = {
      * Process not found
      */
     404: ErrorResponse;
+    /**
+     * Unprocessable entity
+     */
+    422: ErrorResponse;
     /**
      * Internal server error
      */
@@ -527,7 +579,12 @@ export type GetWatchFilesystemByPathData = {
          */
         path: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Ignore patterns (comma-separated)
+         */
+        ignore?: string;
+    };
     url: '/watch/filesystem/{path}';
 };
 
@@ -570,6 +627,10 @@ export type GetWsProcessByIdentifierLogsStreamErrors = {
      * Process not found
      */
     404: ErrorResponse;
+    /**
+     * Unprocessable entity
+     */
+    422: ErrorResponse;
     /**
      * Internal server error
      */
