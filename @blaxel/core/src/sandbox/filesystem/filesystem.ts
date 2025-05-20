@@ -1,27 +1,13 @@
 import axios from "axios";
-import { Sandbox } from "../client/types.gen.js";
-import { FormData } from "../common/node.js";
-import { settings } from "../common/settings.js";
-import { SandboxAction } from "./action.js";
-import { deleteFilesystemByPath, Directory, getFilesystemByPath, getWatchFilesystemByPath, putFilesystemByPath, PutFilesystemByPathError, SuccessResponse } from "./client/index.js";
+import z from "zod";
+import { Sandbox } from "../../client/types.gen.js";
+import { FormData } from "../../common/node.js";
+import { settings } from "../../common/settings.js";
+import { SandboxAction } from "../action.js";
+import { deleteFilesystemByPath, Directory, getFilesystemByPath, getWatchFilesystemByPath, putFilesystemByPath, PutFilesystemByPathError, SuccessResponse } from "../client/index.js";
+import { CopyResponse, SandboxFilesystemFile, ToolWithExecute, ToolWithoutExecute, WatchEvent } from "./types.js";
 
-export type CopyResponse = {
-  message: string;
-  source: string;
-  destination: string;
-}
 
-export type WatchEvent = {
-  op: "CREATE" | "WRITE" | "REMOVE" | "RENAME" | "CHMOD";
-  path: string;
-  name: string;
-  content?: string;
-}
-
-export type SandboxFilesystemFile = {
-  path: string;
-  content: string;
-}
 
 export class SandboxFileSystem extends SandboxAction {
   constructor(sandbox: Sandbox) {
@@ -318,5 +304,183 @@ export class SandboxFileSystem extends SandboxAction {
       path = path.slice(1);
     }
     return path;
+  }
+
+  get toolsWithoutExecute(): ToolWithoutExecute {
+    return {
+      cp: {
+        description: "Copy a file or directory",
+        parameters: z.object({
+          source: z.string(),
+          destination: z.string(),
+        }),
+      },
+      mkdir: {
+        description: "Create a directory",
+        parameters: z.object({
+          path: z.string(),
+          permissions: z.string().optional().default("0755"),
+        }),
+      },
+      ls: {
+        description: "List a directory",
+        parameters: z.object({
+          path: z.string(),
+      }),
+      },
+      rm: {
+        description: "Remove a file or directory",
+        parameters: z.object({
+          path: z.string(),
+          recursive: z.boolean().optional().default(false),
+        }),
+      },
+      read: {
+        description: "Read a file",
+        parameters: z.object({
+          path: z.string(),
+        }),
+      },
+      write: {
+        description: "Write a file",
+        parameters: z.object({
+          path: z.string(),
+          content: z.string(),
+        }),
+      }
+    }
+  }
+
+  get tools(): ToolWithExecute {
+    return {
+      cp: {
+        description: "Copy a file or directory",
+        parameters: z.object({
+          source: z.string(),
+          destination: z.string(),
+        }),
+        execute: async (args: z.infer<typeof this.tools.cp.parameters>) => {
+          try {
+            const result = await this.cp(args.source, args.destination);
+            return JSON.stringify(result);
+          } catch (e) {
+            if (e instanceof Error) {
+              return JSON.stringify({
+                message: e.message,
+                source: args.source,
+                destination: args.destination
+              })
+            }
+            return "An unknown error occurred"
+          }
+        }
+      },
+      mkdir: {
+        description: "Create a directory",
+        parameters: z.object({
+          path: z.string(),
+          permissions: z.string().optional().default("0755"),
+        }),
+        execute: async (args: z.infer<typeof this.tools.mkdir.parameters>) => {
+          try {
+            const result = await this.mkdir(args.path, args.permissions);
+            return JSON.stringify(result);
+          } catch (e) {
+            if (e instanceof Error) {
+              return JSON.stringify({
+                message: e.message,
+                path: args.path,
+                permissions: args.permissions
+              })
+            }
+            return "An unknown error occurred"
+          }
+        }
+      },
+      ls: {
+        description: "List a directory",
+        parameters: z.object({
+          path: z.string(),
+        }),
+        execute: async (args: z.infer<typeof this.tools.ls.parameters>) => {
+          try {
+            const result = await this.ls(args.path);
+            return JSON.stringify(result);
+          } catch (e) {
+            if (e instanceof Error) {
+              return JSON.stringify({
+                message: e.message,
+                path: args.path
+              })
+            }
+            return "An unknown error occurred"
+          }
+        }
+      },
+      rm: {
+        description: "Remove a file or directory",
+        parameters: z.object({
+          path: z.string(),
+          recursive: z.boolean().optional().default(false),
+        }),
+        execute: async (args: z.infer<typeof this.tools.rm.parameters>) => {
+          try {
+            const result = await this.rm(args.path, args.recursive);
+            return JSON.stringify(result);
+          } catch (e) {
+            if (e instanceof Error) {
+              return JSON.stringify({
+                message: e.message,
+                path: args.path,
+                recursive: args.recursive
+              })
+            }
+            return "An unknown error occurred"
+          }
+        }
+      },
+      read: {
+        description: "Read a file",
+        parameters: z.object({
+          path: z.string(),
+        }),
+        execute: async (args: z.infer<typeof this.tools.read.parameters>) => {
+          try {
+            const result = await this.read(args.path);
+            return JSON.stringify(result);
+          } catch (e) {
+            if (e instanceof Error) {
+              return JSON.stringify({
+                message: e.message,
+                path: args.path
+              })
+            }
+            return "An unknown error occurred"
+          }
+        }
+      },
+      write: {
+        description: "Write a file",
+        parameters: z.object({
+          path: z.string(),
+          content: z.string(),
+        }),
+        execute: async (args: z.infer<typeof this.tools.write.parameters>) => {
+          try {
+            const result = await this.write(args.path, args.content);
+            return JSON.stringify(result);
+          } catch (e) {
+            if (e instanceof Error) {
+              return JSON.stringify({
+                message: e.message,
+                path: args.path,
+                content: args.content
+              })
+            }
+            return "An unknown error occurred"
+          }
+        }
+      }
+    }
   }
 }
