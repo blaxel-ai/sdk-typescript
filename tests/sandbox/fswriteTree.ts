@@ -1,3 +1,4 @@
+import { SandboxInstance } from "@blaxel/core";
 import { createOrGetSandbox } from "../utils";
 
 const sandboxName = "sandbox-test-3"
@@ -34,6 +35,9 @@ async function main() {
     await sandbox.fs.rm("/blaxel/tmp", true)
   } catch (e) {
     console.error("There was an error => ", e);
+  } finally {
+    console.log("Deleting sandbox");
+    await SandboxInstance.delete(sandboxName)
   }
 }
 

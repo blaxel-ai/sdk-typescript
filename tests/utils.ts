@@ -31,22 +31,19 @@ export async function createOrGetSandbox(sandboxName: string, image: string = "b
       protocol: "HTTP",
     })
   }
-  try {
-    return await SandboxInstance.get(sandboxName)
-  } catch (e) {
-    const sandbox = await SandboxInstance.create({
-      metadata: {
-        name: sandboxName
-      },
-      spec: {
-        runtime: {
-          image,
-          memory: 4096,
-          ports
-        }
+  const sandboxModel = {
+    metadata: {
+      name: sandboxName
+    },
+    spec: {
+      runtime: {
+        image,
+        memory: 4096,
+        ports
       }
-    })
-    await sandbox.wait({ maxWait: 120000, interval: 1000 })
-    return sandbox
+    }
   }
+  const sandbox = await SandboxInstance.createIfNotExists(sandboxModel)
+  await sandbox.wait({ maxWait: 120000, interval: 1000 })
+  return sandbox
 }

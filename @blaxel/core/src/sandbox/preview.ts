@@ -111,6 +111,19 @@ export class SandboxPreviews {
     return new SandboxPreview(data);
   }
 
+
+  async createIfNotExists(preview: Preview) {
+    try {
+      const previewInstance = await this.get(preview.metadata?.name ?? "");
+      return previewInstance;
+    } catch (e) {
+      if (typeof e === "object" && e !== null && "code" in e && e.code === 404) {
+        return this.create(preview);
+      }
+      throw e;
+    }
+  }
+
   async get(previewName: string) {
     const { data } = await getSandboxPreview({
       path: {

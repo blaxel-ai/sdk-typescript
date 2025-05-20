@@ -150,7 +150,7 @@ export function Chatbot({ sandbox, className }: { sandbox: SandboxInstance, clas
           />
           <button
             type="submit"
-            className="px-4 py-2 rounded-r-md"
+            className="px-4 py-2 rounded-r-md cursor-pointer"
             style={
               status === 'submitted'
                 ? { background: 'var(--muted)', color: 'var(--muted-foreground)', cursor: 'not-allowed', opacity: 0.6 }

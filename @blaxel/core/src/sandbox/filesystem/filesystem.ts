@@ -5,7 +5,7 @@ import { FormData } from "../../common/node.js";
 import { settings } from "../../common/settings.js";
 import { SandboxAction } from "../action.js";
 import { deleteFilesystemByPath, Directory, getFilesystemByPath, getWatchFilesystemByPath, putFilesystemByPath, PutFilesystemByPathError, SuccessResponse } from "../client/index.js";
-import { CopyResponse, SandboxFilesystemFile, ToolWithExecute, ToolWithoutExecute, WatchEvent } from "./types.js";
+import { CopyResponse, CpParamsSchema, LsParamsSchema, MkdirParamsSchema, ReadParamsSchema, RmParamsSchema, SandboxFilesystemFile, ToolWithExecute, ToolWithoutExecute, WatchEvent, WriteParamsSchema } from "./types.js";
 
 
 
@@ -310,43 +310,27 @@ export class SandboxFileSystem extends SandboxAction {
     return {
       cp: {
         description: "Copy a file or directory",
-        parameters: z.object({
-          source: z.string(),
-          destination: z.string(),
-        }),
+        parameters: CpParamsSchema,
       },
       mkdir: {
         description: "Create a directory",
-        parameters: z.object({
-          path: z.string(),
-          permissions: z.string().optional().default("0755"),
-        }),
+        parameters: MkdirParamsSchema,
       },
       ls: {
         description: "List a directory",
-        parameters: z.object({
-          path: z.string(),
-      }),
+        parameters: LsParamsSchema,
       },
       rm: {
         description: "Remove a file or directory",
-        parameters: z.object({
-          path: z.string(),
-          recursive: z.boolean().optional().default(false),
-        }),
+        parameters: RmParamsSchema,
       },
       read: {
         description: "Read a file",
-        parameters: z.object({
-          path: z.string(),
-        }),
+        parameters: ReadParamsSchema,
       },
       write: {
         description: "Write a file",
-        parameters: z.object({
-          path: z.string(),
-          content: z.string(),
-        }),
+        parameters: WriteParamsSchema,
       }
     }
   }
@@ -355,11 +339,8 @@ export class SandboxFileSystem extends SandboxAction {
     return {
       cp: {
         description: "Copy a file or directory",
-        parameters: z.object({
-          source: z.string(),
-          destination: z.string(),
-        }),
-        execute: async (args: z.infer<typeof this.tools.cp.parameters>) => {
+        parameters: CpParamsSchema,
+        execute: async (args: z.infer<typeof CpParamsSchema>) => {
           try {
             const result = await this.cp(args.source, args.destination);
             return JSON.stringify(result);
@@ -377,11 +358,8 @@ export class SandboxFileSystem extends SandboxAction {
       },
       mkdir: {
         description: "Create a directory",
-        parameters: z.object({
-          path: z.string(),
-          permissions: z.string().optional().default("0755"),
-        }),
-        execute: async (args: z.infer<typeof this.tools.mkdir.parameters>) => {
+        parameters: MkdirParamsSchema,
+        execute: async (args: z.infer<typeof MkdirParamsSchema>) => {
           try {
             const result = await this.mkdir(args.path, args.permissions);
             return JSON.stringify(result);
@@ -399,10 +377,8 @@ export class SandboxFileSystem extends SandboxAction {
       },
       ls: {
         description: "List a directory",
-        parameters: z.object({
-          path: z.string(),
-        }),
-        execute: async (args: z.infer<typeof this.tools.ls.parameters>) => {
+        parameters: LsParamsSchema,
+        execute: async (args: z.infer<typeof LsParamsSchema>) => {
           try {
             const result = await this.ls(args.path);
             return JSON.stringify(result);
@@ -419,11 +395,8 @@ export class SandboxFileSystem extends SandboxAction {
       },
       rm: {
         description: "Remove a file or directory",
-        parameters: z.object({
-          path: z.string(),
-          recursive: z.boolean().optional().default(false),
-        }),
-        execute: async (args: z.infer<typeof this.tools.rm.parameters>) => {
+        parameters: RmParamsSchema,
+        execute: async (args: z.infer<typeof RmParamsSchema>) => {
           try {
             const result = await this.rm(args.path, args.recursive);
             return JSON.stringify(result);
@@ -441,10 +414,8 @@ export class SandboxFileSystem extends SandboxAction {
       },
       read: {
         description: "Read a file",
-        parameters: z.object({
-          path: z.string(),
-        }),
-        execute: async (args: z.infer<typeof this.tools.read.parameters>) => {
+        parameters: ReadParamsSchema,
+        execute: async (args: z.infer<typeof ReadParamsSchema>) => {
           try {
             const result = await this.read(args.path);
             return JSON.stringify(result);
@@ -461,11 +432,8 @@ export class SandboxFileSystem extends SandboxAction {
       },
       write: {
         description: "Write a file",
-        parameters: z.object({
-          path: z.string(),
-          content: z.string(),
-        }),
-        execute: async (args: z.infer<typeof this.tools.write.parameters>) => {
+        parameters: WriteParamsSchema,
+        execute: async (args: z.infer<typeof WriteParamsSchema>) => {
           try {
             const result = await this.write(args.path, args.content);
             return JSON.stringify(result);

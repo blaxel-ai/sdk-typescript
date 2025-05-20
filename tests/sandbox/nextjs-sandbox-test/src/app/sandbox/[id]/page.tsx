@@ -1,7 +1,6 @@
 'use client'
 
 import { Chatbot } from "@/lib/components/Chatbot";
-import { Sandbox } from "@/lib/db/schema";
 import { SandboxInstance } from "@blaxel/core";
 import { SessionWithToken } from "@blaxel/core/sandbox/types";
 import { useRouter } from "next/navigation";
@@ -20,14 +19,19 @@ interface User {
   email: string;
 }
 
+// Minimal type for Blaxel sandboxes
+interface BlaxelSandbox {
+  name: string;
+  status: 'DELETING' | 'FAILED' | 'DEACTIVATING' | 'DEPLOYING' | 'DEPLOYED';
+}
+
 export default function SandboxPage({ params }: { params: { id: string } }) {
-  const [sandbox, setSandbox] = useState<Sandbox | null>(null);
+  const [sandbox, setSandbox] = useState<BlaxelSandbox | null>(null);
   const [sandboxInstance, setSandboxInstance] = useState<SandboxInstance | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [processes, setProcesses] = useState<Process[]>([]);
   const [sessionInfo, setSessionInfo] = useState<SessionWithToken | null>(null);
-  const [refreshKey, setRefreshKey] = useState<number>(0);
   const [user, setUser] = useState<User | null>(null);
   const [authChecked, setAuthChecked] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +46,7 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     // Check if user is authenticated
     checkAuth();
-  }, []);
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     // Only fetch sandbox once when user is authenticated
@@ -50,14 +54,31 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
       hasFetchedRef.current = true;
       fetchSandbox();
     }
-  }, [authChecked, user, isLoadingSandbox]);
+  }, [authChecked, user, isLoadingSandbox]);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    // Reset loading state when preview URL changes
-    if (previewUrl) {
+  // Simplified preview loading and refresh logic
+  async function refreshPreview() {
+    if (!previewUrl) return;
+    setIsPreviewLoading(true);
+    try {
+      const res = await fetch(previewUrl, { method: 'GET' });
+      if (res.ok) {
+        setIsPreviewLoading(false);
+      } else {
+        setIsPreviewLoading(true);
+        setTimeout(refreshPreview, 1000);
+      }
+    } catch {
       setIsPreviewLoading(true);
     }
-  }, [previewUrl]);
+  }
+
+  // Call refreshPreview on previewUrl change
+  useEffect(() => {
+    if (previewUrl) {
+      refreshPreview();
+    }
+  }, [previewUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Set loading state when npm-dev process starts or changes
   useEffect(() => {
@@ -112,7 +133,6 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
     setIsLoadingSandbox(true);
     setError(null);
     setIsPreviewLoading(true); // Set preview as loading when fetching sandbox
-
     try {
       const p = await params;
       const res = await fetch(`/api/sandboxes/${p.id}`);
@@ -155,15 +175,12 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
       } catch (err) {
         console.error('Error with sandbox initialization:', err);
         setError(`Failed to initialize sandbox: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        setIsPreviewLoading(false);
       }
     } catch (error) {
       console.error("Error fetching sandbox:", error);
       setError(`Failed to fetch sandbox: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      setIsPreviewLoading(false);
     } finally {
       setLoading(false);
-      setIsLoadingSandbox(false);
     }
   }
 
@@ -212,32 +229,6 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
     }
   }
 
-  const refreshIframe = () => {
-    if (iframeRef.current) {
-      // Set loading state when refreshing
-      setIsPreviewLoading(true);
-
-      // Increment the refresh key to force a re-render
-      setRefreshKey(prev => prev + 1);
-
-      // For a more direct refresh approach
-      if (iframeRef.current.src) {
-        iframeRef.current.src = iframeRef.current.src;
-      }
-    }
-  };
-
-  // Handle iframe load event
-  const handleIframeLoad = () => {
-    setIsPreviewLoading(false);
-  };
-
-  // Manual refresh function that can be called from button
-  const manualRefresh = () => {
-    hasFetchedRef.current = false; // Reset the fetch flag
-    fetchSandbox();
-  };
-
   // Return to sandboxes list
   const backToList = () => {
     router.push('/');
@@ -269,15 +260,15 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
                   hasFetchedRef.current = false;
                   fetchSandbox();
                 }}
-                className="px-4 py-2 rounded-md transition-colors"
+                className="px-4 py-2 rounded-md transition-colors cursor-pointer"
                 style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
               >
                 Try Again
               </button>
               <button
                 onClick={backToList}
-                className="px-4 py-2 rounded-md transition-colors"
-                style={{ background: 'var(--muted)', color: 'var(--foreground)' }}
+                className="px-4 py-2 rounded-md transition-colors cursor-pointer"
+                style={{ color: 'var(--foreground)' }}
               >
                 Back to List
               </button>
@@ -293,15 +284,15 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
               <div className="flex gap-2">
                 <button
                   onClick={backToList}
-                  className="px-3 py-1 rounded-md text-sm transition-colors flex items-center"
-                  style={{ background: 'var(--muted)', color: 'var(--foreground)' }}
+                  className="px-3 py-1 rounded-md text-sm transition-colors flex items-center cursor-pointer hover:bg-blue-400"
+                  style={{ color: 'var(--foreground)' }}
                 >
                   Back to List
                 </button>
                 <button
                   onClick={logout}
-                  className="px-3 py-1 rounded-md text-sm transition-colors"
-                  style={{ background: 'var(--muted)', color: 'var(--foreground)' }}
+                  className="px-3 py-1 rounded-md text-sm transition-colors cursor-pointer hover:bg-blue-400"
+                  style={{ color: 'var(--foreground)' }}
                 >
                   Logout
                 </button>
@@ -351,20 +342,8 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
                   {sandbox && (
                     <div className="flex flex-col space-y-2">
                       <div>
-                        <span className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>ID:</span>
-                        <span className="text-sm ml-2">{sandbox.id}</span>
-                      </div>
-                      <div>
-                        <span className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>Description:</span>
-                        <span className="text-sm ml-2">{sandbox.description || 'No description'}</span>
-                      </div>
-                      <div>
-                        <span className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>Created:</span>
-                        <span className="text-sm ml-2">{sandbox.createdAt ? new Date(sandbox.createdAt).toLocaleString() : 'N/A'}</span>
-                      </div>
-                      <div>
-                        <span className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>Last Accessed:</span>
-                        <span className="text-sm ml-2">{sandbox.lastAccessedAt ? new Date(sandbox.lastAccessedAt).toLocaleString() : 'N/A'}</span>
+                        <span className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>Name:</span>
+                        <span className="text-sm ml-2">{sandbox.name}</span>
                       </div>
                       <div>
                         <span className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>Session ID:</span>
@@ -381,7 +360,7 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
                         <p className="italic mb-4" style={{ color: 'var(--muted-foreground)' }}>No processes running</p>
                         <button
                           onClick={startNpmDev}
-                          className="px-3 py-2 rounded-md text-sm transition-colors flex items-center"
+                          className="px-3 py-2 rounded-md text-sm transition-colors flex items-center cursor-pointer"
                           style={{ background: 'var(--success)', color: 'var(--primary-foreground)' }}
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -396,7 +375,7 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
                         <div className="flex justify-end mb-2">
                           <button
                             onClick={startNpmDev}
-                            className="px-2 py-1 rounded-md text-xs transition-colors flex items-center"
+                            className="px-2 py-1 rounded-md text-xs transition-colors flex items-center cursor-pointer"
                             style={{ background: 'var(--success)', color: 'var(--primary-foreground)' }}
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -416,7 +395,7 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
                               <div className="flex space-x-2">
                                 <button
                                   onClick={() => stopProcess(process.pid)}
-                                  className="px-2 py-1 rounded-md text-xs transition-colors"
+                                  className="px-2 py-1 rounded-md text-xs transition-colors cursor-pointer"
                                   style={{ background: 'var(--warning)', color: 'var(--primary-foreground)' }}
                                   title="Stop process"
                                 >
@@ -424,7 +403,7 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
                                 </button>
                                 <button
                                   onClick={() => killProcess(process.pid)}
-                                  className="px-2 py-1 rounded-md text-xs transition-colors flex items-center"
+                                  className="px-2 py-1 rounded-md text-xs transition-colors flex items-center cursor-pointer"
                                   style={{ background: 'var(--error)', color: 'var(--primary-foreground)' }}
                                   title="Kill process"
                                 >
@@ -443,17 +422,6 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
                     )}
                   </div>
                 </Collapsible>
-
-                <button
-                  onClick={manualRefresh}
-                  className="px-4 py-2 rounded-md transition-colors flex items-center justify-center gap-2 w-full"
-                  style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  Refresh Sandbox Info
-                </button>
               </div>
             </div>
           </div>
@@ -473,8 +441,8 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
                       {previewUrl}
                     </div>
                     <button
-                      onClick={refreshIframe}
-                      className="p-1 rounded-full transition-colors"
+                      onClick={refreshPreview}
+                      className="p-1 rounded-full transition-colors cursor-pointer"
                       style={{ color: 'var(--muted-foreground)' }}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -484,21 +452,19 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
                   </div>
 
                   {/* Loading overlay for preview */}
-                  {isPreviewLoading && (
+                  {isPreviewLoading ? (
                     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center" style={{ background: 'var(--muted)', opacity: 0.7 }}>
                       <div className="h-12 w-12 rounded-full border-4 animate-spin" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--primary)', borderRightColor: 'transparent', borderBottomColor: 'var(--primary)', borderLeftColor: 'transparent' }}></div>
                       <p className="mt-4 text-sm" style={{ color: 'var(--primary-foreground)' }}>Loading preview...</p>
                     </div>
+                  ) : (
+                    <iframe
+                      ref={iframeRef}
+                      src={previewUrl}
+                      className="w-full h-[calc(100%-32px)]"
+                      title="Sandbox Preview"
+                    />
                   )}
-
-                  <iframe
-                    key={refreshKey}
-                    ref={iframeRef}
-                    src={previewUrl}
-                    className="w-full h-[calc(100%-32px)]"
-                    title="Sandbox Preview"
-                    onLoad={handleIframeLoad}
-                  />
                 </div>
               </div>
             ) : (
@@ -532,7 +498,7 @@ function Collapsible({ title, defaultOpen, children }: { title: string, defaultO
         <h4 className="text-lg font-medium" style={{ color: 'var(--muted-foreground)' }}>{title}</h4>
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="p-1 rounded-full transition-colors"
+          className="p-1 rounded-full transition-colors cursor-pointer"
           style={{ color: 'var(--muted-foreground)' }}
         >
           {isOpen ? (

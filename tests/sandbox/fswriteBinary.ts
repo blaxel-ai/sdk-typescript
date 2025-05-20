@@ -1,3 +1,4 @@
+import { SandboxInstance } from "@blaxel/core";
 import { promises as fs } from "fs";
 import { createOrGetSandbox } from "../utils";
 
@@ -23,6 +24,9 @@ async function main() {
     // await sandbox.fs.rm("/blaxel/archive.zip")
   } catch (e) {
     console.error("There was an error => ", e);
+  } finally {
+    console.log("Deleting sandbox");
+    await SandboxInstance.delete(sandboxName)
   }
 }
 

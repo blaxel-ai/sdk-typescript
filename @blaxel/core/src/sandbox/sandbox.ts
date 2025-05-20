@@ -1,9 +1,9 @@
 import { createSandbox, deleteSandbox, getSandbox, listSandboxes, Sandbox as SandboxModel } from "../client/index.js";
 import { logger } from "../common/logger.js";
 import { SandboxFileSystem } from "./filesystem/index.js";
-import { SandboxNetwork } from "./network.js";
+import { SandboxNetwork } from "./network/index.js";
 import { SandboxPreviews } from "./preview.js";
-import { SandboxProcess } from "./process.js";
+import { SandboxProcess } from "./process/index.js";
 import { SandboxSessions } from "./session.js";
 import { SandboxConfiguration, SessionWithToken } from "./types.js";
 
@@ -99,6 +99,18 @@ export class SandboxInstance {
       throwOnError: true,
     });
     return data;
+  }
+
+  static async createIfNotExists(sandbox: SandboxModel) {
+    try {
+      const sandboxInstance = await SandboxInstance.get(sandbox.metadata?.name ?? "");
+      return sandboxInstance;
+    } catch (e) {
+      if (typeof e === "object" && e !== null && "code" in e && e.code === 404) {
+        return SandboxInstance.create(sandbox);
+      }
+      throw e;
+    }
   }
 
   static async fromSession(session: SessionWithToken) {
