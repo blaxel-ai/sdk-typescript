@@ -5,7 +5,7 @@ import { FormData } from "../../common/node.js";
 import { settings } from "../../common/settings.js";
 import { SandboxAction } from "../action.js";
 import { deleteFilesystemByPath, Directory, getFilesystemByPath, getWatchFilesystemByPath, putFilesystemByPath, PutFilesystemByPathError, SuccessResponse } from "../client/index.js";
-import { CopyResponse, SandboxFilesystemFile, WatchEvent } from "./types.js";
+import { CopyResponse, SandboxFilesystemFile, ToolWithExecute, ToolWithoutExecute, WatchEvent } from "./types.js";
 
 
 
@@ -306,54 +306,52 @@ export class SandboxFileSystem extends SandboxAction {
     return path;
   }
 
-  get tools(): {
-    cp: {
-      description: string;
-      parameters: z.ZodObject<{
-        source: z.ZodString;
-        destination: z.ZodString;
-      }>;
-      execute: (args: { source: string; destination: string }) => Promise<string>;
-    };
-    mkdir: {
-      description: string;
-      parameters: z.ZodObject<{
-        path: z.ZodString;
-        permissions: z.ZodDefault<z.ZodOptional<z.ZodString>>;
-      }>;
-      execute: (args: { path: string; permissions: string }) => Promise<string>;
-    };
-    ls: {
-      description: string;
-      parameters: z.ZodObject<{
-        path: z.ZodString;
-      }>;
-      execute: (args: { path: string }) => Promise<string>;
-    };
-    rm: {
-      description: string;
-      parameters: z.ZodObject<{
-        path: z.ZodString;
-        recursive: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
-      }>;
-      execute: (args: { path: string; recursive: boolean }) => Promise<string>;
-    };
-    read: {
-      description: string;
-      parameters: z.ZodObject<{
-        path: z.ZodString;
-      }>;
-      execute: (args: { path: string }) => Promise<string>;
-    };
-    write: {
-      description: string;
-      parameters: z.ZodObject<{
-        path: z.ZodString;
-        content: z.ZodString;
-      }>;
-      execute: (args: { path: string; content: string }) => Promise<string>;
-    };
-  } {
+  get toolsWithoutExecute(): ToolWithoutExecute {
+    return {
+      cp: {
+        description: "Copy a file or directory",
+        parameters: z.object({
+          source: z.string(),
+          destination: z.string(),
+        }),
+      },
+      mkdir: {
+        description: "Create a directory",
+        parameters: z.object({
+          path: z.string(),
+          permissions: z.string().optional().default("0755"),
+        }),
+      },
+      ls: {
+        description: "List a directory",
+        parameters: z.object({
+          path: z.string(),
+      }),
+      },
+      rm: {
+        description: "Remove a file or directory",
+        parameters: z.object({
+          path: z.string(),
+          recursive: z.boolean().optional().default(false),
+        }),
+      },
+      read: {
+        description: "Read a file",
+        parameters: z.object({
+          path: z.string(),
+        }),
+      },
+      write: {
+        description: "Write a file",
+        parameters: z.object({
+          path: z.string(),
+          content: z.string(),
+        }),
+      }
+    }
+  }
+
+  get tools(): ToolWithExecute {
     return {
       cp: {
         description: "Copy a file or directory",

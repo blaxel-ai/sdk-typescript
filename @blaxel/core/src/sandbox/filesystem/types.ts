@@ -18,6 +18,47 @@ export type SandboxFilesystemFile = {
   content: string;
 }
 
+export type ToolWithoutExecute = {
+  cp: {
+    description: string;
+    parameters: z.ZodObject<{
+      source: z.ZodString;
+      destination: z.ZodString;
+    }>;
+  };
+  mkdir: {
+    description: string;
+    parameters: z.ZodObject<{
+      path: z.ZodString;
+      permissions: z.ZodDefault<z.ZodOptional<z.ZodString>>;
+    }>;
+  };
+  ls: {
+    description: string;
+    parameters: z.ZodObject<{
+      path: z.ZodString;
+    }>;
+  };
+  rm: {
+    description: string;
+    parameters: z.ZodObject<{
+      path: z.ZodString;
+    }>;
+  };
+  read: {
+    description: string;
+    parameters: z.ZodObject<{
+      path: z.ZodString;
+    }>;
+  };
+  write: {
+    description: string;
+    parameters: z.ZodObject<{
+      path: z.ZodString;
+    }>;
+  };
+}
+
 export type ToolWithExecute = {
   cp: {
     description: string;

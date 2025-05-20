@@ -166,19 +166,20 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-5xl mx-auto bg-white shadow-md rounded-lg p-6">
+    <main className="min-h-screen p-8" style={{ background: 'var(--background)', color: 'var(--foreground)' }}>
+      <div className="max-w-5xl mx-auto shadow-md rounded-lg p-6" style={{ background: 'var(--secondary)', color: 'var(--secondary-foreground)', border: '1px solid var(--border)' }}>
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-2xl font-bold">My Sandboxes</h1>
           <div className="flex items-center gap-4">
             {user && (
-              <span className="text-gray-600">
+              <span style={{ color: 'var(--muted-foreground)' }}>
                 {user.email}
               </span>
             )}
             <button
               onClick={logout}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+              className="px-4 py-2 rounded hover:opacity-90"
+              style={{ background: 'var(--muted)', color: 'var(--foreground)', border: '1px solid var(--border)' }}
             >
               Logout
             </button>
@@ -186,37 +187,39 @@ export default function Home() {
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
+          <div className="px-4 py-3 rounded mb-6" style={{ background: 'var(--error)', color: 'var(--primary-foreground)', border: '1px solid var(--border)' }}>
             {error}
           </div>
         )}
 
         <div className="mb-8">
           <h2 className="text-lg font-semibold mb-4">Create New Sandbox</h2>
-          <form onSubmit={createSandbox} className="bg-gray-50 p-4 rounded border border-gray-200">
+          <form onSubmit={createSandbox} className="p-4 rounded border" style={{ background: 'var(--muted)', border: '1px solid var(--border)' }}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--muted-foreground)' }}>
                   Name*
                 </label>
                 <input
                   type="text"
                   value={newSandboxName}
                   onChange={(e) => setNewSandboxName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 rounded focus:outline-none focus:ring-2"
+                  style={{ background: 'var(--background)', color: 'var(--foreground)', border: '1px solid var(--border)' }}
                   placeholder="My Project"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--muted-foreground)' }}>
                   Description
                 </label>
                 <input
                   type="text"
                   value={newSandboxDescription}
                   onChange={(e) => setNewSandboxDescription(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 rounded focus:outline-none focus:ring-2"
+                  style={{ background: 'var(--background)', color: 'var(--foreground)', border: '1px solid var(--border)' }}
                   placeholder="Optional description"
                 />
               </div>
@@ -225,11 +228,13 @@ export default function Home() {
               <button
                 type="submit"
                 disabled={isCreating || !newSandboxName.trim()}
-                className={`px-4 py-2 rounded text-white ${
-                  isCreating || !newSandboxName.trim()
-                    ? 'bg-blue-300'
-                    : 'bg-blue-600 hover:bg-blue-700'
-                }`}
+                className="px-4 py-2 rounded"
+                style={{
+                  background: isCreating || !newSandboxName.trim() ? 'var(--primary)' : 'var(--primary)',
+                  color: 'var(--primary-foreground)',
+                  opacity: isCreating || !newSandboxName.trim() ? 0.6 : 1,
+                  cursor: isCreating || !newSandboxName.trim() ? 'not-allowed' : 'pointer',
+                }}
               >
                 {isCreating ? 'Creating...' : 'Create Sandbox'}
               </button>
@@ -242,42 +247,43 @@ export default function Home() {
 
           {loading ? (
             <div className="text-center py-8">
-              <div className="inline-block w-8 h-8 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin"></div>
-              <p className="mt-2 text-gray-600">Loading sandboxes...</p>
+              <div className="inline-block w-8 h-8 border-4 rounded-full animate-spin" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--primary)' }}></div>
+              <p className="mt-2" style={{ color: 'var(--muted-foreground)' }}>Loading sandboxes...</p>
             </div>
           ) : sandboxes.length === 0 ? (
-            <div className="text-center py-8 bg-gray-50 rounded border border-gray-200">
-              <p className="text-gray-600">You don&apos;t have any sandboxes yet. Create one above!</p>
+            <div className="text-center py-8 rounded border" style={{ background: 'var(--muted)', border: '1px solid var(--border)' }}>
+              <p style={{ color: 'var(--muted-foreground)' }}>You don&apos;t have any sandboxes yet. Create one above!</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full border border-gray-200 rounded">
-                <thead className="bg-gray-50">
+              <table className="min-w-full border rounded" style={{ border: '1px solid var(--border)' }}>
+                <thead style={{ background: 'var(--muted)' }}>
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Accessed</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>Description</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>Created</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>Last Accessed</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>Actions</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody style={{ background: 'var(--secondary)' }}>
                   {sandboxes.map((sandbox) => (
-                    <tr key={sandbox.id} className="hover:bg-gray-50">
+                    <tr key={sandbox.id} className="hover:opacity-90" style={{ borderBottom: '1px solid var(--border)' }}>
                       <td className="px-6 py-4 whitespace-nowrap">{sandbox.name}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-500">{sandbox.description || '-'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-500">{formatDate(sandbox.createdAt)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-500">{formatDate(sandbox.lastAccessedAt)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>{sandbox.description || '-'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>{formatDate(sandbox.createdAt)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>{formatDate(sandbox.lastAccessedAt)}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <button
                           onClick={() => openSandbox(sandbox.id)}
-                          className="text-blue-600 hover:text-blue-900 mr-3"
+                          className="mr-3"
+                          style={{ color: 'var(--primary)' }}
                         >
                           Open
                         </button>
                         <button
                           onClick={() => deleteSandbox(sandbox.id)}
-                          className="text-red-600 hover:text-red-900"
+                          style={{ color: 'var(--error)' }}
                         >
                           Delete
                         </button>

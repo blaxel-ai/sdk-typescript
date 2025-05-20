@@ -10,6 +10,7 @@ export async function POST(req: Request) {
   const sandbox = new SandboxInstance({});
 
   // Convert tools array to object format and remove execute function
+  console.log(sandbox.fs.name);
   const tools = Object.entries(sandbox.fs.tools).reduce((acc, [key, value]) => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { execute, ...toolWithoutExecute } = value;

@@ -244,24 +244,24 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 font-sans">
+    <div className="min-h-screen font-sans" style={{ background: 'var(--background)', color: 'var(--foreground)' }}>
       {loading ? (
         <div className="flex items-center justify-center min-h-screen">
           <div className="animate-pulse flex flex-col items-center">
-            <div className="h-12 w-12 rounded-full border-4 border-t-blue-500 border-r-transparent border-b-blue-500 border-l-transparent animate-spin"></div>
+            <div className="h-12 w-12 rounded-full border-4 animate-spin" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--primary)', borderRightColor: 'transparent', borderBottomColor: 'var(--primary)', borderLeftColor: 'transparent' }}></div>
             <p className="mt-4 text-lg font-medium">Loading sandbox...</p>
           </div>
         </div>
       ) : error ? (
         <div className="flex items-center justify-center min-h-screen">
-          <div className="max-w-md p-6 bg-white rounded-lg shadow-lg text-center">
-            <div className="text-red-500 mb-4">
+          <div className="max-w-md p-6 rounded-lg shadow-lg text-center" style={{ background: 'var(--secondary)', color: 'var(--secondary-foreground)', border: '1px solid var(--border)' }}>
+            <div className="mb-4" style={{ color: 'var(--error)' }}>
               <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
             <h2 className="text-xl font-bold mb-2">Error Loading Sandbox</h2>
-            <p className="text-gray-600 mb-6">{error}</p>
+            <p className="mb-6" style={{ color: 'var(--muted-foreground)' }}>{error}</p>
             <div className="flex justify-center space-x-4">
               <button
                 onClick={() => {
@@ -269,13 +269,15 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
                   hasFetchedRef.current = false;
                   fetchSandbox();
                 }}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors"
+                className="px-4 py-2 rounded-md transition-colors"
+                style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
               >
                 Try Again
               </button>
               <button
                 onClick={backToList}
-                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md transition-colors"
+                className="px-4 py-2 rounded-md transition-colors"
+                style={{ background: 'var(--muted)', color: 'var(--foreground)' }}
               >
                 Back to List
               </button>
@@ -285,19 +287,21 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
       ) : (
         <div className="grid grid-cols-3 h-screen">
           {/* Left side - Sandbox Information (1/3) */}
-          <div className="col-span-1 p-6 bg-white shadow-lg flex flex-col h-full overflow-hidden">
+          <div className="col-span-1 p-6 shadow-lg flex flex-col h-full overflow-hidden" style={{ background: 'var(--secondary)', color: 'var(--secondary-foreground)', borderRight: '1px solid var(--border)' }}>
             <div className="flex justify-between items-center mb-4">
-              <h1 className="text-2xl font-bold text-blue-700">{sandbox?.name || 'Sandbox'}</h1>
+              <h1 className="text-2xl font-bold" style={{ color: 'var(--primary)' }}>{sandbox?.name || 'Sandbox'}</h1>
               <div className="flex gap-2">
                 <button
                   onClick={backToList}
-                  className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1 rounded-md text-sm transition-colors flex items-center"
+                  className="px-3 py-1 rounded-md text-sm transition-colors flex items-center"
+                  style={{ background: 'var(--muted)', color: 'var(--foreground)' }}
                 >
                   Back to List
                 </button>
                 <button
                   onClick={logout}
-                  className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1 rounded-md text-sm transition-colors"
+                  className="px-3 py-1 rounded-md text-sm transition-colors"
+                  style={{ background: 'var(--muted)', color: 'var(--foreground)' }}
                 >
                   Logout
                 </button>
@@ -318,7 +322,7 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
                 {user && (
                   <InfoCard title="User">
                     <div className="flex flex-col">
-                      <span className="text-sm text-gray-600">{user.email}</span>
+                      <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>{user.email}</span>
                     </div>
                   </InfoCard>
                 )}
@@ -328,7 +332,8 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
                     href={previewUrl ?? ""}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-500 hover:text-blue-700 underline flex items-center"
+                    className="underline flex items-center"
+                    style={{ color: 'var(--primary)' }}
                   >
                     {previewUrl ? 'Open Preview' : 'No preview URL'}
                     {previewUrl && (
@@ -346,23 +351,23 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
                   {sandbox && (
                     <div className="flex flex-col space-y-2">
                       <div>
-                        <span className="text-sm font-medium text-gray-600">ID:</span>
+                        <span className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>ID:</span>
                         <span className="text-sm ml-2">{sandbox.id}</span>
                       </div>
                       <div>
-                        <span className="text-sm font-medium text-gray-600">Description:</span>
+                        <span className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>Description:</span>
                         <span className="text-sm ml-2">{sandbox.description || 'No description'}</span>
                       </div>
                       <div>
-                        <span className="text-sm font-medium text-gray-600">Created:</span>
+                        <span className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>Created:</span>
                         <span className="text-sm ml-2">{sandbox.createdAt ? new Date(sandbox.createdAt).toLocaleString() : 'N/A'}</span>
                       </div>
                       <div>
-                        <span className="text-sm font-medium text-gray-600">Last Accessed:</span>
+                        <span className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>Last Accessed:</span>
                         <span className="text-sm ml-2">{sandbox.lastAccessedAt ? new Date(sandbox.lastAccessedAt).toLocaleString() : 'N/A'}</span>
                       </div>
                       <div>
-                        <span className="text-sm font-medium text-gray-600">Session ID:</span>
+                        <span className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>Session ID:</span>
                         <span className="text-sm ml-2 font-mono">{sessionInfo?.name || "N/A"}</span>
                       </div>
                     </div>
@@ -373,10 +378,11 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
                   <div className="space-y-2">
                     {processes.length === 0 ? (
                       <div>
-                        <p className="text-gray-500 italic mb-4">No processes running</p>
+                        <p className="italic mb-4" style={{ color: 'var(--muted-foreground)' }}>No processes running</p>
                         <button
                           onClick={startNpmDev}
-                          className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md text-sm transition-colors flex items-center"
+                          className="px-3 py-2 rounded-md text-sm transition-colors flex items-center"
+                          style={{ background: 'var(--success)', color: 'var(--primary-foreground)' }}
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
@@ -390,7 +396,8 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
                         <div className="flex justify-end mb-2">
                           <button
                             onClick={startNpmDev}
-                            className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded-md text-xs transition-colors flex items-center"
+                            className="px-2 py-1 rounded-md text-xs transition-colors flex items-center"
+                            style={{ background: 'var(--success)', color: 'var(--primary-foreground)' }}
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
@@ -400,23 +407,25 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
                           </button>
                         </div>
                         {processes.map((process, idx) => (
-                          <div key={idx} className="bg-gray-100 p-3 rounded-md">
+                          <div key={idx} className="p-3 rounded-md" style={{ background: 'var(--muted)' }}>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center">
-                                <div className={`h-2 w-2 rounded-full mr-2 ${process.status === 'running' ? 'bg-green-500' : 'bg-gray-500'}`}></div>
+                                <div className={`h-2 w-2 rounded-full mr-2`} style={{ background: process.status === 'running' ? 'var(--success)' : 'var(--muted-foreground)' }}></div>
                                 <span className="font-medium">{process.name}</span>
                               </div>
                               <div className="flex space-x-2">
                                 <button
                                   onClick={() => stopProcess(process.pid)}
-                                  className="bg-orange-500 hover:bg-orange-600 text-white px-2 py-1 rounded-md text-xs transition-colors"
+                                  className="px-2 py-1 rounded-md text-xs transition-colors"
+                                  style={{ background: 'var(--warning)', color: 'var(--primary-foreground)' }}
                                   title="Stop process"
                                 >
                                   Stop
                                 </button>
                                 <button
                                   onClick={() => killProcess(process.pid)}
-                                  className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded-md text-xs transition-colors flex items-center"
+                                  className="px-2 py-1 rounded-md text-xs transition-colors flex items-center"
+                                  style={{ background: 'var(--error)', color: 'var(--primary-foreground)' }}
                                   title="Kill process"
                                 >
                                   <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -426,8 +435,8 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
                                 </button>
                               </div>
                             </div>
-                            <div className="text-sm text-gray-600 mt-1">Command: {process.command}</div>
-                            <div className="text-xs text-gray-500 mt-1">PID: {process.pid}</div>
+                            <div className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>Command: {process.command}</div>
+                            <div className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>PID: {process.pid}</div>
                           </div>
                         ))}
                       </>
@@ -437,7 +446,8 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
 
                 <button
                   onClick={manualRefresh}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors flex items-center justify-center gap-2 w-full"
+                  className="px-4 py-2 rounded-md transition-colors flex items-center justify-center gap-2 w-full"
+                  style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -449,22 +459,23 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
           </div>
 
           {/* Right side - Preview Iframe (2/3) */}
-          <div className="col-span-2 bg-gray-800 relative h-full overflow-hidden">
+          <div className="col-span-2 relative h-full overflow-hidden" style={{ background: 'var(--background)' }}>
             {previewUrl ? (
               <div className="absolute inset-0 p-4">
-                <div className="relative h-full w-full rounded-lg overflow-hidden shadow-2xl border-4 border-gray-700">
-                  <div className="bg-gray-900 h-8 flex items-center px-4">
+                <div className="relative h-full w-full rounded-lg overflow-hidden shadow-2xl border-4" style={{ border: '4px solid var(--border)' }}>
+                  <div className="h-8 flex items-center px-4" style={{ background: 'var(--muted)' }}>
                     <div className="flex space-x-2">
-                      <div className="h-3 w-3 rounded-full bg-red-500"></div>
-                      <div className="h-3 w-3 rounded-full bg-yellow-500"></div>
-                      <div className="h-3 w-3 rounded-full bg-green-500"></div>
+                      <div className="h-3 w-3 rounded-full" style={{ background: 'var(--error)' }}></div>
+                      <div className="h-3 w-3 rounded-full" style={{ background: 'var(--warning)' }}></div>
+                      <div className="h-3 w-3 rounded-full" style={{ background: 'var(--success)' }}></div>
                     </div>
-                    <div className="flex-1 text-gray-400 text-sm font-medium text-center truncate px-4">
+                    <div className="flex-1 text-sm font-medium text-center truncate px-4" style={{ color: 'var(--muted-foreground)' }}>
                       {previewUrl}
                     </div>
                     <button
                       onClick={refreshIframe}
-                      className="text-gray-400 hover:text-white p-1 rounded-full transition-colors"
+                      className="p-1 rounded-full transition-colors"
+                      style={{ color: 'var(--muted-foreground)' }}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -474,9 +485,9 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
 
                   {/* Loading overlay for preview */}
                   {isPreviewLoading && (
-                    <div className="absolute inset-0 bg-gray-900 bg-opacity-70 z-10 flex flex-col items-center justify-center">
-                      <div className="h-12 w-12 rounded-full border-4 border-t-blue-500 border-r-transparent border-b-blue-500 border-l-transparent animate-spin"></div>
-                      <p className="mt-4 text-white text-sm">Loading preview...</p>
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center" style={{ background: 'var(--muted)', opacity: 0.7 }}>
+                      <div className="h-12 w-12 rounded-full border-4 animate-spin" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--primary)', borderRightColor: 'transparent', borderBottomColor: 'var(--primary)', borderLeftColor: 'transparent' }}></div>
+                      <p className="mt-4 text-sm" style={{ color: 'var(--primary-foreground)' }}>Loading preview...</p>
                     </div>
                   )}
 
@@ -491,7 +502,7 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
                 </div>
               </div>
             ) : (
-              <div className="flex items-center justify-center h-full text-gray-400">
+              <div className="flex items-center justify-center h-full" style={{ color: 'var(--muted-foreground)' }}>
                 No preview available
               </div>
             )}
@@ -505,8 +516,8 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
 // InfoCard component for consistent styling
 function InfoCard({ title, children, className }: { title: string, children: React.ReactNode, className?: string }) {
   return (
-    <div className={`border border-gray-200 rounded-lg p-4 ${className || ''}`}>
-      <h3 className="text-lg font-medium text-gray-700 mb-2">{title}</h3>
+    <div className={`rounded-lg p-4 ${className || ''}`} style={{ border: '1px solid var(--border)', background: 'var(--background)' }}>
+      <h3 className="text-lg font-medium mb-2" style={{ color: 'var(--muted-foreground)' }}>{title}</h3>
       {children}
     </div>
   );
@@ -516,12 +527,13 @@ function Collapsible({ title, defaultOpen, children }: { title: string, defaultO
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className="border border-gray-200 rounded-lg p-4">
+    <div className="rounded-lg p-4" style={{ border: '1px solid var(--border)', background: 'var(--background)' }}>
       <div className="flex justify-between items-center mb-2">
-        <h4 className="text-lg font-medium text-gray-700">{title}</h4>
+        <h4 className="text-lg font-medium" style={{ color: 'var(--muted-foreground)' }}>{title}</h4>
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="text-gray-500 hover:text-gray-900 p-1 rounded-full transition-colors"
+          className="p-1 rounded-full transition-colors"
+          style={{ color: 'var(--muted-foreground)' }}
         >
           {isOpen ? (
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
