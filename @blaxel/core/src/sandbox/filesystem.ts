@@ -1,6 +1,9 @@
+import axios from "axios";
 import { Sandbox } from "../client/types.gen.js";
+import { FormData } from "../common/node.js";
+import { settings } from "../common/settings.js";
 import { SandboxAction } from "./action.js";
-import { deleteFilesystemByPath, Directory, getFilesystemByPath, getWatchFilesystemByPath, putFilesystemByPath, SuccessResponse } from "./client/index.js";
+import { deleteFilesystemByPath, Directory, getFilesystemByPath, getWatchFilesystemByPath, putFilesystemByPath, PutFilesystemByPathError, SuccessResponse } from "./client/index.js";
 
 export type CopyResponse = {
   message: string;
@@ -9,10 +12,15 @@ export type CopyResponse = {
 }
 
 export type WatchEvent = {
-  op: "CREATE" | "WRITE" | "REMOVE";
+  op: "CREATE" | "WRITE" | "REMOVE" | "RENAME" | "CHMOD";
   path: string;
   name: string;
   content?: string;
+}
+
+export type SandboxFilesystemFile = {
+  path: string;
+  content: string;
 }
 
 export class SandboxFileSystem extends SandboxAction {
@@ -34,7 +42,6 @@ export class SandboxFileSystem extends SandboxAction {
 
   async write(path: string, content: string): Promise<SuccessResponse> {
     path = this.formatPath(path);
-
     const { response, data, error } = await putFilesystemByPath({
       path: { path },
       body: { content },
@@ -43,6 +50,82 @@ export class SandboxFileSystem extends SandboxAction {
     });
     this.handleResponseError(response, data, error);
     return data as SuccessResponse;
+  }
+
+  async writeBinary(path: string, content: Buffer | Blob | File | Uint8Array) {
+    path = this.formatPath(path);
+
+    let formData: any;
+    if (typeof globalThis !== "undefined" && typeof globalThis.FormData !== "undefined" && !(typeof process !== "undefined" && process.versions && process.versions.node)) {
+      // Browser environment
+      formData = new globalThis.FormData();
+      formData.append("permissions", "0644");
+      formData.append("path", path);
+      let fileContent: Blob | File;
+      if (content instanceof Blob || content instanceof File) {
+        fileContent = content;
+      } else if (content instanceof Uint8Array) {
+        fileContent = new Blob([content]);
+      } else {
+        fileContent = new Blob([content]);
+      }
+      formData.append("file", fileContent, "test-binary.bin");
+    } else {
+      // Node.js environment
+      // @ts-expect-error: Only available in Node.js
+      formData = new FormData();
+      let fileContent: Buffer;
+      if (Buffer.isBuffer(content)) {
+        fileContent = content;
+      } else if (content instanceof Uint8Array) {
+        fileContent = Buffer.from(content);
+      } else {
+        throw new Error("Unsupported content type in Node.js");
+      }
+      formData.append("file", fileContent, "test-binary.bin");
+    }
+
+    // Get the correct headers from form-data
+    const formHeaders = formData.getHeaders ? formData.getHeaders() : {};
+    let url = `${this.url}/filesystem/${path}`;
+    if (this.sandbox.forceUrl) {
+      url = `${this.sandbox.forceUrl}/filesystem/${path}`;
+    }
+    let headers = { ...settings.headers, ...formHeaders };
+    if (this.sandbox.headers) {
+      headers = { ...headers, ...this.sandbox.headers };
+    }
+
+    const response = await axios.put(url, formData, {
+      headers,
+    });
+    if (response.status !== 200) {
+      throw new Error(response.data);
+    }
+    return response.data;
+  }
+
+  async writeTree(files: SandboxFilesystemFile[], destinationPath: string | null = null) {
+    const options = {
+      body: {
+        files: files.reduce((acc, file) => {
+          acc[file.path] = file.content;
+          return acc;
+        }, {} as Record<string, string>),
+      },
+      baseUrl: this.url,
+      client: this.client,
+    }
+    const path = destinationPath ?? ""
+    const { response, data, error } = await this.client.put<Directory, PutFilesystemByPathError>({
+      url: `/filesystem/tree/${path}`,
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    })
+    this.handleResponseError(response, data, error);
+    return data;
   }
 
   async read(path: string): Promise<string> {
@@ -148,7 +231,8 @@ export class SandboxFileSystem extends SandboxAction {
     callback: (fileEvent: WatchEvent) => void | Promise<void>,
     options?: {
       onError?: (error: Error) => void,
-      withContent: boolean
+      withContent: boolean,
+      ignore?: string[]
     }
   ) {
     path = this.formatPath(path);
@@ -156,13 +240,17 @@ export class SandboxFileSystem extends SandboxAction {
     let controller: AbortController | null = new AbortController();
 
     const start = async () => {
+      const query: { ignore?: string } = {}
+      if (options?.ignore) {
+        query.ignore = options.ignore.join(",");
+      }
       const { response, data, error } = await getWatchFilesystemByPath({
         client: this.client,
         path: { path },
+        query,
         baseUrl: this.url,
         parseAs: 'stream',
         signal: controller!.signal,
-
       });
       if (error) throw error;
       const stream: ReadableStream | null = (data as any) ?? response.body;
@@ -193,8 +281,6 @@ export class SandboxFileSystem extends SandboxAction {
                 const content = await this.read(filePath);
                 await callback({ ...fileEvent, content });
               } catch (e) {
-                console.log(e);
-
                 await callback({ ...fileEvent, content: undefined });
               }
             } else {

@@ -41,7 +41,7 @@ export const getFilesystemByPath = <ThrowOnError extends boolean = false>(option
 };
 
 /**
- * Create or update file or directory
+ * Create or update a file or directory
  * Create or update a file or directory
  */
 export const putFilesystemByPath = <ThrowOnError extends boolean = false>(options: Options<PutFilesystemByPathData, ThrowOnError>) => {
@@ -190,7 +190,7 @@ export const getWatchFilesystemByPath = <ThrowOnError extends boolean = false>(o
 
 /**
  * Stream process logs in real time via WebSocket
- * Streams the stdout and stderr output of a process in real time as JSON messages. Closes when the process exits or the client disconnects.
+ * Streams the stdout and stderr output of a process in real time as JSON messages.
  */
 export const getWsProcessByIdentifierLogsStream = <ThrowOnError extends boolean = false>(options: Options<GetWsProcessByIdentifierLogsStreamData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<unknown, GetWsProcessByIdentifierLogsStreamError, ThrowOnError>({
