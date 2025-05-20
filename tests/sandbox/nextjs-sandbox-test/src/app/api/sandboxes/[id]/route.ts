@@ -33,7 +33,9 @@ export async function GET(
     if (!id) {
       return NextResponse.json({ error: 'Invalid sandbox name' }, { status: 400 });
     }
-
+    if (!id.startsWith(user.email.split('@')[0])) {
+      return NextResponse.json({ error: 'Sandbox not found' }, { status: 404 });
+    }
     // Get actual sandbox instance from Blaxel
     const sandboxName = id;
     const sandboxInstance = await createOrGetSandbox(sandboxName);
@@ -97,6 +99,9 @@ export async function DELETE(
       const { id } = await context.params;
       if (!id) {
         return NextResponse.json({ error: 'Invalid sandbox name' }, { status: 400 });
+      }
+      if (!id.startsWith(user.email.split('@')[0])) {
+        return NextResponse.json({ error: 'Sandbox not found' }, { status: 404 });
       }
       await SandboxInstance.delete(id);
     } catch {
