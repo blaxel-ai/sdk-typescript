@@ -7,16 +7,5 @@ export const users = sqliteTable('users', {
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });
 
-export const sandboxes = sqliteTable('sandboxes', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  name: text('name').notNull(),
-  userId: integer('user_id').notNull(),
-  description: text('description'),
-  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
-  lastAccessedAt: integer('last_accessed_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
-});
-
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
-export type Sandbox = typeof sandboxes.$inferSelect;
-export type NewSandbox = typeof sandboxes.$inferInsert;

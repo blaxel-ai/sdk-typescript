@@ -18,92 +18,90 @@ export type SandboxFilesystemFile = {
   content: string;
 }
 
+export const CpParamsSchema = z.object({
+  source: z.string().describe("Source file or directory path"),
+  destination: z.string().describe("Destination file or directory path"),
+}).describe("Parameters for copying a file or directory");
+
+export const MkdirParamsSchema = z.object({
+  path: z.string().describe("Directory path to create"),
+  permissions: z.string().optional().default("0755").describe("Permissions for the new directory (default 0755)"),
+}).describe("Parameters for creating a directory");
+
+export const LsParamsSchema = z.object({
+  path: z.string().describe("Directory path to list"),
+}).describe("Parameters for listing a directory");
+
+export const RmParamsSchema = z.object({
+  path: z.string().describe("File or directory path to remove"),
+  recursive: z.boolean().optional().default(false).describe("Whether to remove recursively (default false)"),
+}).describe("Parameters for removing a file or directory");
+
+export const ReadParamsSchema = z.object({
+  path: z.string().describe("File path to read"),
+}).describe("Parameters for reading a file");
+
+export const WriteParamsSchema = z.object({
+  path: z.string().describe("File path to write to"),
+  content: z.string().describe("Content to write to the file"),
+}).describe("Parameters for writing to a file");
+
 export type ToolWithoutExecute = {
   cp: {
     description: string;
-    parameters: z.ZodObject<{
-      source: z.ZodString;
-      destination: z.ZodString;
-    }>;
+    parameters: typeof CpParamsSchema;
   };
   mkdir: {
     description: string;
-    parameters: z.ZodObject<{
-      path: z.ZodString;
-      permissions: z.ZodDefault<z.ZodOptional<z.ZodString>>;
-    }>;
+    parameters: typeof MkdirParamsSchema;
   };
   ls: {
     description: string;
-    parameters: z.ZodObject<{
-      path: z.ZodString;
-    }>;
+    parameters: typeof LsParamsSchema;
   };
   rm: {
     description: string;
-    parameters: z.ZodObject<{
-      path: z.ZodString;
-    }>;
+    parameters: typeof RmParamsSchema;
   };
   read: {
     description: string;
-    parameters: z.ZodObject<{
-      path: z.ZodString;
-    }>;
+    parameters: typeof ReadParamsSchema;
   };
   write: {
     description: string;
-    parameters: z.ZodObject<{
-      path: z.ZodString;
-    }>;
+    parameters: typeof WriteParamsSchema;
   };
 }
 
 export type ToolWithExecute = {
   cp: {
     description: string;
-    parameters: z.ZodObject<{
-      source: z.ZodString;
-      destination: z.ZodString;
-    }>;
-    execute: (args: { source: string; destination: string }) => Promise<string>;
+    parameters: typeof CpParamsSchema;
+    execute: (args: z.infer<typeof CpParamsSchema>) => Promise<string>;
   };
   mkdir: {
     description: string;
-    parameters: z.ZodObject<{
-      path: z.ZodString;
-      permissions: z.ZodDefault<z.ZodOptional<z.ZodString>>;
-    }>;
-    execute: (args: { path: string; permissions: string }) => Promise<string>;
+    parameters: typeof MkdirParamsSchema;
+    execute: (args: z.infer<typeof MkdirParamsSchema>) => Promise<string>;
   };
   ls: {
     description: string;
-    parameters: z.ZodObject<{
-      path: z.ZodString;
-    }>;
-    execute: (args: { path: string }) => Promise<string>;
+    parameters: typeof LsParamsSchema;
+    execute: (args: z.infer<typeof LsParamsSchema>) => Promise<string>;
   };
   rm: {
     description: string;
-    parameters: z.ZodObject<{
-      path: z.ZodString;
-      recursive: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;
-    }>;
-    execute: (args: { path: string; recursive: boolean }) => Promise<string>;
+    parameters: typeof RmParamsSchema;
+    execute: (args: z.infer<typeof RmParamsSchema>) => Promise<string>;
   };
   read: {
     description: string;
-    parameters: z.ZodObject<{
-      path: z.ZodString;
-    }>;
-    execute: (args: { path: string }) => Promise<string>;
+    parameters: typeof ReadParamsSchema;
+    execute: (args: z.infer<typeof ReadParamsSchema>) => Promise<string>;
   };
   write: {
     description: string;
-    parameters: z.ZodObject<{
-      path: z.ZodString;
-      content: z.ZodString;
-    }>;
-    execute: (args: { path: string; content: string }) => Promise<string>;
+    parameters: typeof WriteParamsSchema;
+    execute: (args: z.infer<typeof WriteParamsSchema>) => Promise<string>;
   };
 }

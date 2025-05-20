@@ -1,7 +1,8 @@
-import { Sandbox } from "../client/types.gen.js";
-import { settings } from "../common/settings.js";
-import { SandboxAction } from "./action.js";
-import { DeleteProcessByIdentifierKillResponse, DeleteProcessByIdentifierResponse, GetProcessByIdentifierResponse, GetProcessResponse, PostProcessResponse, ProcessRequest, deleteProcessByIdentifier, deleteProcessByIdentifierKill, getProcess, getProcessByIdentifier, getProcessByIdentifierLogs, postProcess } from "./client/index.js";
+import { Sandbox } from "../../client/types.gen.js";
+import { settings } from "../../common/settings.js";
+import { SandboxAction } from "../action.js";
+import { DeleteProcessByIdentifierKillResponse, DeleteProcessByIdentifierResponse, GetProcessByIdentifierResponse, GetProcessResponse, PostProcessResponse, ProcessRequest, deleteProcessByIdentifier, deleteProcessByIdentifierKill, getProcess, getProcessByIdentifier, getProcessByIdentifierLogs, postProcess } from "../client/index.js";
+import { ExecParamsSchema, GetParamsSchema, KillParamsSchema, ListParamsSchema, LogsParamsSchema, ProcessToolWithExecute, ProcessToolWithoutExecute, StopParamsSchema, WaitParamsSchema } from "./types.js";
 
 export class SandboxProcess extends SandboxAction {
   constructor(sandbox: Sandbox) {
@@ -147,6 +148,128 @@ export class SandboxProcess extends SandboxAction {
       return data?.stderr || "";
     }
     throw new Error("Unsupported log type");
+  }
+
+  get toolsWithoutExecute(): ProcessToolWithoutExecute {
+    return {
+      exec: {
+        description: "Execute a process in the sandbox",
+        parameters: ExecParamsSchema,
+      },
+      wait: {
+        description: "Wait for a process to finish by identifier",
+        parameters: WaitParamsSchema,
+      },
+      get: {
+        description: "Get process info by identifier",
+        parameters: GetParamsSchema,
+      },
+      list: {
+        description: "List all processes in the sandbox",
+        parameters: ListParamsSchema,
+      },
+      stop: {
+        description: "Stop a process by identifier",
+        parameters: StopParamsSchema,
+      },
+      kill: {
+        description: "Kill a process by identifier",
+        parameters: KillParamsSchema,
+      },
+      logs: {
+        description: "Get logs for a process by identifier",
+        parameters: LogsParamsSchema,
+      },
+    };
+  }
+
+  get tools(): ProcessToolWithExecute {
+    return {
+      exec: {
+        description: "Execute a process in the sandbox",
+        parameters: ExecParamsSchema,
+        execute: async (args) => {
+          try {
+            const result = await this.exec(args.process);
+            return JSON.stringify(result);
+          } catch (e: any) {
+            return JSON.stringify({ message: e.message, process: args.process });
+          }
+        },
+      },
+      wait: {
+        description: "Wait for a process to finish by identifier",
+        parameters: WaitParamsSchema,
+        execute: async (args) => {
+          try {
+            const result = await this.wait(args.identifier, { maxWait: args.maxWait, interval: args.interval });
+            return JSON.stringify(result);
+          } catch (e: any) {
+            return JSON.stringify({ message: e.message, identifier: args.identifier });
+          }
+        },
+      },
+      get: {
+        description: "Get process info by identifier",
+        parameters: GetParamsSchema,
+        execute: async (args) => {
+          try {
+            const result = await this.get(args.identifier);
+            return JSON.stringify(result);
+          } catch (e: any) {
+            return JSON.stringify({ message: e.message, identifier: args.identifier });
+          }
+        },
+      },
+      list: {
+        description: "List all processes in the sandbox",
+        parameters: ListParamsSchema,
+        execute: async () => {
+          try {
+            const result = await this.list();
+            return JSON.stringify(result);
+          } catch (e: any) {
+            return JSON.stringify({ message: e.message });
+          }
+        },
+      },
+      stop: {
+        description: "Stop a process by identifier",
+        parameters: StopParamsSchema,
+        execute: async (args) => {
+          try {
+            const result = await this.stop(args.identifier);
+            return JSON.stringify(result);
+          } catch (e: any) {
+            return JSON.stringify({ message: e.message, identifier: args.identifier });
+          }
+        },
+      },
+      kill: {
+        description: "Kill a process by identifier",
+        parameters: KillParamsSchema,
+        execute: async (args) => {
+          try {
+            const result = await this.kill(args.identifier);
+            return JSON.stringify(result);
+          } catch (e: any) {
+            return JSON.stringify({ message: e.message, identifier: args.identifier });
+          }
+        },
+      },
+      logs: {
+        description: "Get logs for a process by identifier",
+        parameters: LogsParamsSchema,
+        execute: async (args) => {
+          try {
+            const result = await this.logs(args.identifier, args.type || "all");
+            return JSON.stringify({ logs: result });
+          } catch (e: any) {
+            return JSON.stringify({ message: e.message, identifier: args.identifier });
+          }
+        },
+      },
+    };
   }
 }
 

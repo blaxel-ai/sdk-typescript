@@ -41,6 +41,27 @@ export class SandboxSessions {
     };
   }
 
+  async createIfExpired(options: SessionCreateOptions = {}, delta: number = 1000 * 60 * 60) {
+    // First, list all sessions
+    const allSessions = await this.list();
+    // Variable to hold our final session
+    let sessionData;
+    const now = new Date();
+    const threshold = new Date(now.getTime() + delta);
+    // If no valid session exists, create a new one
+    if (allSessions.length > 0) {
+      sessionData = allSessions[0]
+      if (sessionData.expiresAt < threshold) {
+        await this.delete(sessionData.name);
+        sessionData = await this.create(options);
+      }
+    } else {
+      // Create a new session
+      sessionData = await this.create(options);
+    }
+    return sessionData;
+  }
+
   async list() {
     const { data } = await listSandboxPreviews({
       path: {

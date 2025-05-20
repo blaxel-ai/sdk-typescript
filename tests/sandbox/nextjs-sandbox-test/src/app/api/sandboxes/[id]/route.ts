@@ -1,8 +1,9 @@
 import { db } from '@/lib/db';
-import { sandboxes, users } from '@/lib/db/schema';
-import { and, eq, not } from 'drizzle-orm';
+import { users } from '@/lib/db/schema';
+import { createOrGetSandbox } from '@/lib/sandboxes';
+import { SandboxInstance } from '@blaxel/core';
+import { eq } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
-import { createOrGetSandbox } from '../../../../../../../utils';
 
 // Helper function to get authenticated user
 async function getAuthenticatedUser(request: NextRequest) {
@@ -16,14 +17,7 @@ async function getAuthenticatedUser(request: NextRequest) {
   return user;
 }
 
-function getName(name: string) {
-  if (name.length > 32) {
-    return name.slice(0, 32);
-  }
-  return name;
-}
-
-// GET - Get a single sandbox by ID
+// GET - Get a single sandbox by name (from Blaxel)
 export async function GET(
   request: NextRequest,
   context: { params: { id: string } }
@@ -34,31 +28,16 @@ export async function GET(
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
+    // Await params before accessing
     const { id } = await context.params;
-    if (!id || isNaN(parseInt(id))) {
-      return NextResponse.json({ error: 'Invalid sandbox ID' }, { status: 400 });
+    if (!id) {
+      return NextResponse.json({ error: 'Invalid sandbox name' }, { status: 400 });
     }
-
-    // Verify the sandbox belongs to the user
-    const sandbox = await db
-      .select()
-      .from(sandboxes)
-      .where(and(eq(sandboxes.userId, user.id), eq(sandboxes.id, parseInt(id))))
-      .get();
-
-    if (!sandbox) {
-      return NextResponse.json({ error: 'Sandbox not found or you do not have permission' }, { status: 404 });
+    if (!id.startsWith(user.email.split('@')[0])) {
+      return NextResponse.json({ error: 'Sandbox not found' }, { status: 404 });
     }
-
-    // Update last accessed timestamp
-    await db
-      .update(sandboxes)
-      .set({ lastAccessedAt: new Date() })
-      .where(eq(sandboxes.id, sandbox.id))
-      .run();
-
     // Get actual sandbox instance from Blaxel
-    const sandboxName = getName(`${sandbox.name}`);
+    const sandboxName = id;
     const sandboxInstance = await createOrGetSandbox(sandboxName);
 
     // Get a session for this sandbox
@@ -72,45 +51,27 @@ export async function GET(
       "Vary": "Origin"
     };
 
-
     // Handle preview
-    const previews = await sandboxInstance.previews.list();
-    let preview;
-
-    if (previews.length > 0) {
-      preview = previews[0];
-    } else {
-      preview = await sandboxInstance.previews.create({
-        metadata: {
-          name: "preview",
-        },
-        spec: {
-          port: 3000,
-          public: true,
-          responseHeaders,
-        }
-      });
-    }
+    const preview = await sandboxInstance.previews.createIfNotExists({
+      metadata: {
+        name: "preview",
+      },
+      spec: {
+        port: 3000,
+        public: true,
+        responseHeaders,
+      }
+    });
 
     // First, list all sessions
-    const allSessions = await sandboxInstance.sessions.list();
-    // Variable to hold our final session
-    let sessionData;
-
-    // If no valid session exists, create a new one
-    if (allSessions.length > 0) {
-      sessionData = allSessions[0]
-    } else {
-      // Create a new session
-      sessionData = await sandboxInstance.sessions.create({
-        expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24), // 24 hours
-        responseHeaders,
-      });
-    }
+    const session = await sandboxInstance.sessions.createIfExpired({
+      expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24), // 24 hours
+      responseHeaders,
+    });
 
     return NextResponse.json({
-      sandbox,
-      session: sessionData,
+      sandbox: sandboxInstance,
+      session: session,
       preview_url: preview.spec?.url
     });
   } catch (error) {
@@ -119,8 +80,8 @@ export async function GET(
   }
 }
 
-// PUT - Update a sandbox
-export async function PUT(
+// DELETE - Delete a sandbox by name (via Blaxel)
+export async function DELETE(
   request: NextRequest,
   context: { params: { id: string } }
 ) {
@@ -130,60 +91,29 @@ export async function PUT(
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const { id } = context.params;
-    if (!id || isNaN(parseInt(id))) {
-      return NextResponse.json({ error: 'Invalid sandbox ID' }, { status: 400 });
-    }
+    // Optionally, verify the sandbox belongs to the user if possible
+    // For now, just attempt to delete
+    try {
 
-    // Verify the sandbox belongs to the user
-    const existingSandbox = await db
-      .select()
-      .from(sandboxes)
-      .where(and(eq(sandboxes.userId, user.id), eq(sandboxes.id, parseInt(id))))
-      .get();
-
-    if (!existingSandbox) {
-      return NextResponse.json({ error: 'Sandbox not found or you do not have permission' }, { status: 404 });
-    }
-
-    // Get updated data
-    const data = await request.json();
-    const { name, description } = data;
-
-    if (name && name !== existingSandbox.name) {
-      // Check if a sandbox with the new name already exists for this user
-      const nameExists = await db
-        .select()
-        .from(sandboxes)
-        .where(and(
-          eq(sandboxes.userId, user.id),
-          eq(sandboxes.name, name),
-          not(eq(sandboxes.id, parseInt(id)))
-        ))
-        .get();
-
-      if (nameExists) {
-        return NextResponse.json({ error: 'Sandbox with this name already exists' }, { status: 400 });
+      // Await params before accessing
+      const { id } = await context.params;
+      if (!id) {
+        return NextResponse.json({ error: 'Invalid sandbox name' }, { status: 400 });
       }
+      if (!id.startsWith(user.email.split('@')[0])) {
+        return NextResponse.json({ error: 'Sandbox not found' }, { status: 404 });
+      }
+      await SandboxInstance.delete(id);
+    } catch {
+      return NextResponse.json({ error: 'Failed to delete sandbox' }, { status: 500 });
     }
-
-    // Update sandbox
-    const updatedSandbox = await db
-      .update(sandboxes)
-      .set({
-        name: name || existingSandbox.name,
-        description: description !== undefined ? description : existingSandbox.description,
-        lastAccessedAt: new Date()
-      })
-      .where(eq(sandboxes.id, parseInt(id)))
-      .returning()
-      .get();
 
     return NextResponse.json({
-      sandbox: updatedSandbox
+      success: true,
+      message: 'Sandbox deleted successfully'
     });
   } catch (error) {
-    console.error("Error getting sandbox:", error, new Error().stack?.split("\n")[1]);
+    console.error("Error deleting sandbox:", error);
     return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
 }

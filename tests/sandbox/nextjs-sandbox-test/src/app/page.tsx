@@ -1,17 +1,26 @@
 'use client'
 
-import { Sandbox } from "@/lib/db/schema";
+import { ArrowTopRightOnSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface User {
   id: number;
   email: string;
 }
 
+// Define a minimal type for Blaxel sandboxes
+interface BlaxelSandbox {
+  metadata: {
+    name: string;
+  };
+  status: 'DELETING' | 'FAILED' | 'DEACTIVATING' | 'DEPLOYING' | 'DEPLOYED';
+  // Add other properties if needed from Blaxel
+}
+
 export default function Home() {
   const [loading, setLoading] = useState<boolean>(true);
-  const [sandboxes, setSandboxes] = useState<Sandbox[]>([]);
+  const [sandboxes, setSandboxes] = useState<BlaxelSandbox[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [authChecked, setAuthChecked] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -19,16 +28,22 @@ export default function Home() {
   const [newSandboxDescription, setNewSandboxDescription] = useState<string>('');
   const [isCreating, setIsCreating] = useState<boolean>(false);
   const router = useRouter();
+  const firstFetchDone = useRef(false);
+
 
   useEffect(() => {
     // Check if user is authenticated
     checkAuth();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     // Fetch sandboxes when user is authenticated
     if (authChecked && user) {
-      fetchSandboxes();
+      fetchSandboxes(true).then(() => { firstFetchDone.current = true; });
+      const interval = setInterval(() => {
+        fetchSandboxes(false);
+      }, 3000);
+      return () => clearInterval(interval);
     }
   }, [authChecked, user]);
 
@@ -68,8 +83,8 @@ export default function Home() {
     }
   }
 
-  async function fetchSandboxes() {
-    setLoading(true);
+  async function fetchSandboxes(showLoading = false) {
+    if (showLoading) setLoading(true);
     setError(null);
 
     try {
@@ -85,7 +100,7 @@ export default function Home() {
       console.error("Error fetching sandboxes:", error);
       setError(`Failed to fetch sandboxes: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }
 
@@ -108,7 +123,6 @@ export default function Home() {
         },
         body: JSON.stringify({
           name: newSandboxName.trim(),
-          description: newSandboxDescription.trim(),
         }),
       });
 
@@ -131,7 +145,7 @@ export default function Home() {
     }
   }
 
-  async function deleteSandbox(id: number) {
+  async function deleteSandbox(name: string) {
     if (!confirm('Are you sure you want to delete this sandbox?')) {
       return;
     }
@@ -139,7 +153,7 @@ export default function Home() {
     setError(null);
 
     try {
-      const res = await fetch(`/api/sandboxes?id=${id}`, {
+      const res = await fetch(`/api/sandboxes/${encodeURIComponent(name)}`, {
         method: 'DELETE',
       });
 
@@ -156,13 +170,8 @@ export default function Home() {
     }
   }
 
-  function openSandbox(id: number) {
-    router.push(`/sandbox/${id}`);
-  }
-
-  function formatDate(date: Date | null | undefined) {
-    if (!date) return 'N/A';
-    return new Date(date).toLocaleString();
+  function openSandbox(name: string) {
+    router.push(`/sandbox/${encodeURIComponent(name)}`);
   }
 
   return (
@@ -260,32 +269,43 @@ export default function Home() {
                 <thead style={{ background: 'var(--muted)' }}>
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>Description</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>Created</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>Last Accessed</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>Status</th>
                     <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody style={{ background: 'var(--secondary)' }}>
                   {sandboxes.map((sandbox) => (
-                    <tr key={sandbox.id} className="hover:opacity-90" style={{ borderBottom: '1px solid var(--border)' }}>
-                      <td className="px-6 py-4 whitespace-nowrap">{sandbox.name}</td>
-                      <td className="px-6 py-4 whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>{sandbox.description || '-'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>{formatDate(sandbox.createdAt)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap" style={{ color: 'var(--muted-foreground)' }}>{formatDate(sandbox.lastAccessedAt)}</td>
+                    <tr key={sandbox.metadata?.name} className="hover:opacity-90" style={{ borderBottom: '1px solid var(--border)' }}>
+                      <td className="px-6 py-4 whitespace-nowrap">{sandbox.metadata?.name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span
+                          className={`px-2 py-1 rounded text-xs font-semibold ${
+                            sandbox.status === 'DEPLOYED' ? 'bg-green-100 text-green-800' :
+                            sandbox.status === 'DEPLOYING' ? 'bg-yellow-100 text-yellow-800' :
+                            sandbox.status === 'DELETING' ? 'bg-red-100 text-red-800' :
+                            sandbox.status === 'DEACTIVATING' ? 'bg-orange-100 text-orange-800' :
+                            sandbox.status === 'FAILED' ? 'bg-gray-200 text-gray-800' :
+                            ''
+                          }`}
+                        >
+                          {sandbox.status}
+                        </span>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <button
-                          onClick={() => openSandbox(sandbox.id)}
-                          className="mr-3"
-                          style={{ color: 'var(--primary)' }}
+                          onClick={() => sandbox.status === 'DEPLOYED' && openSandbox(sandbox.metadata?.name)}
+                          className={`icon-btn mr-3 ${sandbox.status !== 'DEPLOYED' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                          title={sandbox.status === 'DEPLOYED' ? 'Open' : `Cannot open: ${sandbox.status}`}
+                          disabled={sandbox.status !== 'DEPLOYED'}
                         >
-                          Open
+                          <ArrowTopRightOnSquareIcon className="h-5 w-5" />
                         </button>
                         <button
-                          onClick={() => deleteSandbox(sandbox.id)}
-                          style={{ color: 'var(--error)' }}
+                          className="icon-btn"
+                          title="Delete"
+                          onClick={() => deleteSandbox(sandbox.metadata?.name)}
                         >
-                          Delete
+                          <TrashIcon className="h-5 w-5" />
                         </button>
                       </td>
                     </tr>

@@ -16,15 +16,6 @@ const initDb = () => {
       sandbox_name TEXT,
       created_at INTEGER DEFAULT (unixepoch())
     );
-
-    CREATE TABLE IF NOT EXISTS sandboxes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      user_id INTEGER NOT NULL,
-      description TEXT,
-      created_at INTEGER DEFAULT (unixepoch()),
-      last_accessed_at INTEGER DEFAULT (unixepoch())
-    );
   `);
 };
 
