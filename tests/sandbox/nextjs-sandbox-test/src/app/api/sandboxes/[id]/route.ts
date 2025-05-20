@@ -31,10 +31,10 @@ export async function GET(
     // Await params before accessing
     const { id } = await context.params;
     if (!id) {
-      return NextResponse.json({ error: 'Invalid sandbox name' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid app name' }, { status: 400 });
     }
     if (!id.startsWith(user.email.split('@')[0])) {
-      return NextResponse.json({ error: 'Sandbox not found' }, { status: 404 });
+      return NextResponse.json({ error: 'App not found' }, { status: 404 });
     }
     // Get actual sandbox instance from Blaxel
     const sandboxName = id;
@@ -98,10 +98,10 @@ export async function DELETE(
       // Await params before accessing
       const { id } = await context.params;
       if (!id) {
-        return NextResponse.json({ error: 'Invalid sandbox name' }, { status: 400 });
+        return NextResponse.json({ error: 'Invalid app name' }, { status: 400 });
       }
       if (!id.startsWith(user.email.split('@')[0])) {
-        return NextResponse.json({ error: 'Sandbox not found' }, { status: 404 });
+        return NextResponse.json({ error: 'App not found' }, { status: 404 });
       }
       await SandboxInstance.delete(id);
     } catch {
@@ -110,10 +110,10 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      message: 'Sandbox deleted successfully'
+      message: 'App deleted successfully'
     });
   } catch (error) {
-    console.error("Error deleting sandbox:", error);
+    console.error("Error deleting app:", error);
     return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
 }

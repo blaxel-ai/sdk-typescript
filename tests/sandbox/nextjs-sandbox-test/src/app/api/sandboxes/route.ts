@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     const { name } = data;
 
     if (!name) {
-      return NextResponse.json({ error: 'Sandbox name is required' }, { status: 400 });
+      return NextResponse.json({ error: 'App name is required' }, { status: 400 });
     }
 
     // Create sandbox instance using Blaxel SDK

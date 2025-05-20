@@ -21,7 +21,9 @@ interface User {
 
 // Minimal type for Blaxel sandboxes
 interface BlaxelSandbox {
-  name: string;
+  metadata: {
+    name: string;
+  };
   status: 'DELETING' | 'FAILED' | 'DEACTIVATING' | 'DEPLOYING' | 'DEPLOYED';
 }
 
@@ -240,7 +242,7 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
         <div className="flex items-center justify-center min-h-screen">
           <div className="animate-pulse flex flex-col items-center">
             <div className="h-12 w-12 rounded-full border-4 animate-spin" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--primary)', borderRightColor: 'transparent', borderBottomColor: 'var(--primary)', borderLeftColor: 'transparent' }}></div>
-            <p className="mt-4 text-lg font-medium">Loading sandbox...</p>
+            <p className="mt-4 text-lg font-medium">Loading apps...</p>
           </div>
         </div>
       ) : error ? (
@@ -251,7 +253,7 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <h2 className="text-xl font-bold mb-2">Error Loading Sandbox</h2>
+            <h2 className="text-xl font-bold mb-2">Error Loading App</h2>
             <p className="mb-6" style={{ color: 'var(--muted-foreground)' }}>{error}</p>
             <div className="flex justify-center space-x-4">
               <button
@@ -280,7 +282,7 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
           {/* Left side - Sandbox Information (1/3) */}
           <div className="col-span-1 p-6 shadow-lg flex flex-col h-full overflow-hidden" style={{ background: 'var(--secondary)', color: 'var(--secondary-foreground)', borderRight: '1px solid var(--border)' }}>
             <div className="flex justify-between items-center mb-4">
-              <h1 className="text-2xl font-bold" style={{ color: 'var(--primary)' }}>{sandbox?.name || 'Sandbox'}</h1>
+              <h1 className="text-2xl font-bold" style={{ color: 'var(--primary)' }}>{sandbox?.metadata?.name || 'App'}</h1>
               <div className="flex gap-2">
                 <button
                   onClick={backToList}
@@ -301,7 +303,7 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
 
             {/* Chatbot section - 70% of the height */}
             <div className="flex-grow h-[70%] mb-3 overflow-hidden flex flex-col">
-              <InfoCard title="Sandbox Assistant" className="flex-grow flex flex-col h-full overflow-hidden">
+              <InfoCard title="App Builder Assistant" className="flex-grow flex flex-col h-full overflow-hidden">
                 {sandboxInstance && <Chatbot sandbox={sandboxInstance} className="flex-grow" />}
               </InfoCard>
             </div>
@@ -338,12 +340,12 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
 
               {/* Collapsible sections with proper spacing */}
               <div className="space-y-4 mb-4">
-                <Collapsible title="Sandbox Details" defaultOpen={false}>
+                <Collapsible title="App Details" defaultOpen={false}>
                   {sandbox && (
                     <div className="flex flex-col space-y-2">
                       <div>
                         <span className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>Name:</span>
-                        <span className="text-sm ml-2">{sandbox.name}</span>
+                        <span className="text-sm ml-2">{sandbox.metadata?.name}</span>
                       </div>
                       <div>
                         <span className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>Session ID:</span>

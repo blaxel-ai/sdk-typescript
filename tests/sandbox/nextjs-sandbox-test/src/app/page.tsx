@@ -108,7 +108,7 @@ export default function Home() {
     e.preventDefault();
 
     if (!newSandboxName.trim()) {
-      setError('Sandbox name is required');
+      setError('App name is required');
       return;
     }
 
@@ -178,7 +178,7 @@ export default function Home() {
     <main className="min-h-screen p-8" style={{ background: 'var(--background)', color: 'var(--foreground)' }}>
       <div className="max-w-5xl mx-auto shadow-md rounded-lg p-6" style={{ background: 'var(--secondary)', color: 'var(--secondary-foreground)', border: '1px solid var(--border)' }}>
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-2xl font-bold">My Sandboxes</h1>
+          <h1 className="text-2xl font-bold">My Apps</h1>
           <div className="flex items-center gap-4">
             {user && (
               <span style={{ color: 'var(--muted-foreground)' }}>
@@ -202,7 +202,7 @@ export default function Home() {
         )}
 
         <div className="mb-8">
-          <h2 className="text-lg font-semibold mb-4">Create New Sandbox</h2>
+          <h2 className="text-lg font-semibold mb-4">Create New App</h2>
           <form onSubmit={createSandbox} className="p-4 rounded border" style={{ background: 'var(--muted)', border: '1px solid var(--border)' }}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -245,23 +245,23 @@ export default function Home() {
                   cursor: isCreating || !newSandboxName.trim() ? 'not-allowed' : 'pointer',
                 }}
               >
-                {isCreating ? 'Creating...' : 'Create Sandbox'}
+                {isCreating ? 'Creating...' : 'Create App'}
               </button>
             </div>
           </form>
         </div>
 
         <div>
-          <h2 className="text-lg font-semibold mb-4">Your Sandboxes</h2>
+          <h2 className="text-lg font-semibold mb-4">Your Apps</h2>
 
           {loading ? (
             <div className="text-center py-8">
               <div className="inline-block w-8 h-8 border-4 rounded-full animate-spin" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--primary)' }}></div>
-              <p className="mt-2" style={{ color: 'var(--muted-foreground)' }}>Loading sandboxes...</p>
+              <p className="mt-2" style={{ color: 'var(--muted-foreground)' }}>Loading apps...</p>
             </div>
           ) : sandboxes.length === 0 ? (
             <div className="text-center py-8 rounded border" style={{ background: 'var(--muted)', border: '1px solid var(--border)' }}>
-              <p style={{ color: 'var(--muted-foreground)' }}>You don&apos;t have any sandboxes yet. Create one above!</p>
+              <p style={{ color: 'var(--muted-foreground)' }}>You don&apos;t have any apps yet. Create one above!</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
