@@ -1,5 +1,6 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createCerebras } from "@ai-sdk/cerebras";
+import { createCohere } from "@ai-sdk/cohere";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -46,6 +47,13 @@ export const blModel = async (
       return createCerebras({
         apiKey: settings.token,
         baseURL: `${url}/v1`,
+        ...options,
+      })(modelId);
+    } else if (type === "cohere") {
+
+      return createCohere({
+        apiKey: settings.token,
+        baseURL: `${url}/v2`,
         ...options,
       })(modelId);
     }

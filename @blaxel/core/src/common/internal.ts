@@ -1,3 +1,4 @@
+/* eslint-disable */
 // Pure JS MD5 implementation (public domain, compact)
 function md5(input: string): string {
   function cmn(q: number, a: number, b: number, x: number, s: number, t: number) {

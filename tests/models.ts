@@ -5,51 +5,59 @@ import { blModel as blModelMastra } from "@blaxel/mastra";
 import { blModel as blModelVercel } from "@blaxel/vercel";
 import { generateText } from "ai";
 
-// const MODEL = "gpt-4o-mini";
-// const MODEL = "claude-3-7-sonnet-20250219"
-// const MODEL = "xai-grok-beta"
-// const MODEL = "cohere-command-r-plus"
-const MODEL = "gemini-2-5-pro-preview-03-25"
-// const MODEL = "deepseek-chat"
-// const MODEL = "mistral-large-latest"
-// const MODEL = "cerebras-llama-3-3-70b"
+const models = [
+  "gpt-4o-mini",
+  "claude-3-7-sonnet-20250219",
+  "xai-grok-beta",
+  "deepseek-chat",
+  "cerebras-sandbox",
+  "cohere-command-r-plus",
+  "ministral-3b-2410",
+  "gemini-2-0-flash",
+]
 
-async function langchain() {
-  const model = await blModelLangGraph(MODEL);
+
+async function langchain(modelName: string) {
+  const model = await blModelLangGraph(modelName);
   const result = await model.invoke("Hello, world!");
   // @ts-ignore
-  logger.info(`langchain: ${result.content as string}`);
+  logger.info(`langchain, ${modelName}: ${result.content as string}`);
 }
 
-async function llamaindex() {
-  const model = await blModelLlamaIndex(MODEL);
+async function llamaindex(modelName: string) {
+  const model = await blModelLlamaIndex(modelName);
   const result = await model.chat({messages: [{role: "user", content: "Hello, world!"}]})
-  logger.info(`llamaindex: ${result.message.content.toString()}`);
+  // @ts-ignore
+  logger.info(`llamaindex, ${modelName}: ${result.message.content.toString()}`);
 }
 
-async function mastra() {
-  const model = await blModelMastra(MODEL);
+async function mastra(modelName: string) {
+  const model = await blModelMastra(modelName);
   const result = await generateText({
     model,
     prompt: "Hello, world!",
   });
-  logger.info(`mastra: ${result.text}`);
+  // @ts-ignore
+  logger.info(`mastra, ${modelName}: ${result.text}`);
 }
 
-async function vercelai() {
-  const model = await blModelVercel(MODEL);
+async function vercelai(modelName: string) {
+  const model = await blModelVercel(modelName);
   const result = await generateText({
     model,
     prompt: "Hello, world!",
   });
-  logger.info(`vercelai: ${result.text}`);
+  // @ts-ignore
+  logger.info(`vercelai, ${modelName}: ${result.text}`);
 }
 
 async function main() {
-  await langchain();
-  await llamaindex();
-  await mastra();
-  await vercelai();
+  for (const model of models) {
+    await langchain(model);
+    await llamaindex(model);
+    await mastra(model);
+    await vercelai(model);
+  }
 }
 
 main()
