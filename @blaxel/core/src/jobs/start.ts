@@ -40,7 +40,7 @@ class BlJobWrapper {
   }
 
   get index(): number {
-    return env[this.indexKey] ? Number(env[this.indexKey]) ?? 0 : 0;
+    return env[this.indexKey] ? Number(env[this.indexKey]) : 0;
   }
 
   /*
@@ -48,7 +48,7 @@ class BlJobWrapper {
   */
   async start(func: (args: any) => Promise<void>) {
     await authenticate();
-    let span = startSpan(`blStartJob-${func.name}`, {
+    const span = startSpan(`blStartJob-${func.name}`, {
       attributes: {
         'job.name': func.name,
         'job.index': this.index,

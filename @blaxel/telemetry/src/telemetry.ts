@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { authenticate, env, logger, settings, telemetryRegistry } from "@blaxel/core";
 import {
   metrics,

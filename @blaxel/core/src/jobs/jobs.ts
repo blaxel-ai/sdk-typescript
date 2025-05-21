@@ -55,7 +55,7 @@ class BlJob {
     const body = {
       tasks: tasks
     }
-    const response = await fetch(url+"/executions", {
+    const response = await fetch(url.toString() + "/executions", {
       method: "POST",
       headers: {
         ...settings.headers,
