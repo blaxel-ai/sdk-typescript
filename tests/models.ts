@@ -8,12 +8,12 @@ import { generateText } from "ai";
 const models = [
   "gpt-4o-mini",
   "claude-3-7-sonnet-20250219",
-  "xai-grok-beta",
-  "deepseek-chat",
   "cerebras-sandbox",
   "cohere-command-r-plus",
   "ministral-3b-2410",
   "gemini-2-0-flash",
+  "deepseek-chat",
+  "xai-grok-beta",
 ]
 
 
