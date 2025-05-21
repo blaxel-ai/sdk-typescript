@@ -1,11 +1,10 @@
 import axios from "axios";
-import z from "zod";
 import { Sandbox } from "../../client/types.gen.js";
 import { FormData } from "../../common/node.js";
 import { settings } from "../../common/settings.js";
 import { SandboxAction } from "../action.js";
 import { deleteFilesystemByPath, Directory, getFilesystemByPath, getWatchFilesystemByPath, putFilesystemByPath, PutFilesystemByPathError, SuccessResponse } from "../client/index.js";
-import { CopyResponse, CpParamsSchema, LsParamsSchema, MkdirParamsSchema, ReadParamsSchema, RmParamsSchema, SandboxFilesystemFile, ToolWithExecute, ToolWithoutExecute, WatchEvent, WriteParamsSchema } from "./types.js";
+import { CopyResponse, SandboxFilesystemFile, WatchEvent } from "./types.js";
 
 
 
@@ -304,151 +303,5 @@ export class SandboxFileSystem extends SandboxAction {
       path = path.slice(1);
     }
     return path;
-  }
-
-  get toolsWithoutExecute(): ToolWithoutExecute {
-    return {
-      cp: {
-        description: "Copy a file or directory",
-        parameters: CpParamsSchema,
-      },
-      mkdir: {
-        description: "Create a directory",
-        parameters: MkdirParamsSchema,
-      },
-      ls: {
-        description: "List a directory",
-        parameters: LsParamsSchema,
-      },
-      rm: {
-        description: "Remove a file or directory",
-        parameters: RmParamsSchema,
-      },
-      read: {
-        description: "Read a file",
-        parameters: ReadParamsSchema,
-      },
-      write: {
-        description: "Write a file",
-        parameters: WriteParamsSchema,
-      }
-    }
-  }
-
-  get tools(): ToolWithExecute {
-    return {
-      cp: {
-        description: "Copy a file or directory",
-        parameters: CpParamsSchema,
-        execute: async (args: z.infer<typeof CpParamsSchema>) => {
-          try {
-            const result = await this.cp(args.source, args.destination);
-            return JSON.stringify(result);
-          } catch (e) {
-            if (e instanceof Error) {
-              return JSON.stringify({
-                message: e.message,
-                source: args.source,
-                destination: args.destination
-              })
-            }
-            return "An unknown error occurred"
-          }
-        }
-      },
-      mkdir: {
-        description: "Create a directory",
-        parameters: MkdirParamsSchema,
-        execute: async (args: z.infer<typeof MkdirParamsSchema>) => {
-          try {
-            const result = await this.mkdir(args.path, args.permissions);
-            return JSON.stringify(result);
-          } catch (e) {
-            if (e instanceof Error) {
-              return JSON.stringify({
-                message: e.message,
-                path: args.path,
-                permissions: args.permissions
-              })
-            }
-            return "An unknown error occurred"
-          }
-        }
-      },
-      ls: {
-        description: "List a directory",
-        parameters: LsParamsSchema,
-        execute: async (args: z.infer<typeof LsParamsSchema>) => {
-          try {
-            const result = await this.ls(args.path);
-            return JSON.stringify(result);
-          } catch (e) {
-            if (e instanceof Error) {
-              return JSON.stringify({
-                message: e.message,
-                path: args.path
-              })
-            }
-            return "An unknown error occurred"
-          }
-        }
-      },
-      rm: {
-        description: "Remove a file or directory",
-        parameters: RmParamsSchema,
-        execute: async (args: z.infer<typeof RmParamsSchema>) => {
-          try {
-            const result = await this.rm(args.path, args.recursive);
-            return JSON.stringify(result);
-          } catch (e) {
-            if (e instanceof Error) {
-              return JSON.stringify({
-                message: e.message,
-                path: args.path,
-                recursive: args.recursive
-              })
-            }
-            return "An unknown error occurred"
-          }
-        }
-      },
-      read: {
-        description: "Read a file",
-        parameters: ReadParamsSchema,
-        execute: async (args: z.infer<typeof ReadParamsSchema>) => {
-          try {
-            const result = await this.read(args.path);
-            return JSON.stringify(result);
-          } catch (e) {
-            if (e instanceof Error) {
-              return JSON.stringify({
-                message: e.message,
-                path: args.path
-              })
-            }
-            return "An unknown error occurred"
-          }
-        }
-      },
-      write: {
-        description: "Write a file",
-        parameters: WriteParamsSchema,
-        execute: async (args: z.infer<typeof WriteParamsSchema>) => {
-          try {
-            const result = await this.write(args.path, args.content);
-            return JSON.stringify(result);
-          } catch (e) {
-            if (e instanceof Error) {
-              return JSON.stringify({
-                message: e.message,
-                path: args.path,
-                content: args.content
-              })
-            }
-            return "An unknown error occurred"
-          }
-        }
-      }
-    }
   }
 }

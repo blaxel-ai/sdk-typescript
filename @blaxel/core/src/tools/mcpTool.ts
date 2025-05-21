@@ -12,6 +12,8 @@ import { schemaToZodSchema } from "./zodSchema.js";
 const McpToolCache = new Map<string, McpTool>();
 export class McpTool {
   private name: string;
+  private type: string;
+  private pluralType: string;
   private client: ModelContextProtocolClient;
   private transport?: BlaxelMcpClientTransport;
 
@@ -21,6 +23,13 @@ export class McpTool {
 
   constructor(name: string, ms: number = 5000) {
     this.name = name;
+    this.type = "function";
+    this.pluralType = "functions";
+    if (name.startsWith("sandbox/") || name.startsWith("sandboxes/")) {
+      this.name = name.split("/")[1];
+      this.type = "sandbox";
+      this.pluralType = "sandboxes";
+    }
     if (env.BL_CLOUD) {
       this.ms = 0;
     } else {
@@ -48,12 +57,12 @@ export class McpTool {
 
   get externalUrl() {
     return new URL(
-      `${settings.runUrl}/${settings.workspace}/functions/${this.name}`
+      `${settings.runUrl}/${settings.workspace}/${this.pluralType}/${this.name}`
     );
   }
 
   get internalUrl() {
-    const hash = getGlobalUniqueHash(settings.workspace, "function", this.name);
+    const hash = getGlobalUniqueHash(settings.workspace, this.type, this.name);
     return new URL(
       `${settings.runInternalProtocol}://bl-${settings.env}-${hash}.${settings.runInternalHostname}`
     );
@@ -61,8 +70,8 @@ export class McpTool {
 
   get forcedUrl() {
     const envVar = this.name.replace(/-/g, "_").toUpperCase();
-    if (env[`BL_FUNCTION_${envVar}_URL`]) {
-      return new URL(env[`BL_FUNCTION_${envVar}_URL`] as string);
+    if (env[`BL_${this.pluralType.toUpperCase()}_${envVar}_URL`]) {
+      return new URL(env[`BL_${this.pluralType.toUpperCase()}_${envVar}_URL`] as string);
     }
     return null;
   }
@@ -79,7 +88,8 @@ export class McpTool {
     this.startPromise = this.startPromise || (async () => {
       await authenticate();
       try {
-        logger.debug(`MCP:${this.name}:Connecting`);
+        logger.debug(`MCP:${this.name}:Connecting::${this.url.toString()}`);
+        console.log("MCP: Connecting to",);
         this.transport = new BlaxelMcpClientTransport(
           this.url.toString(),
           settings.headers

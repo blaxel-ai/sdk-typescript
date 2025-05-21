@@ -6,4 +6,3 @@ export class SandboxNetwork extends SandboxAction {
     super(sandbox);
   }
 }
-
