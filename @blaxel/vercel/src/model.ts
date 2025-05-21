@@ -17,13 +17,14 @@ export const blModel = async (
   await authenticate();
   const type = modelData?.spec?.runtime?.type || "openai";
   const modelId = modelData?.spec?.runtime?.model || "gpt-4o";
-
   try {
-    if (type === "google") {
-
+    if (type === "gemini") {
       return createGoogleGenerativeAI({
         apiKey: settings.token,
-        baseURL: `${url}/v1`,
+        headers: settings.headers,
+        fetch: (_, options) => {
+          return fetch(`${url}/v1beta/models/${modelId}:generateContent`, options)
+        },
         ...options,
       })(modelId);
     } else if (type === "anthropic") {
