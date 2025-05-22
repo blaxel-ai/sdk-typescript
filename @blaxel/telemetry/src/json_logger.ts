@@ -55,14 +55,20 @@ function formatLogMessage(severity: string, message: unknown, args: unknown[]): 
   const messageStr = typeof message === "string" ? message : stringify(message, 2);
   const argsStr = args.map(arg => typeof arg === "string" ? arg : stringify(arg, 2)).join(" ");
 
-  let msg = `${messageStr}${argsStr ? " " + argsStr : ""}`;
+  const msg = `${messageStr}${argsStr ? " " + argsStr : ""}`;
 
-  const logEntry: any = {
+  interface LogEntry {
+    message: string;
+    severity: string;
+    [key: string]: string | Record<string, string>;
+  }
+
+  const logEntry: LogEntry = {
     message: msg,
     severity
   };
 
-  logEntry[labelsName] = {}
+  logEntry[labelsName] = {} as Record<string, string>;
 
   const currentSpan = trace.getActiveSpan();
   if (currentSpan) {

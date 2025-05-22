@@ -68,8 +68,8 @@ export class OtelTelemetryProvider implements BlaxelTelemetryProvider {
       root: options?.isRoot,
     };
 
-    let ctx = this.retrieveActiveSpanContext();
-    let span = new OtelSpan(tracer.startSpan(name, otelOptions, ctx));
+    const ctx = this.retrieveActiveSpanContext();
+    const span = new OtelSpan(tracer.startSpan(name, otelOptions, ctx));
     this.spans.push(span);
 
     return span;
