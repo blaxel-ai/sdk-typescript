@@ -8,7 +8,7 @@ export async function POST(req: Request, context: { params: { id: string } }) {
   const { messages } = await req.json();
   const { id } = await context.params;
 
-  const tools = await blTools([`sandboxes/${id}`])
+  const tools = await blTools([`sandboxes/${id}`], maxDuration * 1000)
   const result = streamText({
     model: openai('gpt-4o'),
     system: `You are a NextJS application development expert. Your goal is to help users create complete NextJS applications based on their descriptions.
