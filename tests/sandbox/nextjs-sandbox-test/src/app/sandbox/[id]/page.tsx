@@ -144,8 +144,7 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
       }
 
       const data = await res.json();
-      setSandbox(data.sandbox);
-
+      setSandbox({ metadata: data.metadata, status: data.status });
       try {
         const sandboxInstance = await SandboxInstance.fromSession(data.session);
 
@@ -304,7 +303,7 @@ export default function SandboxPage({ params }: { params: { id: string } }) {
             {/* Chatbot section - 70% of the height */}
             <div className="flex-grow h-[70%] mb-3 overflow-hidden flex flex-col">
               <InfoCard title="App Builder Assistant" className="flex-grow flex flex-col h-full overflow-hidden">
-                {sandboxInstance && <Chatbot sandbox={sandboxInstance} className="flex-grow" />}
+                {sandbox && <Chatbot sandboxName={sandbox?.metadata?.name ?? 'unknown'} className="flex-grow" />}
               </InfoCard>
             </div>
 

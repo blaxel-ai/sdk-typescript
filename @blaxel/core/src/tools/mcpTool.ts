@@ -89,7 +89,6 @@ export class McpTool {
       await authenticate();
       try {
         logger.debug(`MCP:${this.name}:Connecting::${this.url.toString()}`);
-        console.log("MCP: Connecting to",);
         this.transport = new BlaxelMcpClientTransport(
           this.url.toString(),
           settings.headers
@@ -156,7 +155,6 @@ export class McpTool {
           inputSchema: FunctionSchema;
         }>;
       };
-      logger.debug(`MCP:${this.name}:Listed tools result`, tools);
       await this.close();
       const result = tools.map((tool) => {
         return {
@@ -222,11 +220,11 @@ export class McpTool {
   }
 }
 
-export const getMcpTool = async (name: string): Promise<Tool[]> => {
+export const getMcpTool = async (name: string, ms?: number): Promise<Tool[]> => {
   let tool = McpToolCache.get(name);
   if (!tool) {
     logger.debug(`MCP:${name}:Creating new tool`);
-    tool = new McpTool(name);
+    tool = new McpTool(name, ms);
     McpToolCache.set(name, tool);
   }
   return await tool.listTools();
