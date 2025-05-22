@@ -52,7 +52,7 @@ class BlJob {
     url: URL,
     tasks: Record<string, unknown>[],
   ): Promise<Response> {
-    let body = {
+    const body = {
       tasks: tasks
     }
     const response = await fetch(url+"/executions", {

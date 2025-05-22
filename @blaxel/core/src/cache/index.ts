@@ -1,4 +1,3 @@
-/* eslint-disable */
 import yaml from "yaml";
 import { fs } from "../common/node.js";
 

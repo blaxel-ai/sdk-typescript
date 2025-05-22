@@ -4,8 +4,8 @@ import { env } from "../common/env.js";
 import { getMcpTool } from "./mcpTool.js";
 import { Tool } from "./types.js";
 
-export const getTool = async (name: string): Promise<Tool[]> => {
-  return await getMcpTool(name);
+export const getTool = async (name: string, ms?: number): Promise<Tool[]> => {
+  return await getMcpTool(name, ms);
 };
 
 export class BLTools {

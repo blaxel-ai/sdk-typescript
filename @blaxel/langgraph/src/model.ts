@@ -26,6 +26,7 @@ export const blModel = async (
         apiKey: settings.token,
         model: modelData?.spec?.runtime?.model,
         baseUrl: url,
+        customHeaders: settings.headers,
         ...options,
       });
     } else if (type === "mistral") {
