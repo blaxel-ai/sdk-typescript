@@ -3,8 +3,38 @@ import {
   JSONRPCMessage,
   JSONRPCMessageSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import WebSocket from "ws";
 import { logger } from "../common/logger.js";
+import { settings } from "../common/settings.js";
+
+
+// Type definitions for WebSocket environments
+declare const globalThis: any;
+
+// Detect environment
+const isBrowser = typeof globalThis !== "undefined" && globalThis.window !== undefined;
+
+// Type for WebSocket that works in both environments
+interface UniversalWebSocket {
+  readyState: number;
+  close(): void;
+  send(data: string, callback?: (error?: Error) => void): void;
+  onerror?: ((event: any) => void) | null;
+  onopen?: ((event: any) => void) | null;
+  onclose?: ((event: any) => void) | null;
+  onmessage?: ((event: any) => void) | null;
+}
+
+// Conditional import for Node.js WebSocket
+let NodeWebSocket: any;
+if (!isBrowser) {
+  try {
+    // Dynamic import for Node.js environment
+    NodeWebSocket = require("ws");
+  } catch (error) {
+    // ws is not available
+  }
+}
+
 //const SUBPROTOCOL = "mcp";
 
 const MAX_RETRIES = 3;
@@ -15,11 +45,13 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Client transport for WebSocket: this will connect to a server over the WebSocket protocol.
+ * Works in both browser and Node.js environments.
  */
 export class BlaxelMcpClientTransport implements Transport {
-  private _socket?: WebSocket;
+  private _socket?: UniversalWebSocket;
   private _url: URL;
   private _headers: Record<string, string>;
+  private _isBrowser: boolean;
 
   onclose?: () => void;
   onerror?: (error: Error) => void;
@@ -28,6 +60,7 @@ export class BlaxelMcpClientTransport implements Transport {
   constructor(url: string, headers?: Record<string, string>) {
     this._url = new URL(url.replace("http", "ws"));
     this._headers = headers ?? {};
+    this._isBrowser = isBrowser;
   }
 
   async start(): Promise<void> {
@@ -60,59 +93,96 @@ export class BlaxelMcpClientTransport implements Transport {
 
   private _connect(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this._socket = new WebSocket(this._url, {
-        //protocols: SUBPROTOCOL,
-        headers: this._headers,
-      });
-      this._socket.onerror = (event) => {
-        const error =
-          "error" in event
-            ? (event.error as Error)
-            : new Error(`WebSocket error: ${JSON.stringify(event)}`);
-        reject(error);
-        this.onerror?.(error);
-      };
-
-      this._socket.onopen = () => {
-        resolve();
-      };
-
-      this._socket.onclose = () => {
-        this.onclose?.();
-        this._socket = undefined;
-      };
-
-      this._socket.onmessage = (event: WebSocket.MessageEvent) => {
-        let message: JSONRPCMessage;
-        try {
-          let dataString: string;
-          if (typeof event.data === "string") {
-            dataString = event.data;
-          } else if (event.data instanceof Buffer) {
-            dataString = event.data.toString("utf-8");
-          } else {
-            throw new Error("Unsupported data type for event.data");
+      try {
+        if (this._isBrowser) {
+          // Use native browser WebSocket
+          const url = `${this._url.toString()}?token=${settings.token}`
+          this._socket = new WebSocket(url) as UniversalWebSocket;
+        } else {
+          // Use Node.js WebSocket
+          if (!NodeWebSocket) {
+            throw new Error("WebSocket library not available in Node.js environment");
           }
-          message = JSONRPCMessageSchema.parse(JSON.parse(dataString));
-        } catch (error) {
-          logger.error(
-            `Error parsing message: ${
-              typeof event.data === "object"
-                ? JSON.stringify(event.data)
-                : event.data
-            }`
-          );
-          this.onerror?.(error as Error);
-          return;
+          this._socket = new NodeWebSocket(this._url, {
+            //protocols: SUBPROTOCOL,
+            headers: this._headers,
+          }) as UniversalWebSocket;
         }
 
-        this.onmessage?.(message);
-      };
+        this._socket.onerror = (event) => {
+          console.error(event)
+          const error = this._isBrowser
+            ? new Error(`WebSocket error: ${event.message}`)
+            : "error" in event
+            ? (event.error as Error)
+            : new Error(`WebSocket error: ${event.message}`);
+          reject(error);
+          this.onerror?.(error);
+        };
+
+        this._socket.onopen = () => {
+          resolve();
+        };
+
+        this._socket.onclose = () => {
+          this.onclose?.();
+          this._socket = undefined;
+        };
+
+        this._socket.onmessage = (event) => {
+          let message: JSONRPCMessage;
+          try {
+            let dataString: string;
+            if (this._isBrowser) {
+              // Browser WebSocket MessageEvent
+              const browserEvent = event as MessageEvent;
+              dataString = typeof browserEvent.data === "string"
+                ? browserEvent.data
+                : browserEvent.data.toString();
+            } else {
+              // Node.js WebSocket MessageEvent
+              const nodeEvent = event as import("ws").MessageEvent;
+              if (typeof nodeEvent.data === "string") {
+                dataString = nodeEvent.data;
+              } else if (nodeEvent.data instanceof Buffer) {
+                dataString = nodeEvent.data.toString("utf-8");
+              } else {
+                throw new Error("Unsupported data type for event.data");
+              }
+            }
+            message = JSONRPCMessageSchema.parse(JSON.parse(dataString));
+          } catch (error) {
+            logger.error(
+              `Error parsing message: ${
+                typeof event.data === "object"
+                  ? JSON.stringify(event.data)
+                  : event.data
+              }`
+            );
+            this.onerror?.(error as Error);
+            return;
+          }
+
+          this.onmessage?.(message);
+        };
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("ws does not work in the browser")) {
+          this._isBrowser = true;
+          return this._connect().then(resolve).catch(reject);
+        }
+        reject(error as Error);
+      }
     });
   }
 
-  get isConnected() {
-    return this._socket?.readyState === WebSocket.OPEN;
+    get isConnected() {
+    if (!this._socket) return false;
+
+    if (this._isBrowser) {
+      return this._socket.readyState === 1; // WebSocket.OPEN = 1
+    } else {
+      return this._socket.readyState === 1; // WebSocket.OPEN = 1
+    }
   }
 
   async close(): Promise<void> {
@@ -126,7 +196,7 @@ export class BlaxelMcpClientTransport implements Transport {
     let attempts = 0;
     while (attempts < MAX_RETRIES) {
       try {
-        if (!this._socket || this._socket.readyState !== WebSocket.OPEN) {
+        if (!this._socket || !this.isConnected) {
           if (!this._socket) {
             // Only try to start if socket doesn't exist
             await this.start();
@@ -137,13 +207,22 @@ export class BlaxelMcpClientTransport implements Transport {
 
         await new Promise<void>((resolve, reject) => {
           try {
-            this._socket?.send(JSON.stringify(message), (error) => {
-              if (error) {
-                reject(error);
-              } else {
-                resolve();
-              }
-            });
+            const messageStr = JSON.stringify(message);
+
+            if (this._isBrowser) {
+              // Browser WebSocket
+              this._socket?.send(messageStr);
+              resolve();
+            } else {
+              // Node.js WebSocket
+              this._socket?.send(messageStr, (error?: Error) => {
+                if (error) {
+                  reject(error);
+                } else {
+                  resolve();
+                }
+              });
+            }
           } catch (error: unknown) {
             reject(error as Error);
           }
