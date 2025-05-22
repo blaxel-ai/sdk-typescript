@@ -1,26 +1,14 @@
 import { openai } from '@ai-sdk/openai';
-import { SandboxInstance } from '@blaxel/core';
-import { streamText, Tool } from 'ai';
-
+import { blTools } from '@blaxel/vercel';
+import { streamText } from 'ai';
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
 
-export async function POST(req: Request) {
+export async function POST(req: Request, context: { params: { id: string } }) {
   const { messages } = await req.json();
-  const sandbox = new SandboxInstance({});
+  const { id } = await context.params;
 
-  // Convert tools array to object format and remove execute function
-  console.log(sandbox.fs.name);
-  const tools = Object.entries(sandbox.fs.tools).reduce((acc, [key, value]) => {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { execute, ...toolWithoutExecute } = value;
-    acc[key] = {
-      description: toolWithoutExecute.description,
-      parameters: toolWithoutExecute.parameters,
-    };
-    return acc;
-  }, {} as Record<string, Tool>);
-
+  const tools = await blTools([`sandboxes/${id}`])
   const result = streamText({
     model: openai('gpt-4o'),
     system: `You are a NextJS application development expert. Your goal is to help users create complete NextJS applications based on their descriptions.

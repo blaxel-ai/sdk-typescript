@@ -70,7 +70,8 @@ export async function GET(
     });
 
     return NextResponse.json({
-      sandbox: sandboxInstance,
+      metadata: sandboxInstance.metadata,
+      status: sandboxInstance.status,
       session: session,
       preview_url: preview.spec?.url
     });
