@@ -1,6 +1,6 @@
 import { authenticate } from '../common/autoload.js';
 import { env } from '../common/env.js';
-import { flush, startSpan } from '../telemetry/telemetry.js';
+import { flush } from '../telemetry/telemetry.js';
 import { ExecutionArgs } from './types.js';
 class BlJobWrapper {
   async getArguments() {
@@ -48,25 +48,8 @@ class BlJobWrapper {
   */
   async start(func: (args: any) => Promise<void>) {
     await authenticate();
-    let span = startSpan(`blStartJob-${func.name}`, {
-      attributes: {
-        'job.name': func.name,
-        'job.index': this.index,
-        'job.args': JSON.stringify(this.getArguments()),
-      },
-      isRoot: true,
-    })
-    try {
-      const parsedArgs = await this.getArguments();
-      await func(parsedArgs);
-      span.setStatus('ok');
-      span.end();
-    } catch (error) {
-      span.recordException(error as Error);
-      span.setStatus('error', 'Job execution failed');
-      span.end();
-      throw error;
-    }
+    const parsedArgs = await this.getArguments();
+    await func(parsedArgs);
   }
 }
 

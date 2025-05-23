@@ -1,7 +1,7 @@
 # Blaxel Typescript SDK
 
 <p align="center">
-  <img src="https://blaxel.ai/logo.png" alt="Blaxel"/>
+  <img src="https://blaxel.ai/logo-bg.png" alt="Blaxel"/>
 </p>
 
 **Blaxel is a computing platform for AI agent builders, with all the services and infrastructure to build and deploy agents efficiently.** This repository contains the TypeScript SDK to interact with Blaxel resources using LlamaIndex format.

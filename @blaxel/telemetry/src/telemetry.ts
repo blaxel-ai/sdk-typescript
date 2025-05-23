@@ -2,7 +2,8 @@
 import { authenticate, env, logger, settings, telemetryRegistry } from "@blaxel/core";
 import {
   metrics,
-  Span
+  Span,
+  trace
 } from "@opentelemetry/api";
 import { Logger, logs } from "@opentelemetry/api-logs";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
@@ -122,6 +123,10 @@ class TelemetryManager {
     this.otelLogger = logs.getLogger("blaxel");
     logger.debug("Telemetry ready");
     this.configured = true;
+  }
+
+  get tracer() {
+    return trace.getTracer("blaxel");
   }
 
   get enabled() {

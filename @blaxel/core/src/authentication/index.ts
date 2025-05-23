@@ -1,7 +1,7 @@
-import { join } from 'path';
+
 import yaml from 'yaml';
 import { env } from "../common/env.js";
-import { fs, os } from "../common/node.js";
+import { fs, os, path } from "../common/node.js";
 import { ApiKey } from "./apikey.js";
 import { ClientCredentials } from "./clientcredentials.js";
 import { Credentials } from "./credentials.js";
@@ -22,13 +22,13 @@ function getCredentials(): CredentialsType | null {
     };
   }
 
-  if (os === null || fs === null) {
+  if (os === null || fs === null || path === null) {
     return null;
   }
   try {
     const homeDir = os.homedir();
     const config = fs.readFileSync(
-      join(homeDir, ".blaxel/config.yaml"),
+      path.join(homeDir, ".blaxel/config.yaml"),
       "utf8"
     );
     type AuthWorkspace = {

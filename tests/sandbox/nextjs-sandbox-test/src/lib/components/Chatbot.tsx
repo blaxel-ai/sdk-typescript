@@ -95,7 +95,7 @@ export function Chatbot({ sandboxName, className }: { sandboxName: string, class
           </div>
         ))}
 
-        {status === 'submitted' && (
+        {(status === 'submitted' || status === 'streaming') && (
           <div className="flex justify-start">
             <div className="rounded-lg px-3 py-2 max-w-[80%]" style={{ background: 'var(--muted)' }}>
               <div className="flex space-x-2">
