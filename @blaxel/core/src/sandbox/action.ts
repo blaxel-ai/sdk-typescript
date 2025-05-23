@@ -1,5 +1,5 @@
 import { createClient } from "@hey-api/client-fetch";
-import { env } from "process";
+import { env } from "../common/env.js";
 import { getGlobalUniqueHash } from "../common/internal.js";
 import { settings } from "../common/settings.js";
 import { client as defaultClient } from "./client/client.gen.js";

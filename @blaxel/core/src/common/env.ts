@@ -1,12 +1,11 @@
 /* eslint-disable */
-import dotenv from "dotenv";
 import toml from "toml";
-import { fs } from "./node.js";
+import { dotenv, fs } from "./node.js";
 
 const secretEnv: Record<string, string> = {};
 const configEnv: Record<string, string> = {};
 
-if (fs !== null) {
+if (fs !== null && dotenv !== null) {
   try {
     const configFile = fs.readFileSync("blaxel.toml", "utf8");
       type ConfigInfos = {
@@ -41,7 +40,10 @@ const env = new Proxy<EnvVariables>(
       if (configEnv[prop]) {
         return configEnv[prop];
       }
-      return process.env[prop];
+      if (typeof process !== "undefined" && process.env) {
+        return process.env[prop];
+      }
+      return undefined;
     },
   }
 );

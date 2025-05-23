@@ -4,12 +4,11 @@ const sandboxName = "sandbox-test-3"
 
 async function main() {
   try {
-
     // Test with controlplane
     const sandbox = await createOrGetSandbox(sandboxName)
     // Verify the files were copied by listing the directory in the sandbox
     console.log('Sandbox directory contents:');
-    console.log(await sandbox.fs.ls('/blaxel/tmp'));
+    console.log(await sandbox.fs.ls('/blaxel'));
 
   } catch (e) {
     console.error("There was an error => ", e);
