@@ -4,7 +4,7 @@ import { HumanMessage } from "@langchain/core/messages";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 
 async function getSandbox() {
-  const sandboxName = "sandbox-jonas"
+  const sandboxName = "sandbox-mcp-test"
   const sandbox = await SandboxInstance.createIfNotExists({
     metadata: {
       name: sandboxName
