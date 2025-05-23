@@ -1,5 +1,5 @@
 /* eslint-disable */
-// Pure JS MD5 implementation (public domain, compact)
+// Pure JS MD5 implementation that matches standard crypto MD5
 function md5(input: string): string {
   function cmn(q: number, a: number, b: number, x: number, s: number, t: number) {
     a = (((a + q) | 0) + ((x + t) | 0)) | 0;
@@ -118,11 +118,16 @@ function md5(input: string): string {
     md5cycle(state, tail);
     return state;
   }
+
+  // Fixed hex conversion function
   function rhex(n: number) {
-    let s = '', j = 0;
-    for (; j < 4; j++) s += ('0' + ((n >> (j * 8 + 4)) & 0x0f).toString(16)).slice(-2) + ((n >> (j * 8)) & 0x0f).toString(16);
+    let s = '';
+    for (let j = 0; j < 4; j++) {
+      s += ((n >> (j * 8)) & 0xFF).toString(16).padStart(2, '0');
+    }
     return s;
   }
+
   return md51(input).map(rhex).join('');
 }
 
