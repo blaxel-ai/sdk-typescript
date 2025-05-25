@@ -278,7 +278,7 @@ async function testWatch(sandbox: SandboxInstance) {
 async function main() {
   try {
     // Test with controlplane
-    const sandbox = await createOrGetSandbox(sandboxName)
+    const sandbox = await createOrGetSandbox({sandboxName})
 
     await testFilesystem(sandbox);
     await testProcess(sandbox);

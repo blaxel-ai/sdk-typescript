@@ -165,7 +165,7 @@ async function main() {
   try {
     // Test with controlplane
     console.log("Starting SDK test")
-    const sandbox = await createOrGetSandbox(sandboxName)
+    const sandbox = await createOrGetSandbox({sandboxName})
     await withSdk(sandbox)
     console.log("Finished SDK test")
     const files = await sandbox.fs.ls("/blaxel/tmp")
