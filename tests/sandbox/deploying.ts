@@ -7,7 +7,7 @@ async function main() {
   try {
     // Test with controlplane
     const start = Date.now()
-    const sandbox = await createOrGetSandbox(sandboxName)
+    const sandbox = await createOrGetSandbox({sandboxName})
     // Verify the files were copied by listing the directory in the sandbox
     await sandbox.fs.ls('/')
     const end = Date.now()

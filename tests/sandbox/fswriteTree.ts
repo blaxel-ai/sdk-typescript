@@ -5,7 +5,7 @@ const sandboxName = "sandbox-test-3"
 
 async function main() {
   try {
-    const sandbox = await createOrGetSandbox(sandboxName)
+    const sandbox = await createOrGetSandbox({sandboxName})
 
     const files = [
       { path: "file1.txt", content: "Content of file 1" },

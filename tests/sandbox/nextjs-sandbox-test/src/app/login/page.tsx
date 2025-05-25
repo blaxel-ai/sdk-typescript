@@ -51,7 +51,7 @@ export default function LoginPage() {
           </div>
         )}
 
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit} suppressHydrationWarning>
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
               Email Address
@@ -67,6 +67,7 @@ export default function LoginPage() {
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                suppressHydrationWarning
               />
             </div>
           </div>
@@ -77,6 +78,7 @@ export default function LoginPage() {
             className={`flex justify-center w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 dark:bg-blue-700 border border-transparent rounded-md shadow-sm hover:bg-blue-700 dark:hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
               isLoading ? 'opacity-70 cursor-not-allowed' : ''
             }`}
+            suppressHydrationWarning
           >
             {isLoading ? (
               <>

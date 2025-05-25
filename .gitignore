@@ -6,3 +6,5 @@ telemetry.sh
 .env
 pnpm-lock.yaml
 .turbo
+.next
+sqlite.db

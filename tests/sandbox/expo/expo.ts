@@ -46,7 +46,7 @@ async function addRouterOriginToAppJson(sandbox: SandboxInstance, previewUrl: st
 async function main() {
   try {
     // Test with controlplane
-    const sandbox = await createOrGetSandbox(sandboxName, 'blaxel/prod-expo:latest')
+    const sandbox = await createOrGetSandbox({sandboxName, image: 'blaxel/prod-expo:latest'})
 
     await sandbox.fs.ls("/")
 

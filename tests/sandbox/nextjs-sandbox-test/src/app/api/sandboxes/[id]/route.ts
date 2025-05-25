@@ -38,7 +38,7 @@ export async function GET(
     }
     // Get actual sandbox instance from Blaxel
     const sandboxName = id;
-    const sandboxInstance = await createOrGetSandbox(sandboxName);
+    const sandboxInstance = await createOrGetSandbox({sandboxName});
 
     // Get a session for this sandbox
     const responseHeaders = {

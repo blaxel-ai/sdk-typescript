@@ -1,6 +1,6 @@
 import { SandboxInstance } from "@blaxel/core"
 
-export async function createOrGetSandbox(sandboxName: string, wait: boolean = true) {
+export async function createOrGetSandbox({sandboxName, wait = true}: {sandboxName: string, wait?: boolean}) {
   const sandboxModel = {
     metadata: {
       name: sandboxName
