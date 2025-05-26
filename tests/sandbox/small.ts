@@ -1,6 +1,6 @@
 import { createOrGetSandbox } from "../utils";
 
-const sandboxName = "sandbox-test-3"
+const sandboxName = "next-js-2"
 
 async function main() {
   try {
