@@ -10,6 +10,10 @@ export class SandboxPreviewToken {
   get expiresAt() {
     return this.previewToken.spec?.expiresAt ?? new Date();
   }
+
+  get expired() {
+    return this.previewToken.spec?.expired ?? false;
+  }
 }
 
 export class SandboxPreviewTokens {
