@@ -43,6 +43,19 @@ async function addRouterOriginToAppJson(sandbox: SandboxInstance, previewUrl: st
   }
 }
 
+async function configureExpoProxyUrl(sandbox: SandboxInstance, previewUrl: string) {
+  // Set the EXPO_PACKAGER_PROXY_URL environment variable to force Expo to use the preview URL
+  // This will make Expo serve all content from the preview URL instead of internal URLs
+  const baseUrl = previewUrl.replace(/\/$/, ''); // Remove trailing slash if present
+
+  await sandbox.process.exec({
+    name: "set-expo-proxy-env",
+    command: `echo 'EXPO_PACKAGER_PROXY_URL=${baseUrl}' >> /blaxel/app/.env`,
+    workingDir: "/blaxel/app",
+  });
+  console.log(`Configured Expo to use proxy URL: ${baseUrl}`);
+}
+
 async function main() {
   try {
     // Test with controlplane
@@ -75,6 +88,7 @@ async function main() {
       token = tokens[0]
     }
     await addRouterOriginToAppJson(sandbox, preview.spec?.url!)
+    await configureExpoProxyUrl(sandbox, preview.spec?.url!)
 
     const processes = await sandbox.process.list()
     let process = processes.find(process => process.name === "expo")
@@ -82,6 +96,8 @@ async function main() {
       process = await sandbox.process.exec({
         name: "expo",
         command: "npx expo start --web --port 8081 --scheme exp --clear",
+        // Alternative: Use tunneling if proxy URL doesn't work
+        // command: "npx expo start --web --port 8081 --scheme exp --clear --tunnel",
         workingDir: "/blaxel/app",
         waitForPorts: [8081],
       })

@@ -167,6 +167,7 @@
                 </select>
 
                 <button id="apply-btn">Apply</button>
+                <button id="refresh-btn">Refresh Iframe</button>
             </div>
         </div>
 
@@ -182,15 +183,19 @@
         const iframeUrl = document.getElementById('iframe-url');
         const effectType = document.getElementById('effect-type');
         const applyBtn = document.getElementById('apply-btn');
+        const refreshBtn = document.getElementById('refresh-btn');
         const contentFrame = document.getElementById('content-frame');
         const iframeWrapper = document.querySelector('.iframe-wrapper');
         const confettiContainer = document.getElementById('confetti-container');
 
         // Apply button click handler
         applyBtn.addEventListener('click', () => {
+            // Get current iframe reference (in case it was recreated)
+            const currentFrame = document.getElementById('content-frame');
+
             // Update iframe URL
-            if (iframeUrl.value) {
-                contentFrame.src = iframeUrl.value;
+            if (iframeUrl.value && currentFrame) {
+                currentFrame.src = iframeUrl.value;
             }
 
             // Remove previous effects
@@ -212,6 +217,40 @@
                 createConfetti();
                 confettiContainer.style.display = 'block';
             }
+        });
+
+        // Refresh button click handler
+        refreshBtn.addEventListener('click', () => {
+            // Store current iframe properties
+            const currentSrc = contentFrame.src;
+            const currentAllow = contentFrame.getAttribute('allow');
+            const currentAllowFullscreen = contentFrame.hasAttribute('allowfullscreen');
+
+            // Remove iframe from DOM
+            contentFrame.remove();
+
+            // Wait 1 second, then recreate iframe
+            setTimeout(() => {
+                const newIframe = document.createElement('iframe');
+                newIframe.id = 'content-frame';
+                newIframe.src = currentSrc;
+                newIframe.style.width = '100%';
+                newIframe.style.height = '500px';
+                newIframe.style.border = 'none';
+                newIframe.style.display = 'block';
+                newIframe.setAttribute('allow', currentAllow);
+                if (currentAllowFullscreen) {
+                    newIframe.setAttribute('allowfullscreen', '');
+                }
+
+                // Insert before confetti container
+                iframeWrapper.insertBefore(newIframe, confettiContainer);
+
+                // Update reference to new iframe
+                const newContentFrame = document.getElementById('content-frame');
+                // Update the contentFrame reference for future operations
+                window.contentFrame = newContentFrame;
+            }, 1000);
         });
 
         // Create confetti effect

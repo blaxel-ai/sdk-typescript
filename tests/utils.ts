@@ -147,12 +147,12 @@ export async function checkUsage(sandbox: SandboxInstance) {
   console.log("💰 Checking usage")
   const diskSpace = await sandbox.process.exec({
     name: 'disk-space',
-    command: 'df -h',
+    command: 'df -m',
     workingDir: '/home/user'
   })
   const memory = await sandbox.process.exec({
     name: 'memory',
-    command: 'free -h',
+    command: 'free -m',
     workingDir: '/home/user'
   })
   const memoryLogs = await sandbox.process.logs(memory.pid!, 'all')
