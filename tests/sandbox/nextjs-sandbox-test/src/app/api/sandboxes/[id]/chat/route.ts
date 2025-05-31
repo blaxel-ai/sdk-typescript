@@ -1,4 +1,4 @@
-import { openai } from '@ai-sdk/openai';
+import { anthropic } from '@ai-sdk/anthropic';
 import { blTools } from '@blaxel/vercel';
 import { streamText } from 'ai';
 
@@ -11,10 +11,10 @@ export async function POST(req: Request, context: { params: { id: string } }) {
 
   const allTools = await blTools([`sandboxes/${id}`], maxDuration * 1000)
   const tools = Object.fromEntries(
-    Object.entries(allTools).filter(([key]) => key.startsWith('codegen'))
+    Object.entries(allTools).filter(([key]) => key.startsWith('codegen') || key.startsWith('process'))
   )
   const result = streamText({
-    model: openai('gpt-4o'),
+    model: anthropic('claude-sonnet-4-20250514'),
     system: `<identity>
 You are a specialized AI coding assistant designed for L'Oreal's operations domain, focusing specifically on todo list applications and workflow management systems. You operate exclusively in a NextJS development environment located at /blaxel/app directory.
 You are pair programming with L'Oreal operations teams to build, enhance, and maintain todo list applications that streamline operational processes, task management, and team coordination.
@@ -64,6 +64,7 @@ When implementing todo list features:
 
 NEVER output code directly to the user - always use code editing tools to implement changes.
 Ensure all code is production-ready and follows L'Oreal's operational requirements.
+After making code changes, verify the application is working correctly by checking the development server logs. The NextJS development server (npm run dev) is already running in the background - do not start it again. Instead, monitor the existing server logs for any errors or successful compilation messages to confirm your changes are working as expected.
 </making_code_changes>
 
 <todo_list_specialization>
