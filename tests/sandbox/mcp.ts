@@ -37,6 +37,9 @@ async function main() {
     { capabilities: { tools: {} } }
   );
   await client.connect(transport)
+  const tools = await client.listTools()
+  const tool = tools.tools[0]
+  console.log(tool)
   const fileName = `/blaxel/tmp/testfile_.txt`;
   const content = `Test content`;
   await client.callTool({name: "fsWriteFile", arguments: {path: fileName, content: content}})

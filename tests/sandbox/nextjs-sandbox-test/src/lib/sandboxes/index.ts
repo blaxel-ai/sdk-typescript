@@ -1,6 +1,19 @@
 import { SandboxInstance } from "@blaxel/core"
 
 export async function createOrGetSandbox({sandboxName, wait = true}: {sandboxName: string, wait?: boolean}) {
+  const envs = []
+  if (process.env.MORPH_API_KEY) {
+    envs.push({
+      name: "MORPH_API_KEY",
+      value: process.env.MORPH_API_KEY
+    })
+  }
+  if (process.env.MORPH_MODEL) {
+    envs.push({
+      name: "MORPH_MODEL",
+      value: process.env.MORPH_MODEL
+    })
+  }
   const sandboxModel = {
     metadata: {
       name: sandboxName
@@ -21,7 +34,8 @@ export async function createOrGetSandbox({sandboxName, wait = true}: {sandboxNam
             protocol: "HTTP",
           }
         ]
-      }
+      },
+      envs
     }
   }
   const sandbox = await SandboxInstance.createIfNotExists(sandboxModel)

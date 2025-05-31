@@ -58,10 +58,11 @@ export async function GET(
       },
       spec: {
         port: 3000,
-        public: true,
+        public: false,
         responseHeaders,
       }
     });
+    const token = await preview.tokens.create(new Date(Date.now() + 1000 * 60 * 60 * 24))
 
     // First, list all sessions
     const session = await sandboxInstance.sessions.createIfExpired({
@@ -73,7 +74,7 @@ export async function GET(
       metadata: sandboxInstance.metadata,
       status: sandboxInstance.status,
       session: session,
-      preview_url: preview.spec?.url
+      preview_url: `${preview.spec?.url}?bl_preview_token=${token.value}`
     });
   } catch (error) {
     console.error("Error getting sandbox:", error, new Error().stack?.split("\n")[1]);
