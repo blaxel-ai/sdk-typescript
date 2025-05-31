@@ -9,7 +9,6 @@ async function main() {
     // Verify the files were copied by listing the directory in the sandbox
     console.log('Sandbox directory contents:');
     console.log(await sandbox.fs.ls('/blaxel'));
-
   } catch (e) {
     console.error("There was an error => ", e);
   }

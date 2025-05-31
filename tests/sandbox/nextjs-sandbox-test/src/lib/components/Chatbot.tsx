@@ -5,7 +5,7 @@ import { useChat } from '@ai-sdk/react';
 export function Chatbot({ sandboxName, className }: { sandboxName: string, className?: string }) {
   const { messages, input, handleInputChange, handleSubmit, status, error } = useChat({
     api: `/api/sandboxes/${sandboxName}/chat`,
-    maxSteps: 25,
+    maxSteps: 100,
   });
 
   return (

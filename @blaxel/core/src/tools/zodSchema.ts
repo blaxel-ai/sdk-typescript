@@ -19,7 +19,11 @@ export const schemaToZodSchema = (schema: FunctionSchema): z.ZodObject<any> => {
             zodType = z.boolean();
             break;
           case "number":
+          case "integer":
             zodType = z.number();
+            break;
+          case "null":
+            zodType = z.null();
             break;
           case "array":
             zodType = z.array(schemaToZodSchema(param.items || {}));
