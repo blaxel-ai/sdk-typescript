@@ -2,12 +2,15 @@ import { anthropic } from '@ai-sdk/anthropic';
 import { blTools } from '@blaxel/vercel';
 import { streamText } from 'ai';
 
-// Allow streaming responses up to 30 seconds
-export const maxDuration = 60 * 60;
+// Allow streaming responses up to 60 seconds (Vercel hobby plan limit)
+export const maxDuration = 60;
 
-export async function POST(req: Request, context: { params: { id: string } }) {
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const { messages } = await req.json();
-  const { id } = await context.params;
+  const { id } = await params;
 
   const allTools = await blTools([`sandboxes/${id}`], maxDuration * 1000)
   const tools = Object.fromEntries(

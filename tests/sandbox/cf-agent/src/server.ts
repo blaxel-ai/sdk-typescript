@@ -53,7 +53,6 @@ export class Chat extends AIChatAgent<Env> {
           console.error("Error while getting model:", error);
           model = openai("gpt-4o-2024-11-20");
         }
-        console.log(model)
         // Stream the AI response using GPT-4
         const result = streamText({
           model,
