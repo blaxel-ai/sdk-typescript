@@ -4,15 +4,22 @@ import {
   JSONRPCMessageSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { logger } from "../common/logger.js";
+import { ws } from "../common/node.js";
 import { settings } from "../common/settings.js";
 
-
 // Type definitions for WebSocket environments
-declare const globalThis: any;
+declare const globalThis: {
+  window: any;
+  WebSocket?: typeof WebSocket;
+};
 
 // Detect environment
-// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-const isBrowser = typeof globalThis !== "undefined" && globalThis.window !== undefined;
+const isBrowser = typeof globalThis !== "undefined" && globalThis && globalThis.window !== undefined;
+
+// Add Cloudflare detection
+const isCloudflare = typeof globalThis !== "undefined" &&
+                   typeof globalThis.WebSocket !== "undefined" &&
+                   !globalThis.window;
 
 // Type for WebSocket that works in both environments
 interface UniversalWebSocket {
@@ -25,17 +32,9 @@ interface UniversalWebSocket {
   onmessage?: ((event: any) => void) | null;
 }
 
-// Conditional import for Node.js WebSocket
-let NodeWebSocket: any;
-if (!isBrowser) {
-  try {
-    // Dynamic import for Node.js environment
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-require-imports
-    NodeWebSocket = require("ws");
-  } catch {
-    console.warn("ws is not available in this environment");
-    // ws is not available
-  }
+// Type for Node.js WebSocket message event
+interface NodeWebSocketMessageEvent {
+  data: string | Buffer;
 }
 
 //const SUBPROTOCOL = "mcp";
@@ -95,34 +94,33 @@ export class BlaxelMcpClientTransport implements Transport {
   }
 
   private _connect(): Promise<void> {
-    // eslint-disable-next-line @typescript-eslint/no-misused-promises
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       try {
+        let url = this._url.toString();
         if (this._isBrowser) {
-          // Use native browser WebSocket
-          const url = `${this._url.toString()}?token=${settings.token}`
+          url += `?token=${settings.token}`;
+        }
+
+        if (isCloudflare || this._isBrowser) {
+          // Use native WebSocket (works in both browser and Cloudflare)
           this._socket = new WebSocket(url) as UniversalWebSocket;
         } else {
           // Use Node.js WebSocket
-          if (!NodeWebSocket) {
+          if (!ws) {
             throw new Error("WebSocket library not available in Node.js environment");
           }
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-          this._socket = new NodeWebSocket(this._url, {
+          this._socket = new ws(this._url, {
             //protocols: SUBPROTOCOL,
             headers: this._headers,
           }) as UniversalWebSocket;
         }
 
-        this._socket.onerror = (event) => {
+        this._socket.onerror = (event: { message: string, error?: Error }) => {
           console.error(event)
           const error = this._isBrowser
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
             ? new Error(`WebSocket error: ${event.message}`)
             : "error" in event
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
             ? (event.error as Error)
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
             : new Error(`WebSocket error: ${event.message}`);
           reject(error);
           this.onerror?.(error);
@@ -137,21 +135,19 @@ export class BlaxelMcpClientTransport implements Transport {
           this._socket = undefined;
         };
 
-        this._socket.onmessage = (event) => {
+        this._socket.onmessage = (event: MessageEvent | NodeWebSocketMessageEvent) => {
           let message: JSONRPCMessage;
           try {
             let dataString: string;
             if (this._isBrowser) {
               // Browser WebSocket MessageEvent
               const browserEvent = event as MessageEvent;
-              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
               dataString = typeof browserEvent.data === "string"
                 ? browserEvent.data
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-                : browserEvent.data.toString();
+                : String(browserEvent.data);
             } else {
               // Node.js WebSocket MessageEvent
-              const nodeEvent = event as import("ws").MessageEvent;
+              const nodeEvent = event as NodeWebSocketMessageEvent;
               if (typeof nodeEvent.data === "string") {
                 dataString = nodeEvent.data;
               } else if (nodeEvent.data instanceof Buffer) {
@@ -162,14 +158,12 @@ export class BlaxelMcpClientTransport implements Transport {
             }
             message = JSONRPCMessageSchema.parse(JSON.parse(dataString));
           } catch (error) {
+            const eventData: unknown = 'data' in event ? event.data : 'Unknown data';
             logger.error(
               `Error parsing message: ${
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                typeof event.data === "object"
-                  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                  ? JSON.stringify(event.data)
-                  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                  : event.data
+                typeof eventData === "object" && eventData !== null
+                  ? JSON.stringify(eventData)
+                  : String(eventData)
               }`
             );
             this.onerror?.(error as Error);
@@ -181,7 +175,7 @@ export class BlaxelMcpClientTransport implements Transport {
       } catch (error) {
         if (error instanceof Error && error.message.includes("ws does not work in the browser")) {
           this._isBrowser = true;
-          return this._connect().then(resolve).catch(reject);
+          this._connect().then(resolve).catch(reject);
         }
         reject(error as Error);
       }
