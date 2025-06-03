@@ -20,7 +20,7 @@ async function getAuthenticatedUser(request: NextRequest) {
 // GET - Get a single sandbox by name (from Blaxel)
 export async function GET(
   request: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getAuthenticatedUser(request);
@@ -29,7 +29,7 @@ export async function GET(
     }
 
     // Await params before accessing
-    const { id } = await context.params;
+    const { id } = await params;
     if (!id) {
       return NextResponse.json({ error: 'Invalid app name' }, { status: 400 });
     }
@@ -42,7 +42,7 @@ export async function GET(
 
     // Get a session for this sandbox
     const responseHeaders = {
-      "Access-Control-Allow-Origin": "http://localhost:3000",
+      "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
       "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, X-Blaxel-Workspace, X-Blaxel-Preview-Token, X-Blaxel-Authorization",
       "Access-Control-Allow-Credentials": "true",
@@ -50,6 +50,20 @@ export async function GET(
       "Access-Control-Max-Age": "86400",
       "Vary": "Origin"
     };
+    const response = await fetch("https://qql3kvq9dp.ufs.sh/f/osYLsuQ7r0lpbcj9W08K23bMqU1e0wRzhSaBpuy57id9Af6c")
+    if (!response.ok) {
+      throw new Error(`Failed to fetch: ${response.statusText}`)
+    }
+    const resp_array_buffer = await response.arrayBuffer()
+    console.log("Writing code to sandbox...")
+    console.log("response_array_buffer", resp_array_buffer)
+    try {
+      const buffer = Buffer.from(resp_array_buffer)
+      await sandboxInstance.fs.writeBinary("/workspace.zip", buffer)
+    } catch (error) {
+      console.error("Error writing code to sandbox: ", error || "Unknown error")
+      throw error
+    }
 
     // Handle preview
     const preview = await sandboxInstance.previews.createIfNotExists({
@@ -85,7 +99,7 @@ export async function GET(
 // DELETE - Delete a sandbox by name (via Blaxel)
 export async function DELETE(
   request: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getAuthenticatedUser(request);
@@ -98,7 +112,7 @@ export async function DELETE(
     try {
 
       // Await params before accessing
-      const { id } = await context.params;
+      const { id } = await params;
       if (!id) {
         return NextResponse.json({ error: 'Invalid app name' }, { status: 400 });
       }

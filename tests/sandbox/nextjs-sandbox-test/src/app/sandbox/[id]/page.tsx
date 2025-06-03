@@ -27,7 +27,7 @@ interface BlaxelSandbox {
   status: 'DELETING' | 'FAILED' | 'DEACTIVATING' | 'DEPLOYING' | 'DEPLOYED';
 }
 
-export default function SandboxPage({ params }: { params: { id: string } }) {
+export default function SandboxPage({ params }: { params: Promise<{ id: string }> }) {
   const [sandbox, setSandbox] = useState<BlaxelSandbox | null>(null);
   const [sandboxInstance, setSandboxInstance] = useState<SandboxInstance | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
