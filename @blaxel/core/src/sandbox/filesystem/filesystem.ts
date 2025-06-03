@@ -1,6 +1,4 @@
-import axios from "axios";
 import { Sandbox } from "../../client/types.gen.js";
-import { FormData } from "../../common/node.js";
 import { settings } from "../../common/settings.js";
 import { SandboxAction } from "../action.js";
 import { deleteFilesystemByPath, Directory, getFilesystemByPath, getWatchFilesystemByPath, putFilesystemByPath, PutFilesystemByPathError, SuccessResponse } from "../client/index.js";
@@ -39,55 +37,48 @@ export class SandboxFileSystem extends SandboxAction {
 
   async writeBinary(path: string, content: Buffer | Blob | File | Uint8Array) {
     path = this.formatPath(path);
+    const formData = new FormData();
 
-    let formData: any;
-    if (typeof globalThis !== "undefined" && typeof globalThis.FormData !== "undefined" && !(typeof process !== "undefined" && process.versions && process.versions.node)) {
-      // Browser environment
-      formData = new globalThis.FormData();
-      formData.append("permissions", "0644");
-      formData.append("path", path);
-      let fileContent: Blob | File;
-      if (content instanceof Blob || content instanceof File) {
-        fileContent = content;
-      } else if (content instanceof Uint8Array) {
-        fileContent = new Blob([content]);
-      } else {
-        fileContent = new Blob([content]);
-      }
-      formData.append("file", fileContent, "test-binary.bin");
+    // Convert content to Blob regardless of input type
+    let fileBlob: Blob;
+    if (content instanceof Blob || content instanceof File) {
+      fileBlob = content;
+    } else if (Buffer.isBuffer(content)) {
+      // Convert Buffer to Blob
+      fileBlob = new Blob([content]);
+    } else if (content instanceof Uint8Array) {
+      // Convert Uint8Array to Blob
+      fileBlob = new Blob([content]);
     } else {
-      // Node.js environment
-      // @ts-expect-error: Only available in Node.js
-      formData = new FormData();
-      let fileContent: Buffer;
-      if (Buffer.isBuffer(content)) {
-        fileContent = content;
-      } else if (content instanceof Uint8Array) {
-        fileContent = Buffer.from(content);
-      } else {
-        throw new Error("Unsupported content type in Node.js");
-      }
-      formData.append("file", fileContent, "test-binary.bin");
+      throw new Error("Unsupported content type");
     }
 
-    // Get the correct headers from form-data
-    const formHeaders = formData.getHeaders ? formData.getHeaders() : {};
+    // Append the file as a Blob
+    formData.append("file", fileBlob, "test-binary.bin");
+    formData.append("permissions", "0644");
+    formData.append("path", path);
+
+    // Build URL
     let url = `${this.url}/filesystem/${path}`;
-    if (this.sandbox.forceUrl) {
-      url = `${this.sandbox.forceUrl}/filesystem/${path}`;
-    }
-    let headers = { ...settings.headers, ...formHeaders };
-    if (this.sandbox.headers) {
-      headers = { ...headers, ...this.sandbox.headers };
+    if (this.forcedUrl) {
+      url = `${this.forcedUrl}/filesystem/${path}`;
     }
 
-    const response = await axios.put(url, formData, {
-      headers,
+    // Make the request using fetch instead of axios for better FormData handling
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        ...settings.headers,
+      },
+      body: formData,
     });
-    if (response.status !== 200) {
-      throw new Error(response.data);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to write binary: ${response.status} ${errorText}`);
     }
-    return response.data;
+
+    return await response.json();
   }
 
   async writeTree(files: SandboxFilesystemFile[], destinationPath: string | null = null) {
