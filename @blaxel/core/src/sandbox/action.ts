@@ -1,6 +1,5 @@
 import { createClient } from "@hey-api/client-fetch";
-import { env } from "../common/env.js";
-import { getGlobalUniqueHash } from "../common/internal.js";
+import { getForcedUrl, getGlobalUniqueHash } from "../common/internal.js";
 import { settings } from "../common/settings.js";
 import { client as defaultClient } from "./client/client.gen.js";
 import { SandboxConfiguration } from "./types.js";
@@ -59,16 +58,11 @@ export class SandboxAction {
 
   get forcedUrl() {
     if (this.sandbox.forceUrl) return this.sandbox.forceUrl;
-    const envVar = this.name.replace(/-/g, "_").toUpperCase();
-    const envName = `BL_SANDBOXES_${envVar}_URL`
-    if (env[envName]) {
-      return env[envName]
-    }
-    return null;
+    return getForcedUrl('sandbox', this.name)
   }
 
   get url(): string {
-    if (this.forcedUrl) return this.forcedUrl;
+    if (this.forcedUrl) return this.forcedUrl.toString();
     // Uncomment and use this when agent and mcp are available in mk3
     // Update all requests made in this package to use fallbackUrl when internalUrl is not working
     // if (settings.runInternalHostname) return this.internalUrl;

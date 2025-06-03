@@ -1,7 +1,7 @@
+
 import { findFromCache } from "../cache/index.js";
 import { Agent, getAgent } from "../client/index.js";
-import { env } from "../common/env.js";
-import { getGlobalUniqueHash } from "../common/internal.js";
+import { getForcedUrl, getGlobalUniqueHash } from "../common/internal.js";
 import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
 import { startSpan } from '../telemetry/telemetry.js';
@@ -37,11 +37,7 @@ class BlAgent {
   }
 
   get forcedUrl() {
-    const envVar = this.agentName.replace(/-/g, "_").toUpperCase();
-    if (env[`BL_AGENT_${envVar}_URL`]) {
-      return new URL(env[`BL_AGENT_${envVar}_URL`] as string);
-    }
-    return null;
+    return getForcedUrl('function', this.agentName)
   }
 
   get url() {

@@ -1,7 +1,7 @@
 import { Client as ModelContextProtocolClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { FunctionSchema } from "../client/types.gen.js";
 import { env } from "../common/env.js";
-import { getGlobalUniqueHash } from "../common/internal.js";
+import { getForcedUrl, getGlobalUniqueHash } from "../common/internal.js";
 import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
 import { authenticate } from "../index.js";
@@ -69,11 +69,7 @@ export class McpTool {
   }
 
   get forcedUrl() {
-    const envVar = this.name.replace(/-/g, "_").toUpperCase();
-    if (env[`BL_${this.pluralType.toUpperCase()}_${envVar}_URL`]) {
-      return new URL(env[`BL_${this.pluralType.toUpperCase()}_${envVar}_URL`] as string);
-    }
-    return null;
+    return getForcedUrl(this.type, this.name)
   }
 
   get url() {
