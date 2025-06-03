@@ -1,6 +1,6 @@
 # Dynamic Sandbox Demo
 
-This is a demo application showing how to use Beamlit sandbox with user management.
+This is a demo application showing how to use Blaxel sandbox with user management.
 
 ## Features
 
@@ -35,4 +35,4 @@ This is a demo application showing how to use Beamlit sandbox with user manageme
 - Next.js 15
 - SQLite (via better-sqlite3)
 - Drizzle ORM
-- Beamlit SDK
+- Blaxel SDK

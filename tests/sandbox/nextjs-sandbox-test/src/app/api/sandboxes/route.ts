@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     }
     // List all sandboxes from Blaxel
     const sandboxesInstances = await SandboxInstance.list();
-    const sandboxes = sandboxesInstances.map((sandbox) => ({
+    const sandboxes = sandboxesInstances.filter((sandbox) => sandbox.metadata?.name?.startsWith(user.email.split('@')[0])).map((sandbox) => ({
       metadata: {
         name: sandbox.metadata?.name,
       },
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
 
     // Create sandbox instance using Blaxel SDK
     const sandboxName = getName(`${user.email.split('@')[0]}-${name}`);
-    const sandboxCreated = await createOrGetSandbox(sandboxName, false);
+    const sandboxCreated = await createOrGetSandbox({sandboxName, wait: false});
 
     return NextResponse.json({
       sandbox: sandboxCreated,

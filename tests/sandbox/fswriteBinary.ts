@@ -6,7 +6,7 @@ const sandboxName = "sandbox-test-3"
 
 async function main() {
   try {
-    const sandbox = await createOrGetSandbox(sandboxName)
+    const sandbox = await createOrGetSandbox({sandboxName})
 
     // Read archive.zip as binary
     const archiveBuffer = await fs.readFile("tests/sandbox/archive.zip")

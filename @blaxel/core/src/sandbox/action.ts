@@ -1,5 +1,5 @@
 import { createClient } from "@hey-api/client-fetch";
-import { env } from "process";
+import { env } from "../common/env.js";
 import { getGlobalUniqueHash } from "../common/internal.js";
 import { settings } from "../common/settings.js";
 import { client as defaultClient } from "./client/client.gen.js";
@@ -60,7 +60,7 @@ export class SandboxAction {
   get forcedUrl() {
     if (this.sandbox.forceUrl) return this.sandbox.forceUrl;
     const envVar = this.name.replace(/-/g, "_").toUpperCase();
-    const envName = `BL_SANDBOX_${envVar}_URL`
+    const envName = `BL_SANDBOXES_${envVar}_URL`
     if (env[envName]) {
       return env[envName]
     }

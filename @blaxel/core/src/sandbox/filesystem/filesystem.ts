@@ -1,11 +1,8 @@
-import axios from "axios";
-import z from "zod";
 import { Sandbox } from "../../client/types.gen.js";
-import { FormData } from "../../common/node.js";
 import { settings } from "../../common/settings.js";
 import { SandboxAction } from "../action.js";
 import { deleteFilesystemByPath, Directory, getFilesystemByPath, getWatchFilesystemByPath, putFilesystemByPath, PutFilesystemByPathError, SuccessResponse } from "../client/index.js";
-import { CopyResponse, CpParamsSchema, LsParamsSchema, MkdirParamsSchema, ReadParamsSchema, RmParamsSchema, SandboxFilesystemFile, ToolWithExecute, ToolWithoutExecute, WatchEvent, WriteParamsSchema } from "./types.js";
+import { CopyResponse, SandboxFilesystemFile, WatchEvent } from "./types.js";
 
 
 
@@ -40,55 +37,48 @@ export class SandboxFileSystem extends SandboxAction {
 
   async writeBinary(path: string, content: Buffer | Blob | File | Uint8Array) {
     path = this.formatPath(path);
+    const formData = new FormData();
 
-    let formData: any;
-    if (typeof globalThis !== "undefined" && typeof globalThis.FormData !== "undefined" && !(typeof process !== "undefined" && process.versions && process.versions.node)) {
-      // Browser environment
-      formData = new globalThis.FormData();
-      formData.append("permissions", "0644");
-      formData.append("path", path);
-      let fileContent: Blob | File;
-      if (content instanceof Blob || content instanceof File) {
-        fileContent = content;
-      } else if (content instanceof Uint8Array) {
-        fileContent = new Blob([content]);
-      } else {
-        fileContent = new Blob([content]);
-      }
-      formData.append("file", fileContent, "test-binary.bin");
+    // Convert content to Blob regardless of input type
+    let fileBlob: Blob;
+    if (content instanceof Blob || content instanceof File) {
+      fileBlob = content;
+    } else if (Buffer.isBuffer(content)) {
+      // Convert Buffer to Blob
+      fileBlob = new Blob([content]);
+    } else if (content instanceof Uint8Array) {
+      // Convert Uint8Array to Blob
+      fileBlob = new Blob([content]);
     } else {
-      // Node.js environment
-      // @ts-expect-error: Only available in Node.js
-      formData = new FormData();
-      let fileContent: Buffer;
-      if (Buffer.isBuffer(content)) {
-        fileContent = content;
-      } else if (content instanceof Uint8Array) {
-        fileContent = Buffer.from(content);
-      } else {
-        throw new Error("Unsupported content type in Node.js");
-      }
-      formData.append("file", fileContent, "test-binary.bin");
+      throw new Error("Unsupported content type");
     }
 
-    // Get the correct headers from form-data
-    const formHeaders = formData.getHeaders ? formData.getHeaders() : {};
+    // Append the file as a Blob
+    formData.append("file", fileBlob, "test-binary.bin");
+    formData.append("permissions", "0644");
+    formData.append("path", path);
+
+    // Build URL
     let url = `${this.url}/filesystem/${path}`;
-    if (this.sandbox.forceUrl) {
-      url = `${this.sandbox.forceUrl}/filesystem/${path}`;
-    }
-    let headers = { ...settings.headers, ...formHeaders };
-    if (this.sandbox.headers) {
-      headers = { ...headers, ...this.sandbox.headers };
+    if (this.forcedUrl) {
+      url = `${this.forcedUrl}/filesystem/${path}`;
     }
 
-    const response = await axios.put(url, formData, {
-      headers,
+    // Make the request using fetch instead of axios for better FormData handling
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        ...settings.headers,
+      },
+      body: formData,
     });
-    if (response.status !== 200) {
-      throw new Error(response.data);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to write binary: ${response.status} ${errorText}`);
     }
-    return response.data;
+
+    return await response.json();
   }
 
   async writeTree(files: SandboxFilesystemFile[], destinationPath: string | null = null) {
@@ -304,151 +294,5 @@ export class SandboxFileSystem extends SandboxAction {
       path = path.slice(1);
     }
     return path;
-  }
-
-  get toolsWithoutExecute(): ToolWithoutExecute {
-    return {
-      cp: {
-        description: "Copy a file or directory",
-        parameters: CpParamsSchema,
-      },
-      mkdir: {
-        description: "Create a directory",
-        parameters: MkdirParamsSchema,
-      },
-      ls: {
-        description: "List a directory",
-        parameters: LsParamsSchema,
-      },
-      rm: {
-        description: "Remove a file or directory",
-        parameters: RmParamsSchema,
-      },
-      read: {
-        description: "Read a file",
-        parameters: ReadParamsSchema,
-      },
-      write: {
-        description: "Write a file",
-        parameters: WriteParamsSchema,
-      }
-    }
-  }
-
-  get tools(): ToolWithExecute {
-    return {
-      cp: {
-        description: "Copy a file or directory",
-        parameters: CpParamsSchema,
-        execute: async (args: z.infer<typeof CpParamsSchema>) => {
-          try {
-            const result = await this.cp(args.source, args.destination);
-            return JSON.stringify(result);
-          } catch (e) {
-            if (e instanceof Error) {
-              return JSON.stringify({
-                message: e.message,
-                source: args.source,
-                destination: args.destination
-              })
-            }
-            return "An unknown error occurred"
-          }
-        }
-      },
-      mkdir: {
-        description: "Create a directory",
-        parameters: MkdirParamsSchema,
-        execute: async (args: z.infer<typeof MkdirParamsSchema>) => {
-          try {
-            const result = await this.mkdir(args.path, args.permissions);
-            return JSON.stringify(result);
-          } catch (e) {
-            if (e instanceof Error) {
-              return JSON.stringify({
-                message: e.message,
-                path: args.path,
-                permissions: args.permissions
-              })
-            }
-            return "An unknown error occurred"
-          }
-        }
-      },
-      ls: {
-        description: "List a directory",
-        parameters: LsParamsSchema,
-        execute: async (args: z.infer<typeof LsParamsSchema>) => {
-          try {
-            const result = await this.ls(args.path);
-            return JSON.stringify(result);
-          } catch (e) {
-            if (e instanceof Error) {
-              return JSON.stringify({
-                message: e.message,
-                path: args.path
-              })
-            }
-            return "An unknown error occurred"
-          }
-        }
-      },
-      rm: {
-        description: "Remove a file or directory",
-        parameters: RmParamsSchema,
-        execute: async (args: z.infer<typeof RmParamsSchema>) => {
-          try {
-            const result = await this.rm(args.path, args.recursive);
-            return JSON.stringify(result);
-          } catch (e) {
-            if (e instanceof Error) {
-              return JSON.stringify({
-                message: e.message,
-                path: args.path,
-                recursive: args.recursive
-              })
-            }
-            return "An unknown error occurred"
-          }
-        }
-      },
-      read: {
-        description: "Read a file",
-        parameters: ReadParamsSchema,
-        execute: async (args: z.infer<typeof ReadParamsSchema>) => {
-          try {
-            const result = await this.read(args.path);
-            return JSON.stringify(result);
-          } catch (e) {
-            if (e instanceof Error) {
-              return JSON.stringify({
-                message: e.message,
-                path: args.path
-              })
-            }
-            return "An unknown error occurred"
-          }
-        }
-      },
-      write: {
-        description: "Write a file",
-        parameters: WriteParamsSchema,
-        execute: async (args: z.infer<typeof WriteParamsSchema>) => {
-          try {
-            const result = await this.write(args.path, args.content);
-            return JSON.stringify(result);
-          } catch (e) {
-            if (e instanceof Error) {
-              return JSON.stringify({
-                message: e.message,
-                path: args.path,
-                content: args.content
-              })
-            }
-            return "An unknown error occurred"
-          }
-        }
-      }
-    }
   }
 }

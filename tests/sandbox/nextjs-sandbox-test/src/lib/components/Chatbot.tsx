@@ -1,34 +1,11 @@
 'use client';
 
 import { useChat } from '@ai-sdk/react';
-import { SandboxInstance } from '@blaxel/core';
-export function Chatbot({ sandbox, className }: { sandbox: SandboxInstance, className?: string }) {
+
+export function Chatbot({ sandboxName, className }: { sandboxName: string, className?: string }) {
   const { messages, input, handleInputChange, handleSubmit, status, error } = useChat({
-    api: '/api/chat',
-    maxSteps: 25, // Enable multi-step tool calling
-    // Handle client-side tool calling
-    async onToolCall({ toolCall }) {
-      const tool = sandbox.fs.tools[toolCall.toolName as keyof typeof sandbox.fs.tools]
-      if (tool) {
-        try {
-          // Optionally: log the tool call for debugging
-          console.log('Tool call:', toolCall);
-          // @ts-expect-error just let it be
-          const result = await tool.execute(toolCall.args)
-          // Optionally: log the result
-          console.log('Tool result:', result);
-          return result
-        } catch (err) {
-          console.error('Tool execution error:', err);
-          // Return a structured error message
-          return { error: `Tool execution failed: ${err instanceof Error ? err.message : String(err)}` };
-        }
-      } else {
-        const msg = `Tool not found: ${toolCall.toolName}`;
-        console.error(msg);
-        return { error: msg };
-      }
-    }
+    api: `/api/sandboxes/${sandboxName}/chat`,
+    maxSteps: 100,
   });
 
   return (
@@ -118,7 +95,7 @@ export function Chatbot({ sandbox, className }: { sandbox: SandboxInstance, clas
           </div>
         ))}
 
-        {status === 'submitted' && (
+        {(status === 'submitted' || status === 'streaming') && (
           <div className="flex justify-start">
             <div className="rounded-lg px-3 py-2 max-w-[80%]" style={{ background: 'var(--muted)' }}>
               <div className="flex space-x-2">

@@ -93,7 +93,7 @@ async function testWatchWithSubfolder(sandbox: SandboxInstance) {
 async function main() {
   const sandboxName = "sandbox-test-watch-folder"
   try {
-    const sandbox = await createOrGetSandbox(sandboxName)
+    const sandbox = await createOrGetSandbox({sandboxName})
     await testWatch(sandbox)
     await testWatchWithIgnore(sandbox)
     await testWatchWithSubfolder(sandbox)

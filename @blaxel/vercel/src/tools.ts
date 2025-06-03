@@ -3,11 +3,12 @@ import type { Tool } from "ai";
 import { tool } from "ai";
 
 export const blTool = async (
-  name: string
+  name: string,
+  ms?: number
 ) : Promise<Record<string, Tool>> => {
   try {
     const toolFormated: Record<string, Tool> = {};
-    const blaxelTool = await getTool(name);
+    const blaxelTool = await getTool(name, ms);
 
     for (const t of blaxelTool) {
       const toolInstance = tool({
@@ -25,9 +26,10 @@ export const blTool = async (
 };
 
 export const blTools = async (
-  names: string[]
+  names: string[],
+  ms?: number
 ) : Promise<Record<string, Tool>> => {
-  const toolArrays = await Promise.all(names.map(blTool));
+  const toolArrays = await Promise.all(names.map((n) => blTool(n, ms)));
   const toolFormated: Record<string, Tool> = {};
   for (const toolServer of toolArrays) {
     for (const toolName in toolServer) {
