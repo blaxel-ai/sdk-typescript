@@ -4,14 +4,16 @@ import {
   JSONRPCMessageSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { logger } from "../common/logger.js";
+import { ws } from "../common/node.js";
 import { settings } from "../common/settings.js";
 
-
 // Type definitions for WebSocket environments
-declare const globalThis: any;
+declare const globalThis: {
+  window: any;
+};
 
 // Detect environment
-const isBrowser = typeof globalThis !== "undefined" && globalThis.window !== undefined;
+const isBrowser = typeof globalThis !== "undefined" && globalThis && globalThis.window !== undefined;
 
 // Type for WebSocket that works in both environments
 interface UniversalWebSocket {
@@ -24,15 +26,9 @@ interface UniversalWebSocket {
   onmessage?: ((event: any) => void) | null;
 }
 
-// Conditional import for Node.js WebSocket
-let NodeWebSocket: any;
-if (!isBrowser) {
-  try {
-    // Dynamic import for Node.js environment
-    NodeWebSocket = require("ws");
-  } catch (error) {
-    // ws is not available
-  }
+// Type for Node.js WebSocket message event
+interface NodeWebSocketMessageEvent {
+  data: string | Buffer;
 }
 
 //const SUBPROTOCOL = "mcp";
@@ -92,7 +88,7 @@ export class BlaxelMcpClientTransport implements Transport {
   }
 
   private _connect(): Promise<void> {
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       try {
         if (this._isBrowser) {
           // Use native browser WebSocket
@@ -100,16 +96,16 @@ export class BlaxelMcpClientTransport implements Transport {
           this._socket = new WebSocket(url) as UniversalWebSocket;
         } else {
           // Use Node.js WebSocket
-          if (!NodeWebSocket) {
+          if (!ws) {
             throw new Error("WebSocket library not available in Node.js environment");
           }
-          this._socket = new NodeWebSocket(this._url, {
+          this._socket = new ws(this._url, {
             //protocols: SUBPROTOCOL,
             headers: this._headers,
           }) as UniversalWebSocket;
         }
 
-        this._socket.onerror = (event) => {
+        this._socket.onerror = (event: { message: string, error?: Error }) => {
           console.error(event)
           const error = this._isBrowser
             ? new Error(`WebSocket error: ${event.message}`)
@@ -129,7 +125,7 @@ export class BlaxelMcpClientTransport implements Transport {
           this._socket = undefined;
         };
 
-        this._socket.onmessage = (event) => {
+        this._socket.onmessage = (event: MessageEvent | NodeWebSocketMessageEvent) => {
           let message: JSONRPCMessage;
           try {
             let dataString: string;
@@ -138,10 +134,10 @@ export class BlaxelMcpClientTransport implements Transport {
               const browserEvent = event as MessageEvent;
               dataString = typeof browserEvent.data === "string"
                 ? browserEvent.data
-                : browserEvent.data.toString();
+                : String(browserEvent.data);
             } else {
               // Node.js WebSocket MessageEvent
-              const nodeEvent = event as import("ws").MessageEvent;
+              const nodeEvent = event as NodeWebSocketMessageEvent;
               if (typeof nodeEvent.data === "string") {
                 dataString = nodeEvent.data;
               } else if (nodeEvent.data instanceof Buffer) {
@@ -152,11 +148,12 @@ export class BlaxelMcpClientTransport implements Transport {
             }
             message = JSONRPCMessageSchema.parse(JSON.parse(dataString));
           } catch (error) {
+            const eventData: unknown = 'data' in event ? event.data : 'Unknown data';
             logger.error(
               `Error parsing message: ${
-                typeof event.data === "object"
-                  ? JSON.stringify(event.data)
-                  : event.data
+                typeof eventData === "object" && eventData !== null
+                  ? JSON.stringify(eventData)
+                  : String(eventData)
               }`
             );
             this.onerror?.(error as Error);
@@ -168,7 +165,7 @@ export class BlaxelMcpClientTransport implements Transport {
       } catch (error) {
         if (error instanceof Error && error.message.includes("ws does not work in the browser")) {
           this._isBrowser = true;
-          return this._connect().then(resolve).catch(reject);
+          this._connect().then(resolve).catch(reject);
         }
         reject(error as Error);
       }
