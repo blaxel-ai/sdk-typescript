@@ -10,10 +10,16 @@ import { settings } from "../common/settings.js";
 // Type definitions for WebSocket environments
 declare const globalThis: {
   window: any;
+  WebSocket?: typeof WebSocket;
 };
 
 // Detect environment
 const isBrowser = typeof globalThis !== "undefined" && globalThis && globalThis.window !== undefined;
+
+// Add Cloudflare detection
+const isCloudflare = typeof globalThis !== "undefined" &&
+                   typeof globalThis.WebSocket !== "undefined" &&
+                   !globalThis.window;
 
 // Type for WebSocket that works in both environments
 interface UniversalWebSocket {
@@ -90,9 +96,13 @@ export class BlaxelMcpClientTransport implements Transport {
   private _connect(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       try {
+        let url = this._url.toString();
         if (this._isBrowser) {
-          // Use native browser WebSocket
-          const url = `${this._url.toString()}?token=${settings.token}`
+          url += `?token=${settings.token}`;
+        }
+
+        if (isCloudflare || this._isBrowser) {
+          // Use native WebSocket (works in both browser and Cloudflare)
           this._socket = new WebSocket(url) as UniversalWebSocket;
         } else {
           // Use Node.js WebSocket
