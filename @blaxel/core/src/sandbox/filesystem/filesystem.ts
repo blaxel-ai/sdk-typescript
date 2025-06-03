@@ -61,7 +61,7 @@ export class SandboxFileSystem extends SandboxAction {
     // Build URL
     let url = `${this.url}/filesystem/${path}`;
     if (this.forcedUrl) {
-      url = `${this.forcedUrl}/filesystem/${path}`;
+      url = `${this.forcedUrl.toString()}/filesystem/${path}`;
     }
 
     // Make the request using fetch instead of axios for better FormData handling
