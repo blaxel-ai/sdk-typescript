@@ -50,7 +50,7 @@ export async function GET(
       "Access-Control-Max-Age": "86400",
       "Vary": "Origin"
     };
-    const response = await fetch("https://qql3kvq9dp.ufs.sh/f/osYLsuQ7r0lpbcj9W08K23bMqU1e0wRzhSaBpuy57id9Af6c")
+    const response = await fetch("https://github.com/blaxel-ai/sdk-typescript/archive/refs/heads/main.zip")
     if (!response.ok) {
       throw new Error(`Failed to fetch: ${response.statusText}`)
     }
