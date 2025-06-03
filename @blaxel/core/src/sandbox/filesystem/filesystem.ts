@@ -213,7 +213,7 @@ export class SandboxFileSystem extends SandboxAction {
   ) {
     path = this.formatPath(path);
     let closed = false;
-    let controller: AbortController | null = new AbortController();
+    const controller = new AbortController();
 
     const start = async () => {
       const query: { ignore?: string } = {}
@@ -226,10 +226,10 @@ export class SandboxFileSystem extends SandboxAction {
         query,
         baseUrl: this.url,
         parseAs: 'stream',
-        signal: controller!.signal,
+        signal: controller.signal,
       });
-      if (error) throw error;
-      const stream: ReadableStream | null = (data as any) ?? response.body;
+      if (error) throw new Error(error instanceof Error ? error.message : JSON.stringify(error));
+      const stream: ReadableStream | null = (data as unknown as ReadableStream) ?? response.body;
       if (!stream) throw new Error('No stream returned');
       const reader = (stream as ReadableStream<Uint8Array>).getReader();
       let buffer = '';
@@ -239,7 +239,7 @@ export class SandboxFileSystem extends SandboxAction {
           const { value, done } = await reader.read();
           if (done) break;
           buffer += decoder.decode(value, { stream: true });
-          let lines = buffer.split('\n');
+          const lines = buffer.split('\n');
           buffer = lines.pop()!;
           for (const line of lines) {
             const trimmed = line.trim();
@@ -256,7 +256,7 @@ export class SandboxFileSystem extends SandboxAction {
 
                 const content = await this.read(filePath);
                 await callback({ ...fileEvent, content });
-              } catch (e) {
+              } catch {
                 await callback({ ...fileEvent, content: undefined });
               }
             } else {
@@ -268,20 +268,20 @@ export class SandboxFileSystem extends SandboxAction {
         reader.releaseLock();
       }
     };
-    start().catch((err) => {
+    start().catch((err: unknown) => {
       // Suppress AbortError when closing
-      if (!(err && err.name === 'AbortError')) {
+      if (!(err && typeof err === 'object' && 'name' in err && (err as { name: unknown }).name === 'AbortError')) {
         if (options?.onError) {
-          options.onError(err);
+          options.onError(err instanceof Error ? err : new Error(String(err)));
         }
       }
       closed = true;
-      controller?.abort();
+      controller.abort();
     });
     return {
       close: () => {
         closed = true;
-        controller?.abort();
+        controller.abort();
       },
     };
   }

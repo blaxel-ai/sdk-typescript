@@ -113,6 +113,7 @@ export class SandboxInstance {
     }
   }
 
+  /* eslint-disable */
   static async fromSession(session: SessionWithToken) {
     return new SandboxInstance({ forceUrl: session.url, params: { bl_preview_token: session.token}, headers: { "X-Blaxel-Preview-Token": session.token } });
   }

@@ -11,6 +11,7 @@ import { settings } from "../common/settings.js";
 declare const globalThis: any;
 
 // Detect environment
+// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
 const isBrowser = typeof globalThis !== "undefined" && globalThis.window !== undefined;
 
 // Type for WebSocket that works in both environments
@@ -29,8 +30,10 @@ let NodeWebSocket: any;
 if (!isBrowser) {
   try {
     // Dynamic import for Node.js environment
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-require-imports
     NodeWebSocket = require("ws");
-  } catch (error) {
+  } catch {
+    console.warn("ws is not available in this environment");
     // ws is not available
   }
 }
@@ -92,6 +95,7 @@ export class BlaxelMcpClientTransport implements Transport {
   }
 
   private _connect(): Promise<void> {
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises
     return new Promise((resolve, reject) => {
       try {
         if (this._isBrowser) {
@@ -103,6 +107,7 @@ export class BlaxelMcpClientTransport implements Transport {
           if (!NodeWebSocket) {
             throw new Error("WebSocket library not available in Node.js environment");
           }
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-call
           this._socket = new NodeWebSocket(this._url, {
             //protocols: SUBPROTOCOL,
             headers: this._headers,
@@ -112,9 +117,12 @@ export class BlaxelMcpClientTransport implements Transport {
         this._socket.onerror = (event) => {
           console.error(event)
           const error = this._isBrowser
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
             ? new Error(`WebSocket error: ${event.message}`)
             : "error" in event
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
             ? (event.error as Error)
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
             : new Error(`WebSocket error: ${event.message}`);
           reject(error);
           this.onerror?.(error);
@@ -136,8 +144,10 @@ export class BlaxelMcpClientTransport implements Transport {
             if (this._isBrowser) {
               // Browser WebSocket MessageEvent
               const browserEvent = event as MessageEvent;
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
               dataString = typeof browserEvent.data === "string"
                 ? browserEvent.data
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
                 : browserEvent.data.toString();
             } else {
               // Node.js WebSocket MessageEvent
@@ -154,8 +164,11 @@ export class BlaxelMcpClientTransport implements Transport {
           } catch (error) {
             logger.error(
               `Error parsing message: ${
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
                 typeof event.data === "object"
+                  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
                   ? JSON.stringify(event.data)
+                  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
                   : event.data
               }`
             );

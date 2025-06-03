@@ -17,7 +17,7 @@ export class SandboxProcess extends SandboxAction {
     }
   ): { close: () => void } {
     const controller = new AbortController();
-    (async () => {
+    void (async () => {
       try {
         const headers = this.sandbox.forceUrl ? this.sandbox.headers : settings.headers;
         const stream = await fetch(`${this.url}/process/${identifier}/logs/stream`, {
@@ -35,10 +35,12 @@ export class SandboxProcess extends SandboxAction {
         const decoder = new TextDecoder();
         let buffer = '';
         while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          let lines = buffer.split(/\r?\n/);
+          const result = await reader.read();
+          if (result.done) break;
+          if (result.value && result.value instanceof Uint8Array) {
+            buffer += decoder.decode(result.value, { stream: true });
+          }
+          const lines = buffer.split(/\r?\n/);
           buffer = lines.pop()!;
           for (const line of lines) {
             if (line.startsWith('stdout:')) {
@@ -52,10 +54,10 @@ export class SandboxProcess extends SandboxAction {
             }
           }
         }
-      } catch (err: any) {
-        if (err && err.name !== 'AbortError') {
+      } catch (err: unknown) {
+        if (err && typeof err === 'object' && 'name' in err && err.name !== 'AbortError') {
           console.error("Stream error:", err);
-          throw err;
+          throw new Error(err instanceof Error ? err.message : 'Unknown stream error');
         }
       }
     })();

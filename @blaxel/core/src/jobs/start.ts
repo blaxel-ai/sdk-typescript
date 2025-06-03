@@ -40,7 +40,7 @@ class BlJobWrapper {
   }
 
   get index(): number {
-    return env[this.indexKey] ? Number(env[this.indexKey]) ?? 0 : 0;
+    return env[this.indexKey] ? Number(env[this.indexKey]) : 0;
   }
 
   /*
