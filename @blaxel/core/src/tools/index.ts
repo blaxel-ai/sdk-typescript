@@ -1,6 +1,6 @@
 import { findFromCache } from "../cache/index.js";
 import { Function, getFunction } from "../client/client.js";
-import { env } from "../common/env.js";
+import { getForcedUrl } from "../common/internal.js";
 import { getMcpTool } from "./mcpTool.js";
 import { Tool } from "./types.js";
 
@@ -26,8 +26,8 @@ export const blTool = (name: string) => {
 export const getToolMetadata = async (
   tool: string
 ): Promise<Function | null> => {
-  const envVar = tool.replace(/-/g, "_").toUpperCase();
-  if (env[`BL_FUNCTION_${envVar}_URL`]) {
+  const forcedUrl = getForcedUrl('function', tool)
+  if(forcedUrl) {
     return {
       metadata: {
         name: tool,

@@ -1,4 +1,7 @@
 /* eslint-disable */
+
+import { env } from '@blaxel/core';
+
 // Pure JS MD5 implementation that matches standard crypto MD5
 function md5(input: string): string {
   function cmn(q: number, a: number, b: number, x: number, s: number, t: number) {
@@ -143,4 +146,55 @@ export function getGlobalUniqueHash(
 ): string {
   const globalUniqueName = `${workspace}-${type}-${name}`;
   return getAlphanumericLimitedHash(globalUniqueName, 48);
+}
+
+export function pluralize(type: string): string {
+  const word = type.toLowerCase();
+
+  // Words ending in s, ss, sh, ch, x, z - add 'es'
+  if (word.endsWith('s') || word.endsWith('ss') || word.endsWith('sh') ||
+      word.endsWith('ch') || word.endsWith('x') || word.endsWith('z')) {
+    return type + 'es';
+  }
+
+  // Words ending in consonant + y - change y to ies
+  if (word.endsWith('y') && word.length > 1) {
+    const beforeY = word[word.length - 2];
+    if (!'aeiou'.includes(beforeY)) {
+      return type.slice(0, -1) + 'ies';
+    }
+  }
+
+  // Words ending in f or fe - change to ves
+  if (word.endsWith('f')) {
+    return type.slice(0, -1) + 'ves';
+  }
+  if (word.endsWith('fe')) {
+    return type.slice(0, -2) + 'ves';
+  }
+
+  // Words ending in consonant + o - add 'es'
+  if (word.endsWith('o') && word.length > 1) {
+    const beforeO = word[word.length - 2];
+    if (!'aeiou'.includes(beforeO)) {
+      return type + 'es';
+    }
+  }
+
+  // Default case - just add 's'
+  return type + 's';
+}
+
+export function getForcedUrl(type: string, name: string) {
+  const pluralType = pluralize(type);
+  const envVar = name.replace(/-/g, "_").toUpperCase();
+  // BL_FUNCTIONS_NAME_URL
+  if (env[`BL_${pluralType.toUpperCase()}_${envVar}_URL`]) {
+    return new URL(env[`BL_${pluralType.toUpperCase()}_${envVar}_URL`] as string);
+  }
+  // BL_FUNCTION_NAME_URL
+  if(env[`BL_${type.toUpperCase()}_${envVar}_URL`]) {
+    return new URL(env[`BL_${type.toUpperCase()}_${envVar}_URL`] as string);
+  }
+  return null;
 }
