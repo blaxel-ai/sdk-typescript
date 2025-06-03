@@ -1,6 +1,6 @@
 /* eslint-disable */
 
-import { env } from "process";
+import { env } from '@blaxel/core';
 
 // Pure JS MD5 implementation that matches standard crypto MD5
 function md5(input: string): string {
