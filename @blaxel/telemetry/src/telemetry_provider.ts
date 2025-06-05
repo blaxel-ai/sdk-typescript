@@ -63,8 +63,22 @@ export class OtelTelemetryProvider implements BlaxelTelemetryProvider {
       root: options?.isRoot,
     };
 
-    // Handle parent context properly
+    // Handle parent context properly with debugging
     let ctx = otelContext.active();
+    const activeSpan = trace.getActiveSpan();
+
+    // Debug logging for context issues
+    if (process.env.BL_DEBUG_TRACING === "true") {
+      console.log(`Creating span "${name}":`, {
+        hasActiveSpan: !!activeSpan,
+        activeSpanId: activeSpan?.spanContext().spanId,
+        isRoot: options?.isRoot,
+        hasParentContext: !!options?.parentContext,
+        parentContext: options?.parentContext,
+        activeContext: ctx,
+        otelOptions,
+      });
+    }
 
     if (options?.parentContext) {
       // If explicit parent context is provided, use it
@@ -80,7 +94,19 @@ export class OtelTelemetryProvider implements BlaxelTelemetryProvider {
 
     // Start the span with proper context
     const span = tracer.startSpan(name, otelOptions, ctx);
-    return new OtelSpan(span);
+    const otelSpan = new OtelSpan(span);
+
+    // Additional debugging
+    if (process.env.BL_DEBUG_TRACING === "true") {
+      const spanContext = span.spanContext();
+      console.log(`Created span "${name}":`, {
+        spanId: spanContext.spanId,
+        traceId: spanContext.traceId,
+        parentSpanId: activeSpan?.spanContext().spanId || "none",
+      });
+    }
+
+    return otelSpan;
   }
 
   async flush(): Promise<void> {

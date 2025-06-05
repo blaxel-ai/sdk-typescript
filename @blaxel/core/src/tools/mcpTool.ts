@@ -69,7 +69,7 @@ export class McpTool {
   }
 
   get forcedUrl() {
-    return getForcedUrl(this.type, this.name)
+    return getForcedUrl(this.type, this.name);
   }
 
   get url() {
@@ -81,32 +81,34 @@ export class McpTool {
   async start() {
     logger.debug(`MCP:${this.name}:start`);
     this.stopCloseTimer();
-    this.startPromise = this.startPromise || (async () => {
-      await authenticate();
-      try {
-        logger.debug(`MCP:${this.name}:Connecting::${this.url.toString()}`);
-        this.transport = new BlaxelMcpClientTransport(
-          this.url.toString(),
-          settings.headers
-        );
-        await this.client.connect(this.transport);
-        logger.debug(`MCP:${this.name}:Connected`);
-      } catch (err) {
-        if (err instanceof Error) {
-          logger.error(err.stack);
+    this.startPromise =
+      this.startPromise ||
+      (async () => {
+        await authenticate();
+        try {
+          logger.debug(`MCP:${this.name}:Connecting::${this.url.toString()}`);
+          this.transport = new BlaxelMcpClientTransport(
+            this.url.toString(),
+            settings.headers
+          );
+          await this.client.connect(this.transport);
+          logger.debug(`MCP:${this.name}:Connected`);
+        } catch (err) {
+          if (err instanceof Error) {
+            logger.error(err.stack);
+          }
+          if (!this.fallbackUrl) {
+            throw err;
+          }
+          logger.debug(`MCP:${this.name}:Connecting to fallback`);
+          this.transport = new BlaxelMcpClientTransport(
+            this.fallbackUrl.toString(),
+            settings.headers
+          );
+          await this.client.connect(this.transport);
+          logger.debug(`MCP:${this.name}:Connected to fallback`);
         }
-        if (!this.fallbackUrl) {
-          throw err;
-        }
-        logger.debug(`MCP:${this.name}:Connecting to fallback`);
-        this.transport = new BlaxelMcpClientTransport(
-          this.fallbackUrl.toString(),
-          settings.headers
-        );
-        await this.client.connect(this.transport);
-        logger.debug(`MCP:${this.name}:Connected to fallback`);
-      }
-    })();
+      })();
     return await this.startPromise;
   }
 
@@ -116,6 +118,8 @@ export class McpTool {
       delete this.startPromise;
       return this.client.close();
     }
+
+    // Use setTimeout with proper error handling
     this.timer = setTimeout(() => {
       logger.debug(`MCP:${this.name}:CloseTimer`);
       delete this.startPromise;
@@ -174,7 +178,10 @@ export class McpTool {
     }
   }
 
-  async call(toolName: string, args: Record<string, unknown> | undefined): Promise<unknown> {
+  async call(
+    toolName: string,
+    args: Record<string, unknown> | undefined
+  ): Promise<unknown> {
     const span = startSpan(this.name + "." + toolName, {
       attributes: {
         "span.type": "tool.call",
@@ -200,7 +207,7 @@ export class McpTool {
       logger.debug(
         `MCP:${this.name}:Tool result`,
         toolName,
-        JSON.stringify(args),
+        JSON.stringify(args)
         // result
       );
       span.setAttribute("tool.call.result", JSON.stringify(result));
@@ -216,7 +223,10 @@ export class McpTool {
   }
 }
 
-export const getMcpTool = async (name: string, ms?: number): Promise<Tool[]> => {
+export const getMcpTool = async (
+  name: string,
+  ms?: number
+): Promise<Tool[]> => {
   let tool = McpToolCache.get(name);
   if (!tool) {
     logger.debug(`MCP:${name}:Creating new tool`);
