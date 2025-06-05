@@ -23,7 +23,7 @@ export interface BlaxelSpan {
   /** Record an error on the span */
   recordException(error: Error): void;
   /** Set the status of the span */
-  setStatus(status: 'ok' | 'error', message?: string): void;
+  setStatus(status: "ok" | "error", message?: string): void;
   /** End the span */
   end(): void;
   /** Get the span context (for passing to child spans) */
@@ -49,7 +49,9 @@ class NoopSpan implements BlaxelSpan {
   recordException(): void {}
   setStatus(): void {}
   end(): void {}
-  getContext(): unknown { return null; }
+  getContext(): unknown {
+    return null;
+  }
 }
 
 /**
@@ -103,20 +105,29 @@ export const telemetryRegistry = TelemetryRegistry.getInstance();
 /**
  * Create a span with the registered provider
  */
-export function startSpan(name: string, options?: BlaxelSpanOptions): BlaxelSpan {
+export function startSpan(
+  name: string,
+  options?: BlaxelSpanOptions
+): BlaxelSpan {
   return telemetryRegistry.getProvider().startSpan(name, options);
 }
 
-export async function withSpan<T>(name: string, fn: () => Promise<T>, options?: BlaxelSpanOptions): Promise<T> {
+export async function withSpan<T>(
+  name: string,
+  fn: () => Promise<T>,
+  options?: BlaxelSpanOptions
+): Promise<T> {
   const span = startSpan(name, options);
   try {
     const result = await fn();
-    span.end();
+    span.setStatus("ok");
     return result;
   } catch (error) {
+    span.setStatus("error", (error as Error).message);
     span.recordException(error as Error);
-    span.end();
     throw error;
+  } finally {
+    span.end();
   }
 }
 
