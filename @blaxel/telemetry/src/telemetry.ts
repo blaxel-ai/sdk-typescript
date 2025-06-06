@@ -1,18 +1,23 @@
-import { authenticate, env, logger, settings, telemetryRegistry } from "@blaxel/core";
 import {
-  metrics,
-  Span,
-  trace
-} from "@opentelemetry/api";
+  authenticate,
+  env,
+  logger,
+  settings,
+  telemetryRegistry,
+} from "@blaxel/core";
+import { metrics, Span, trace, propagation, context } from "@opentelemetry/api";
 import { Logger, logs } from "@opentelemetry/api-logs";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import {
-  registerInstrumentations
-} from "@opentelemetry/instrumentation";
+import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
-import { envDetector, RawResourceAttribute, Resource } from "@opentelemetry/resources";
+
+import {
+  envDetector,
+  RawResourceAttribute,
+  Resource,
+} from "@opentelemetry/resources";
 import {
   BatchLogRecordProcessor,
   LoggerProvider,
@@ -28,6 +33,9 @@ import {
   ReadableSpan,
   SpanProcessor,
 } from "@opentelemetry/sdk-trace-node";
+// W3CTraceContextPropagator import - trying different paths
+// import { W3CTraceContextPropagator } from "@opentelemetry/core";
+// import { W3CTraceContextPropagator } from "@opentelemetry/sdk-trace-base";
 import { OtelTelemetryProvider } from "./telemetry_provider";
 export class BlaxelResource implements Resource {
   attributes: Record<string, string>;
@@ -69,7 +77,6 @@ export class DefaultAttributesSpanProcessor implements SpanProcessor {
     return Promise.resolve();
   }
 }
-
 
 export type TelemetryOptions = {
   workspace: string | null;
@@ -193,7 +200,7 @@ class TelemetryManager {
       attributes["workspace"] = settings.workspace;
     }
     if (settings.type) {
-      attributes["workload.type"] = settings.type+"s";
+      attributes["workload.type"] = settings.type + "s";
     }
     // Only keep string values
     const stringAttrs: Record<string, string> = {};
@@ -230,10 +237,142 @@ class TelemetryManager {
     });
   }
 
+  setupTracerProvider() {
+    if (this.nodeTracerProvider) {
+      return; // Already set up
+    }
+
+    const resource = new BlaxelResource(this.resourceAttributes);
+    this.nodeTracerProvider = new NodeTracerProvider({
+      resource,
+      sampler: new AlwaysOnSampler(),
+    });
+    this.nodeTracerProvider.register();
+    logger.debug(
+      "NodeTracerProvider registered early - propagation fields:",
+      propagation.fields()
+    );
+  }
+
   instrumentApp() {
+    logger.debug(
+      "Available propagation fields before setup:",
+      propagation.fields()
+    );
+
+    // Set up tracer provider FIRST before instrumentation
+    this.setupTracerProvider();
+
     telemetryRegistry.registerProvider(new OtelTelemetryProvider());
     const httpInstrumentation = new HttpInstrumentation({
       requireParentforOutgoingSpans: true,
+      requireParentforIncomingSpans: false, // Allow root spans for incoming requests
+      ignoreIncomingRequestHook: () => false, // Don't ignore any requests
+      ignoreOutgoingRequestHook: () => false, // Don't ignore any requests
+      requestHook: (span, request) => {
+        // Log incoming headers for debugging
+        if ("headers" in request && request.headers) {
+          logger.debug(
+            "Incoming HTTP headers:",
+            JSON.stringify(request.headers)
+          );
+          // Specifically log trace context headers
+          const headers = request.headers as Record<string, string | string[]>;
+          const traceHeaders = {
+            traceparent: headers.traceparent,
+            tracestate: headers.tracestate,
+            "x-blaxel-authorization": headers["x-blaxel-authorization"],
+            "x-blaxel-workspace": headers["x-blaxel-workspace"],
+          };
+          logger.debug("Trace context headers:", JSON.stringify(traceHeaders));
+
+          // Manual trace context extraction for debugging
+          if (headers.traceparent) {
+            try {
+              const traceparentValue = Array.isArray(headers.traceparent)
+                ? headers.traceparent[0]
+                : headers.traceparent;
+              logger.debug("Manual traceparent parsing:", traceparentValue);
+
+              // Try to manually parse the traceparent header
+              const parts = traceparentValue.split("-");
+              if (parts.length === 4) {
+                logger.debug(
+                  "Traceparent parts:",
+                  JSON.stringify({
+                    version: parts[0],
+                    traceId: parts[1],
+                    spanId: parts[2],
+                    flags: parts[3],
+                  })
+                );
+
+                // Check if this looks like a valid traceparent
+                if (
+                  parts[1] !== "00000000000000000000000000000000" &&
+                  parts[2] !== "0000000000000000"
+                ) {
+                  logger.debug(
+                    "Traceparent appears valid - extraction should work"
+                  );
+                } else {
+                  logger.debug("Traceparent contains invalid IDs");
+                }
+              }
+
+              // Extract trace context manually to see what should be extracted
+              const extractedContext = propagation.extract(
+                context.active(),
+                headers
+              );
+              const extractedSpan = trace.getSpan(extractedContext);
+              if (extractedSpan) {
+                const extractedSpanContext = extractedSpan.spanContext();
+                logger.debug(
+                  "Manual context extraction result:",
+                  JSON.stringify({
+                    traceId: extractedSpanContext.traceId,
+                    spanId: extractedSpanContext.spanId,
+                    traceFlags: extractedSpanContext.traceFlags,
+                  })
+                );
+              } else {
+                logger.debug(
+                  "Manual context extraction failed - no span found"
+                );
+                logger.debug(
+                  "Available propagation fields:",
+                  propagation.fields()
+                );
+              }
+            } catch (error) {
+              logger.debug("Manual context extraction error:", error);
+            }
+          }
+
+          // Log the span context that was created from the incoming request
+          const spanContext = span.spanContext();
+          logger.debug(
+            "HTTP span context:",
+            JSON.stringify({
+              traceId: spanContext.traceId,
+              spanId: spanContext.spanId,
+              traceFlags: spanContext.traceFlags,
+            })
+          );
+        }
+      },
+      responseHook: (span) => {
+        const spanContext = span.spanContext();
+        logger.debug(
+          "HTTP response span context:",
+          JSON.stringify({
+            traceId: spanContext.traceId,
+            spanId: spanContext.spanId,
+            traceFlags: spanContext.traceFlags,
+          })
+        );
+      },
     });
 
     registerInstrumentations({
@@ -242,6 +381,9 @@ class TelemetryManager {
   }
 
   setExporters() {
+    // Log current propagators for debugging
+    logger.debug("Current propagators:", propagation.fields());
+
     const resource = new BlaxelResource(this.resourceAttributes);
     const logExporter = this.getLogExporter();
     this.loggerProvider = new LoggerProvider({
@@ -252,20 +394,31 @@ class TelemetryManager {
     );
     logs.setGlobalLoggerProvider(this.loggerProvider);
     const traceExporter = this.getTraceExporter();
-    this.nodeTracerProvider = new NodeTracerProvider({
-      resource,
-      sampler: new AlwaysOnSampler(),
-      spanProcessors: [
-        new DefaultAttributesSpanProcessor({
-          "workload.id": settings.name || "",
-          "workload.type": settings.type? settings.type+"s" : "",
-          workspace: settings.workspace || "",
-        }),
-        new BatchSpanProcessor(traceExporter),
-        new HasBeenProcessedSpanProcessor(traceExporter),
-      ],
-    });
-    this.nodeTracerProvider.register();
+
+    if (!this.nodeTracerProvider) {
+      // Create tracer provider if not already created
+      this.nodeTracerProvider = new NodeTracerProvider({
+        resource,
+        sampler: new AlwaysOnSampler(),
+        spanProcessors: [
+          new DefaultAttributesSpanProcessor({
+            "workload.id": settings.name || "",
+            "workload.type": settings.type ? settings.type + "s" : "",
+            workspace: settings.workspace || "",
+          }),
+          new BatchSpanProcessor(traceExporter),
+          new HasBeenProcessedSpanProcessor(traceExporter),
+        ],
+      });
+      this.nodeTracerProvider.register();
+    }
+
+    // Ensure W3C trace context propagation is working
+    logger.debug(
+      "Propagation fields after tracer registration:",
+      propagation.fields()
+    );
+
     const metricExporter = this.getMetricExporter();
     this.meterProvider = new MeterProvider({
       resource,

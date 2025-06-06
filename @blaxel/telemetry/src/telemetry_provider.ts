@@ -1,17 +1,22 @@
-import { BlaxelSpan, BlaxelSpanOptions, BlaxelTelemetryProvider } from "@blaxel/core";
+import {
+  BlaxelSpan,
+  BlaxelSpanOptions,
+  BlaxelTelemetryProvider,
+} from "@blaxel/core";
 import {
   Span as OtelApiSpan,
   context as otelContext,
   SpanOptions as OtelSpanOptions,
-  ROOT_CONTEXT,
+  SpanStatusCode,
+  trace,
   SpanContext,
-  SpanStatusCode, trace
+  ROOT_CONTEXT,
 } from "@opentelemetry/api";
 import { blaxelTelemetry } from "./telemetry";
+import { logger } from "@blaxel/core";
 
 class OtelSpan implements BlaxelSpan {
   private span: OtelApiSpan;
-  public closed = false;
 
   constructor(span: OtelApiSpan) {
     this.span = span;
@@ -22,7 +27,9 @@ class OtelSpan implements BlaxelSpan {
   }
 
   setAttributes(attributes: Record<string, string | number | boolean>): void {
-    Object.entries(attributes).forEach(([k, v]) => this.span.setAttribute(k, v));
+    Object.entries(attributes).forEach(([k, v]) =>
+      this.span.setAttribute(k, v)
+    );
   }
 
   recordException(error: Error): void {
@@ -30,15 +37,14 @@ class OtelSpan implements BlaxelSpan {
     this.span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
   }
 
-  setStatus(status: 'ok' | 'error', message?: string): void {
+  setStatus(status: "ok" | "error", message?: string): void {
     this.span.setStatus({
-      code: status === 'ok' ? SpanStatusCode.OK : SpanStatusCode.ERROR,
+      code: status === "ok" ? SpanStatusCode.OK : SpanStatusCode.ERROR,
       message,
     });
   }
 
   end(): void {
-    this.closed = true;
     this.span.end();
   }
 
@@ -48,31 +54,64 @@ class OtelSpan implements BlaxelSpan {
 }
 
 export class OtelTelemetryProvider implements BlaxelTelemetryProvider {
-  private spans: OtelSpan[] = [];
-
-  retrieveActiveSpanContext() {
-    for(let i = this.spans.length - 1; i >= 0; i--) {
-      const span = this.spans[i];
-      if(!span.closed) {
-        return trace.setSpanContext(ROOT_CONTEXT, span.getContext() as SpanContext);
-      }
-    }
-    return otelContext.active();
-  }
-
   startSpan(name: string, options?: BlaxelSpanOptions): BlaxelSpan {
+    // Use the tracer from the registered NodeTracerProvider
     const tracer = trace.getTracer("blaxel");
 
+    // Prepare OpenTelemetry span options
     const otelOptions: OtelSpanOptions = {
       attributes: options?.attributes,
       root: options?.isRoot,
     };
 
-    const ctx = this.retrieveActiveSpanContext();
-    const span = new OtelSpan(tracer.startSpan(name, otelOptions, ctx));
-    this.spans.push(span);
+    // Handle parent context properly with debugging
+    let ctx = otelContext.active();
+    const activeSpan = trace.getActiveSpan();
 
-    return span;
+    // Debug logging for context issues
+    logger.info(
+      `Creating span "${name}":`,
+      JSON.stringify({
+        hasActiveSpan: !!activeSpan,
+        activeSpanId: activeSpan?.spanContext().spanId,
+        isRoot: options?.isRoot,
+        hasParentContext: !!options?.parentContext,
+        parentContext: JSON.stringify(options?.parentContext),
+        activeContext: JSON.stringify(ctx),
+        otelOptions: JSON.stringify(otelOptions),
+        activeTraceId: activeSpan?.spanContext().traceId,
+        contextKeys: Object.keys(ctx),
+      })
+    );
+
+    if (options?.parentContext) {
+      // If explicit parent context is provided, use it
+      ctx = trace.setSpanContext(
+        ROOT_CONTEXT,
+        options.parentContext as SpanContext
+      );
+    } else if (options?.isRoot) {
+      // If explicitly marked as root, use ROOT_CONTEXT
+      ctx = ROOT_CONTEXT;
+    }
+    // Otherwise, use the active context (default behavior)
+
+    // Start the span with proper context
+    const span = tracer.startSpan(name, otelOptions, ctx);
+    const otelSpan = new OtelSpan(span);
+
+    // Additional debugging
+    const spanContext = span.spanContext();
+    logger.info(
+      `Created span "${name}":`,
+      JSON.stringify({
+        spanId: spanContext.spanId,
+        traceId: spanContext.traceId,
+        parentSpanId: activeSpan?.spanContext().spanId || "none",
+      })
+    );
+
+    return otelSpan;
   }
 
   async flush(): Promise<void> {
