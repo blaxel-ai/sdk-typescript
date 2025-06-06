@@ -256,11 +256,14 @@ class TelemetryManager {
 
           // Log the span context that was created from the incoming request
           const spanContext = span.spanContext();
-          logger.debug("HTTP span context:", {
-            traceId: spanContext.traceId,
-            spanId: spanContext.spanId,
-            traceFlags: spanContext.traceFlags,
-          });
+          logger.debug(
+            "HTTP span context:",
+            JSON.stringify({
+              traceId: spanContext.traceId,
+              spanId: spanContext.spanId,
+              traceFlags: spanContext.traceFlags,
+            })
+          );
         }
       },
     });
