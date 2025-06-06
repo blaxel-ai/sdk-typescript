@@ -253,6 +253,14 @@ class TelemetryManager {
             "x-blaxel-workspace": headers["x-blaxel-workspace"],
           };
           logger.debug("Trace context headers:", JSON.stringify(traceHeaders));
+
+          // Log the span context that was created from the incoming request
+          const spanContext = span.spanContext();
+          logger.debug("HTTP span context:", {
+            traceId: spanContext.traceId,
+            spanId: spanContext.spanId,
+            traceFlags: spanContext.traceFlags,
+          });
         }
       },
     });
