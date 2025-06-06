@@ -237,6 +237,9 @@ class TelemetryManager {
     telemetryRegistry.registerProvider(new OtelTelemetryProvider());
     const httpInstrumentation = new HttpInstrumentation({
       requireParentforOutgoingSpans: true,
+      requireParentforIncomingSpans: false, // Allow root spans for incoming requests
+      ignoreIncomingRequestHook: () => false, // Don't ignore any requests
+      ignoreOutgoingRequestHook: () => false, // Don't ignore any requests
       requestHook: (span, request) => {
         // Log incoming headers for debugging
         if ("headers" in request && request.headers) {
@@ -265,6 +268,17 @@ class TelemetryManager {
             })
           );
         }
+      },
+      responseHook: (span) => {
+        const spanContext = span.spanContext();
+        logger.debug(
+          "HTTP response span context:",
+          JSON.stringify({
+            traceId: spanContext.traceId,
+            spanId: spanContext.spanId,
+            traceFlags: spanContext.traceFlags,
+          })
+        );
       },
     });
 
