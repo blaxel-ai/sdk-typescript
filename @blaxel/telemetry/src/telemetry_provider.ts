@@ -79,6 +79,8 @@ export class OtelTelemetryProvider implements BlaxelTelemetryProvider {
         parentContext: JSON.stringify(options?.parentContext),
         activeContext: JSON.stringify(ctx),
         otelOptions: JSON.stringify(otelOptions),
+        activeTraceId: activeSpan?.spanContext().traceId,
+        contextKeys: Object.keys(ctx),
       })
     );
 
