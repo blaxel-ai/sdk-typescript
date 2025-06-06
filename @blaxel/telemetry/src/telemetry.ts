@@ -239,7 +239,7 @@ class TelemetryManager {
       requireParentforOutgoingSpans: true,
       requestHook: (span, request) => {
         // Log incoming headers for debugging
-        if (request.headers) {
+        if ("headers" in request && request.headers) {
           logger.debug(
             "Incoming HTTP headers:",
             JSON.stringify(request.headers)
