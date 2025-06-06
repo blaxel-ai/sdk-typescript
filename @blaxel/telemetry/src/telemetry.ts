@@ -12,6 +12,7 @@ import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
+
 import {
   envDetector,
   RawResourceAttribute,
@@ -234,6 +235,11 @@ class TelemetryManager {
   }
 
   instrumentApp() {
+    logger.debug(
+      "Available propagation fields before setup:",
+      propagation.fields()
+    );
+
     telemetryRegistry.registerProvider(new OtelTelemetryProvider());
     const httpInstrumentation = new HttpInstrumentation({
       requireParentforOutgoingSpans: true,
@@ -265,6 +271,29 @@ class TelemetryManager {
                 : headers.traceparent;
               logger.debug("Manual traceparent parsing:", traceparentValue);
 
+              // Try to manually parse the traceparent header
+              const parts = traceparentValue.split("-");
+              if (parts.length === 4) {
+                logger.debug("Traceparent parts:", {
+                  version: parts[0],
+                  traceId: parts[1],
+                  spanId: parts[2],
+                  flags: parts[3],
+                });
+
+                // Check if this looks like a valid traceparent
+                if (
+                  parts[1] !== "00000000000000000000000000000000" &&
+                  parts[2] !== "0000000000000000"
+                ) {
+                  logger.debug(
+                    "Traceparent appears valid - extraction should work"
+                  );
+                } else {
+                  logger.debug("Traceparent contains invalid IDs");
+                }
+              }
+
               // Extract trace context manually to see what should be extracted
               const extractedContext = propagation.extract(
                 context.active(),
@@ -284,6 +313,10 @@ class TelemetryManager {
               } else {
                 logger.debug(
                   "Manual context extraction failed - no span found"
+                );
+                logger.debug(
+                  "Available propagation fields:",
+                  propagation.fields()
                 );
               }
             } catch (error) {
@@ -349,6 +382,13 @@ class TelemetryManager {
       ],
     });
     this.nodeTracerProvider.register();
+
+    // Ensure W3C trace context propagation is working
+    logger.debug(
+      "Propagation fields after tracer registration:",
+      propagation.fields()
+    );
+
     const metricExporter = this.getMetricExporter();
     this.meterProvider = new MeterProvider({
       resource,
