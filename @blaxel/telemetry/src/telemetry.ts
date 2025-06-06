@@ -33,6 +33,9 @@ import {
   ReadableSpan,
   SpanProcessor,
 } from "@opentelemetry/sdk-trace-node";
+// W3CTraceContextPropagator import - trying different paths
+// import { W3CTraceContextPropagator } from "@opentelemetry/core";
+// import { W3CTraceContextPropagator } from "@opentelemetry/sdk-trace-base";
 import { OtelTelemetryProvider } from "./telemetry_provider";
 export class BlaxelResource implements Resource {
   attributes: Record<string, string>;
@@ -234,11 +237,31 @@ class TelemetryManager {
     });
   }
 
+  setupTracerProvider() {
+    if (this.nodeTracerProvider) {
+      return; // Already set up
+    }
+
+    const resource = new BlaxelResource(this.resourceAttributes);
+    this.nodeTracerProvider = new NodeTracerProvider({
+      resource,
+      sampler: new AlwaysOnSampler(),
+    });
+    this.nodeTracerProvider.register();
+    logger.debug(
+      "NodeTracerProvider registered early - propagation fields:",
+      propagation.fields()
+    );
+  }
+
   instrumentApp() {
     logger.debug(
       "Available propagation fields before setup:",
       propagation.fields()
     );
+
+    // Set up tracer provider FIRST before instrumentation
+    this.setupTracerProvider();
 
     telemetryRegistry.registerProvider(new OtelTelemetryProvider());
     const httpInstrumentation = new HttpInstrumentation({
@@ -371,20 +394,24 @@ class TelemetryManager {
     );
     logs.setGlobalLoggerProvider(this.loggerProvider);
     const traceExporter = this.getTraceExporter();
-    this.nodeTracerProvider = new NodeTracerProvider({
-      resource,
-      sampler: new AlwaysOnSampler(),
-      spanProcessors: [
-        new DefaultAttributesSpanProcessor({
-          "workload.id": settings.name || "",
-          "workload.type": settings.type ? settings.type + "s" : "",
-          workspace: settings.workspace || "",
-        }),
-        new BatchSpanProcessor(traceExporter),
-        new HasBeenProcessedSpanProcessor(traceExporter),
-      ],
-    });
-    this.nodeTracerProvider.register();
+
+    if (!this.nodeTracerProvider) {
+      // Create tracer provider if not already created
+      this.nodeTracerProvider = new NodeTracerProvider({
+        resource,
+        sampler: new AlwaysOnSampler(),
+        spanProcessors: [
+          new DefaultAttributesSpanProcessor({
+            "workload.id": settings.name || "",
+            "workload.type": settings.type ? settings.type + "s" : "",
+            workspace: settings.workspace || "",
+          }),
+          new BatchSpanProcessor(traceExporter),
+          new HasBeenProcessedSpanProcessor(traceExporter),
+        ],
+      });
+      this.nodeTracerProvider.register();
+    }
 
     // Ensure W3C trace context propagation is working
     logger.debug(
