@@ -237,6 +237,24 @@ class TelemetryManager {
     telemetryRegistry.registerProvider(new OtelTelemetryProvider());
     const httpInstrumentation = new HttpInstrumentation({
       requireParentforOutgoingSpans: true,
+      requestHook: (span, request) => {
+        // Log incoming headers for debugging
+        if (request.headers) {
+          logger.debug(
+            "Incoming HTTP headers:",
+            JSON.stringify(request.headers)
+          );
+          // Specifically log trace context headers
+          const headers = request.headers as Record<string, string | string[]>;
+          const traceHeaders = {
+            traceparent: headers.traceparent,
+            tracestate: headers.tracestate,
+            "x-blaxel-authorization": headers["x-blaxel-authorization"],
+            "x-blaxel-workspace": headers["x-blaxel-workspace"],
+          };
+          logger.debug("Trace context headers:", JSON.stringify(traceHeaders));
+        }
+      },
     });
 
     registerInstrumentations({
