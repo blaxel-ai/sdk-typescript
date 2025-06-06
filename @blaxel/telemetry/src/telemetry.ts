@@ -5,7 +5,7 @@ import {
   settings,
   telemetryRegistry,
 } from "@blaxel/core";
-import { metrics, Span, trace } from "@opentelemetry/api";
+import { metrics, Span, trace, propagation, context } from "@opentelemetry/api";
 import { Logger, logs } from "@opentelemetry/api-logs";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
@@ -257,6 +257,40 @@ class TelemetryManager {
           };
           logger.debug("Trace context headers:", JSON.stringify(traceHeaders));
 
+          // Manual trace context extraction for debugging
+          if (headers.traceparent) {
+            try {
+              const traceparentValue = Array.isArray(headers.traceparent)
+                ? headers.traceparent[0]
+                : headers.traceparent;
+              logger.debug("Manual traceparent parsing:", traceparentValue);
+
+              // Extract trace context manually to see what should be extracted
+              const extractedContext = propagation.extract(
+                context.active(),
+                headers
+              );
+              const extractedSpan = trace.getSpan(extractedContext);
+              if (extractedSpan) {
+                const extractedSpanContext = extractedSpan.spanContext();
+                logger.debug(
+                  "Manual context extraction result:",
+                  JSON.stringify({
+                    traceId: extractedSpanContext.traceId,
+                    spanId: extractedSpanContext.spanId,
+                    traceFlags: extractedSpanContext.traceFlags,
+                  })
+                );
+              } else {
+                logger.debug(
+                  "Manual context extraction failed - no span found"
+                );
+              }
+            } catch (error) {
+              logger.debug("Manual context extraction error:", error);
+            }
+          }
+
           // Log the span context that was created from the incoming request
           const spanContext = span.spanContext();
           logger.debug(
@@ -288,6 +322,9 @@ class TelemetryManager {
   }
 
   setExporters() {
+    // Log current propagators for debugging
+    logger.debug("Current propagators:", propagation.fields());
+
     const resource = new BlaxelResource(this.resourceAttributes);
     const logExporter = this.getLogExporter();
     this.loggerProvider = new LoggerProvider({
