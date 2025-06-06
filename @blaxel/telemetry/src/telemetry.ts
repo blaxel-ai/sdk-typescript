@@ -274,12 +274,15 @@ class TelemetryManager {
               // Try to manually parse the traceparent header
               const parts = traceparentValue.split("-");
               if (parts.length === 4) {
-                logger.debug("Traceparent parts:", {
-                  version: parts[0],
-                  traceId: parts[1],
-                  spanId: parts[2],
-                  flags: parts[3],
-                });
+                logger.debug(
+                  "Traceparent parts:",
+                  JSON.stringify({
+                    version: parts[0],
+                    traceId: parts[1],
+                    spanId: parts[2],
+                    flags: parts[3],
+                  })
+                );
 
                 // Check if this looks like a valid traceparent
                 if (
