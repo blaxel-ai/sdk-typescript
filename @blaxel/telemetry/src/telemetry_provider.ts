@@ -69,15 +69,18 @@ export class OtelTelemetryProvider implements BlaxelTelemetryProvider {
     const activeSpan = trace.getActiveSpan();
 
     // Debug logging for context issues
-    logger.info(`Creating span "${name}":`, {
-      hasActiveSpan: !!activeSpan,
-      activeSpanId: activeSpan?.spanContext().spanId,
-      isRoot: options?.isRoot,
-      hasParentContext: !!options?.parentContext,
-      parentContext: options?.parentContext,
-      activeContext: ctx,
-      otelOptions,
-    });
+    logger.info(
+      `Creating span "${name}":`,
+      JSON.stringify({
+        hasActiveSpan: !!activeSpan,
+        activeSpanId: activeSpan?.spanContext().spanId,
+        isRoot: options?.isRoot,
+        hasParentContext: !!options?.parentContext,
+        parentContext: JSON.stringify(options?.parentContext),
+        activeContext: JSON.stringify(ctx),
+        otelOptions: JSON.stringify(otelOptions),
+      })
+    );
 
     if (options?.parentContext) {
       // If explicit parent context is provided, use it
@@ -97,11 +100,14 @@ export class OtelTelemetryProvider implements BlaxelTelemetryProvider {
 
     // Additional debugging
     const spanContext = span.spanContext();
-    logger.info(`Created span "${name}":`, {
-      spanId: spanContext.spanId,
-      traceId: spanContext.traceId,
-      parentSpanId: activeSpan?.spanContext().spanId || "none",
-    });
+    logger.info(
+      `Created span "${name}":`,
+      JSON.stringify({
+        spanId: spanContext.spanId,
+        traceId: spanContext.traceId,
+        parentSpanId: activeSpan?.spanContext().spanId || "none",
+      })
+    );
 
     return otelSpan;
   }
