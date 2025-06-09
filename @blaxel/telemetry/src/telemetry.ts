@@ -109,9 +109,7 @@ class TelemetryManager {
     if (!this.enabled || this.initialized) {
       return;
     }
-    this.instrumentAppAsync().catch((error) => {
-      logger.error("Error during async instrumentation setup:", error);
-    });
+    this.instrumentApp();
     this.setupSignalHandler();
     this.initialized = true;
     this.setConfiguration().catch((error) => {
@@ -138,12 +136,6 @@ class TelemetryManager {
     return env.BL_ENABLE_OPENTELEMETRY === "true";
   }
 
-  get isLambdaEnvironment() {
-    return !!(
-      process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT
-    );
-  }
-
   get authHeaders() {
     const headers: Record<string, string> = {};
     if (settings.authorization) {
@@ -157,87 +149,6 @@ class TelemetryManager {
 
   async sleep(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  async retryContextExtraction(
-    headers: Record<string, string | string[]>,
-    span: Span,
-    traceparentParts: string[]
-  ) {
-    // More aggressive retries in Lambda environment
-    const maxRetries = this.isLambdaEnvironment ? 5 : 3;
-    const retryDelay = this.isLambdaEnvironment ? 100 : 50; // Longer delays for Lambda cold starts
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        logger.debug(`Context extraction attempt ${attempt}/${maxRetries}`);
-
-        // Check if propagation is ready
-        const propagationFields = propagation.fields();
-        logger.debug("Current propagation fields:", propagationFields);
-
-        if (propagationFields.length === 0 && attempt < maxRetries) {
-          logger.debug(
-            `Propagation not ready on attempt ${attempt}, waiting ${
-              retryDelay * attempt
-            }ms...`
-          );
-          await this.sleep(retryDelay * attempt);
-          continue;
-        }
-
-        // Try to extract trace context
-        const extractedContext = propagation.extract(context.active(), headers);
-        const extractedSpan = trace.getSpan(extractedContext);
-
-        if (extractedSpan) {
-          const extractedSpanContext = extractedSpan.spanContext();
-          logger.debug(
-            "Manual context extraction succeeded on attempt " + attempt + ":",
-            JSON.stringify({
-              traceId: extractedSpanContext.traceId,
-              spanId: extractedSpanContext.spanId,
-              traceFlags: extractedSpanContext.traceFlags,
-            })
-          );
-          return; // Success!
-        }
-
-        if (attempt < maxRetries) {
-          logger.debug(
-            `Context extraction failed on attempt ${attempt}, retrying...`
-          );
-          await this.sleep(retryDelay * attempt);
-        }
-      } catch (error) {
-        logger.debug(`Error on context extraction attempt ${attempt}:`, error);
-        if (attempt < maxRetries) {
-          await this.sleep(retryDelay * attempt);
-        }
-      }
-    }
-
-    // All retries failed - add fallback attributes
-    logger.debug(
-      "All context extraction attempts failed, adding fallback attributes"
-    );
-    if (
-      traceparentParts.length === 4 &&
-      traceparentParts[1] !== "00000000000000000000000000000000"
-    ) {
-      try {
-        span.setAttributes({
-          "trace.parent.trace_id": traceparentParts[1],
-          "trace.parent.span_id": traceparentParts[2],
-          "trace.parent.trace_flags": traceparentParts[3],
-          "trace.extraction.failed": "true",
-          "trace.extraction.reason": "lambda_cold_start",
-        });
-        logger.debug("Added fallback parent trace info as span attributes");
-      } catch (error) {
-        logger.debug("Error setting fallback trace attributes:", error);
-      }
-    }
   }
 
   async flush() {
@@ -323,39 +234,13 @@ class TelemetryManager {
     });
   }
 
-  async instrumentAppAsync() {
+  instrumentApp() {
     logger.debug(
       "Available propagation fields before setup:",
       propagation.fields()
     );
 
-    if (this.isLambdaEnvironment) {
-      logger.debug(
-        "Lambda environment detected - using enhanced cold start handling"
-      );
-    }
-
-    // Note: W3C propagator should be auto-registered by NodeTracerProvider
-    logger.debug("Will check propagation after tracer registration...");
-
     telemetryRegistry.registerProvider(new OtelTelemetryProvider());
-
-    // Set up a basic tracer provider early to enable propagation
-    const earlyResource = new BlaxelResource(this.resourceAttributes);
-    const earlyTracerProvider = new NodeTracerProvider({
-      resource: earlyResource,
-      sampler: new AlwaysOnSampler(),
-    });
-    earlyTracerProvider.register();
-
-    // Small delay to ensure propagation is ready (especially important for Lambda cold starts)
-    await this.sleep(10);
-
-    logger.debug(
-      "Early tracer provider registered, checking propagation:",
-      propagation.fields()
-    );
-
     const httpInstrumentation = new HttpInstrumentation({
       requireParentforOutgoingSpans: true,
       requireParentforIncomingSpans: false, // Allow root spans for incoming requests
@@ -412,8 +297,31 @@ class TelemetryManager {
                 }
               }
 
-              // Extract trace context with retry for Lambda cold starts
-              void this.retryContextExtraction(headers, span, parts);
+              // Extract trace context manually to see what should be extracted
+              const extractedContext = propagation.extract(
+                context.active(),
+                headers
+              );
+              const extractedSpan = trace.getSpan(extractedContext);
+              if (extractedSpan) {
+                const extractedSpanContext = extractedSpan.spanContext();
+                logger.debug(
+                  "Manual context extraction result:",
+                  JSON.stringify({
+                    traceId: extractedSpanContext.traceId,
+                    spanId: extractedSpanContext.spanId,
+                    traceFlags: extractedSpanContext.traceFlags,
+                  })
+                );
+              } else {
+                logger.debug(
+                  "Manual context extraction failed - no span found"
+                );
+                logger.debug(
+                  "Available propagation fields:",
+                  propagation.fields()
+                );
+              }
             } catch (error) {
               logger.debug("Manual context extraction error:", error);
             }
@@ -463,8 +371,6 @@ class TelemetryManager {
     );
     logs.setGlobalLoggerProvider(this.loggerProvider);
     const traceExporter = this.getTraceExporter();
-
-    // Create a new tracer provider with full configuration
     this.nodeTracerProvider = new NodeTracerProvider({
       resource,
       sampler: new AlwaysOnSampler(),
@@ -478,8 +384,6 @@ class TelemetryManager {
         new HasBeenProcessedSpanProcessor(traceExporter),
       ],
     });
-
-    // Replace the early tracer provider with the fully configured one
     this.nodeTracerProvider.register();
 
     // Ensure W3C trace context propagation is working
