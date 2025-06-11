@@ -38,10 +38,10 @@ export function stringify<T>(obj: T, maxDepth: number = 1, depth: number = 0): s
 
 
 class Logger {
-  private logger: LoggerInterface;
+  private logger: LoggerInterface | null;
 
   constructor() {
-    this.logger = console;
+    this.logger = null;
   }
 
   setLogger(logger: LoggerInterface) {
@@ -57,19 +57,27 @@ class Logger {
     }).join(" ");
   }
   info(...message: unknown[]) {
-    this.logger.info(this.parseArgs(message));
+    if (this.logger) {
+      this.logger.info(this.parseArgs(message));
+    }
   }
 
   debug(...message: unknown[]) {
-    this.logger.debug(this.parseArgs(message));
+    if (this.logger) {
+      this.logger.debug(this.parseArgs(message));
+    }
   }
 
   warn(...message: unknown[]) {
-    this.logger.warn(this.parseArgs(message));
+    if (this.logger) {
+      this.logger.warn(this.parseArgs(message));
+    }
   }
 
   error(...message: unknown[]) {
-    this.logger.error(this.parseArgs(message));
+    if (this.logger) {
+      this.logger.error(this.parseArgs(message));
+    }
   }
 }
 

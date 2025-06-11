@@ -49,7 +49,7 @@ export class SandboxInstance {
           },
           throwOnError: true,
         });
-        logger.info(`Waiting for sandbox to be deployed, status: ${data.status}`);
+        logger.debug(`Waiting for sandbox to be deployed, status: ${data.status}`);
         this.sandbox = data;
       } catch(e) {
         logger.error("Could not retrieve sandbox", e);

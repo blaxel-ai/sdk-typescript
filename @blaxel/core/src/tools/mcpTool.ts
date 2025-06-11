@@ -110,9 +110,12 @@ export class McpTool {
     return await this.startPromise;
   }
 
-  async close() {
-    logger.debug(`MCP:${this.name}:Close in ${this.ms}ms`);
-    if (!this.ms) {
+  async close(now: boolean = false) {
+    logger.debug(`MCP:${this.name}:Close in ${now ? 0 : this.ms}ms`);
+    if (now || !this.ms) {
+      if (this.timer) {
+        clearTimeout(this.timer);
+      }
       delete this.startPromise;
       return this.client.close();
     }
@@ -124,7 +127,7 @@ export class McpTool {
           logger.error(err.stack);
         }
       });
-    }, this.ms);
+    }, now ? 0 : this.ms);
   }
 
   stopCloseTimer() {
