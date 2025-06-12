@@ -247,12 +247,13 @@ class TelemetryManager {
       ignoreIncomingRequestHook: () => false, // Don't ignore any requests
       ignoreOutgoingRequestHook: () => false, // Don't ignore any requests
       requestHook: (span, request) => {
+        logger.debug(
+          "Available propagation fields before setup:",
+          propagation.fields()
+        );
+
         // Log incoming headers for debugging
         if ("headers" in request && request.headers) {
-          logger.debug(
-            "Incoming HTTP headers:",
-            JSON.stringify(request.headers)
-          );
           // Specifically log trace context headers
           const headers = request.headers as Record<string, string | string[]>;
           const traceHeaders = {
