@@ -252,6 +252,22 @@ class TelemetryManager {
           propagation.fields()
         );
 
+        // Force context extraction from headers
+        const headers = request.headers as Record<string, string | string[]>;
+        if (headers.traceparent) {
+          const extractedContext = propagation.extract(
+            context.active(),
+            headers
+          );
+          const extractedSpan = trace.getSpan(extractedContext);
+          if (extractedSpan) {
+            // Force set the extracted span as active
+            context.with(trace.setSpan(context.active(), extractedSpan), () => {
+              logger.debug("Forced context activation from traceparent");
+            });
+          }
+        }
+
         // Log incoming headers for debugging
         if ("headers" in request && request.headers) {
           // Specifically log trace context headers
