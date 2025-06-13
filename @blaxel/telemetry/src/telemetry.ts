@@ -369,6 +369,9 @@ class TelemetryManager {
             }
           }
 
+          logger.debug("Span:", JSON.stringify(span));
+          logger.debug("Span context:", JSON.stringify(span.spanContext()));
+
           // Log the span context that was created from the incoming request
           const spanContext = span.spanContext();
           logger.debug(
