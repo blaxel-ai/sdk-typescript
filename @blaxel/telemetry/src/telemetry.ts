@@ -291,10 +291,10 @@ class TelemetryManager {
               context.active(),
               headers
             );
-            logger.debug("Active context:", JSON.stringify(context.active()));
+            logger.debug("Active context keys:", Object.keys(context.active()));
             logger.debug(
-              "Extracted context:",
-              JSON.stringify(extractedContext)
+              "Extracted context keys:",
+              Object.keys(extractedContext)
             );
             // const extractedSpan = trace.getSpan(extractedContext);
             // if (extractedSpan) {
@@ -369,11 +369,16 @@ class TelemetryManager {
             }
           }
 
-          logger.debug("Span:", JSON.stringify(span));
-          logger.debug("Span context:", JSON.stringify(span.spanContext()));
+          // Safe logging of span information without circular references
+          const spanContext = span.spanContext();
+          logger.debug("Span created:", {
+            spanId: spanContext.spanId,
+            traceId: spanContext.traceId,
+            traceFlags: spanContext.traceFlags,
+          });
+          logger.debug("Span context:", spanContext);
 
           // Log the span context that was created from the incoming request
-          const spanContext = span.spanContext();
           logger.debug(
             "HTTP span context:",
             JSON.stringify({
