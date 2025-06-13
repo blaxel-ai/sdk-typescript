@@ -181,6 +181,46 @@ class TelemetryManager {
         });
       });
     }
+
+    // Handle uncaughtException differently - log but don't shutdown telemetry
+    process.on("uncaughtException", (error) => {
+      logger.error("Uncaught exception:", error);
+      // Don't shutdown telemetry for uncaught exceptions
+    });
+
+    // Don't listen to 'exit' event as it can be triggered by various things
+    // and we don't want to shutdown telemetry unless explicitly requested
+  }
+
+  /**
+   * Check if telemetry is properly initialized and active
+   */
+  get isActive(): boolean {
+    return (
+      this.initialized &&
+      this.configured &&
+      this.nodeTracerProvider !== null &&
+      this.meterProvider !== null
+    );
+  }
+
+  /**
+   * Re-initialize telemetry if it was shut down
+   */
+  async reinitialize(): Promise<void> {
+    if (!this.isActive) {
+      logger.info("Reinitializing telemetry...");
+      this.initialized = false;
+      this.configured = false;
+      this.nodeTracerProvider = null;
+      this.meterProvider = null;
+      this.loggerProvider = null;
+      this.otelLogger = null;
+
+      this.initialize();
+      await this.setConfiguration();
+      logger.info("Telemetry reinitialized successfully");
+    }
   }
 
   /**
@@ -476,3 +516,16 @@ class TelemetryManager {
 }
 
 export const blaxelTelemetry = new TelemetryManager();
+
+// Export a function to manually check and reinitialize telemetry
+export async function ensureTelemetryActive(): Promise<void> {
+  if (!blaxelTelemetry.isActive) {
+    logger.info("Telemetry not active, reinitializing...");
+    await blaxelTelemetry.reinitialize();
+  }
+}
+
+// Export a function to check telemetry status
+export function isTelemetryActive(): boolean {
+  return blaxelTelemetry.isActive;
+}

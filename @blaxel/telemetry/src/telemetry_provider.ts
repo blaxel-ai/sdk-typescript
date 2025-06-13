@@ -55,6 +55,13 @@ class OtelSpan implements BlaxelSpan {
 
 export class OtelTelemetryProvider implements BlaxelTelemetryProvider {
   startSpan(name: string, options?: BlaxelSpanOptions): BlaxelSpan {
+    // Check if telemetry is active, reinitialize if needed
+    if (!blaxelTelemetry.isActive) {
+      logger.warn("Telemetry not active, reinitializing...");
+      // Synchronous reinitialize - just call initialize, setConfiguration will happen async
+      blaxelTelemetry.initialize();
+    }
+
     // Use the tracer from the registered NodeTracerProvider
     const tracer = trace.getTracer("blaxel");
 
@@ -81,6 +88,7 @@ export class OtelTelemetryProvider implements BlaxelTelemetryProvider {
         otelOptions: JSON.stringify(otelOptions),
         activeTraceId: activeSpan?.spanContext().traceId,
         contextKeys: Object.keys(ctx),
+        telemetryActive: blaxelTelemetry.isActive,
       })
     );
 
