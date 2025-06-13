@@ -505,6 +505,15 @@ class TelemetryManager {
         Promise.all(shutdownPromises),
         new Promise((resolve) => setTimeout(resolve, 5000)), // 5 second timeout
       ]);
+
+      // Reset state variables so isActive returns false
+      this.nodeTracerProvider = null;
+      this.meterProvider = null;
+      this.loggerProvider = null;
+      this.otelLogger = null;
+      this.initialized = false;
+      this.configured = false;
+
       logger.debug("Instrumentation shutdown complete");
 
       process.exit(0);
