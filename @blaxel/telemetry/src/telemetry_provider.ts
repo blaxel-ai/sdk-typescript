@@ -56,8 +56,9 @@ class OtelSpan implements BlaxelSpan {
 export class OtelTelemetryProvider implements BlaxelTelemetryProvider {
   startSpan(name: string, options?: BlaxelSpanOptions): BlaxelSpan {
     // Check if telemetry is active, reinitialize if needed
+    logger.debug("Telemetry is active:", blaxelTelemetry.isActive);
     if (!blaxelTelemetry.isActive) {
-      logger.warn("Telemetry not active, reinitializing...");
+      logger.debug("Telemetry not active, reinitializing...");
       // Synchronous reinitialize - just call initialize, setConfiguration will happen async
       blaxelTelemetry.initialize();
     }

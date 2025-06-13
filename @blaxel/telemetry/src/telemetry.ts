@@ -516,16 +516,3 @@ class TelemetryManager {
 }
 
 export const blaxelTelemetry = new TelemetryManager();
-
-// Export a function to manually check and reinitialize telemetry
-export async function ensureTelemetryActive(): Promise<void> {
-  if (!blaxelTelemetry.isActive) {
-    logger.info("Telemetry not active, reinitializing...");
-    await blaxelTelemetry.reinitialize();
-  }
-}
-
-// Export a function to check telemetry status
-export function isTelemetryActive(): boolean {
-  return blaxelTelemetry.isActive;
-}
