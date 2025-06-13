@@ -205,25 +205,6 @@ class TelemetryManager {
   }
 
   /**
-   * Re-initialize telemetry if it was shut down
-   */
-  async reinitialize(): Promise<void> {
-    if (!this.isActive) {
-      logger.info("Reinitializing telemetry...");
-      this.initialized = false;
-      this.configured = false;
-      this.nodeTracerProvider = null;
-      this.meterProvider = null;
-      this.loggerProvider = null;
-      this.otelLogger = null;
-
-      this.initialize();
-      await this.setConfiguration();
-      logger.info("Telemetry reinitialized successfully");
-    }
-  }
-
-  /**
    * Get resource attributes for OpenTelemetry.
    */
   get resourceAttributes() {
@@ -310,16 +291,21 @@ class TelemetryManager {
               context.active(),
               headers
             );
-            const extractedSpan = trace.getSpan(extractedContext);
-            if (extractedSpan) {
-              // Force set the extracted span as active
-              context.with(
-                trace.setSpan(context.active(), extractedSpan),
-                () => {
-                  logger.debug("Forced context activation from traceparent");
-                }
-              );
-            }
+            logger.debug("Active context:", JSON.stringify(context.active()));
+            logger.debug(
+              "Extracted context:",
+              JSON.stringify(extractedContext)
+            );
+            // const extractedSpan = trace.getSpan(extractedContext);
+            // if (extractedSpan) {
+            //   // Force set the extracted span as active
+            //   context.with(
+            //     trace.setSpan(context.active(), extractedSpan),
+            //     () => {
+            //       logger.debug("Forced context activation from traceparent");
+            //     }
+            //   );
+            // }
 
             try {
               const traceparentValue = Array.isArray(headers.traceparent)
@@ -353,11 +339,11 @@ class TelemetryManager {
                 }
               }
 
-              // Extract trace context manually to see what should be extracted
-              const extractedContext = propagation.extract(
-                context.active(),
-                headers
-              );
+              // // Extract trace context manually to see what should be extracted
+              // const extractedContext = propagation.extract(
+              //   context.active(),
+              //   headers
+              // );
               const extractedSpan = trace.getSpan(extractedContext);
               if (extractedSpan) {
                 const extractedSpanContext = extractedSpan.spanContext();
@@ -505,14 +491,6 @@ class TelemetryManager {
         Promise.all(shutdownPromises),
         new Promise((resolve) => setTimeout(resolve, 5000)), // 5 second timeout
       ]);
-
-      // Reset state variables so isActive returns false
-      this.nodeTracerProvider = null;
-      this.meterProvider = null;
-      this.loggerProvider = null;
-      this.otelLogger = null;
-      this.initialized = false;
-      this.configured = false;
 
       logger.debug("Instrumentation shutdown complete");
 
