@@ -72,9 +72,19 @@ export class OtelTelemetryProvider implements BlaxelTelemetryProvider {
       root: options?.isRoot,
     };
 
+    logger.debug("Options:", JSON.stringify(options));
+    logger.debug("OTel span options:", JSON.stringify(otelOptions));
+
     // Handle parent context properly with debugging
     let ctx = otelContext.active();
     const activeSpan = trace.getActiveSpan();
+
+    logger.debug("Active context:", JSON.stringify(ctx));
+    logger.debug("Active span:", JSON.stringify(activeSpan));
+    logger.debug(
+      "Active span context:",
+      JSON.stringify(activeSpan?.spanContext())
+    );
 
     // Debug logging for context issues
     logger.info(
@@ -108,6 +118,9 @@ export class OtelTelemetryProvider implements BlaxelTelemetryProvider {
     // Start the span with proper context
     const span = tracer.startSpan(name, otelOptions, ctx);
     const otelSpan = new OtelSpan(span);
+
+    logger.debug("Span:", JSON.stringify(span));
+    logger.debug("Span context:", JSON.stringify(span.spanContext()));
 
     // Additional debugging
     const spanContext = span.spanContext();
