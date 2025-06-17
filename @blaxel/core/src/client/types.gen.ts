@@ -113,6 +113,20 @@ export type ApiKey = TimeFields & OwnerFields & {
 export type ArrayMetric = Array<Metric>;
 
 /**
+ * Billable time metric
+ */
+export type BillableTimeMetric = {
+    /**
+     * Billable time
+     */
+    billableTime?: number;
+    /**
+     * Total memory allocation in GB-seconds
+     */
+    totalAllocation?: number;
+};
+
+/**
  * Configuration
  */
 export type Configuration = {
@@ -990,6 +1004,42 @@ export type LocationResponse = {
 };
 
 /**
+ * Response for logs
+ */
+export type LogsResponse = {
+    /**
+     * Data
+     */
+    data?: Array<unknown>;
+};
+
+/**
+ * Response data for logs
+ */
+export type LogsResponseData = {
+    /**
+     * Body of the log
+     */
+    body?: string;
+    /**
+     * Log attributes
+     */
+    logAttributes?: Array<unknown>;
+    /**
+     * Severity number of the log
+     */
+    severityNumber?: number;
+    /**
+     * Timestamp of the log
+     */
+    timestamp?: string;
+    /**
+     * Trace ID of the log
+     */
+    traceId?: string;
+};
+
+/**
  * Definition of an MCP from the MCP Hub
  */
 export type McpDefinition = TimeFields & {
@@ -1056,6 +1106,20 @@ export type McpDefinition = TimeFields & {
 };
 
 /**
+ * Memory allocation by service name
+ */
+export type MemoryAllocationByName = {
+    /**
+     * Memory allocation value
+     */
+    allocation?: number;
+    /**
+     * Name
+     */
+    name?: string;
+};
+
+/**
  * Metrics for memory allocation
  */
 export type MemoryAllocationMetric = {
@@ -1078,6 +1142,10 @@ export type Metadata = TimeFields & OwnerFields & {
      * Model name
      */
     name?: string;
+    /**
+     * Plan
+     */
+    plan?: unknown;
     /**
      * Workspace name
      */
@@ -1748,6 +1816,24 @@ export type RequestTotalResponseData = {
 };
 
 /**
+ * Resource
+ */
+export type Resource = {
+    /**
+     * Name of the resource
+     */
+    name?: string;
+    /**
+     * Type of the resource
+     */
+    type?: string;
+    /**
+     * Workspace of the resource
+     */
+    workspace?: string;
+};
+
+/**
  * Log for a resource deployment (eg. model deployment, function deployment)
  */
 export type ResourceLog = {
@@ -1770,9 +1856,70 @@ export type ResourceLog = {
 };
 
 /**
+ * Chart for a resource log
+ */
+export type ResourceLogChart = {
+    /**
+     * Count of the log
+     */
+    count?: number;
+    /**
+     * Debug count of the log
+     */
+    debug?: number;
+    /**
+     * Error count of the log
+     */
+    error?: number;
+    /**
+     * Fatal count of the log
+     */
+    fatal?: number;
+    /**
+     * Info count of the log
+     */
+    info?: number;
+    /**
+     * Timestamp of the log
+     */
+    timestamp?: string;
+    /**
+     * Trace count of the log
+     */
+    trace?: number;
+    /**
+     * Unknown count of the log
+     */
+    unknown?: number;
+    /**
+     * Warning count of the log
+     */
+    warning?: number;
+};
+
+/**
+ * Response for a resource log
+ */
+export type ResourceLogResponse = {
+    /**
+     * Chart
+     */
+    chart?: Array<unknown>;
+    /**
+     * Logs
+     */
+    logs?: Array<unknown>;
+    /**
+     * Total count of logs
+     */
+    totalCount?: number;
+};
+
+/**
  * Metrics for a single resource deployment (eg. model deployment, function deployment)
  */
 export type ResourceMetrics = {
+    billableTime?: BillableTimeMetric;
     inferenceErrorsGlobal?: ArrayMetric;
     inferenceGlobal?: ArrayMetric;
     lastNRequests?: ArrayMetric;
@@ -1826,6 +1973,32 @@ export type ResourceMetrics = {
     rpsPrevious?: number;
     tokenRate?: TokenRateMetrics;
     tokenTotal?: TokenTotalMetric;
+};
+
+/**
+ * Log for a resource deployment (eg. model deployment, function deployment)
+ */
+export type ResourceTrace = {
+    /**
+     * Duration in nanoseconds
+     */
+    duration?: number;
+    /**
+     * Has error
+     */
+    hasError?: boolean;
+    /**
+     * The timestamp of the log
+     */
+    startTime?: string;
+    /**
+     * Status code
+     */
+    statusCode?: number;
+    /**
+     * Trace ID of the log
+     */
+    traceID?: string;
 };
 
 /**
@@ -2424,6 +2597,28 @@ export type WebsocketChannel = TimeFields & {
      * Unique connection ID
      */
     connection_id?: string;
+    /**
+     * Workspace the connection belongs to
+     */
+    workspace?: string;
+};
+
+/**
+ * WebSocket connection details
+ */
+export type WebsocketMessage = TimeFields & {
+    /**
+     * Unique message ID
+     */
+    id?: string;
+    /**
+     * Message
+     */
+    message?: string;
+    /**
+     * TTL timestamp for automatic deletion
+     */
+    ttl?: number;
     /**
      * Workspace the connection belongs to
      */
