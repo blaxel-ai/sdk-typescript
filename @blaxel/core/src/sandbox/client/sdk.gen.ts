@@ -24,6 +24,12 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
  */
 export const deleteFilesystemByPath = <ThrowOnError extends boolean = false>(options: Options<DeleteFilesystemByPathData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteFilesystemByPathResponse, DeleteFilesystemByPathError, ThrowOnError>({
+        security: [
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
+        ],
         url: '/filesystem/{path}',
         ...options
     });
@@ -35,6 +41,12 @@ export const deleteFilesystemByPath = <ThrowOnError extends boolean = false>(opt
  */
 export const getFilesystemByPath = <ThrowOnError extends boolean = false>(options: Options<GetFilesystemByPathData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetFilesystemByPathResponse, GetFilesystemByPathError, ThrowOnError>({
+        security: [
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
+        ],
         url: '/filesystem/{path}',
         ...options
     });
@@ -46,6 +58,12 @@ export const getFilesystemByPath = <ThrowOnError extends boolean = false>(option
  */
 export const putFilesystemByPath = <ThrowOnError extends boolean = false>(options: Options<PutFilesystemByPathData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).put<PutFilesystemByPathResponse, PutFilesystemByPathError, ThrowOnError>({
+        security: [
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
+        ],
         url: '/filesystem/{path}',
         ...options,
         headers: {
@@ -61,6 +79,12 @@ export const putFilesystemByPath = <ThrowOnError extends boolean = false>(option
  */
 export const deleteNetworkProcessByPidMonitor = <ThrowOnError extends boolean = false>(options: Options<DeleteNetworkProcessByPidMonitorData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteNetworkProcessByPidMonitorResponse, DeleteNetworkProcessByPidMonitorError, ThrowOnError>({
+        security: [
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
+        ],
         url: '/network/process/{pid}/monitor',
         ...options
     });
@@ -72,6 +96,12 @@ export const deleteNetworkProcessByPidMonitor = <ThrowOnError extends boolean = 
  */
 export const postNetworkProcessByPidMonitor = <ThrowOnError extends boolean = false>(options: Options<PostNetworkProcessByPidMonitorData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<PostNetworkProcessByPidMonitorResponse, PostNetworkProcessByPidMonitorError, ThrowOnError>({
+        security: [
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
+        ],
         url: '/network/process/{pid}/monitor',
         ...options,
         headers: {
@@ -87,6 +117,12 @@ export const postNetworkProcessByPidMonitor = <ThrowOnError extends boolean = fa
  */
 export const getNetworkProcessByPidPorts = <ThrowOnError extends boolean = false>(options: Options<GetNetworkProcessByPidPortsData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetNetworkProcessByPidPortsResponse, GetNetworkProcessByPidPortsError, ThrowOnError>({
+        security: [
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
+        ],
         url: '/network/process/{pid}/ports',
         ...options
     });
@@ -98,6 +134,12 @@ export const getNetworkProcessByPidPorts = <ThrowOnError extends boolean = false
  */
 export const getProcess = <ThrowOnError extends boolean = false>(options?: Options<GetProcessData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<GetProcessResponse, unknown, ThrowOnError>({
+        security: [
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
+        ],
         url: '/process',
         ...options
     });
@@ -109,6 +151,12 @@ export const getProcess = <ThrowOnError extends boolean = false>(options?: Optio
  */
 export const postProcess = <ThrowOnError extends boolean = false>(options: Options<PostProcessData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<PostProcessResponse, PostProcessError, ThrowOnError>({
+        security: [
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
+        ],
         url: '/process',
         ...options,
         headers: {
@@ -124,6 +172,12 @@ export const postProcess = <ThrowOnError extends boolean = false>(options: Optio
  */
 export const deleteProcessByIdentifier = <ThrowOnError extends boolean = false>(options: Options<DeleteProcessByIdentifierData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteProcessByIdentifierResponse, DeleteProcessByIdentifierError, ThrowOnError>({
+        security: [
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
+        ],
         url: '/process/{identifier}',
         ...options
     });
@@ -135,6 +189,12 @@ export const deleteProcessByIdentifier = <ThrowOnError extends boolean = false>(
  */
 export const getProcessByIdentifier = <ThrowOnError extends boolean = false>(options: Options<GetProcessByIdentifierData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetProcessByIdentifierResponse, GetProcessByIdentifierError, ThrowOnError>({
+        security: [
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
+        ],
         url: '/process/{identifier}',
         ...options
     });
@@ -146,12 +206,14 @@ export const getProcessByIdentifier = <ThrowOnError extends boolean = false>(opt
  */
 export const deleteProcessByIdentifierKill = <ThrowOnError extends boolean = false>(options: Options<DeleteProcessByIdentifierKillData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteProcessByIdentifierKillResponse, DeleteProcessByIdentifierKillError, ThrowOnError>({
+        security: [
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
+        ],
         url: '/process/{identifier}/kill',
-        ...options,
-        headers: {
-            'Content-Type': 'application/json',
-            ...options?.headers
-        }
+        ...options
     });
 };
 
@@ -161,6 +223,12 @@ export const deleteProcessByIdentifierKill = <ThrowOnError extends boolean = fal
  */
 export const getProcessByIdentifierLogs = <ThrowOnError extends boolean = false>(options: Options<GetProcessByIdentifierLogsData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetProcessByIdentifierLogsResponse, GetProcessByIdentifierLogsError, ThrowOnError>({
+        security: [
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
+        ],
         url: '/process/{identifier}/logs',
         ...options
     });
@@ -172,6 +240,12 @@ export const getProcessByIdentifierLogs = <ThrowOnError extends boolean = false>
  */
 export const getProcessByIdentifierLogsStream = <ThrowOnError extends boolean = false>(options: Options<GetProcessByIdentifierLogsStreamData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetProcessByIdentifierLogsStreamResponse, GetProcessByIdentifierLogsStreamError, ThrowOnError>({
+        security: [
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
+        ],
         url: '/process/{identifier}/logs/stream',
         ...options
     });
@@ -183,6 +257,12 @@ export const getProcessByIdentifierLogsStream = <ThrowOnError extends boolean = 
  */
 export const getWatchFilesystemByPath = <ThrowOnError extends boolean = false>(options: Options<GetWatchFilesystemByPathData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetWatchFilesystemByPathResponse, GetWatchFilesystemByPathError, ThrowOnError>({
+        security: [
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
+        ],
         url: '/watch/filesystem/{path}',
         ...options
     });
@@ -194,6 +274,12 @@ export const getWatchFilesystemByPath = <ThrowOnError extends boolean = false>(o
  */
 export const getWsProcessByIdentifierLogsStream = <ThrowOnError extends boolean = false>(options: Options<GetWsProcessByIdentifierLogsStreamData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<unknown, GetWsProcessByIdentifierLogsStreamError, ThrowOnError>({
+        security: [
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
+        ],
         url: '/ws/process/{identifier}/logs/stream',
         ...options
     });
@@ -205,6 +291,12 @@ export const getWsProcessByIdentifierLogsStream = <ThrowOnError extends boolean 
  */
 export const getWsWatchFilesystemByPath = <ThrowOnError extends boolean = false>(options: Options<GetWsWatchFilesystemByPathData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<unknown, GetWsWatchFilesystemByPathError, ThrowOnError>({
+        security: [
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
+        ],
         url: '/ws/watch/filesystem/{path}',
         ...options
     });
