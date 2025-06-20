@@ -131,17 +131,34 @@ class TelemetryManager {
   setupBasicTracerProvider() {
     const resource = new BlaxelResource(this.resourceAttributes);
 
-    // Create TracerProvider with minimal setup for context propagation
+    // Create TracerProvider with complete setup including exporters
+    // This ensures we don't need to recreate it later, preserving context
+    const spanProcessors = [
+      new DefaultAttributesSpanProcessor({
+        "workload.id": settings.name || "",
+        "workload.type": settings.type ? settings.type + "s" : "",
+        workspace: settings.workspace || "",
+      }),
+    ];
+
+    // Try to add exporters if authentication is available
+    try {
+      if (settings.authorization) {
+        const traceExporter = this.getTraceExporter();
+        spanProcessors.push(new BatchSpanProcessor(traceExporter));
+        spanProcessors.push(new HasBeenProcessedSpanProcessor(traceExporter));
+        console.log("🚀 TracerProvider created with exporters from the start");
+      }
+    } catch {
+      console.log(
+        "🚀 TracerProvider created without exporters - will be added later"
+      );
+    }
+
     this.nodeTracerProvider = new NodeTracerProvider({
       resource,
       sampler: new AlwaysOnSampler(),
-      spanProcessors: [
-        new DefaultAttributesSpanProcessor({
-          "workload.id": settings.name || "",
-          "workload.type": settings.type ? settings.type + "s" : "",
-          workspace: settings.workspace || "",
-        }),
-      ],
+      spanProcessors,
     });
 
     // Register immediately - this enables context propagation
@@ -342,29 +359,38 @@ class TelemetryManager {
     );
     logs.setGlobalLoggerProvider(this.loggerProvider);
 
-    // Add exporters to existing TracerProvider (don't recreate!)
-    if (this.nodeTracerProvider) {
-      const traceExporter = this.getTraceExporter();
+    // Check if we need to add exporters to existing TracerProvider
+    if (this.nodeTracerProvider && !settings.authorization) {
+      // If we didn't have authorization before but we do now, recreate with exporters
+      // But only if we didn't already have them
+      try {
+        const traceExporter = this.getTraceExporter();
 
-      // Create new TracerProvider with exporters but keep context continuity
-      const newTracerProvider = new NodeTracerProvider({
-        resource,
-        sampler: new AlwaysOnSampler(),
-        spanProcessors: [
-          new DefaultAttributesSpanProcessor({
-            "workload.id": settings.name || "",
-            "workload.type": settings.type ? settings.type + "s" : "",
-            workspace: settings.workspace || "",
-          }),
-          new BatchSpanProcessor(traceExporter),
-          new HasBeenProcessedSpanProcessor(traceExporter),
-        ],
-      });
+        // Unfortunately, we need to recreate the TracerProvider to add exporters
+        // This is a limitation of OpenTelemetry SDK
+        const newTracerProvider = new NodeTracerProvider({
+          resource,
+          sampler: new AlwaysOnSampler(),
+          spanProcessors: [
+            new DefaultAttributesSpanProcessor({
+              "workload.id": settings.name || "",
+              "workload.type": settings.type ? settings.type + "s" : "",
+              workspace: settings.workspace || "",
+            }),
+            new BatchSpanProcessor(traceExporter),
+            new HasBeenProcessedSpanProcessor(traceExporter),
+          ],
+        });
 
-      this.nodeTracerProvider = newTracerProvider;
-      this.nodeTracerProvider.register();
+        this.nodeTracerProvider = newTracerProvider;
+        this.nodeTracerProvider.register();
+        console.log("📡 TracerProvider updated with exporters");
+      } catch {
+        console.log("📡 Could not add exporters to TracerProvider");
+      }
+    } else {
       console.log(
-        "📡 Exporters added to TracerProvider - spans will now be sent to backend"
+        "📡 TracerProvider already has exporters or no changes needed"
       );
     }
 
