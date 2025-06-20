@@ -12,7 +12,6 @@ import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
-import type { IncomingMessage } from "http";
 import {
   envDetector,
   RawResourceAttribute,
@@ -34,7 +33,6 @@ import {
   SpanProcessor,
 } from "@opentelemetry/sdk-trace-node";
 import { OtelTelemetryProvider } from "./telemetry_provider";
-
 export class BlaxelResource implements Resource {
   attributes: Record<string, string>;
 
@@ -237,64 +235,8 @@ class TelemetryManager {
 
   instrumentApp() {
     telemetryRegistry.registerProvider(new OtelTelemetryProvider());
-
     const httpInstrumentation = new HttpInstrumentation({
       requireParentforOutgoingSpans: true,
-      // Add hooks to debug context propagation
-      startIncomingSpanHook: (request: IncomingMessage) => {
-        const headers = request.headers;
-        const traceparent = headers?.traceparent;
-        const tracestate = headers?.tracestate;
-
-        if (traceparent) {
-          logger.debug("Incoming request with traceparent header", {
-            traceparent,
-            tracestate,
-            url: request.url,
-            method: request.method,
-          });
-        } else {
-          logger.debug("Incoming request without traceparent header", {
-            url: request.url,
-            method: request.method,
-            headers: Object.keys(headers || {}),
-          });
-        }
-
-        // Return attributes object as expected by the hook
-        return {};
-      },
-      startOutgoingSpanHook: (request) => {
-        logger.debug("Starting outgoing request span", {
-          path: request.path,
-          method: request.method,
-        });
-
-        // Return attributes object as expected by the hook
-        return {};
-      },
-      // Add additional hooks for debugging
-      responseHook: (span, response) => {
-        const statusCode =
-          "statusCode" in response ? response.statusCode : undefined;
-        const headers = "headers" in response ? response.headers : undefined;
-
-        logger.debug("HTTP response received", {
-          statusCode,
-          headers: headers ? Object.keys(headers) : [],
-        });
-      },
-      requestHook: (span, request) => {
-        const url = "url" in request ? request.url : undefined;
-        const method = "method" in request ? request.method : undefined;
-        const headers = "headers" in request ? request.headers : undefined;
-
-        logger.debug("HTTP request being made", {
-          url,
-          method,
-          headers: headers ? Object.keys(headers) : [],
-        });
-      },
     });
 
     registerInstrumentations({
