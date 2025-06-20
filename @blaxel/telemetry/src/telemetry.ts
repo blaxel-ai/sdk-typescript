@@ -237,11 +237,8 @@ class TelemetryManager {
     // Setup telemetry provider first
     telemetryRegistry.registerProvider(new OtelTelemetryProvider());
 
-    // Setup TracerProvider and other providers BEFORE instrumentation
-    this.setupProviders();
-
     const httpInstrumentation = new HttpInstrumentation({
-      requireParentforOutgoingSpans: false, // Allow spans from incoming headers
+      requireParentforOutgoingSpans: true, // Maintain parent-child relationships
       requestHook: (span) => {
         // Debug incoming trace headers
         console.log("=== HTTP INSTRUMENTATION REQUEST HOOK ===");
@@ -273,28 +270,6 @@ class TelemetryManager {
     });
   }
 
-  setupProviders() {
-    const resource = new BlaxelResource(this.resourceAttributes);
-
-    // Setup TracerProvider first - this is critical for context propagation
-    this.nodeTracerProvider = new NodeTracerProvider({
-      resource,
-      sampler: new AlwaysOnSampler(),
-      spanProcessors: [
-        new DefaultAttributesSpanProcessor({
-          "workload.id": settings.name || "",
-          "workload.type": settings.type ? settings.type + "s" : "",
-          workspace: settings.workspace || "",
-        }),
-      ],
-    });
-
-    // Register the tracer provider BEFORE any instrumentation
-    this.nodeTracerProvider.register();
-
-    console.log("TracerProvider registered - ready for context propagation");
-  }
-
   setExporters() {
     const resource = new BlaxelResource(this.resourceAttributes);
 
@@ -308,7 +283,7 @@ class TelemetryManager {
     );
     logs.setGlobalLoggerProvider(this.loggerProvider);
 
-    // Recreate TracerProvider with exporters - this ensures proper initialization
+    // Setup TracerProvider with all processors including exporters
     const traceExporter = this.getTraceExporter();
     this.nodeTracerProvider = new NodeTracerProvider({
       resource,
@@ -324,9 +299,11 @@ class TelemetryManager {
       ],
     });
 
-    // Re-register the tracer provider with exporters
+    // Register the tracer provider - this enables context propagation
     this.nodeTracerProvider.register();
-    console.log("TracerProvider re-registered with exporters");
+    console.log(
+      "TracerProvider registered with exporters - ready for context propagation"
+    );
 
     // Setup metrics
     const metricExporter = this.getMetricExporter();
