@@ -12,7 +12,7 @@ import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
-import type { IncomingMessage, ClientRequest } from "http";
+import type { IncomingMessage } from "http";
 import {
   envDetector,
   RawResourceAttribute,
@@ -260,25 +260,39 @@ class TelemetryManager {
             headers: Object.keys(headers || {}),
           });
         }
+
+        // Return attributes object as expected by the hook
+        return {};
       },
-      startOutgoingSpanHook: (request: ClientRequest) => {
+      startOutgoingSpanHook: (request) => {
         logger.debug("Starting outgoing request span", {
           path: request.path,
           method: request.method,
         });
+
+        // Return attributes object as expected by the hook
+        return {};
       },
       // Add additional hooks for debugging
       responseHook: (span, response) => {
+        const statusCode =
+          "statusCode" in response ? response.statusCode : undefined;
+        const headers = "headers" in response ? response.headers : undefined;
+
         logger.debug("HTTP response received", {
-          statusCode: response.statusCode,
-          headers: Object.keys(response.headers || {}),
+          statusCode,
+          headers: headers ? Object.keys(headers) : [],
         });
       },
       requestHook: (span, request) => {
+        const url = "url" in request ? request.url : undefined;
+        const method = "method" in request ? request.method : undefined;
+        const headers = "headers" in request ? request.headers : undefined;
+
         logger.debug("HTTP request being made", {
-          url: request.url,
-          method: request.method,
-          headers: Object.keys(request.headers || {}),
+          url,
+          method,
+          headers: headers ? Object.keys(headers) : [],
         });
       },
     });
