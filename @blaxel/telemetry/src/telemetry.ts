@@ -133,7 +133,7 @@ class TelemetryManager {
 
     // Create TracerProvider with complete setup including exporters
     // This ensures we don't need to recreate it later, preserving context
-    const spanProcessors = [
+    const spanProcessors: SpanProcessor[] = [
       new DefaultAttributesSpanProcessor({
         "workload.id": settings.name || "",
         "workload.type": settings.type ? settings.type + "s" : "",
