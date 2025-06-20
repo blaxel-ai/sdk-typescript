@@ -1,18 +1,22 @@
-import { authenticate, env, logger, settings, telemetryRegistry } from "@blaxel/core";
 import {
-  metrics,
-  Span,
-  trace
-} from "@opentelemetry/api";
+  authenticate,
+  env,
+  logger,
+  settings,
+  telemetryRegistry,
+} from "@blaxel/core";
+import { metrics, Span, trace } from "@opentelemetry/api";
 import { Logger, logs } from "@opentelemetry/api-logs";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import {
-  registerInstrumentations
-} from "@opentelemetry/instrumentation";
+import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
-import { envDetector, RawResourceAttribute, Resource } from "@opentelemetry/resources";
+import {
+  envDetector,
+  RawResourceAttribute,
+  Resource,
+} from "@opentelemetry/resources";
 import {
   BatchLogRecordProcessor,
   LoggerProvider,
@@ -69,7 +73,6 @@ export class DefaultAttributesSpanProcessor implements SpanProcessor {
     return Promise.resolve();
   }
 }
-
 
 export type TelemetryOptions = {
   workspace: string | null;
@@ -193,7 +196,7 @@ class TelemetryManager {
       attributes["workspace"] = settings.workspace;
     }
     if (settings.type) {
-      attributes["workload.type"] = settings.type+"s";
+      attributes["workload.type"] = settings.type + "s";
     }
     // Only keep string values
     const stringAttrs: Record<string, string> = {};
@@ -258,7 +261,7 @@ class TelemetryManager {
       spanProcessors: [
         new DefaultAttributesSpanProcessor({
           "workload.id": settings.name || "",
-          "workload.type": settings.type? settings.type+"s" : "",
+          "workload.type": settings.type ? settings.type + "s" : "",
           workspace: settings.workspace || "",
         }),
         new BatchSpanProcessor(traceExporter),
