@@ -234,9 +234,38 @@ class TelemetryManager {
   }
 
   instrumentApp() {
+    // Setup telemetry provider first
     telemetryRegistry.registerProvider(new OtelTelemetryProvider());
+
+    // Setup TracerProvider and other providers BEFORE instrumentation
+    this.setupProviders();
+
     const httpInstrumentation = new HttpInstrumentation({
-      requireParentforOutgoingSpans: true,
+      requireParentforOutgoingSpans: false, // Allow spans from incoming headers
+      requestHook: (span) => {
+        // Debug incoming trace headers
+        console.log("=== HTTP INSTRUMENTATION REQUEST HOOK ===");
+
+        // Check current span context after HTTP instrumentation processes headers
+        const activeSpan = trace.getActiveSpan();
+        if (activeSpan) {
+          console.log("Active span in request hook:", {
+            traceId: activeSpan.spanContext().traceId,
+            spanId: activeSpan.spanContext().spanId,
+            traceFlags: activeSpan.spanContext().traceFlags,
+          });
+        } else {
+          console.log("No active span found in request hook");
+        }
+
+        console.log("Current span from hook parameter:", {
+          traceId: span.spanContext().traceId,
+          spanId: span.spanContext().spanId,
+          traceFlags: span.spanContext().traceFlags,
+        });
+
+        console.log("=== END HTTP INSTRUMENTATION REQUEST HOOK ===");
+      },
     });
 
     registerInstrumentations({
@@ -244,8 +273,32 @@ class TelemetryManager {
     });
   }
 
+  setupProviders() {
+    const resource = new BlaxelResource(this.resourceAttributes);
+
+    // Setup TracerProvider first - this is critical for context propagation
+    this.nodeTracerProvider = new NodeTracerProvider({
+      resource,
+      sampler: new AlwaysOnSampler(),
+      spanProcessors: [
+        new DefaultAttributesSpanProcessor({
+          "workload.id": settings.name || "",
+          "workload.type": settings.type ? settings.type + "s" : "",
+          workspace: settings.workspace || "",
+        }),
+      ],
+    });
+
+    // Register the tracer provider BEFORE any instrumentation
+    this.nodeTracerProvider.register();
+
+    console.log("TracerProvider registered - ready for context propagation");
+  }
+
   setExporters() {
     const resource = new BlaxelResource(this.resourceAttributes);
+
+    // Setup logging
     const logExporter = this.getLogExporter();
     this.loggerProvider = new LoggerProvider({
       resource,
@@ -254,6 +307,8 @@ class TelemetryManager {
       new BatchLogRecordProcessor(logExporter)
     );
     logs.setGlobalLoggerProvider(this.loggerProvider);
+
+    // Recreate TracerProvider with exporters - this ensures proper initialization
     const traceExporter = this.getTraceExporter();
     this.nodeTracerProvider = new NodeTracerProvider({
       resource,
@@ -268,7 +323,12 @@ class TelemetryManager {
         new HasBeenProcessedSpanProcessor(traceExporter),
       ],
     });
+
+    // Re-register the tracer provider with exporters
     this.nodeTracerProvider.register();
+    console.log("TracerProvider re-registered with exporters");
+
+    // Setup metrics
     const metricExporter = this.getMetricExporter();
     this.meterProvider = new MeterProvider({
       resource,
