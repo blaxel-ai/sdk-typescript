@@ -38,10 +38,6 @@ export interface BlaxelTelemetryProvider {
   startSpan(name: string, options?: BlaxelSpanOptions): BlaxelSpan;
   /** Flush the telemetry provider */
   flush(): Promise<void>;
-  /** Extract context from headers for manual context propagation */
-  extractContextFromHeaders?(
-    headers: Record<string, string | string[]>
-  ): unknown;
 }
 
 /**
@@ -65,29 +61,44 @@ class NoopTelemetryProvider implements BlaxelTelemetryProvider {
   startSpan(): BlaxelSpan {
     return new NoopSpan();
   }
-  async flush(): Promise<void> {}
-  extractContextFromHeaders(): unknown {
-    return null;
+  flush(): Promise<void> {
+    return Promise.resolve();
   }
 }
 
 /**
- * Registry for telemetry providers
+ * Registry for managing the global telemetry provider
  */
 class TelemetryRegistry {
+  private static instance: TelemetryRegistry;
   private provider: BlaxelTelemetryProvider = new NoopTelemetryProvider();
 
-  registerProvider(provider: BlaxelTelemetryProvider) {
+  private constructor() {}
+
+  static getInstance(): TelemetryRegistry {
+    if (!TelemetryRegistry.instance) {
+      TelemetryRegistry.instance = new TelemetryRegistry();
+    }
+    return TelemetryRegistry.instance;
+  }
+
+  /**
+   * Register a telemetry provider implementation
+   */
+  registerProvider(provider: BlaxelTelemetryProvider): void {
     this.provider = provider;
   }
 
+  /**
+   * Get the current telemetry provider
+   */
   getProvider(): BlaxelTelemetryProvider {
     return this.provider;
   }
 }
 
-// Global instance
-export const telemetryRegistry = new TelemetryRegistry();
+// Export singleton instance
+export const telemetryRegistry = TelemetryRegistry.getInstance();
 
 // Convenience functions that delegate to the provider
 
@@ -118,39 +129,6 @@ export async function withSpan<T>(
   }
 }
 
-/**
- * Extract context from headers - useful for manual context propagation
- * when you have traceparent headers but no active span
- */
-export function extractContextFromHeaders(
-  headers: Record<string, string | string[]>
-): unknown {
-  const provider = telemetryRegistry.getProvider();
-  if (provider.extractContextFromHeaders) {
-    return provider.extractContextFromHeaders(headers);
-  }
-  return null;
-}
-
-/**
- * Create a span with extracted context from headers
- * This is useful when you need to manually establish trace context
- */
-export function startSpanWithHeaders(
-  name: string,
-  headers: Record<string, string | string[]>,
-  options?: Omit<BlaxelSpanOptions, "parentContext">
-): BlaxelSpan {
-  const extractedContext = extractContextFromHeaders(headers);
-  return startSpan(name, {
-    ...options,
-    parentContext: extractedContext || undefined,
-  });
-}
-
-/**
- * Flush the telemetry provider
- */
-export async function flush(): Promise<void> {
-  return telemetryRegistry.getProvider().flush();
+export async function flush() {
+  await telemetryRegistry.getProvider().flush();
 }
