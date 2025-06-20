@@ -23,7 +23,7 @@ export interface BlaxelSpan {
   /** Record an error on the span */
   recordException(error: Error): void;
   /** Set the status of the span */
-  setStatus(status: 'ok' | 'error', message?: string): void;
+  setStatus(status: "ok" | "error", message?: string): void;
   /** End the span */
   end(): void;
   /** Get the span context (for passing to child spans) */
@@ -38,6 +38,10 @@ export interface BlaxelTelemetryProvider {
   startSpan(name: string, options?: BlaxelSpanOptions): BlaxelSpan;
   /** Flush the telemetry provider */
   flush(): Promise<void>;
+  /** Extract context from headers for manual context propagation */
+  extractContextFromHeaders?(
+    headers: Record<string, string | string[]>
+  ): unknown;
 }
 
 /**
@@ -49,7 +53,9 @@ class NoopSpan implements BlaxelSpan {
   recordException(): void {}
   setStatus(): void {}
   end(): void {}
-  getContext(): unknown { return null; }
+  getContext(): unknown {
+    return null;
+  }
 }
 
 /**
@@ -59,55 +65,47 @@ class NoopTelemetryProvider implements BlaxelTelemetryProvider {
   startSpan(): BlaxelSpan {
     return new NoopSpan();
   }
-  flush(): Promise<void> {
-    return Promise.resolve();
+  async flush(): Promise<void> {}
+  extractContextFromHeaders(): unknown {
+    return null;
   }
 }
 
 /**
- * Registry for managing the global telemetry provider
+ * Registry for telemetry providers
  */
 class TelemetryRegistry {
-  private static instance: TelemetryRegistry;
   private provider: BlaxelTelemetryProvider = new NoopTelemetryProvider();
 
-  private constructor() {}
-
-  static getInstance(): TelemetryRegistry {
-    if (!TelemetryRegistry.instance) {
-      TelemetryRegistry.instance = new TelemetryRegistry();
-    }
-    return TelemetryRegistry.instance;
-  }
-
-  /**
-   * Register a telemetry provider implementation
-   */
-  registerProvider(provider: BlaxelTelemetryProvider): void {
+  registerProvider(provider: BlaxelTelemetryProvider) {
     this.provider = provider;
   }
 
-  /**
-   * Get the current telemetry provider
-   */
   getProvider(): BlaxelTelemetryProvider {
     return this.provider;
   }
 }
 
-// Export singleton instance
-export const telemetryRegistry = TelemetryRegistry.getInstance();
+// Global instance
+export const telemetryRegistry = new TelemetryRegistry();
 
 // Convenience functions that delegate to the provider
 
 /**
  * Create a span with the registered provider
  */
-export function startSpan(name: string, options?: BlaxelSpanOptions): BlaxelSpan {
+export function startSpan(
+  name: string,
+  options?: BlaxelSpanOptions
+): BlaxelSpan {
   return telemetryRegistry.getProvider().startSpan(name, options);
 }
 
-export async function withSpan<T>(name: string, fn: () => Promise<T>, options?: BlaxelSpanOptions): Promise<T> {
+export async function withSpan<T>(
+  name: string,
+  fn: () => Promise<T>,
+  options?: BlaxelSpanOptions
+): Promise<T> {
   const span = startSpan(name, options);
   try {
     const result = await fn();
@@ -120,6 +118,32 @@ export async function withSpan<T>(name: string, fn: () => Promise<T>, options?: 
   }
 }
 
-export async function flush() {
-  await telemetryRegistry.getProvider().flush();
+/**
+ * Extract context from headers - useful for manual context propagation
+ * when you have traceparent headers but no active span
+ */
+export function extractContextFromHeaders(
+  headers: Record<string, string | string[]>
+): unknown {
+  const provider = telemetryRegistry.getProvider();
+  if (provider.extractContextFromHeaders) {
+    return provider.extractContextFromHeaders(headers);
+  }
+  return null;
+}
+
+/**
+ * Create a span with extracted context from headers
+ * This is useful when you need to manually establish trace context
+ */
+export function startSpanWithHeaders(
+  name: string,
+  headers: Record<string, string | string[]>,
+  options?: Omit<BlaxelSpanOptions, "parentContext">
+): BlaxelSpan {
+  const extractedContext = extractContextFromHeaders(headers);
+  return startSpan(name, {
+    ...options,
+    parentContext: extractedContext || undefined,
+  });
 }
