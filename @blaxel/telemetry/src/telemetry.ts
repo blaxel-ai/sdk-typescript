@@ -5,12 +5,7 @@ import {
   settings,
   telemetryRegistry,
 } from "@blaxel/core";
-import {
-  metrics,
-  Span,
-  trace,
-  context as otelContext,
-} from "@opentelemetry/api";
+import { metrics, Span, trace } from "@opentelemetry/api";
 import { Logger, logs } from "@opentelemetry/api-logs";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
@@ -113,59 +108,12 @@ class TelemetryManager {
     if (!this.enabled || this.initialized) {
       return;
     }
-
-    // Setup basic TracerProvider first - this is critical for context propagation
-    this.setupBasicTracerProvider();
-
-    // Now setup instrumentation - it can now extract traceparent headers
     this.instrumentApp();
     this.setupSignalHandler();
     this.initialized = true;
-
-    // Add exporters later asynchronously
     this.setConfiguration().catch((error) => {
       logger.error("Error setting configuration:", error);
     });
-  }
-
-  setupBasicTracerProvider() {
-    const resource = new BlaxelResource(this.resourceAttributes);
-
-    // Create TracerProvider with complete setup including exporters
-    // This ensures we don't need to recreate it later, preserving context
-    const spanProcessors: SpanProcessor[] = [
-      new DefaultAttributesSpanProcessor({
-        "workload.id": settings.name || "",
-        "workload.type": settings.type ? settings.type + "s" : "",
-        workspace: settings.workspace || "",
-      }),
-    ];
-
-    // Try to add exporters if authentication is available
-    try {
-      if (settings.authorization) {
-        const traceExporter = this.getTraceExporter();
-        spanProcessors.push(new BatchSpanProcessor(traceExporter));
-        spanProcessors.push(new HasBeenProcessedSpanProcessor(traceExporter));
-        console.log("🚀 TracerProvider created with exporters from the start");
-      }
-    } catch {
-      console.log(
-        "🚀 TracerProvider created without exporters - will be added later"
-      );
-    }
-
-    this.nodeTracerProvider = new NodeTracerProvider({
-      resource,
-      sampler: new AlwaysOnSampler(),
-      spanProcessors,
-    });
-
-    // Register immediately - this enables context propagation
-    this.nodeTracerProvider.register();
-    console.log(
-      "🚀 TracerProvider registered BEFORE instrumentation - context propagation enabled"
-    );
   }
 
   async setConfiguration() {
@@ -289,46 +237,25 @@ class TelemetryManager {
     // Setup telemetry provider first
     telemetryRegistry.registerProvider(new OtelTelemetryProvider());
 
+    // Setup TracerProvider and other providers BEFORE instrumentation
+    this.setupProviders();
+
     const httpInstrumentation = new HttpInstrumentation({
-      requireParentforOutgoingSpans: true, // Maintain parent-child relationships
+      requireParentforOutgoingSpans: false, // Allow spans from incoming headers
       requestHook: (span) => {
         // Debug incoming trace headers
         console.log("=== HTTP INSTRUMENTATION REQUEST HOOK ===");
 
-        // Check if TracerProvider is registered
-        const tracer = trace.getTracer("debug");
-        console.log("TracerProvider available:", !!tracer);
-
-        // Check active context
-        const activeContext = otelContext.active();
-        const spanContext = trace.getSpanContext(activeContext);
-        console.log(
-          "Span context from active context:",
-          spanContext
-            ? {
-                traceId: spanContext.traceId,
-                spanId: spanContext.spanId,
-                traceFlags: spanContext.traceFlags,
-              }
-            : "null"
-        );
-
         // Check current span context after HTTP instrumentation processes headers
         const activeSpan = trace.getActiveSpan();
         if (activeSpan) {
-          console.log("✅ Active span found in request hook:", {
+          console.log("Active span in request hook:", {
             traceId: activeSpan.spanContext().traceId,
             spanId: activeSpan.spanContext().spanId,
             traceFlags: activeSpan.spanContext().traceFlags,
           });
         } else {
-          console.log("❌ No active span found in request hook");
-          console.log("Possible causes:");
-          console.log(
-            "1. TracerProvider not registered before HTTP instrumentation"
-          );
-          console.log("2. Traceparent header not properly extracted");
-          console.log("3. Context lost across async boundaries");
+          console.log("No active span found in request hook");
         }
 
         console.log("Current span from hook parameter:", {
@@ -346,6 +273,28 @@ class TelemetryManager {
     });
   }
 
+  setupProviders() {
+    const resource = new BlaxelResource(this.resourceAttributes);
+
+    // Setup TracerProvider first - this is critical for context propagation
+    this.nodeTracerProvider = new NodeTracerProvider({
+      resource,
+      sampler: new AlwaysOnSampler(),
+      spanProcessors: [
+        new DefaultAttributesSpanProcessor({
+          "workload.id": settings.name || "",
+          "workload.type": settings.type ? settings.type + "s" : "",
+          workspace: settings.workspace || "",
+        }),
+      ],
+    });
+
+    // Register the tracer provider BEFORE any instrumentation
+    this.nodeTracerProvider.register();
+
+    console.log("TracerProvider registered - ready for context propagation");
+  }
+
   setExporters() {
     const resource = new BlaxelResource(this.resourceAttributes);
 
@@ -359,40 +308,25 @@ class TelemetryManager {
     );
     logs.setGlobalLoggerProvider(this.loggerProvider);
 
-    // Check if we need to add exporters to existing TracerProvider
-    if (this.nodeTracerProvider && !settings.authorization) {
-      // If we didn't have authorization before but we do now, recreate with exporters
-      // But only if we didn't already have them
-      try {
-        const traceExporter = this.getTraceExporter();
+    // Recreate TracerProvider with exporters - this ensures proper initialization
+    const traceExporter = this.getTraceExporter();
+    this.nodeTracerProvider = new NodeTracerProvider({
+      resource,
+      sampler: new AlwaysOnSampler(),
+      spanProcessors: [
+        new DefaultAttributesSpanProcessor({
+          "workload.id": settings.name || "",
+          "workload.type": settings.type ? settings.type + "s" : "",
+          workspace: settings.workspace || "",
+        }),
+        new BatchSpanProcessor(traceExporter),
+        new HasBeenProcessedSpanProcessor(traceExporter),
+      ],
+    });
 
-        // Unfortunately, we need to recreate the TracerProvider to add exporters
-        // This is a limitation of OpenTelemetry SDK
-        const newTracerProvider = new NodeTracerProvider({
-          resource,
-          sampler: new AlwaysOnSampler(),
-          spanProcessors: [
-            new DefaultAttributesSpanProcessor({
-              "workload.id": settings.name || "",
-              "workload.type": settings.type ? settings.type + "s" : "",
-              workspace: settings.workspace || "",
-            }),
-            new BatchSpanProcessor(traceExporter),
-            new HasBeenProcessedSpanProcessor(traceExporter),
-          ],
-        });
-
-        this.nodeTracerProvider = newTracerProvider;
-        this.nodeTracerProvider.register();
-        console.log("📡 TracerProvider updated with exporters");
-      } catch {
-        console.log("📡 Could not add exporters to TracerProvider");
-      }
-    } else {
-      console.log(
-        "📡 TracerProvider already has exporters or no changes needed"
-      );
-    }
+    // Re-register the tracer provider with exporters
+    this.nodeTracerProvider.register();
+    console.log("TracerProvider re-registered with exporters");
 
     // Setup metrics
     const metricExporter = this.getMetricExporter();
