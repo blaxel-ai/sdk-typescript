@@ -59,7 +59,7 @@ export class OtelTelemetryProvider implements BlaxelTelemetryProvider {
 
     // Get the current active context - this will include any traceparent propagation
     const activeContext = otelContext.active();
-    const activeSpan = trace.getActiveSpan(activeContext);
+    const activeSpan = trace.getActiveSpan();
 
     // Debug logging to help understand context propagation
     console.log("=== CREATING NEW SPAN ===");
