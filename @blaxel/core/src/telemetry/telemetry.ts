@@ -147,3 +147,10 @@ export function startSpanWithHeaders(
     parentContext: extractedContext || undefined,
   });
 }
+
+/**
+ * Flush the telemetry provider
+ */
+export async function flush(): Promise<void> {
+  return telemetryRegistry.getProvider().flush();
+}
