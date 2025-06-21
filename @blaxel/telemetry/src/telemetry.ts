@@ -237,7 +237,7 @@ class TelemetryManager {
     telemetryRegistry.registerProvider(new OtelTelemetryProvider());
     const httpInstrumentation = new HttpInstrumentation({
       requireParentforOutgoingSpans: true,
-      requireParentForIncomingSpans: true,
+      requireParentforIncomingSpans: true,
     });
 
     registerInstrumentations({
