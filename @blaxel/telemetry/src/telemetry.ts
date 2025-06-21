@@ -33,6 +33,7 @@ import {
   SpanProcessor,
 } from "@opentelemetry/sdk-trace-node";
 import { OtelTelemetryProvider } from "./telemetry_provider";
+
 export class BlaxelResource implements Resource {
   attributes: Record<string, string>;
 
@@ -235,6 +236,7 @@ class TelemetryManager {
 
   instrumentApp() {
     telemetryRegistry.registerProvider(new OtelTelemetryProvider());
+
     const httpInstrumentation = new HttpInstrumentation({
       requireParentforOutgoingSpans: true,
       requireParentForIncomingSpans: true,
