@@ -1,17 +1,19 @@
-import { BlaxelSpan, BlaxelSpanOptions, BlaxelTelemetryProvider } from "@blaxel/core";
+import {
+  BlaxelSpan,
+  BlaxelSpanOptions,
+  BlaxelTelemetryProvider,
+} from "@blaxel/core";
 import {
   Span as OtelApiSpan,
   context as otelContext,
   SpanOptions as OtelSpanOptions,
-  ROOT_CONTEXT,
-  SpanContext,
-  SpanStatusCode, trace
+  SpanStatusCode,
+  trace,
 } from "@opentelemetry/api";
 import { blaxelTelemetry } from "./telemetry";
 
 class OtelSpan implements BlaxelSpan {
   private span: OtelApiSpan;
-  public closed = false;
 
   constructor(span: OtelApiSpan) {
     this.span = span;
@@ -22,7 +24,9 @@ class OtelSpan implements BlaxelSpan {
   }
 
   setAttributes(attributes: Record<string, string | number | boolean>): void {
-    Object.entries(attributes).forEach(([k, v]) => this.span.setAttribute(k, v));
+    Object.entries(attributes).forEach(([k, v]) =>
+      this.span.setAttribute(k, v)
+    );
   }
 
   recordException(error: Error): void {
@@ -30,15 +34,14 @@ class OtelSpan implements BlaxelSpan {
     this.span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
   }
 
-  setStatus(status: 'ok' | 'error', message?: string): void {
+  setStatus(status: "ok" | "error", message?: string): void {
     this.span.setStatus({
-      code: status === 'ok' ? SpanStatusCode.OK : SpanStatusCode.ERROR,
+      code: status === "ok" ? SpanStatusCode.OK : SpanStatusCode.ERROR,
       message,
     });
   }
 
   end(): void {
-    this.closed = true;
     this.span.end();
   }
 
@@ -48,31 +51,25 @@ class OtelSpan implements BlaxelSpan {
 }
 
 export class OtelTelemetryProvider implements BlaxelTelemetryProvider {
-  private spans: OtelSpan[] = [];
-
-  retrieveActiveSpanContext() {
-    for(let i = this.spans.length - 1; i >= 0; i--) {
-      const span = this.spans[i];
-      if(!span.closed) {
-        return trace.setSpanContext(ROOT_CONTEXT, span.getContext() as SpanContext);
-      }
-    }
-    return otelContext.active();
-  }
-
   startSpan(name: string, options?: BlaxelSpanOptions): BlaxelSpan {
+    // Use the tracer from the registered NodeTracerProvider
     const tracer = trace.getTracer("blaxel");
 
+    // Prepare OpenTelemetry span options
     const otelOptions: OtelSpanOptions = {
       attributes: options?.attributes,
       root: options?.isRoot,
     };
 
-    const ctx = this.retrieveActiveSpanContext();
-    const span = new OtelSpan(tracer.startSpan(name, otelOptions, ctx));
-    this.spans.push(span);
+    // Handle parent context if provided
+    let ctx = otelContext.active();
+    if (options?.parentContext) {
+      ctx = options.parentContext as typeof ctx;
+    }
 
-    return span;
+    // Start the span
+    const span = tracer.startSpan(name, otelOptions, ctx);
+    return new OtelSpan(span);
   }
 
   async flush(): Promise<void> {
