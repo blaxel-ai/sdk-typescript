@@ -239,7 +239,7 @@ class TelemetryManager {
 
     const httpInstrumentation = new HttpInstrumentation({
       requireParentforOutgoingSpans: true,
-      requireParentForIncomingSpans: true,
+      requireParentforIncomingSpans: true,
     });
 
     registerInstrumentations({
