@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from "uuid";
 import { createSandbox, deleteSandbox, getSandbox, listSandboxes, Sandbox as SandboxModel } from "../client/index.js";
 import { logger } from "../common/logger.js";
 import { SandboxFileSystem } from "./filesystem/index.js";
@@ -5,7 +6,7 @@ import { SandboxNetwork } from "./network/index.js";
 import { SandboxPreviews } from "./preview.js";
 import { SandboxProcess } from "./process/index.js";
 import { SandboxSessions } from "./session.js";
-import { SandboxConfiguration, SessionWithToken } from "./types.js";
+import { SandboxConfiguration, SandboxCreateConfiguration, SessionWithToken } from "./types.js";
 
 export class SandboxInstance {
   fs: SandboxFileSystem;
@@ -63,12 +64,35 @@ export class SandboxInstance {
     }
   }
 
-  static async create(sandbox: SandboxModel) {
-    if (sandbox.spec?.runtime?.generation == undefined) {
-      sandbox.spec = sandbox.spec ?? {runtime: {}}
-      sandbox.spec.runtime = sandbox.spec.runtime ?? {}
-      sandbox.spec.runtime.generation = "mk3"
+  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration) {
+    const defaultName = `sandbox-${uuidv4().replace(/-/g, '').substring(0, 8)}`
+    const defaultImage = "blaxel/prod-base:latest"
+    const defaultMemory = 4096
+    if (!sandbox || 'name' in sandbox || 'image' in sandbox || 'memory' in sandbox) {
+      if (!sandbox) sandbox = {} as SandboxCreateConfiguration
+      if (!sandbox.name) sandbox.name = defaultName
+      if (!sandbox.image) sandbox.image = defaultImage
+      if (!sandbox.memory) sandbox.memory = defaultMemory
+      sandbox = {
+        metadata: { name: sandbox.name },
+        spec: { runtime: { image: sandbox.image, memory: sandbox.memory, generation: "mk3" } }
+      } as SandboxModel
     }
+    sandbox = sandbox as SandboxModel
+    if (!sandbox.metadata) {
+      sandbox.metadata = { name: crypto.randomUUID().replace(/-/g, '') };
+    }
+    if (!sandbox.spec) {
+      sandbox.spec = { runtime: { image: "blaxel/prod-base:latest" } };
+    }
+    if (!sandbox.spec.runtime) {
+      sandbox.spec.runtime = { image: defaultImage, memory: defaultMemory };
+    }
+
+    sandbox.spec.runtime.image = sandbox.spec.runtime.image || defaultImage;
+    sandbox.spec.runtime.memory = sandbox.spec.runtime.memory || defaultMemory;
+    sandbox.spec.runtime.generation = sandbox.spec.runtime.generation || "mk3";
+
     const { data } = await createSandbox({
       body: sandbox,
       throwOnError: true,
@@ -101,9 +125,13 @@ export class SandboxInstance {
     return data;
   }
 
-  static async createIfNotExists(sandbox: SandboxModel) {
+  static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration) {
     try {
-      const sandboxInstance = await SandboxInstance.get(sandbox.metadata?.name ?? "");
+      let name = 'name' in sandbox ? sandbox.name : (sandbox as SandboxModel).metadata?.name
+      if (!name) {
+        throw new Error("Sandbox name is required");
+      }
+      const sandboxInstance = await SandboxInstance.get(name);
       return sandboxInstance;
     } catch (e) {
       if (typeof e === "object" && e !== null && "code" in e && e.code === 404) {
@@ -115,6 +143,16 @@ export class SandboxInstance {
 
   /* eslint-disable */
   static async fromSession(session: SessionWithToken) {
-    return new SandboxInstance({ forceUrl: session.url, params: { bl_preview_token: session.token}, headers: { "X-Blaxel-Preview-Token": session.token } });
+    // Create a minimal sandbox configuration for session-based access
+    const sandboxName = session.name.includes("-") ? session.name.split("-")[0] : session.name;
+    const sandbox: SandboxConfiguration = {
+      metadata: { name: sandboxName },
+      forceUrl: session.url,
+      headers: { "X-Blaxel-Preview-Token": session.token },
+      params: { bl_preview_token: session.token }
+    };
+
+    // Create instance using constructor instead of direct property assignment
+    return new SandboxInstance(sandbox);
   }
 }

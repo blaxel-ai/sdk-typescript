@@ -142,7 +142,7 @@ export class SandboxFileSystem extends SandboxAction {
     if (!data || !('files' in data || 'subdirectories' in data)) {
       throw new Error(JSON.stringify({ error: "Directory not found" }));
     }
-    return data;
+    return data as Directory;
   }
 
   async cp(source: string, destination: string): Promise<CopyResponse> {
@@ -159,7 +159,7 @@ export class SandboxFileSystem extends SandboxAction {
       await this.mkdir(destination);
 
       // Process subdirectories in batches of 5
-      const subdirectories = data.subdirectories || [];
+      const subdirectories = (data as Directory).subdirectories || [];
       for (let i = 0; i < subdirectories.length; i += 5) {
         const batch = subdirectories.slice(i, i + 5);
         await Promise.all(
@@ -172,7 +172,7 @@ export class SandboxFileSystem extends SandboxAction {
       }
 
       // Process files in batches of 10
-      const files = data.files || [];
+      const files = (data as Directory).files || [];
       for (let i = 0; i < files.length; i += 10) {
         const batch = files.slice(i, i + 10);
         await Promise.all(

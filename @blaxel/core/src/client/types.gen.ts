@@ -775,7 +775,9 @@ export type JobMetrics = {
 /**
  * Job specification
  */
-export type JobSpec = CoreSpec & unknown;
+export type JobSpec = CoreSpec & {
+    triggers?: Triggers;
+};
 
 /**
  * Jobs chart
@@ -2568,12 +2570,7 @@ export type TraceIdsResponse = {
  * Trigger configuration
  */
 export type Trigger = {
-    /**
-     * The configuration of the trigger
-     */
-    configuration?: {
-        [key: string]: unknown;
-    };
+    configuration?: TriggerConfiguration;
     /**
      * The id of the trigger
      */
@@ -2582,6 +2579,28 @@ export type Trigger = {
      * The type of trigger, can be http or http-async
      */
     type?: string;
+};
+
+/**
+ * Trigger configuration
+ */
+export type TriggerConfiguration = {
+    /**
+     * The authentication type of the trigger
+     */
+    authenticationType?: string;
+    /**
+     * The path of the trigger
+     */
+    path?: string;
+    /**
+     * The retry of the trigger
+     */
+    retry?: number;
+    /**
+     * The schedule of the trigger, cron expression * * * * *
+     */
+    schedule?: string;
 };
 
 /**

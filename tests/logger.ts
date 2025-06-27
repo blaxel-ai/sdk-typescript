@@ -18,7 +18,6 @@ const deepObject = {
 
 async function main() {
   logger.debug("Hello, world!");
-  logger.log("Hello, world!");
   logger.info("Hello, world!");
   logger.warn("Hello, world!");
   logger.error("Hello, world!");
@@ -28,7 +27,6 @@ async function main() {
   console.warn("Hello, world!")
   console.error("Hello, world!");
   logger.debug(deepObject);
-  logger.log(deepObject);
   logger.info(deepObject);
   logger.warn(deepObject);
   logger.error(deepObject);
