@@ -60,13 +60,13 @@
 	"dependencies": {
 		"@blaxel/core": "workspace:*",
 		"@llamaindex/anthropic": "^0.3.4",
-		"@llamaindex/core": "0.6.6",
-		"@llamaindex/google": "^0.3.2",
+		"@llamaindex/core": "0.6.9",
+		"@llamaindex/google": "0.3.2",
 		"@llamaindex/mistral": "^0.1.3",
 		"@llamaindex/openai": "^0.3.5",
 		"@opentelemetry/instrumentation": "^0.200.0",
 		"@traceloop/instrumentation-llamaindex": "^0.13.0",
-		"llamaindex": "^0.10.3"
+		"llamaindex": "^0.11.6"
 	},
 	"devDependencies": {
 		"@eslint/js": "^9.26.0",

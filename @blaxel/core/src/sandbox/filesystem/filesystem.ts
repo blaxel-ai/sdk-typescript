@@ -114,7 +114,7 @@ export class SandboxFileSystem extends SandboxAction {
     });
     this.handleResponseError(response, data, error);
     if (data && 'content' in data) {
-      return data.content as string;
+      return data.content;
     }
     throw new Error("Unsupported file type");
   }
@@ -192,7 +192,7 @@ export class SandboxFileSystem extends SandboxAction {
         destination,
       }
     } else if (data && 'content' in data) {
-      await this.write(destination, data.content as string);
+      await this.write(destination, data.content);
       return {
         message: "File copied successfully",
         source,
