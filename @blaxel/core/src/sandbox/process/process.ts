@@ -91,11 +91,11 @@ export class SandboxProcess extends SandboxAction {
     if (shouldWaitForCompletion) {
       let streamControl: { close: () => void } | undefined;
       if (onLog) {
-        streamControl = this.streamLogs(result.pid!, { onLog });
+        streamControl = this.streamLogs(result.pid, { onLog });
       }
       try {
         // Wait for process completion
-        result = await this.wait(result.pid!, { interval: 50 }) as PostProcessResponse;
+        result = await this.wait(result.pid, { interval: 50 });
       } finally {
         // Clean up log streaming
         if (streamControl) {
@@ -105,9 +105,7 @@ export class SandboxProcess extends SandboxAction {
     } else {
       // For non-blocking execution, set up log streaming immediately if requested
       if (onLog) {
-        const stream = this.streamLogs(result.pid!, { onLog });
-        // Store close function in result for cleanup
-        (result as any).close = stream.close;
+        this.streamLogs(result.pid, { onLog });
       }
     }
 

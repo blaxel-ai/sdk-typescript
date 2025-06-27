@@ -127,7 +127,7 @@ export class SandboxInstance {
 
   static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration) {
     try {
-      let name = 'name' in sandbox ? sandbox.name : (sandbox as SandboxModel).metadata?.name
+      const name = 'name' in sandbox ? sandbox.name : (sandbox as SandboxModel).metadata?.name
       if (!name) {
         throw new Error("Sandbox name is required");
       }
