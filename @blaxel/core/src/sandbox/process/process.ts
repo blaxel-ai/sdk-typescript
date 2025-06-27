@@ -66,14 +66,52 @@ export class SandboxProcess extends SandboxAction {
     };
   }
 
-  async exec(process: ProcessRequest): Promise<PostProcessResponse> {
+  async exec(
+    process: ProcessRequest,
+    onLog?: (log: string) => void
+  ): Promise<PostProcessResponse> {
+    // Store original wait_for_completion setting
+    const shouldWaitForCompletion = process.waitForCompletion;
+
+    // Always start process without wait_for_completion to avoid server-side blocking
+    if (shouldWaitForCompletion && onLog) {
+      process.waitForCompletion = false;
+    }
+
     const { response, data, error } = await postProcess({
       body: process,
       baseUrl: this.url,
       client: this.client,
     });
     this.handleResponseError(response, data, error);
-    return data as PostProcessResponse;
+
+    let result = data as PostProcessResponse;
+
+    // Handle wait_for_completion with parallel log streaming
+    if (shouldWaitForCompletion) {
+      let streamControl: { close: () => void } | undefined;
+      if (onLog) {
+        streamControl = this.streamLogs(result.pid!, { onLog });
+      }
+      try {
+        // Wait for process completion
+        result = await this.wait(result.pid!, { interval: 50 }) as PostProcessResponse;
+      } finally {
+        // Clean up log streaming
+        if (streamControl) {
+          streamControl.close();
+        }
+      }
+    } else {
+      // For non-blocking execution, set up log streaming immediately if requested
+      if (onLog) {
+        const stream = this.streamLogs(result.pid!, { onLog });
+        // Store close function in result for cleanup
+        (result as any).close = stream.close;
+      }
+    }
+
+    return result;
   }
 
   async wait(identifier: string, {maxWait = 60000, interval = 1000}: {maxWait?: number, interval?: number} = {}): Promise<GetProcessByIdentifierResponse> {

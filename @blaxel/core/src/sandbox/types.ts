@@ -19,3 +19,9 @@ export type SandboxConfiguration = {
   headers?: Record<string, string>;
   params?: Record<string, string>;
 } & Sandbox;
+
+export type SandboxCreateConfiguration = {
+  name?: string;
+  image?: string;
+  memory?: number;
+}
