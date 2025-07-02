@@ -5,7 +5,7 @@ import { createOrGetSandbox } from "../utils.js";
 const SANDBOX_NAME = "sandbox-test-typescript-process-features";
 
 async function testWaitForCompletionWithLogs(sandbox: SandboxInstance) {
-  console.log("🔧 Testing wait_for_completion with logs...");
+  console.log("🔧 Testing waitForCompletion with logs...");
 
   // Create a process that outputs some logs
   const processRequest: ProcessRequest = {
@@ -14,7 +14,7 @@ async function testWaitForCompletionWithLogs(sandbox: SandboxInstance) {
     waitForCompletion: true,
   };
 
-  // Execute with wait_for_completion=true
+  // Execute with waitForCompletion=true
   const response = await sandbox.process.exec(processRequest);
 
   // Check that we got the response
@@ -24,7 +24,7 @@ async function testWaitForCompletionWithLogs(sandbox: SandboxInstance) {
 
   // Check that logs were added to the response
   console.assert("logs" in response, "Response should have logs");
-  const logs = (response as any).logs;
+  const logs = response.logs;
   console.assert(typeof logs === "string", "Logs should be a string");
   console.assert(logs.length > 0, "Logs should not be empty");
 
@@ -85,7 +85,7 @@ async function testOnLogCallback(sandbox: SandboxInstance) {
 }
 
 async function testCombinedFeatures(sandbox: SandboxInstance) {
-  console.log("🔧 Testing combined wait_for_completion and on_log...");
+  console.log("🔧 Testing combined waitForCompletion and on_log...");
 
   // Create a list to collect real-time logs
   const realtimeLogs: string[] = [];
