@@ -13,6 +13,10 @@ export interface SessionWithToken {
   expiresAt: Date;
 }
 
+export interface EnvVar {
+  name: string;
+  value: string;
+}
 
 export type SandboxConfiguration = {
   forceUrl?: string;
@@ -25,6 +29,7 @@ export type SandboxCreateConfiguration = {
   image?: string;
   memory?: number;
   ports?: (Port | Record<string, any>)[];
+  envs?: EnvVar[];
 }
 
 export function normalizePorts(ports?: (Port | Record<string, any>)[]): Port[] | undefined {
@@ -52,4 +57,28 @@ export function normalizePorts(ports?: (Port | Record<string, any>)[]): Port[] |
   }
 
   return portObjects;
+}
+
+export function normalizeEnvs(envs?: EnvVar[]): EnvVar[] | undefined {
+  if (!envs || envs.length === 0) {
+    return undefined;
+  }
+
+  const envObjects: EnvVar[] = [];
+  for (const env of envs) {
+    if (typeof env === 'object' && env !== null) {
+      // Validate that the object has the required keys
+      if (!('name' in env) || !('value' in env)) {
+        throw new Error(`Environment variable object must have 'name' and 'value' keys: ${JSON.stringify(env)}`);
+      }
+      if (typeof env.name !== 'string' || typeof env.value !== 'string') {
+        throw new Error(`Environment variable 'name' and 'value' must be strings: ${JSON.stringify(env)}`);
+      }
+      envObjects.push({ name: env.name, value: env.value });
+    } else {
+      throw new Error(`Invalid env type: ${typeof env}. Expected object with 'name' and 'value' keys.`);
+    }
+  }
+
+  return envObjects;
 }
