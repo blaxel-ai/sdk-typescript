@@ -83,6 +83,63 @@ async function main() {
     await SandboxInstance.delete(sandbox.metadata?.name!);
     console.log("✅ Deleted ports sandbox");
 
+    // Test 8: Create sandbox with environment variables
+    console.log("\nTest 8: Create sandbox with environment variables...");
+    const envsConfig: SandboxCreateConfiguration = {
+      name: "sandbox-with-envs",
+      image: "blaxel/prod-base:latest",
+      memory: 2048,
+      envs: [
+        { name: "NODE_ENV", value: "development" },
+        { name: "DEBUG", value: "true" },
+        { name: "API_KEY", value: "secret123" },
+        { name: "PORT", value: "3000" },
+      ],
+    };
+    sandbox = await SandboxInstance.create(envsConfig);
+    await sandbox.wait();
+    console.log(`✅ Created sandbox with envs: ${sandbox.metadata?.name}`);
+    console.log(`   Image: ${sandbox.spec?.runtime?.image}`);
+    console.log(`   Memory: ${sandbox.spec?.runtime?.memory}`);
+    sandbox = await SandboxInstance.get(sandbox.metadata?.name!);
+    if (sandbox.spec?.runtime?.envs) {
+      console.log(`   Envs: ${sandbox.spec.runtime.envs.length} configured`);
+      for (const env of sandbox.spec.runtime.envs) {
+        const envVar = env as { name: string; value: string };
+        console.log(`     - ${envVar.name}: ${envVar.value}`);
+      }
+    }
+    console.log(await sandbox.fs.ls("/blaxel/"));
+    await SandboxInstance.delete(sandbox.metadata?.name!);
+    console.log("✅ Deleted envs sandbox");
+
+    // Test 9: Create sandbox with environment variables using dict syntax
+    console.log("\nTest 9: Create sandbox with envs using dict syntax...");
+    sandbox = await SandboxInstance.create({
+      name: "sandbox-with-envs-dict",
+      image: "blaxel/prod-base:latest",
+      memory: 2048,
+      envs: [
+        { name: "ENVIRONMENT", value: "test" },
+        { name: "VERSION", value: "1.0.0" },
+      ]
+    });
+    await sandbox.wait();
+    console.log(`✅ Created sandbox with envs dict: ${sandbox.metadata?.name}`);
+    console.log(`   Image: ${sandbox.spec?.runtime?.image}`);
+    console.log(`   Memory: ${sandbox.spec?.runtime?.memory}`);
+    sandbox = await SandboxInstance.get(sandbox.metadata?.name!);
+    if (sandbox.spec?.runtime?.envs) {
+      console.log(`   Envs: ${sandbox.spec.runtime.envs.length} configured`);
+      for (const env of sandbox.spec.runtime.envs) {
+        const envVar = env as { name: string; value: string };
+        console.log(`     - ${envVar.name}: ${envVar.value}`);
+      }
+    }
+    console.log(await sandbox.fs.ls("/blaxel/"));
+    await SandboxInstance.delete(sandbox.metadata?.name!);
+    console.log("✅ Deleted envs dict sandbox");
+
     console.log("\n🎉 All sandbox creation tests passed!");
   } catch (e) {
     console.error("❌ There was an error => ", e);

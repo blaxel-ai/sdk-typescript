@@ -6,7 +6,7 @@ import { SandboxNetwork } from "./network/index.js";
 import { SandboxPreviews } from "./preview.js";
 import { SandboxProcess } from "./process/index.js";
 import { SandboxSessions } from "./session.js";
-import { normalizePorts, SandboxConfiguration, SandboxCreateConfiguration, SessionWithToken } from "./types.js";
+import { normalizeEnvs, normalizePorts, SandboxConfiguration, SandboxCreateConfiguration, SessionWithToken } from "./types.js";
 
 export class SandboxInstance {
   fs: SandboxFileSystem;
@@ -69,14 +69,15 @@ export class SandboxInstance {
     const defaultImage = "blaxel/prod-base:latest"
     const defaultMemory = 4096
 
-    // Handle SandboxCreateConfiguration or simple dict with name/image/memory/ports keys
-    if (!sandbox || 'name' in sandbox || 'image' in sandbox || 'memory' in sandbox || 'ports' in sandbox) {
+    // Handle SandboxCreateConfiguration or simple dict with name/image/memory/ports/envs keys
+    if (!sandbox || 'name' in sandbox || 'image' in sandbox || 'memory' in sandbox || 'ports' in sandbox || 'envs' in sandbox) {
       if (!sandbox) sandbox = {} as SandboxCreateConfiguration
       if (!sandbox.name) sandbox.name = defaultName
       if (!sandbox.image) sandbox.image = defaultImage
       if (!sandbox.memory) sandbox.memory = defaultMemory
 
       const ports = normalizePorts(sandbox.ports);
+      const envs = normalizeEnvs(sandbox.envs);
 
       sandbox = {
         metadata: { name: sandbox.name },
@@ -85,6 +86,7 @@ export class SandboxInstance {
             image: sandbox.image,
             memory: sandbox.memory,
             ports: ports,
+            envs: envs,
             generation: "mk3"
           }
         }
