@@ -1,4 +1,4 @@
-import { SandboxInstance } from "@blaxel/core";
+import { ProcessRequestWithLog, SandboxInstance } from "@blaxel/core";
 import { ProcessRequest } from "../../@blaxel/core/src/sandbox/client/index.js";
 import { createOrGetSandbox } from "../utils.js";
 
@@ -51,12 +51,13 @@ async function testOnLogCallback(sandbox: SandboxInstance) {
   }
 
   // Create a process that outputs logs over time
-  const processRequest: ProcessRequest = {
-    command: 'sh -c "echo First message; sleep 1; echo Second message; sleep 1; echo Third message"'
+  const processRequest: ProcessRequestWithLog = {
+    command: 'sh -c "echo First message; sleep 1; echo Second message; sleep 1; echo Third message"',
+    onLog: logCollector,
   };
 
   // Execute with on_log callback (name will be auto-generated)
-  const response = await sandbox.process.exec(processRequest, logCollector);
+  const response = await sandbox.process.exec(processRequest);
 
   // Check that a name was generated
   console.assert(response.name !== null, "Process name should be generated");
@@ -95,14 +96,15 @@ async function testCombinedFeatures(sandbox: SandboxInstance) {
   }
 
   // Create a process with a specific name
-  const processRequest: ProcessRequest = {
+  const processRequest: ProcessRequestWithLog = {
     name: "combined-test",
     command: 'sh -c "echo Starting combined test; sleep 1; echo Middle of test; sleep 1; echo Test completed"',
     waitForCompletion: true,
+    onLog: realtimeCollector,
   };
 
   // Execute with both features
-  const response = await sandbox.process.exec(processRequest, realtimeCollector);
+  const response = await sandbox.process.exec(processRequest);
 
   // Check the response
   console.assert(response.name === "combined-test", "Process name should match");
@@ -140,12 +142,13 @@ async function testOnLogWithoutName(sandbox: SandboxInstance) {
   }
 
   // Process without name
-  const processDict: ProcessRequest = {
-    command: "echo 'Testing auto name generation'"
+  const processDict: ProcessRequestWithLog = {
+    command: "echo 'Testing auto name generation'",
+    onLog: countLogs,
   };
 
   // Execute with on_log (should auto-generate name)
-  const response = await sandbox.process.exec(processDict, countLogs);
+  const response = await sandbox.process.exec(processDict);
 
   // Check that name was generated
   console.assert(response.name !== null, "Name should be generated");

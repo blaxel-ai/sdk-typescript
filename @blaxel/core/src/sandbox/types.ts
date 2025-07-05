@@ -1,4 +1,5 @@
 import { Port, Sandbox } from "../client/types.gen";
+import { ProcessRequest } from "./client";
 
 export interface SessionCreateOptions {
   expiresAt?: Date;
@@ -81,4 +82,8 @@ export function normalizeEnvs(envs?: EnvVar[]): EnvVar[] | undefined {
   }
 
   return envObjects;
+}
+
+export type ProcessRequestWithLog = ProcessRequest & {
+  onLog?: (log: string) => void;
 }
