@@ -2,6 +2,7 @@ import { Sandbox } from "../../client/types.gen.js";
 import { settings } from "../../common/settings.js";
 import { SandboxAction } from "../action.js";
 import { DeleteProcessByIdentifierKillResponse, DeleteProcessByIdentifierResponse, GetProcessByIdentifierResponse, GetProcessResponse, PostProcessResponse, ProcessRequest, deleteProcessByIdentifier, deleteProcessByIdentifierKill, getProcess, getProcessByIdentifier, getProcessByIdentifierLogs, postProcess } from "../client/index.js";
+import { ProcessRequestWithLog } from "../types.js";
 
 export class SandboxProcess extends SandboxAction {
   constructor(sandbox: Sandbox) {
@@ -67,9 +68,14 @@ export class SandboxProcess extends SandboxAction {
   }
 
   async exec(
-    process: ProcessRequest,
-    onLog?: (log: string) => void
+    process: ProcessRequest | ProcessRequestWithLog,
   ): Promise<PostProcessResponse> {
+    let onLog: ((log: string) => void) | undefined;
+    if ('onLog' in process && process.onLog) {
+      onLog = process.onLog;
+      delete process.onLog;
+    }
+
     // Store original wait_for_completion setting
     const shouldWaitForCompletion = process.waitForCompletion;
 
