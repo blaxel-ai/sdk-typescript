@@ -61,9 +61,9 @@ export const blModel = async (
       const llm = new Gemini({
         apiKey: settings.token,
         model: modelData?.spec?.runtime?.model as GEMINI_MODEL,
-        requestOptions:{
+        httpOptions: {
           baseUrl: url,
-          customHeaders: settings.headers,
+          headers: settings.headers,
         },
         ...options,
       });

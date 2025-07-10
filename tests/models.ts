@@ -1,4 +1,3 @@
-import { logger } from "@blaxel/core";
 import { blModel as blModelLangGraph } from "@blaxel/langgraph";
 import { blModel as blModelLlamaIndex } from "@blaxel/llamaindex";
 import { blModel as blModelMastra } from "@blaxel/mastra";
@@ -11,7 +10,7 @@ const models = [
   "cerebras-sandbox",
   "cohere-command-r-plus",
   "ministral-3b-2410",
-  "gemini-2-0-flash",
+  "gemini-2-5-pro-preview-06-05",
   "deepseek-chat",
   "xai-grok-beta",
 ]
@@ -21,14 +20,14 @@ async function langchain(modelName: string) {
   const model = await blModelLangGraph(modelName);
   const result = await model.invoke("Hello, world!");
   // @ts-ignore
-  logger.info(`langchain, ${modelName}: ${result.content as string}`);
+  console.info(`langchain, ${modelName}: ${result.content as string}`);
 }
 
 async function llamaindex(modelName: string) {
   const model = await blModelLlamaIndex(modelName);
   const result = await model.chat({messages: [{role: "user", content: "Hello, world!"}]})
   // @ts-ignore
-  logger.info(`llamaindex, ${modelName}: ${result.message.content.toString()}`);
+  console.info(`llamaindex, ${modelName}: ${result.message.content.toString()}`);
 }
 
 async function mastra(modelName: string) {
@@ -38,7 +37,7 @@ async function mastra(modelName: string) {
     prompt: "Hello, world!",
   });
   // @ts-ignore
-  logger.info(`mastra, ${modelName}: ${result.text}`);
+  console.info(`mastra, ${modelName}: ${result.text}`);
 }
 
 async function vercelai(modelName: string) {
@@ -48,7 +47,7 @@ async function vercelai(modelName: string) {
     prompt: "Hello, world!",
   });
   // @ts-ignore
-  logger.info(`vercelai, ${modelName}: ${result.text}`);
+  console.info(`vercelai, ${modelName}: ${result.text}`);
 }
 
 async function main() {
