@@ -1,4 +1,4 @@
-import { ProcessRequestWithLog, SandboxInstance } from "@blaxel/core";
+import { ProcessRequestWithLog, ProcessResponseWithLog, SandboxInstance } from "@blaxel/core";
 import { ProcessRequest } from "../../@blaxel/core/src/sandbox/client/index.js";
 import { createOrGetSandbox } from "../utils.js";
 
@@ -165,6 +165,71 @@ async function testOnLogWithoutName(sandbox: SandboxInstance) {
   console.log(`✅ Received ${logCount} log messages`);
 }
 
+async function testStreamClose(sandbox: SandboxInstance) {
+  console.log("🔧 Testing stream close functionality...");
+
+  // Track logs and when they stop
+  const logMessages: string[] = [];
+  let lastLogTime = Date.now();
+  let isReceivingLogs = true;
+
+  function logCollector(message: string) {
+    logMessages.push(message);
+    lastLogTime = Date.now();
+    isReceivingLogs = true;
+    console.log(`   📝 Log received at ${new Date().toISOString()}: ${JSON.stringify(message)}`);
+  }
+
+  // Create a long-running process that outputs logs continuously
+  const processRequest: ProcessRequestWithLog = {
+    name: "stream-close-test",
+    command:`sh -c 'for i in $(seq 1 5); do echo "Hello from stdout $i"; sleep 1; done'`,
+    waitForCompletion: false, // Important: don't wait for completion
+    onLog: logCollector,
+  };
+
+  // Execute and get response with close() method
+  const response = await sandbox.process.exec(processRequest) as ProcessResponseWithLog;
+
+  // Check that we got a response with close method
+  console.assert("close" in response, "Response should have close() method");
+  console.assert(typeof response.close === "function", "close should be a function");
+
+  // Wait for a few logs to come in
+  await new Promise(resolve => setTimeout(resolve, 2000));
+
+  // Should have received some logs by now
+  const logsBeforeClose = logMessages.length;
+  console.assert(logsBeforeClose > 0, "Should have received some logs before close");
+  console.log(`✅ Received ${logsBeforeClose} logs before closing`);
+
+  // Close the stream
+  console.log("   🛑 Calling close() to stop the stream...");
+  response.close();
+
+  // Mark that we're no longer expecting logs
+  isReceivingLogs = false;
+
+  // Wait a bit to ensure no more logs come in
+  const logsAtClose = logMessages.length;
+  await new Promise(resolve => setTimeout(resolve, 3000));
+
+  // Check that no new logs were received after close
+  const logsAfterClose = logMessages.length;
+  console.assert(logsAfterClose === logsAtClose, `No new logs should be received after close (before: ${logsAtClose}, after: ${logsAfterClose})`);
+
+  console.log(`✅ Stream closed successfully. Total logs received: ${logMessages.length}`);
+  console.log(`✅ Process should still be running in background (not killed by close)`);
+
+  // Verify the process is still running (close should only stop streaming, not kill the process)
+  try {
+    const processInfo = await sandbox.process.get(response.name!);
+    console.log(`✅ Process status after close: ${processInfo.status} -> ${processInfo.logs}`);
+  } catch (error) {
+    console.log(`⚠️ Could not check process status: ${error}`);
+  }
+}
+
 async function main() {
   console.log("🚀 Starting sandbox process feature tests...");
 
@@ -189,6 +254,9 @@ async function main() {
     console.log();
 
     await testOnLogWithoutName(sandbox);
+    console.log();
+
+    await testStreamClose(sandbox);
     console.log();
 
     console.log("🎉 All process feature tests completed successfully!");
