@@ -2,7 +2,7 @@ import { Sandbox } from "../../client/types.gen.js";
 import { settings } from "../../common/settings.js";
 import { SandboxAction } from "../action.js";
 import { DeleteProcessByIdentifierKillResponse, DeleteProcessByIdentifierResponse, GetProcessByIdentifierResponse, GetProcessResponse, PostProcessResponse, ProcessRequest, deleteProcessByIdentifier, deleteProcessByIdentifierKill, getProcess, getProcessByIdentifier, getProcessByIdentifierLogs, postProcess } from "../client/index.js";
-import { ProcessRequestWithLog } from "../types.js";
+import { ProcessRequestWithLog, ProcessResponseWithLog } from "../types.js";
 
 export class SandboxProcess extends SandboxAction {
   constructor(sandbox: Sandbox) {
@@ -69,7 +69,7 @@ export class SandboxProcess extends SandboxAction {
 
   async exec(
     process: ProcessRequest | ProcessRequestWithLog,
-  ): Promise<PostProcessResponse> {
+  ): Promise<PostProcessResponse | ProcessResponseWithLog> {
     let onLog: ((log: string) => void) | undefined;
     if ('onLog' in process && process.onLog) {
       onLog = process.onLog;
@@ -101,7 +101,7 @@ export class SandboxProcess extends SandboxAction {
       }
       try {
         // Wait for process completion
-        result = await this.wait(result.pid, { interval: 50 });
+        result = await this.wait(result.pid, { interval: 500, maxWait: 1000 * 60 * 60 });
       } finally {
         // Clean up log streaming
         if (streamControl) {
@@ -111,11 +111,19 @@ export class SandboxProcess extends SandboxAction {
     } else {
       // For non-blocking execution, set up log streaming immediately if requested
       if (onLog) {
-        this.streamLogs(result.pid, { onLog });
+        const streamControl = this.streamLogs(result.pid, { onLog });
+        return {
+          ...result,
+          close () {
+            if (streamControl) {
+              streamControl.close();
+            }
+          },
+        }
       }
     }
 
-    return result;
+    return { ...result, close: () => { } };
   }
 
   async wait(identifier: string, {maxWait = 60000, interval = 1000}: {maxWait?: number, interval?: number} = {}): Promise<GetProcessByIdentifierResponse> {
