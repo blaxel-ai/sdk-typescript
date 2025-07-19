@@ -62,6 +62,16 @@ export class SandboxInstance {
         throw new Error("Sandbox did not deploy in time");
       }
     }
+    if (this.sandbox.status === "DEPLOYED") {
+      try {
+        // This is a hack for sometime receiving a 502,
+        // need to remove this once we have a better way to handle this
+        await this.fs.ls("/")
+      } catch {
+        // pass
+      }
+    }
+    return this;
   }
 
   static async create(sandbox?: SandboxModel | SandboxCreateConfiguration) {
