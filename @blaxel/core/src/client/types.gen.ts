@@ -1696,6 +1696,25 @@ export type PrivateLocation = {
     name?: string;
 };
 
+export type PublicIp = {
+    /**
+     * Description of the region/location
+     */
+    description?: string;
+    /**
+     * List of public ipv4 addresses
+     */
+    ipv4Cidrs?: Array<string>;
+    /**
+     * List of public ipv6 addresses
+     */
+    ipv6Cidrs?: Array<string>;
+};
+
+export type PublicIps = {
+    [key: string]: PublicIp;
+};
+
 /**
  * Repository
  */
@@ -2601,6 +2620,17 @@ export type TriggerConfiguration = {
      * The schedule of the trigger, cron expression * * * * *
      */
     schedule?: string;
+    /**
+     * The tasks configuration of the cronjob
+     */
+    tasks?: Array<TriggerConfigurationTask>;
+};
+
+/**
+ * The tasks configuration of the cronjob
+ */
+export type TriggerConfigurationTask = {
+    [key: string]: unknown;
 };
 
 /**
@@ -3857,6 +3887,22 @@ export type ListAllPendingInvitationsResponses = {
 };
 
 export type ListAllPendingInvitationsResponse = ListAllPendingInvitationsResponses[keyof ListAllPendingInvitationsResponses];
+
+export type ListPublicIpsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/publicIps';
+};
+
+export type ListPublicIpsResponses = {
+    /**
+     * successful operation
+     */
+    200: PublicIps;
+};
+
+export type ListPublicIpsResponse = ListPublicIpsResponses[keyof ListPublicIpsResponses];
 
 export type ListSandboxHubDefinitionsData = {
     body?: never;
