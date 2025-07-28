@@ -60,7 +60,9 @@ export type ProcessRequest = {
     env?: {
         [key: string]: string;
     };
+    maxRestarts?: number;
     name?: string;
+    restartOnFailure?: boolean;
     timeout?: number;
     waitForCompletion?: boolean;
     waitForPorts?: Array<number>;
@@ -70,10 +72,13 @@ export type ProcessRequest = {
 export type ProcessResponse = {
     command: string;
     completedAt: string;
+    currentRestarts: number;
     exitCode: number;
     logs: string;
+    maxRestarts: number;
     name: string;
     pid: string;
+    restartOnFailure: boolean;
     startedAt: string;
     status: 'failed' | 'killed' | 'stopped' | 'running' | 'completed';
     workingDir: string;
