@@ -8,11 +8,11 @@ export const sep = '--------------------------------'
 export const info = (msg: string) => console.log(`[INFO] ${msg}`)
 
 export async function localSandbox(sandboxName: string) {
-  process.env[`BL_SANDBOXES_${sandboxName.replace(/-/g, "_").toUpperCase()}_URL`] = "http://localhost:8080"
   const sandbox = new SandboxInstance({
     metadata: {
       name: sandboxName
     },
+    forceUrl: "http://localhost:8080"
   })
   return sandbox
 }
