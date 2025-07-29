@@ -115,7 +115,27 @@ export class BlaxelMcpClientTransport implements Transport {
         }
 
         this._socket.onerror = (event) => {
-          console.error(event)
+          // Log websocket error with meaningful information instead of raw event
+          const errorInfo = {
+            type: 'WebSocket Error',
+            url: this._url.toString(),
+            readyState: this._socket?.readyState,
+            browser: this._isBrowser,
+            // Extract any available error details from the event
+            eventType: event && typeof event === 'object' && 'type' in event
+              ? String((event as Record<string, unknown>).type)
+              : 'unknown',
+            // Browser events might have different properties than Node.js
+            message: this._isBrowser && event && typeof event === 'object' && 'message' in event
+              ? String((event as Record<string, unknown>).message)
+              : undefined,
+            error: !this._isBrowser && event && typeof event === 'object' && 'error' in event
+              ? String((event as Record<string, unknown>).error)
+              : undefined
+          };
+
+          logger.error('WebSocket connection error', errorInfo);
+
           const error = this._isBrowser
             // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
             ? new Error(`WebSocket error: ${event.message}`)

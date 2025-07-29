@@ -93,7 +93,12 @@ export class McpTool {
         logger.debug(`MCP:${this.name}:Connected`);
       } catch (err) {
         if (err instanceof Error) {
-          logger.error(err.stack);
+          logger.error(`MCP ${this.name} connection failed: ${err.message}`, {
+            error: err.message,
+            stack: err.stack,
+            mcpName: this.name,
+            url: this.url
+          });
         }
         if (!this.fallbackUrl) {
           throw err;
@@ -124,7 +129,11 @@ export class McpTool {
       delete this.startPromise;
       this.client.close().catch((err) => {
         if (err instanceof Error) {
-          logger.error(err.stack);
+          logger.error(`MCP ${this.name} close failed: ${err.message}`, {
+            error: err.message,
+            stack: err.stack,
+            mcpName: this.name
+          });
         }
       });
     }, now ? 0 : this.ms);
@@ -210,7 +219,13 @@ export class McpTool {
       return result;
     } catch (err: unknown) {
       if (err instanceof Error) {
-        logger.error(err.stack);
+        logger.error(`MCP tool call failed: ${err.message}`, {
+          error: err.message,
+          stack: err.stack,
+          mcpName: this.name,
+          toolName,
+          args: JSON.stringify(args)
+        });
       }
       throw err;
     } finally {
