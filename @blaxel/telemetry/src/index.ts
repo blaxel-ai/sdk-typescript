@@ -4,9 +4,10 @@ import { setLegacyLogger } from "./legacy_logger";
 import { blaxelTelemetry } from "./telemetry";
 blaxelTelemetry.initialize();
 if (settings.loggerType === "http") {
-setLegacyLogger();
+  setLegacyLogger();
 } else if (settings.loggerType === "json") {
   setJsonLogger();
 }
+export { setJsonLogger } from "./json_logger";
 export { blaxelTelemetry };
 
