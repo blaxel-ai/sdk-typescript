@@ -4,8 +4,6 @@ import {
   Span,
   trace
 } from "@opentelemetry/api";
-import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import {
   registerInstrumentations
 } from "@opentelemetry/instrumentation";
@@ -22,9 +20,16 @@ import {
   NodeTracerProvider,
   ReadableSpan,
   SpanExporter,
-  SpanProcessor
+  SpanProcessor,
 } from "@opentelemetry/sdk-trace-node";
+import {
+  AuthRefreshingMetricExporter,
+  AuthRefreshingSpanExporter,
+  createMetricExporter,
+  createTraceExporter
+} from "./auth_refresh_exporters";
 import { OtelTelemetryProvider } from "./telemetry_provider";
+
 export class BlaxelResource implements Resource {
   attributes: Record<string, string>;
 
@@ -99,23 +104,29 @@ class TelemetryManager {
   // This method need to stay sync to avoid non booted instrumentations
   initialize() {
     if (!this.enabled || this.initialized) {
+      logger.debug(`[TelemetryManager] Initialize skipped - enabled: ${this.enabled}, initialized: ${this.initialized}`);
       return;
     }
+    logger.debug("[TelemetryManager] Starting telemetry initialization");
     this.instrumentApp();
     this.setupSignalHandler();
     this.initialized = true;
+    logger.debug("[TelemetryManager] Telemetry initialized, setting configuration async");
     this.setConfiguration().catch((error) => {
-      logger.error("Error setting configuration:", error);
+      logger.error("[TelemetryManager] Error setting configuration:", error);
     });
   }
 
   async setConfiguration() {
     if (!this.enabled || this.configured) {
+      logger.debug(`[TelemetryManager] SetConfiguration skipped - enabled: ${this.enabled}, configured: ${this.configured}`);
       return;
     }
+    logger.debug("[TelemetryManager] Starting authentication for telemetry configuration");
     await authenticate();
+    logger.debug("[TelemetryManager] Authentication completed, setting up exporters");
     this.setExporters();
-    logger.debug("Telemetry ready");
+    logger.debug("[TelemetryManager] Telemetry configuration complete");
     this.configured = true;
   }
 
@@ -191,18 +202,14 @@ class TelemetryManager {
    * Initialize and return the OTLP Metric Exporter.
    */
   getMetricExporter() {
-    return new OTLPMetricExporter({
-      headers: this.authHeaders,
-    });
+    return createMetricExporter();
   }
 
   /**
    * Initialize and return the OTLP Trace Exporter.
    */
   getTraceExporter() {
-    return new OTLPTraceExporter({
-      headers: this.authHeaders,
-    });
+    return createTraceExporter();
   }
 
   instrumentApp() {
@@ -219,6 +226,8 @@ class TelemetryManager {
   setExporters() {
     const resource = new BlaxelResource(this.resourceAttributes);
 
+    logger.debug("[TelemetryManager] Setting up exporters with authentication refresh");
+
     // Configure batch processor options with 1-second delay
     const batchProcessorOptions = {
       scheduledDelayMillis: 1000,  // Export every 1 second
@@ -227,7 +236,12 @@ class TelemetryManager {
       maxQueueSize: 2048           // Max queue size
     };
 
-    const traceExporter = this.getTraceExporter();
+    logger.debug("[TelemetryManager] Batch processor options:", batchProcessorOptions);
+
+    // Create auth-refreshing trace exporter
+    const traceExporter = new AuthRefreshingSpanExporter(() => this.getTraceExporter());
+    logger.debug("[TelemetryManager] Created AuthRefreshingSpanExporter");
+
     this.nodeTracerProvider = new NodeTracerProvider({
       resource,
       sampler: new AlwaysOnSampler(),
@@ -242,7 +256,12 @@ class TelemetryManager {
       ],
     });
     this.nodeTracerProvider.register();
-    const metricExporter = this.getMetricExporter();
+    logger.debug("[TelemetryManager] Trace provider registered");
+
+    // Create auth-refreshing metric exporter
+    const metricExporter = new AuthRefreshingMetricExporter(() => this.getMetricExporter());
+    logger.debug("[TelemetryManager] Created AuthRefreshingMetricExporter");
+
     this.meterProvider = new MeterProvider({
       resource,
       readers: [
@@ -253,6 +272,7 @@ class TelemetryManager {
       ],
     });
     metrics.setGlobalMeterProvider(this.meterProvider);
+    logger.debug("[TelemetryManager] Metric provider configured with 1-second export interval");
   }
 
   async shutdownApp() {
