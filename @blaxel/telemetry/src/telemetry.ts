@@ -4,8 +4,6 @@ import {
   Span,
   trace
 } from "@opentelemetry/api";
-import { Logger, logs } from "@opentelemetry/api-logs";
-import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import {
@@ -14,19 +12,17 @@ import {
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
 import { envDetector, RawResourceAttribute, Resource } from "@opentelemetry/resources";
 import {
-  BatchLogRecordProcessor,
-  LoggerProvider,
-} from "@opentelemetry/sdk-logs";
-import {
   MeterProvider,
   PeriodicExportingMetricReader,
 } from "@opentelemetry/sdk-metrics";
 import {
   AlwaysOnSampler,
   BatchSpanProcessor,
+  BufferConfig,
   NodeTracerProvider,
   ReadableSpan,
-  SpanProcessor,
+  SpanExporter,
+  SpanProcessor
 } from "@opentelemetry/sdk-trace-node";
 import { OtelTelemetryProvider } from "./telemetry_provider";
 export class BlaxelResource implements Resource {
@@ -79,6 +75,10 @@ export type TelemetryOptions = {
 };
 
 class HasBeenProcessedSpanProcessor extends BatchSpanProcessor {
+  constructor(exporter: SpanExporter, config?: BufferConfig) {
+    super(exporter, config);
+  }
+
   onEnd(span: ReadableSpan) {
     super.onEnd(span);
   }
@@ -87,15 +87,11 @@ class HasBeenProcessedSpanProcessor extends BatchSpanProcessor {
 class TelemetryManager {
   private nodeTracerProvider: NodeTracerProvider | null;
   private meterProvider: MeterProvider | null;
-  private loggerProvider: LoggerProvider | null;
-  private otelLogger: Logger | null;
   private initialized: boolean;
   private configured: boolean;
   constructor() {
     this.nodeTracerProvider = null;
     this.meterProvider = null;
-    this.loggerProvider = null;
-    this.otelLogger = null;
     this.initialized = false;
     this.configured = false;
   }
@@ -119,7 +115,6 @@ class TelemetryManager {
     }
     await authenticate();
     this.setExporters();
-    this.otelLogger = logs.getLogger("blaxel");
     logger.debug("Telemetry ready");
     this.configured = true;
   }
@@ -154,17 +149,6 @@ class TelemetryManager {
     if (this.meterProvider) {
       await this.meterProvider.shutdown();
     }
-    if (this.loggerProvider) {
-      await this.loggerProvider.shutdown();
-    }
-  }
-
-  async getLogger(): Promise<Logger> {
-    if (!this.otelLogger) {
-      await this.sleep(100);
-      return this.getLogger();
-    }
-    return this.otelLogger;
   }
 
   setupSignalHandler() {
@@ -221,15 +205,6 @@ class TelemetryManager {
     });
   }
 
-  /**
-   * Initialize and return the OTLP Log Exporter.
-   */
-  getLogExporter() {
-    return new OTLPLogExporter({
-      headers: this.authHeaders,
-    });
-  }
-
   instrumentApp() {
     telemetryRegistry.registerProvider(new OtelTelemetryProvider());
     const httpInstrumentation = new HttpInstrumentation({
@@ -243,14 +218,15 @@ class TelemetryManager {
 
   setExporters() {
     const resource = new BlaxelResource(this.resourceAttributes);
-    const logExporter = this.getLogExporter();
-    this.loggerProvider = new LoggerProvider({
-      resource,
-    });
-    this.loggerProvider.addLogRecordProcessor(
-      new BatchLogRecordProcessor(logExporter)
-    );
-    logs.setGlobalLoggerProvider(this.loggerProvider);
+
+    // Configure batch processor options with 1-second delay
+    const batchProcessorOptions = {
+      scheduledDelayMillis: 1000,  // Export every 1 second
+      exportTimeoutMillis: 5000,   // Timeout for export
+      maxExportBatchSize: 512,     // Max batch size
+      maxQueueSize: 2048           // Max queue size
+    };
+
     const traceExporter = this.getTraceExporter();
     this.nodeTracerProvider = new NodeTracerProvider({
       resource,
@@ -261,8 +237,8 @@ class TelemetryManager {
           "workload.type": settings.type? settings.type+"s" : "",
           workspace: settings.workspace || "",
         }),
-        new BatchSpanProcessor(traceExporter),
-        new HasBeenProcessedSpanProcessor(traceExporter),
+        new BatchSpanProcessor(traceExporter, batchProcessorOptions),
+        new HasBeenProcessedSpanProcessor(traceExporter, batchProcessorOptions),
       ],
     });
     this.nodeTracerProvider.register();
@@ -272,7 +248,7 @@ class TelemetryManager {
       readers: [
         new PeriodicExportingMetricReader({
           exporter: metricExporter,
-          exportIntervalMillis: 60000,
+          exportIntervalMillis: 1000,  // Changed from 60000 to 1000 (1 second)
         }),
       ],
     });
@@ -304,16 +280,6 @@ class TelemetryManager {
             .shutdown()
             .catch((error) =>
               logger.debug("Error shutting down meter provider:", error)
-            )
-        );
-      }
-
-      if (this.loggerProvider) {
-        shutdownPromises.push(
-          this.loggerProvider
-            .shutdown()
-            .catch((error) =>
-              logger.debug("Error shutting down logger provider:", error)
             )
         );
       }
