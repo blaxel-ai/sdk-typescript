@@ -1,6 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
 import { createSandbox, deleteSandbox, getSandbox, listSandboxes, Sandbox as SandboxModel } from "../client/index.js";
-import { logger } from "../common/logger.js";
 import { SandboxFileSystem } from "./filesystem/index.js";
 import { SandboxNetwork } from "./network/index.js";
 import { SandboxPreviews } from "./preview.js";
@@ -39,38 +38,9 @@ export class SandboxInstance {
     return this.sandbox.spec;
   }
 
+  /* eslint-disable */
   async wait({maxWait = 60000, interval = 1000}: {maxWait?: number, interval?: number} = {}) {
-    const startTime = Date.now();
-    while (this.sandbox.status !== "DEPLOYED") {
-      await new Promise((resolve) => setTimeout(resolve, interval));
-      try {
-        const { data } = await getSandbox({
-          path: {
-            sandboxName: this.sandbox.metadata?.name ?? "",
-          },
-          throwOnError: true,
-        });
-        logger.debug(`Waiting for sandbox to be deployed, status: ${data.status}`);
-        this.sandbox = data;
-      } catch(e) {
-        logger.error("Could not retrieve sandbox", e);
-      }
-      if (this.sandbox.status === "FAILED") {
-        throw new Error("Sandbox failed to deploy");
-      }
-      if (Date.now() - startTime > maxWait) {
-        throw new Error("Sandbox did not deploy in time");
-      }
-    }
-    if (this.sandbox.status === "DEPLOYED") {
-      try {
-        // This is a hack for sometime receiving a 502,
-        // need to remove this once we have a better way to handle this
-        await this.fs.ls("/")
-      } catch {
-        // pass
-      }
-    }
+    console.warn("⚠️  Warning: sandbox.wait() is deprecated. You don't need to wait for the sandbox to be deployed anymore.");
     return this;
   }
 
@@ -122,7 +92,10 @@ export class SandboxInstance {
       body: sandbox,
       throwOnError: true,
     });
-    return new SandboxInstance(data);
+    const instance = new SandboxInstance(data);
+    // TODO remove this part once we have a better way to handle this
+    await instance.fs.ls('/')
+    return instance;
   }
 
   static async get(sandboxName: string) {

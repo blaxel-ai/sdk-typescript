@@ -51,7 +51,7 @@ export async function createOrGetSandbox({sandboxName, image = "blaxel/prod-next
     }
   }
   const sandbox = await SandboxInstance.createIfNotExists(sandboxModel)
-  await sandbox.wait({ maxWait: 120000, interval: 1000 })
+  // await sandbox.wait({ maxWait: 120000, interval: 1000 })
   return sandbox
 }
 

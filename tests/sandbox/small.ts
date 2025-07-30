@@ -1,6 +1,6 @@
 import { createOrGetSandbox } from "../utils";
 
-const sandboxName = "next-js-2"
+const sandboxName = "next-js-3"
 
 async function main() {
   try {
@@ -9,6 +9,7 @@ async function main() {
     // Verify the files were copied by listing the directory in the sandbox
     console.log('Sandbox directory contents:');
     console.log(await sandbox.fs.ls('/blaxel'));
+    console.log('Blaxel directory removed');
   } catch (e) {
     console.error("There was an error => ", e);
   }
