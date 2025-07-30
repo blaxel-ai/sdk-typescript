@@ -67,7 +67,7 @@ export class BlaxelMcpClientTransport implements Transport {
     this._isBrowser = isBrowser;
   }
 
-  async start(): Promise<void> {
+    async start(): Promise<void> {
     if (this._socket) {
       throw new Error(
         "Blaxel already started! If using Client class, note that connect() calls start() automatically."
@@ -75,24 +75,27 @@ export class BlaxelMcpClientTransport implements Transport {
     }
 
     let attempts = 0;
-    while (attempts < this._retry_max) {
+    const maxAttempts = Math.max(1, this._retry_max + 1); // Ensure at least 1 attempt
+
+    while (attempts < maxAttempts) {
       try {
         await this._connect();
         return;
       } catch (error) {
+        attempts++;
+
         if (error instanceof Error) {
           logger.warn(error.stack ?? error.message);
         }
-        attempts++;
-        if (attempts === this._retry_max) {
+
+        if (attempts >= maxAttempts) {
           throw error;
         }
+
         logger.debug(
           `WebSocket connection attempt ${attempts} failed, retrying in ${this._retry_delay}ms...`
         );
         await delay(this._retry_delay);
-      } finally {
-        attempts++;
       }
     }
   }
@@ -228,9 +231,11 @@ export class BlaxelMcpClientTransport implements Transport {
     return Promise.resolve();
   }
 
-  async send(message: JSONRPCMessage): Promise<void> {
+    async send(message: JSONRPCMessage): Promise<void> {
     let attempts = 0;
-    while (attempts < this._retry_max) {
+    const maxAttempts = Math.max(1, this._retry_max + 1); // Ensure at least 1 attempt
+
+    while (attempts < maxAttempts) {
       try {
         if (!this._socket || !this.isConnected) {
           if (!this._socket) {
@@ -266,9 +271,11 @@ export class BlaxelMcpClientTransport implements Transport {
         return;
       } catch (error) {
         attempts++;
-        if (attempts === this._retry_max) {
+
+        if (attempts >= maxAttempts) {
           throw error;
         }
+
         logger.warn(
           `WebSocket send attempt ${attempts} failed, retrying in ${this._retry_delay}ms...`
         );
