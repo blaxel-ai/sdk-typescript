@@ -87,7 +87,8 @@ export class McpTool {
         logger.debug(`MCP:${this.name}:Connecting::${this.url.toString()}`);
         this.transport = new BlaxelMcpClientTransport(
           this.url.toString(),
-          settings.headers
+          settings.headers,
+          { retry: { max: 0 } }
         );
         await this.client.connect(this.transport);
         logger.debug(`MCP:${this.name}:Connected`);
