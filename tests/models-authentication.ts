@@ -24,7 +24,7 @@ const models = [
 // Frameworks to test - comment out any you don't want to test
 const frameworks = [
   // "langchain",
-  // "llamaindex",
+  "llamaindex",
   "mastra",
   "vercelai",
 ];
