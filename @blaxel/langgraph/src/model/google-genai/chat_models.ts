@@ -626,7 +626,11 @@ export class ChatGoogleGenerativeAI
 
   convertSystemMessageToHumanContent: boolean | undefined;
 
-  private client: GenerativeModel;
+  baseUrl?: string;
+
+  apiVersion?: string;
+
+  client: GenerativeModel;
 
   get _isMultimodalModel() {
     return (
@@ -673,14 +677,8 @@ export class ChatGoogleGenerativeAI
     this.stopSequences = fields?.stopSequences ?? this.stopSequences;
 
     this.apiKey = fields?.apiKey ?? getEnvironmentVariable("GOOGLE_API_KEY");
-    if (!this.apiKey) {
-      throw new Error(
-        "Please set an API key for Google GenerativeAI " +
-          "in the environment variable GOOGLE_API_KEY " +
-          "or in the `apiKey` field of the " +
-          "ChatGoogleGenerativeAI constructor"
-      );
-    }
+    this.apiVersion = fields?.apiVersion ?? this.apiVersion;
+    this.baseUrl = fields?.baseUrl ?? this.baseUrl;
 
     this.safetySettings = fields?.safetySettings ?? this.safetySettings;
     if (this.safetySettings && this.safetySettings.length > 0) {
@@ -696,7 +694,16 @@ export class ChatGoogleGenerativeAI
 
     this.streaming = fields?.streaming ?? this.streaming;
 
-    this.client = new GenerativeAI(this.apiKey).getGenerativeModel(
+    this.client = this.initClient(fields);
+    this.streamUsage = fields?.streamUsage ?? this.streamUsage;
+  }
+
+  initClient(fields?: GoogleGenerativeAIChatInput) {
+    const apiKey = this.apiKey ? this.apiKey : "replaced";
+    const apiVersion = this.apiVersion ?? fields?.apiVersion;
+    const baseUrl = this.baseUrl ?? fields?.baseUrl;
+    const customHeaders = this.customHeaders ?? fields?.customHeaders;
+    return new GenerativeAI(apiKey).getGenerativeModel(
       {
         model: this.model,
         safetySettings: this.safetySettings as SafetySetting[],
@@ -711,12 +718,11 @@ export class ChatGoogleGenerativeAI
         },
       },
       {
-        apiVersion: fields?.apiVersion,
-        baseUrl: fields?.baseUrl,
-        customHeaders: fields?.customHeaders,
+        apiVersion,
+        baseUrl: baseUrl,
+        customHeaders: customHeaders,
       }
-    );
-    this.streamUsage = fields?.streamUsage ?? this.streamUsage;
+    )
   }
 
   useCachedContent(
