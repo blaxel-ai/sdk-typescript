@@ -1,6 +1,6 @@
 import { authenticate, getModelMetadata, handleDynamicImportError, settings } from "@blaxel/core";
 import { anthropic, AnthropicSession } from "@llamaindex/anthropic";
-import type { ChatResponse, ChatResponseChunk, CompletionResponse, LLMChatParamsNonStreaming, LLMChatParamsStreaming, LLMCompletionParamsNonStreaming, LLMCompletionParamsStreaming, ToolCallLLM, ToolCallLLMMessageOptions } from '@llamaindex/core/llms' with { "resolution-mode": "import" };
+import type { ChatResponse, ChatResponseChunk, CompletionResponse, LLMChatParamsNonStreaming, LLMChatParamsStreaming, LLMCompletionParamsNonStreaming, LLMCompletionParamsStreaming, LLMMetadata, ToolCallLLM, ToolCallLLMMessageOptions } from '@llamaindex/core/llms' with { "resolution-mode": "import" };
 import { Gemini, GEMINI_MODEL } from "@llamaindex/google";
 import { openai } from "@llamaindex/openai";
 
@@ -20,7 +20,7 @@ class BlaxelLLM implements ToolCallLLM<object, ToolCallLLMMessageOptions> {
   private options?: Record<string, unknown>;
   private modelData: ModelData;
   private type: string;
-  private _metadata?: any;
+  private _metadata?: LLMMetadata;
 
   constructor(model: string, modelData: ModelData, options?: Record<string, unknown>) {
     this.model = model;
@@ -33,21 +33,21 @@ class BlaxelLLM implements ToolCallLLM<object, ToolCallLLMMessageOptions> {
     return true;
   }
 
-  get metadata(): any {
+  get metadata(): LLMMetadata {
     // Return cached metadata or default values
     if (this._metadata) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
       return this._metadata;
     }
 
     // Return default values with overrides from options
     return {
       model: this.model,
-      temperature: this.options?.temperature ?? 0,
-      topP: this.options?.topP ?? 1,
-      maxTokens: this.options?.maxTokens ?? undefined,
-      contextWindow: this.options?.contextWindow ?? 4096,
-      tokenizer: this.options?.tokenizer ?? undefined,
+      temperature: this.options?.temperature as number | undefined ?? 0,
+      topP: this.options?.topP as number | undefined ?? 1,
+      maxTokens: this.options?.maxTokens as number | undefined ?? undefined,
+      contextWindow: this.options?.contextWindow as number | undefined ?? 4096,
+      tokenizer: undefined, // Let the underlying LLM handle tokenizer
+      structuredOutput: (this.options?.structuredOutput as boolean | undefined) ?? false,
     };
   }
 
