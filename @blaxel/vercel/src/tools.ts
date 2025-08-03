@@ -11,7 +11,7 @@ export const blTool = async (
     const blaxelTool = await getTool(name, ms);
 
     for (const t of blaxelTool) {
-      // @ts-expect-error - Type instantiation depth issue with ai package
+      // @ts-ignore - Type instantiation depth issue with ai package in some environments
       const toolInstance = tool({
         description: t.description,
         parameters: t.inputSchema,
