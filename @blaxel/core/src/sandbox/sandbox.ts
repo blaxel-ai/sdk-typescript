@@ -94,7 +94,7 @@ export class SandboxInstance {
     });
     const instance = new SandboxInstance(data);
     // TODO remove this part once we have a better way to handle this
-    await instance.fs.ls('/')
+    // await instance.fs.ls('/')
     return instance;
   }
 
@@ -125,15 +125,15 @@ export class SandboxInstance {
 
   static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration) {
     try {
-      const name = 'name' in sandbox ? sandbox.name : (sandbox as SandboxModel).metadata?.name
-      if (!name) {
-        throw new Error("Sandbox name is required");
-      }
-      const sandboxInstance = await SandboxInstance.get(name);
-      return sandboxInstance;
+      return await SandboxInstance.create(sandbox);
     } catch (e) {
-      if (typeof e === "object" && e !== null && "code" in e && e.code === 404) {
-        return SandboxInstance.create(sandbox);
+      if (typeof e === "object" && e !== null && "code" in e && (e.code === 409 || e.code === 'SANDBOX_ALREADY_EXISTS')) {
+        const name = 'name' in sandbox ? sandbox.name : (sandbox as SandboxModel).metadata?.name
+        if (!name) {
+          throw new Error("Sandbox name is required");
+        }
+        const sandboxInstance = await SandboxInstance.get(name);
+        return sandboxInstance;
       }
       throw e;
     }
