@@ -80,7 +80,11 @@ export const createCohereFetcher = (): FetchFunction => {
       if (requestType === 'json' || !requestType) {
         requestBody = JSON.stringify(body);
       } else if (requestType === 'bytes' && body instanceof Uint8Array) {
-        requestBody = body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength);
+        // Create a new ArrayBuffer from the Uint8Array to avoid SharedArrayBuffer issues
+        const arrayBuffer = new ArrayBuffer(body.length);
+        const view = new Uint8Array(arrayBuffer);
+        view.set(body);
+        requestBody = arrayBuffer;
       } else if (requestType === 'file' && body instanceof Blob) {
         requestBody = body;
       } else if (typeof body === 'string') {
