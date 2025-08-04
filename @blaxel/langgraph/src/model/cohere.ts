@@ -80,7 +80,7 @@ export const createCohereFetcher = (): FetchFunction => {
       if (requestType === 'json' || !requestType) {
         requestBody = JSON.stringify(body);
       } else if (requestType === 'bytes' && body instanceof Uint8Array) {
-        requestBody = body;
+        requestBody = body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength);
       } else if (requestType === 'file' && body instanceof Blob) {
         requestBody = body;
       } else if (typeof body === 'string') {
@@ -147,7 +147,7 @@ export const createCohereFetcher = (): FetchFunction => {
           ok: true,
           body: responseBody as R,
           headers: Object.fromEntries(response.headers.entries()),
-        };
+        } as APIResponse<R, Fetcher.Error>;
       } else {
         // Return error response in the format CohereClient expects
         const errorBody = await response.text();
@@ -158,7 +158,7 @@ export const createCohereFetcher = (): FetchFunction => {
             statusCode: response.status,
             body: errorBody,
           },
-        };
+        } as APIResponse<R, Fetcher.Error>;
       }
     } catch (error) {
       // Check if it's a timeout error
@@ -168,7 +168,7 @@ export const createCohereFetcher = (): FetchFunction => {
           error: {
             reason: "timeout",
           },
-        };
+        } as APIResponse<R, Fetcher.Error>;
       }
 
       // Return unknown error
@@ -178,7 +178,7 @@ export const createCohereFetcher = (): FetchFunction => {
           reason: "unknown",
           errorMessage: error instanceof Error ? error.message : String(error),
         },
-      };
+      } as APIResponse<R, Fetcher.Error>;
     }
   };
 
