@@ -10,6 +10,7 @@ export const sep = '--------------------------------'
 export const info = (msg: string) => console.log(`[INFO] ${msg}`)
 
 export async function localSandbox(sandboxName: string) {
+  info(`Using local sandbox ${sandboxName}`)
   const sandbox = new SandboxInstance({
     metadata: {
       name: sandboxName
