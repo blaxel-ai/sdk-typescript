@@ -230,6 +230,64 @@ export type Country = {
 };
 
 /**
+ * Custom domain for preview deployments
+ * The custom domain represents a base domain (e.g., example.com) that will be used
+ * to serve preview deployments. Each preview will be accessible at a subdomain:
+ * <preview-id>.preview.<base-domain> (e.g., abc123.preview.example.com)
+ */
+export type CustomDomain = {
+    metadata?: CustomDomainMetadata;
+    spec?: CustomDomainSpec;
+};
+
+/**
+ * Custom domain metadata
+ */
+export type CustomDomainMetadata = TimeFields & OwnerFields & {
+    /**
+     * Display name for the custom domain
+     */
+    displayName?: string;
+    labels?: MetadataLabels;
+    /**
+     * Domain name (e.g., "example.com")
+     */
+    name?: string;
+    /**
+     * Workspace name
+     */
+    workspace?: string;
+};
+
+/**
+ * Custom domain specification
+ */
+export type CustomDomainSpec = {
+    /**
+     * CNAME target for the domain
+     */
+    cnameTarget?: string;
+    /**
+     * Last verification attempt timestamp
+     */
+    lastVerifiedAt?: string;
+    /**
+     * Current status of the domain (pending, verified, failed)
+     */
+    status?: string;
+    /**
+     * Map of TXT record names to values for domain verification
+     */
+    txtRecords?: {
+        [key: string]: string;
+    };
+    /**
+     * Error message if verification failed
+     */
+    verificationError?: string;
+};
+
+/**
  * Entrypoint of the artifact
  */
 export type Entrypoint = {
@@ -1559,6 +1617,10 @@ export type PreviewMetadata = TimeFields & OwnerFields & {
  */
 export type PreviewSpec = {
     /**
+     * Custom domain bound to this preview
+     */
+    customDomain?: string;
+    /**
      * Port of the preview
      */
     port?: number;
@@ -1694,6 +1756,25 @@ export type PrivateLocation = {
      * Location name
      */
     name?: string;
+};
+
+export type PublicIp = {
+    /**
+     * Description of the region/location
+     */
+    description?: string;
+    /**
+     * List of public ipv4 addresses
+     */
+    ipv4Cidrs?: Array<string>;
+    /**
+     * List of public ipv6 addresses
+     */
+    ipv6Cidrs?: Array<string>;
+};
+
+export type PublicIps = {
+    [key: string]: PublicIp;
 };
 
 /**
@@ -2094,6 +2175,10 @@ export type Runtime = {
      */
     envs?: Array<unknown>;
     /**
+     * The expiration date for the deployment in ISO 8601 format - 2024-12-31T23:59:59Z
+     */
+    expires?: string;
+    /**
      * The generation of the deployment
      */
     generation?: string;
@@ -2144,6 +2229,10 @@ export type Runtime = {
      * The timeout for the deployment in seconds
      */
     timeout?: number;
+    /**
+     * The TTL for the deployment in seconds - 30m, 24h, 7d
+     */
+    ttl?: string;
     /**
      * The type of origin for the deployment (hf_private_endpoint, hf_public_endpoint)
      */
@@ -2601,6 +2690,17 @@ export type TriggerConfiguration = {
      * The schedule of the trigger, cron expression * * * * *
      */
     schedule?: string;
+    /**
+     * The tasks configuration of the cronjob
+     */
+    tasks?: Array<TriggerConfigurationTask>;
+};
+
+/**
+ * The tasks configuration of the cronjob
+ */
+export type TriggerConfigurationTask = {
+    [key: string]: unknown;
 };
 
 /**
@@ -2848,6 +2948,122 @@ export type GetConfigurationResponses = {
 };
 
 export type GetConfigurationResponse = GetConfigurationResponses[keyof GetConfigurationResponses];
+
+export type ListCustomDomainsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/customdomains';
+};
+
+export type ListCustomDomainsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<CustomDomain>;
+};
+
+export type ListCustomDomainsResponse = ListCustomDomainsResponses[keyof ListCustomDomainsResponses];
+
+export type CreateCustomDomainData = {
+    body: CustomDomain;
+    path?: never;
+    query?: never;
+    url: '/customdomains';
+};
+
+export type CreateCustomDomainResponses = {
+    /**
+     * successful operation
+     */
+    200: CustomDomain;
+};
+
+export type CreateCustomDomainResponse = CreateCustomDomainResponses[keyof CreateCustomDomainResponses];
+
+export type DeleteCustomDomainData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the custom domain
+         */
+        domainName: string;
+    };
+    query?: never;
+    url: '/customdomains/{domainName}';
+};
+
+export type DeleteCustomDomainResponses = {
+    /**
+     * successful operation
+     */
+    200: CustomDomain;
+};
+
+export type DeleteCustomDomainResponse = DeleteCustomDomainResponses[keyof DeleteCustomDomainResponses];
+
+export type GetCustomDomainData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the custom domain
+         */
+        domainName: string;
+    };
+    query?: never;
+    url: '/customdomains/{domainName}';
+};
+
+export type GetCustomDomainResponses = {
+    /**
+     * successful operation
+     */
+    200: CustomDomain;
+};
+
+export type GetCustomDomainResponse = GetCustomDomainResponses[keyof GetCustomDomainResponses];
+
+export type UpdateCustomDomainData = {
+    body: CustomDomain;
+    path: {
+        /**
+         * Name of the custom domain
+         */
+        domainName: string;
+    };
+    query?: never;
+    url: '/customdomains/{domainName}';
+};
+
+export type UpdateCustomDomainResponses = {
+    /**
+     * successful operation
+     */
+    200: CustomDomain;
+};
+
+export type UpdateCustomDomainResponse = UpdateCustomDomainResponses[keyof UpdateCustomDomainResponses];
+
+export type VerifyCustomDomainData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the custom domain
+         */
+        domainName: string;
+    };
+    query?: never;
+    url: '/customdomains/{domainName}/verify';
+};
+
+export type VerifyCustomDomainResponses = {
+    /**
+     * successful operation
+     */
+    200: CustomDomain;
+};
+
+export type VerifyCustomDomainResponse = VerifyCustomDomainResponses[keyof VerifyCustomDomainResponses];
 
 export type ListFunctionsData = {
     body?: never;
@@ -3857,6 +4073,22 @@ export type ListAllPendingInvitationsResponses = {
 };
 
 export type ListAllPendingInvitationsResponse = ListAllPendingInvitationsResponses[keyof ListAllPendingInvitationsResponses];
+
+export type ListPublicIpsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/publicIps';
+};
+
+export type ListPublicIpsResponses = {
+    /**
+     * successful operation
+     */
+    200: PublicIps;
+};
+
+export type ListPublicIpsResponse = ListPublicIpsResponses[keyof ListPublicIpsResponses];
 
 export type ListSandboxHubDefinitionsData = {
     body?: never;
