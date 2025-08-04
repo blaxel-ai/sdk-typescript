@@ -1,0 +1,28 @@
+name: TS SDK build
+
+on:
+  pull_request:
+    branches:
+      - "main"
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        name: Checkout
+        with:
+          fetch-tags: true
+          fetch-depth: 0
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 23
+          registry-url: "https://registry.npmjs.org"
+      - name: Build
+        run: |
+          pnpm install
+          pnpm build
