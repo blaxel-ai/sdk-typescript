@@ -18,7 +18,7 @@ async function main() {
     console.log("Test 2: Create sandbox with expiresAt...");
     let date = new Date();
     date.setSeconds(date.getSeconds() + 60);
-    sandbox = await SandboxInstance.create({ expiresAt: date, name: "sandbox-expires" });
+    sandbox = await SandboxInstance.create({ expires: date, name: "sandbox-expires" });
     await sandbox.wait();
     console.log(`✅ Created sandbox with default name: ${sandbox.metadata?.name}`);
     await new Promise(resolve => setTimeout(resolve, 120000));

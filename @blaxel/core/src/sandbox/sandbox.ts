@@ -89,7 +89,7 @@ export class SandboxInstance {
       const ports = normalizePorts(sandbox.ports);
       const envs = normalizeEnvs(sandbox.envs);
       const ttl = sandbox.ttl;
-      const expiresAt = sandbox.expiresAt;
+      const expires = sandbox.expires;
 
       sandbox = {
         metadata: { name: sandbox.name },
@@ -106,8 +106,8 @@ export class SandboxInstance {
       if (ttl) {
         sandbox.spec!.runtime!.ttl = ttl;
       }
-      if (expiresAt) {
-        sandbox.spec!.runtime!.expires = expiresAt.toISOString();
+      if (expires) {
+        sandbox.spec!.runtime!.expires = expires.toISOString();
       }
     }
 
