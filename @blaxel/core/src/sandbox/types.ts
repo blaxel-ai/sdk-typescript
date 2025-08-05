@@ -31,6 +31,8 @@ export type SandboxCreateConfiguration = {
   memory?: number;
   ports?: (Port | Record<string, any>)[];
   envs?: EnvVar[];
+  ttl?: string;
+  expiresAt?: Date;
 }
 
 export function normalizePorts(ports?: (Port | Record<string, any>)[]): Port[] | undefined {
