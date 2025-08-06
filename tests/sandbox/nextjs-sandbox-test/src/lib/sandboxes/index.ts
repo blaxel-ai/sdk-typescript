@@ -1,6 +1,6 @@
 import { SandboxInstance } from "@blaxel/core"
 
-export async function createOrGetSandbox({sandboxName, wait = true}: {sandboxName: string, wait?: boolean}) {
+export async function createOrGetSandbox({sandboxName }: {sandboxName: string}) {
   const envs = []
   if (process.env.MORPH_API_KEY) {
     envs.push({
@@ -39,8 +39,5 @@ export async function createOrGetSandbox({sandboxName, wait = true}: {sandboxNam
     }
   }
   const sandbox = await SandboxInstance.createIfNotExists(sandboxModel)
-  if (wait) {
-    await sandbox.wait({ maxWait: 120000, interval: 1000 })
-  }
   return sandbox
 }
