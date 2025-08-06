@@ -40,9 +40,6 @@ if (!isBrowser) {
 
 //const SUBPROTOCOL = "mcp";
 
-const MAX_RETRIES = 3;
-const RETRY_DELAY_MS = 1000;
-
 // Helper function to wait
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -55,18 +52,22 @@ export class BlaxelMcpClientTransport implements Transport {
   private _url: URL;
   private _headers: Record<string, string>;
   private _isBrowser: boolean;
+  private _retry_max: number;
+  private _retry_delay: number;
 
   onclose?: () => void;
   onerror?: (error: Error) => void;
   onmessage?: (message: JSONRPCMessage) => void;
 
-  constructor(url: string, headers?: Record<string, string>) {
+  constructor(url: string, headers?: Record<string, string>, options?: { retry: {max?: number, delay?: number } }) {
     this._url = new URL(url.replace("http", "ws"));
+    this._retry_max = options?.retry?.max ?? 3;
+    this._retry_delay = options?.retry?.delay ?? 1000;
     this._headers = headers ?? {};
     this._isBrowser = isBrowser;
   }
 
-  async start(): Promise<void> {
+    async start(): Promise<void> {
     if (this._socket) {
       throw new Error(
         "Blaxel already started! If using Client class, note that connect() calls start() automatically."
@@ -74,22 +75,27 @@ export class BlaxelMcpClientTransport implements Transport {
     }
 
     let attempts = 0;
-    while (attempts < MAX_RETRIES) {
+    const maxAttempts = Math.max(1, this._retry_max + 1); // Ensure at least 1 attempt
+
+    while (attempts < maxAttempts) {
       try {
         await this._connect();
         return;
       } catch (error) {
+        attempts++;
+
         if (error instanceof Error) {
           logger.warn(error.stack ?? error.message);
         }
-        attempts++;
-        if (attempts === MAX_RETRIES) {
+
+        if (attempts >= maxAttempts) {
           throw error;
         }
+
         logger.debug(
-          `WebSocket connection attempt ${attempts} failed, retrying in ${RETRY_DELAY_MS}ms...`
+          `WebSocket connection attempt ${attempts} failed, retrying in ${this._retry_delay}ms...`
         );
-        await delay(RETRY_DELAY_MS);
+        await delay(this._retry_delay);
       }
     }
   }
@@ -115,7 +121,27 @@ export class BlaxelMcpClientTransport implements Transport {
         }
 
         this._socket.onerror = (event) => {
-          console.error(event)
+          // Log websocket error with meaningful information instead of raw event
+          const errorInfo = {
+            type: 'WebSocket Error',
+            url: this._url.toString(),
+            readyState: this._socket?.readyState,
+            browser: this._isBrowser,
+            // Extract any available error details from the event
+            eventType: event && typeof event === 'object' && 'type' in event
+              ? String((event as Record<string, unknown>).type)
+              : 'unknown',
+            // Browser events might have different properties than Node.js
+            message: this._isBrowser && event && typeof event === 'object' && 'message' in event
+              ? String((event as Record<string, unknown>).message)
+              : undefined,
+            error: !this._isBrowser && event && typeof event === 'object' && 'error' in event
+              ? String((event as Record<string, unknown>).error)
+              : undefined
+          };
+
+          logger.error('WebSocket connection error', errorInfo);
+
           const error = this._isBrowser
             // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
             ? new Error(`WebSocket error: ${event.message}`)
@@ -205,9 +231,11 @@ export class BlaxelMcpClientTransport implements Transport {
     return Promise.resolve();
   }
 
-  async send(message: JSONRPCMessage): Promise<void> {
+    async send(message: JSONRPCMessage): Promise<void> {
     let attempts = 0;
-    while (attempts < MAX_RETRIES) {
+    const maxAttempts = Math.max(1, this._retry_max + 1); // Ensure at least 1 attempt
+
+    while (attempts < maxAttempts) {
       try {
         if (!this._socket || !this.isConnected) {
           if (!this._socket) {
@@ -243,13 +271,15 @@ export class BlaxelMcpClientTransport implements Transport {
         return;
       } catch (error) {
         attempts++;
-        if (attempts === MAX_RETRIES) {
+
+        if (attempts >= maxAttempts) {
           throw error;
         }
+
         logger.warn(
-          `WebSocket send attempt ${attempts} failed, retrying in ${RETRY_DELAY_MS}ms...`
+          `WebSocket send attempt ${attempts} failed, retrying in ${this._retry_delay}ms...`
         );
-        await delay(RETRY_DELAY_MS);
+        await delay(this._retry_delay);
       }
     }
   }

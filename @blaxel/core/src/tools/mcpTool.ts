@@ -87,13 +87,19 @@ export class McpTool {
         logger.debug(`MCP:${this.name}:Connecting::${this.url.toString()}`);
         this.transport = new BlaxelMcpClientTransport(
           this.url.toString(),
-          settings.headers
+          settings.headers,
+          { retry: { max: 0 } }
         );
         await this.client.connect(this.transport);
         logger.debug(`MCP:${this.name}:Connected`);
       } catch (err) {
         if (err instanceof Error) {
-          logger.error(err.stack);
+          logger.error(`MCP ${this.name} connection failed: ${err.message}`, {
+            error: err.message,
+            stack: err.stack,
+            mcpName: this.name,
+            url: this.url
+          });
         }
         if (!this.fallbackUrl) {
           throw err;
@@ -124,7 +130,11 @@ export class McpTool {
       delete this.startPromise;
       this.client.close().catch((err) => {
         if (err instanceof Error) {
-          logger.error(err.stack);
+          logger.error(`MCP ${this.name} close failed: ${err.message}`, {
+            error: err.message,
+            stack: err.stack,
+            mcpName: this.name
+          });
         }
       });
     }, now ? 0 : this.ms);
@@ -210,7 +220,13 @@ export class McpTool {
       return result;
     } catch (err: unknown) {
       if (err instanceof Error) {
-        logger.error(err.stack);
+        logger.error(`MCP tool call failed: ${err.message}`, {
+          error: err.message,
+          stack: err.stack,
+          mcpName: this.name,
+          toolName,
+          args: JSON.stringify(args)
+        });
       }
       throw err;
     } finally {
