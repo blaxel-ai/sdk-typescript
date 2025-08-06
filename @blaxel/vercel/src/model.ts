@@ -18,49 +18,70 @@ export const blModel = async (
   await authenticate();
   const type = modelData?.spec?.runtime?.type || "openai";
   const modelId = modelData?.spec?.runtime?.model || "gpt-4o";
+
+  // Custom fetch function that refreshes authentication on each request
+  const authenticatedFetch = async (input: string | URL | Request, init?: RequestInit) => {
+    await authenticate();
+    const headers = {
+      ...init?.headers,
+      ...settings.headers,
+    };
+    return fetch(input, {
+      ...init,
+      headers,
+    });
+  };
   try {
     if (type === "gemini") {
       return createGoogleGenerativeAI({
-        apiKey: settings.token,
-        headers: settings.headers,
-        fetch: (_, options) => {
-          return fetch(`${url}/v1beta/models/${modelId}:generateContent`, options)
+        apiKey: "replaced",
+        fetch: async (_, options) => {
+          await authenticate();
+          const headers = {
+            ...options?.headers,
+            ...settings.headers,
+          };
+          return fetch(`${url}/v1beta/models/${modelId}:generateContent`, {
+            ...options,
+            headers,
+          })
         },
         ...options,
       })(modelId);
     } else if (type === "anthropic") {
       return createAnthropic({
-        apiKey: settings.token,
+        apiKey: "replaced",
         baseURL: `${url}/v1`,
-        headers: settings.headers,
+        fetch: authenticatedFetch,
         ...options,
       })(modelId);
     } else if (type === "groq") {
-
       return createGroq({
-        apiKey: settings.token,
+        apiKey: "replaced",
         baseURL: `${url}`,
+        fetch: authenticatedFetch,
         ...options,
       })(modelId);
     } else if (type === "cerebras") {
-
       return createCerebras({
-        apiKey: settings.token,
+        apiKey: "replaced",
         baseURL: `${url}/v1`,
+        fetch: authenticatedFetch,
         ...options,
       })(modelId);
     } else if (type === "cohere") {
-
       return createCohere({
-        apiKey: settings.token,
+        apiKey: "replaced",
         baseURL: `${url}/v2`,
+        fetch: authenticatedFetch,
         ...options,
       })(modelId);
     }
 
     return createOpenAI({
-      apiKey: settings.token,
+      apiKey: "replaced",
       baseURL: `${url}/v1`,
+      fetch: authenticatedFetch,
       ...options,
     })(modelId);
   } catch (err) {

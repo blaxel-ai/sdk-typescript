@@ -6,12 +6,12 @@ import { generateText } from "ai";
 
 const models = [
   "gpt-4o-mini",
-  "claude-3-7-sonnet-20250219",
+  "claude-sonnet-4",
   "cerebras-sandbox",
   "cohere-command-r-plus",
-  "ministral-3b-2410",
-  "gemini-2-5-pro-preview-06-05",
+  "mistral-large-latest",
   "deepseek-chat",
+  "gemini-2-5-pro-preview-06-05",
   "xai-grok-beta",
 ]
 
