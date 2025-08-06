@@ -95,7 +95,7 @@ export class SandboxInstance {
     });
     const instance = new SandboxInstance(data);
     // TODO remove this part once we have a better way to handle this
-    // await instance.fs.ls('/')
+    await instance.fs.ls('/')
     return instance;
   }
 
