@@ -88,8 +88,14 @@ async function testPreviewPublic(sandbox: SandboxInstance) {
     if (!url) {
       throw new Error("Preview URL is not correct");
     }
-    if (url !== `https://small-prefix-${settings.workspace}.preview.bl.run`) {
-      throw new Error(`Preview URL is not correct => ${url}`);
+    if (settings.env === "dev") {
+      if (url !== `https://small-prefix-${settings.workspace}.preview.blaxel.dev`) {
+        throw new Error(`Preview URL is not correct => ${url}`);
+      }
+    } else {
+      if (url !== `https://small-prefix-${settings.workspace}.preview.bl.run`) {
+        throw new Error(`Preview URL is not correct => ${url}`);
+      }
     }
     const response = await fetch(`${url}/health`)
     if (response.status !== 200) {
