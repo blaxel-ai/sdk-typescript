@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
 
     // Create sandbox instance using Blaxel SDK
     const sandboxName = getName(`${user.email.split('@')[0]}-${name}`);
-    const sandboxCreated = await createOrGetSandbox({sandboxName, wait: false});
+    const sandboxCreated = await createOrGetSandbox({sandboxName});
 
     return NextResponse.json({
       sandbox: sandboxCreated,

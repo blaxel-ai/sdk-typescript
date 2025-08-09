@@ -3,11 +3,14 @@ import AdmZip from "adm-zip";
 import * as fs from "fs";
 import path from "path";
 
+const env = process.env.BL_ENV || "prod"
+
 export const sep = '--------------------------------'
 
 export const info = (msg: string) => console.log(`[INFO] ${msg}`)
 
 export async function localSandbox(sandboxName: string) {
+  info(`Using local sandbox ${sandboxName}`)
   const sandbox = new SandboxInstance({
     metadata: {
       name: sandboxName
@@ -18,7 +21,7 @@ export async function localSandbox(sandboxName: string) {
 }
 
 
-export async function createOrGetSandbox({sandboxName, image = "blaxel/prod-nextjs:latest", ports = [], memory = 4096, envs = []}: {sandboxName: string, image?: string, ports?: { name: string, target: number, protocol: string, envs?: { name: string, value: string }[] }[], memory?: number, envs?: { name: string, value: string }[]}) {
+export async function createOrGetSandbox({sandboxName, image = `blaxel/${env}-nextjs:latest`, ports = [], memory = 4096, envs = []}: {sandboxName: string, image?: string, ports?: { name: string, target: number, protocol: string, envs?: { name: string, value: string }[] }[], memory?: number, envs?: { name: string, value: string }[]}) {
   // return localSandbox(sandboxName)
   if (ports.length === 0) {
     ports.push({
@@ -51,7 +54,6 @@ export async function createOrGetSandbox({sandboxName, image = "blaxel/prod-next
     }
   }
   const sandbox = await SandboxInstance.createIfNotExists(sandboxModel)
-  await sandbox.wait({ maxWait: 120000, interval: 1000 })
   return sandbox
 }
 

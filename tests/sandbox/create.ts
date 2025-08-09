@@ -4,7 +4,6 @@ async function main() {
   try {
     console.log("Test 1: Create default sandbox...");
     let sandbox = await SandboxInstance.create();
-    await sandbox.wait();
     console.log(`✅ Created sandbox with default name: ${sandbox.metadata?.name}`);
     console.log(await sandbox.fs.ls('/blaxel'));
     await SandboxInstance.delete(sandbox.metadata?.name!);
@@ -14,7 +13,6 @@ async function main() {
     sandbox = await SandboxInstance.create(
       { spec: { runtime: { image: "blaxel/prod-base:latest" } } }
     );
-    await sandbox.wait();
     console.log(`✅ Created sandbox with spec: ${sandbox.metadata?.name}`);
     console.log(await sandbox.fs.ls('/blaxel'));
     await SandboxInstance.delete(sandbox.metadata?.name!);
@@ -22,7 +20,6 @@ async function main() {
 
     console.log("\nTest 3: Create sandbox with name...");
     sandbox = await SandboxInstance.create({ name: "sandbox-with-name" });
-    await sandbox.wait();
     console.log(`✅ Created sandbox with name: ${sandbox.metadata?.name}`);
     console.log(await sandbox.fs.ls('/blaxel/'));
     await SandboxInstance.delete(sandbox.metadata?.name!);
@@ -35,7 +32,6 @@ async function main() {
       memory: 2048
     };
     sandbox = await SandboxInstance.create(config);
-    await sandbox.wait();
     console.log(`✅ Created sandbox with config: ${sandbox.metadata?.name}`);
     console.log(await sandbox.fs.ls('/blaxel/'));
     await SandboxInstance.delete(sandbox.metadata?.name!);
@@ -43,7 +39,6 @@ async function main() {
 
     console.log("\nTest 5: Create sandbox if not exists with name...");
     sandbox = await SandboxInstance.createIfNotExists({ name: "sandbox-cine-name" });
-    await sandbox.wait();
     console.log(`✅ Created/found sandbox: ${sandbox.metadata?.name}`);
     console.log(await sandbox.fs.ls('/blaxel/'));
     await SandboxInstance.delete(sandbox.metadata?.name!);
@@ -51,7 +46,6 @@ async function main() {
 
     console.log("\nTest 6: Create sandbox if not exists with metadata...");
     sandbox = await SandboxInstance.createIfNotExists({ metadata: { name: "sandbox-cine-metadata" } });
-    await sandbox.wait();
     console.log(`✅ Created/found sandbox with metadata: ${sandbox.metadata?.name}`);
     console.log(await sandbox.fs.ls('/blaxel/'));
     await SandboxInstance.delete(sandbox.metadata?.name!);
@@ -68,7 +62,6 @@ async function main() {
       ],
     };
     sandbox = await SandboxInstance.create(portsConfig);
-    await sandbox.wait();
     console.log(`✅ Created sandbox with ports: ${sandbox.metadata?.name}`);
     console.log(`   Image: ${sandbox.spec?.runtime?.image}`);
     console.log(`   Memory: ${sandbox.spec?.runtime?.memory}`);
@@ -97,7 +90,6 @@ async function main() {
       ],
     };
     sandbox = await SandboxInstance.create(envsConfig);
-    await sandbox.wait();
     console.log(`✅ Created sandbox with envs: ${sandbox.metadata?.name}`);
     console.log(`   Image: ${sandbox.spec?.runtime?.image}`);
     console.log(`   Memory: ${sandbox.spec?.runtime?.memory}`);
@@ -124,7 +116,6 @@ async function main() {
         { name: "VERSION", value: "1.0.0" },
       ]
     });
-    await sandbox.wait();
     console.log(`✅ Created sandbox with envs dict: ${sandbox.metadata?.name}`);
     console.log(`   Image: ${sandbox.spec?.runtime?.image}`);
     console.log(`   Memory: ${sandbox.spec?.runtime?.memory}`);
