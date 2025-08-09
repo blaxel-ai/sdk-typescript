@@ -94,11 +94,13 @@ class TelemetryManager {
   private meterProvider: MeterProvider | null;
   private initialized: boolean;
   private configured: boolean;
+  private shuttingDown: boolean;
   constructor() {
     this.nodeTracerProvider = null;
     this.meterProvider = null;
     this.initialized = false;
     this.configured = false;
+    this.shuttingDown = false;
   }
 
   // This method need to stay sync to avoid non booted instrumentations
@@ -163,15 +165,36 @@ class TelemetryManager {
   }
 
   setupSignalHandler() {
-    const signals = ["SIGINT", "SIGTERM", "uncaughtException", "exit"];
-    for (const signal of signals) {
-      process.on(signal, () => {
-        this.shutdownApp().catch((error) => {
+    const forward = (sig: NodeJS.Signals) => {
+      if (this.shuttingDown) return;
+      this.shuttingDown = true;
+      this.shutdownApp()
+        .catch((error) => {
           logger.debug("Fatal error during shutdown:", error);
-          process.exit(0);
+        })
+        .finally(() => {
+          try {
+            // Re-send the original signal to let the default handler terminate the process with the correct code
+            process.kill(process.pid, sig);
+          } catch {
+            process.exit(1);
+          }
+        });
+    };
+
+    process.once("SIGINT", () => forward("SIGINT"));
+    process.once("SIGTERM", () => forward("SIGTERM"));
+    process.once("uncaughtException", (err: unknown) => {
+      logger.error("Uncaught exception:", err as any);
+      this.shutdownApp().catch((error) => {
+        logger.debug("Fatal error during shutdown:", error);
+      }).finally(() => {
+        // Re-throw on next tick so Node's default handler sets exit code and prints stack
+        setImmediate(() => {
+          throw (err instanceof Error ? err : new Error(String(err)));
         });
       });
-    }
+    });
   }
 
   /**
@@ -310,11 +333,8 @@ class TelemetryManager {
         new Promise((resolve) => setTimeout(resolve, 5000)), // 5 second timeout
       ]);
       logger.debug("Instrumentation shutdown complete");
-
-      process.exit(0);
     } catch (error) {
       logger.error("Error during shutdown:", error);
-      process.exit(1);
     }
   }
 }
