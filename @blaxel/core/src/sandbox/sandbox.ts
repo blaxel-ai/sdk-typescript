@@ -1,12 +1,12 @@
 import { v4 as uuidv4 } from "uuid";
-import { createSandbox, deleteSandbox, getSandbox, listSandboxes, Sandbox as SandboxModel } from "../client/index.js";
+import { createSandbox, deleteSandbox, getSandbox, listSandboxes, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
 import { SandboxFileSystem } from "./filesystem/index.js";
 import { SandboxNetwork } from "./network/index.js";
 import { SandboxPreviews } from "./preview.js";
 import { SandboxProcess } from "./process/index.js";
 import { SandboxSessions } from "./session.js";
-import { normalizeEnvs, normalizePorts, SandboxConfiguration, SandboxCreateConfiguration, SessionWithToken } from "./types.js";
+import { normalizeEnvs, normalizePorts, SandboxConfiguration, SandboxCreateConfiguration, SandboxUpdateMetadata, SessionWithToken } from "./types.js";
 
 export class SandboxInstance {
   fs: SandboxFileSystem;
@@ -130,6 +130,18 @@ export class SandboxInstance {
       throwOnError: true,
     });
     return data;
+  }
+
+  static async updateMetadata(sandboxName: string, metadata: SandboxUpdateMetadata) {
+    const sandbox = await SandboxInstance.get(sandboxName);
+    const body = { ...sandbox.sandbox, metadata: { ...sandbox.metadata, ...metadata } } as SandboxModel
+    const { data } = await updateSandbox({
+      path: { sandboxName },
+      body,
+      throwOnError: true,
+    });
+    const instance = new SandboxInstance(data);
+    return instance;
   }
 
   static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration) {
