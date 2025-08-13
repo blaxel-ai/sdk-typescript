@@ -103,7 +103,10 @@ export class SandboxInstance {
     });
     const instance = new SandboxInstance(data);
     // TODO remove this part once we have a better way to handle this
-    await instance.fs.ls('/')
+    try {
+      await instance.fs.ls('/')
+    } catch {
+    }
     return instance;
   }
 
