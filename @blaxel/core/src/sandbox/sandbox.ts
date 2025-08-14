@@ -45,7 +45,7 @@ export class SandboxInstance {
     return this;
   }
 
-  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration) {
+  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = true }: { safe?: boolean } = {}) {
     const defaultName = `sandbox-${uuidv4().replace(/-/g, '').substring(0, 8)}`
     const defaultImage = "blaxel/prod-base:latest"
     const defaultMemory = 4096
@@ -103,9 +103,10 @@ export class SandboxInstance {
     });
     const instance = new SandboxInstance(data);
     // TODO remove this part once we have a better way to handle this
-    try {
-      await instance.fs.ls('/')
-    } catch {
+    if (safe) {
+      try {
+        await instance.fs.ls('/')
+      } catch {}
     }
     return instance;
   }
