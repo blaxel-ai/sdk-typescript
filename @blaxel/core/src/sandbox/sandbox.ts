@@ -84,10 +84,10 @@ export class SandboxInstance {
 
     sandbox = sandbox as SandboxModel
     if (!sandbox.metadata) {
-      sandbox.metadata = { name: crypto.randomUUID().replace(/-/g, '') };
+      sandbox.metadata = { name: defaultName };
     }
     if (!sandbox.spec) {
-      sandbox.spec = { runtime: { image: "blaxel/prod-base:latest" } };
+      sandbox.spec = { runtime: { image: defaultImage, memory: defaultMemory } };
     }
     if (!sandbox.spec.runtime) {
       sandbox.spec.runtime = { image: defaultImage, memory: defaultMemory };

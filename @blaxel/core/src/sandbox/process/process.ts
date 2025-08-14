@@ -94,11 +94,8 @@ export class SandboxProcess extends SandboxAction {
     let result = data as PostProcessResponse;
 
     // Handle wait_for_completion with parallel log streaming
-    if (shouldWaitForCompletion) {
-      let streamControl: { close: () => void } | undefined;
-      if (onLog) {
-        streamControl = this.streamLogs(result.pid, { onLog });
-      }
+    if (shouldWaitForCompletion && onLog) {
+      const streamControl = this.streamLogs(result.pid, { onLog });
       try {
         // Wait for process completion
         result = await this.wait(result.pid, { interval: 500, maxWait: 1000 * 60 * 60 });
