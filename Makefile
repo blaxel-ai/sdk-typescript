@@ -45,6 +45,8 @@ sdk-controlplane:
 sdk: sdk-sandbox sdk-controlplane
 
 tag:
+	git checkout main
+	git pull origin main
 	git tag -a v$(ARGS) -m "Release v$(ARGS)"
 	git push origin v$(ARGS)
 
