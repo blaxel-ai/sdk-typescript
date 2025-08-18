@@ -56,24 +56,7 @@ export type AgentSpec = CoreSpec & {
      * Description, small description computed from the prompt
      */
     description?: string;
-    functions?: FunctionsList;
-    /**
-     * Knowledgebase Name
-     */
-    knowledgebase?: string;
-    /**
-     * Model name
-     */
-    model?: string;
-    /**
-     * Prompt, describe what your agent does
-     */
-    prompt?: string;
     repository?: Repository;
-    /**
-     * Store id
-     */
-    storeId?: string;
     triggers?: Triggers;
 };
 
@@ -266,7 +249,7 @@ export type CustomDomainSpec = {
     /**
      * CNAME target for the domain
      */
-    cnameTarget?: string;
+    cnameRecords?: string;
     /**
      * Last verification attempt timestamp
      */
@@ -474,8 +457,6 @@ export type FunctionSpec = CoreSpec & {
     kit?: Array<FunctionKit>;
     schema?: FunctionSchema;
 };
-
-export type FunctionsList = Array<string>;
 
 /**
  * Histogram bucket
@@ -838,14 +819,6 @@ export type JobSpec = CoreSpec & {
 };
 
 /**
- * Jobs chart
- */
-export type JobsChart = {
-    failed?: JobsChartValue;
-    success?: JobsChartValue;
-};
-
-/**
  * Jobs CPU usage
  */
 export type JobsChartValue = {
@@ -857,28 +830,6 @@ export type JobsChartValue = {
      * Metric value
      */
     value?: number;
-};
-
-/**
- * Jobs executions
- */
-export type JobsExecutions = {
-    /**
-     * Failed executions
-     */
-    failed?: number;
-    /**
-     * Running executions
-     */
-    running?: number;
-    /**
-     * Success executions
-     */
-    success?: number;
-    /**
-     * Total executions
-     */
-    total?: number;
 };
 
 /**
@@ -901,28 +852,6 @@ export type JobsSuccessFailedChart = {
      */
     timestamp?: string;
     total?: JobsChartValue;
-};
-
-/**
- * Jobs tasks
- */
-export type JobsTasks = {
-    /**
-     * Failed executions
-     */
-    failed?: number;
-    /**
-     * Running executions
-     */
-    running?: number;
-    /**
-     * Success executions
-     */
-    success?: number;
-    /**
-     * Total executions
-     */
-    total?: number;
 };
 
 /**
@@ -950,56 +879,6 @@ export type JobsTotal = {
      */
     total?: number;
 };
-
-/**
- * Knowledgebase
- */
-export type Knowledgebase = {
-    events?: CoreEvents;
-    metadata?: Metadata;
-    spec?: KnowledgebaseSpec;
-    /**
-     * Knowledgebase status
-     */
-    status?: string;
-};
-
-/**
- * Knowledgebase specification
- */
-export type KnowledgebaseSpec = {
-    /**
-     * Collection name
-     */
-    collectionName?: string;
-    /**
-     * Embedding model
-     */
-    embeddingModel?: string;
-    /**
-     * Embedding model type
-     */
-    embeddingModelType?: string;
-    /**
-     * Enable or disable the agent
-     */
-    enabled?: boolean;
-    integrationConnections?: IntegrationConnectionsList;
-    /**
-     * Options specific to the knowledge base
-     */
-    options?: {
-        [key: string]: string;
-    };
-    policies?: PoliciesList;
-    revision?: RevisionConfiguration;
-    /**
-     * Sandbox mode
-     */
-    sandbox?: boolean;
-};
-
-export type KnowledgebasesList = Array<string>;
 
 /**
  * Last N requests
@@ -3473,122 +3352,6 @@ export type ListJobRevisionsResponses = {
 };
 
 export type ListJobRevisionsResponse = ListJobRevisionsResponses[keyof ListJobRevisionsResponses];
-
-export type ListKnowledgebasesData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/knowledgebases';
-};
-
-export type ListKnowledgebasesResponses = {
-    /**
-     * successful operation
-     */
-    200: Array<Knowledgebase>;
-};
-
-export type ListKnowledgebasesResponse = ListKnowledgebasesResponses[keyof ListKnowledgebasesResponses];
-
-export type CreateKnowledgebaseData = {
-    body: Knowledgebase;
-    path?: never;
-    query?: never;
-    url: '/knowledgebases';
-};
-
-export type CreateKnowledgebaseResponses = {
-    /**
-     * successful operation
-     */
-    200: Knowledgebase;
-};
-
-export type CreateKnowledgebaseResponse = CreateKnowledgebaseResponses[keyof CreateKnowledgebaseResponses];
-
-export type DeleteKnowledgebaseData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the knowledgebase
-         */
-        knowledgebaseName: string;
-    };
-    query?: never;
-    url: '/knowledgebases/{knowledgebaseName}';
-};
-
-export type DeleteKnowledgebaseResponses = {
-    /**
-     * successful operation
-     */
-    200: Knowledgebase;
-};
-
-export type DeleteKnowledgebaseResponse = DeleteKnowledgebaseResponses[keyof DeleteKnowledgebaseResponses];
-
-export type GetKnowledgebaseData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the knowledgebase
-         */
-        knowledgebaseName: string;
-    };
-    query?: never;
-    url: '/knowledgebases/{knowledgebaseName}';
-};
-
-export type GetKnowledgebaseResponses = {
-    /**
-     * successful operation
-     */
-    200: Knowledgebase;
-};
-
-export type GetKnowledgebaseResponse = GetKnowledgebaseResponses[keyof GetKnowledgebaseResponses];
-
-export type UpdateKnowledgebaseData = {
-    body: Knowledgebase;
-    path: {
-        /**
-         * Name of the knowledgebase
-         */
-        knowledgebaseName: string;
-    };
-    query?: never;
-    url: '/knowledgebases/{knowledgebaseName}';
-};
-
-export type UpdateKnowledgebaseResponses = {
-    /**
-     * successful operation
-     */
-    200: Knowledgebase;
-};
-
-export type UpdateKnowledgebaseResponse = UpdateKnowledgebaseResponses[keyof UpdateKnowledgebaseResponses];
-
-export type ListKnowledgebaseRevisionsData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the knowledgebase
-         */
-        knowledgebaseName: string;
-    };
-    query?: never;
-    url: '/knowledgebases/{knowledgebaseName}/revisions';
-};
-
-export type ListKnowledgebaseRevisionsResponses = {
-    /**
-     * successful operation
-     */
-    200: Array<RevisionMetadata>;
-};
-
-export type ListKnowledgebaseRevisionsResponse = ListKnowledgebaseRevisionsResponses[keyof ListKnowledgebaseRevisionsResponses];
 
 export type ListLocationsData = {
     body?: never;
