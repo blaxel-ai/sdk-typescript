@@ -15,6 +15,7 @@ export async function localSandbox(sandboxName: string) {
     metadata: {
       name: sandboxName
     },
+    forceUrl: "http://localhost:8080"
   })
   return sandbox
 }
