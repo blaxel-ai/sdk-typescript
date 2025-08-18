@@ -25,12 +25,19 @@ export type SandboxConfiguration = {
   params?: Record<string, string>;
 } & Sandbox;
 
+export type SandboxUpdateMetadata = {
+  labels?: Record<string, string>;
+  displayName?: string;
+}
+
 export type SandboxCreateConfiguration = {
   name?: string;
   image?: string;
   memory?: number;
   ports?: (Port | Record<string, any>)[];
   envs?: EnvVar[];
+  ttl?: string;
+  expires?: Date;
 }
 
 export function normalizePorts(ports?: (Port | Record<string, any>)[]): Port[] | undefined {

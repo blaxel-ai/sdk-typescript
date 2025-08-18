@@ -1,12 +1,12 @@
 import { v4 as uuidv4 } from "uuid";
-import { createSandbox, deleteSandbox, getSandbox, listSandboxes, Sandbox as SandboxModel } from "../client/index.js";
+import { createSandbox, deleteSandbox, getSandbox, listSandboxes, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
 import { SandboxFileSystem } from "./filesystem/index.js";
 import { SandboxNetwork } from "./network/index.js";
 import { SandboxPreviews } from "./preview.js";
 import { SandboxProcess } from "./process/index.js";
 import { SandboxSessions } from "./session.js";
-import { normalizeEnvs, normalizePorts, SandboxConfiguration, SandboxCreateConfiguration, SessionWithToken } from "./types.js";
+import { normalizeEnvs, normalizePorts, SandboxConfiguration, SandboxCreateConfiguration, SandboxUpdateMetadata, SessionWithToken } from "./types.js";
 
 export class SandboxInstance {
   fs: SandboxFileSystem;
@@ -39,42 +39,13 @@ export class SandboxInstance {
     return this.sandbox.spec;
   }
 
+  /* eslint-disable */
   async wait({maxWait = 60000, interval = 1000}: {maxWait?: number, interval?: number} = {}) {
-    const startTime = Date.now();
-    while (this.sandbox.status !== "DEPLOYED") {
-      await new Promise((resolve) => setTimeout(resolve, interval));
-      try {
-        const { data } = await getSandbox({
-          path: {
-            sandboxName: this.sandbox.metadata?.name ?? "",
-          },
-          throwOnError: true,
-        });
-        logger.debug(`Waiting for sandbox to be deployed, status: ${data.status}`);
-        this.sandbox = data;
-      } catch(e) {
-        logger.error("Could not retrieve sandbox", e);
-      }
-      if (this.sandbox.status === "FAILED") {
-        throw new Error("Sandbox failed to deploy");
-      }
-      if (Date.now() - startTime > maxWait) {
-        throw new Error("Sandbox did not deploy in time");
-      }
-    }
-    if (this.sandbox.status === "DEPLOYED") {
-      try {
-        // This is a hack for sometime receiving a 502,
-        // need to remove this once we have a better way to handle this
-        await this.fs.ls("/")
-      } catch {
-        // pass
-      }
-    }
+    logger.warn("⚠️  Warning: sandbox.wait() is deprecated. You don't need to wait for the sandbox to be deployed anymore.");
     return this;
   }
 
-  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration) {
+  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = true }: { safe?: boolean } = {}) {
     const defaultName = `sandbox-${uuidv4().replace(/-/g, '').substring(0, 8)}`
     const defaultImage = "blaxel/prod-base:latest"
     const defaultMemory = 4096
@@ -88,6 +59,8 @@ export class SandboxInstance {
 
       const ports = normalizePorts(sandbox.ports);
       const envs = normalizeEnvs(sandbox.envs);
+      const ttl = sandbox.ttl;
+      const expires = sandbox.expires;
 
       sandbox = {
         metadata: { name: sandbox.name },
@@ -97,18 +70,24 @@ export class SandboxInstance {
             memory: sandbox.memory,
             ports: ports,
             envs: envs,
-            generation: "mk3"
+            generation: "mk3",
           }
         }
       } as SandboxModel
+      if (ttl) {
+        sandbox.spec!.runtime!.ttl = ttl;
+      }
+      if (expires) {
+        sandbox.spec!.runtime!.expires = expires.toISOString();
+      }
     }
 
     sandbox = sandbox as SandboxModel
     if (!sandbox.metadata) {
-      sandbox.metadata = { name: crypto.randomUUID().replace(/-/g, '') };
+      sandbox.metadata = { name: defaultName };
     }
     if (!sandbox.spec) {
-      sandbox.spec = { runtime: { image: "blaxel/prod-base:latest" } };
+      sandbox.spec = { runtime: { image: defaultImage, memory: defaultMemory } };
     }
     if (!sandbox.spec.runtime) {
       sandbox.spec.runtime = { image: defaultImage, memory: defaultMemory };
@@ -122,7 +101,14 @@ export class SandboxInstance {
       body: sandbox,
       throwOnError: true,
     });
-    return new SandboxInstance(data);
+    const instance = new SandboxInstance(data);
+    // TODO remove this part once we have a better way to handle this
+    if (safe) {
+      try {
+        await instance.fs.ls('/')
+      } catch {}
+    }
+    return instance;
   }
 
   static async get(sandboxName: string) {
@@ -150,17 +136,29 @@ export class SandboxInstance {
     return data;
   }
 
+  static async updateMetadata(sandboxName: string, metadata: SandboxUpdateMetadata) {
+    const sandbox = await SandboxInstance.get(sandboxName);
+    const body = { ...sandbox.sandbox, metadata: { ...sandbox.metadata, ...metadata } } as SandboxModel
+    const { data } = await updateSandbox({
+      path: { sandboxName },
+      body,
+      throwOnError: true,
+    });
+    const instance = new SandboxInstance(data);
+    return instance;
+  }
+
   static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration) {
     try {
-      const name = 'name' in sandbox ? sandbox.name : (sandbox as SandboxModel).metadata?.name
-      if (!name) {
-        throw new Error("Sandbox name is required");
-      }
-      const sandboxInstance = await SandboxInstance.get(name);
-      return sandboxInstance;
+      return await SandboxInstance.create(sandbox);
     } catch (e) {
-      if (typeof e === "object" && e !== null && "code" in e && e.code === 404) {
-        return SandboxInstance.create(sandbox);
+      if (typeof e === "object" && e !== null && "code" in e && (e.code === 409 || e.code === 'SANDBOX_ALREADY_EXISTS')) {
+        const name = 'name' in sandbox ? sandbox.name : (sandbox as SandboxModel).metadata?.name
+        if (!name) {
+          throw new Error("Sandbox name is required");
+        }
+        const sandboxInstance = await SandboxInstance.get(name);
+        return sandboxInstance;
       }
       throw e;
     }

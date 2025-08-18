@@ -56,24 +56,7 @@ export type AgentSpec = CoreSpec & {
      * Description, small description computed from the prompt
      */
     description?: string;
-    functions?: FunctionsList;
-    /**
-     * Knowledgebase Name
-     */
-    knowledgebase?: string;
-    /**
-     * Model name
-     */
-    model?: string;
-    /**
-     * Prompt, describe what your agent does
-     */
-    prompt?: string;
     repository?: Repository;
-    /**
-     * Store id
-     */
-    storeId?: string;
     triggers?: Triggers;
 };
 
@@ -227,6 +210,64 @@ export type Country = {
      * Country code
      */
     name?: string;
+};
+
+/**
+ * Custom domain for preview deployments
+ * The custom domain represents a base domain (e.g., example.com) that will be used
+ * to serve preview deployments. Each preview will be accessible at a subdomain:
+ * <preview-id>.preview.<base-domain> (e.g., abc123.preview.example.com)
+ */
+export type CustomDomain = {
+    metadata?: CustomDomainMetadata;
+    spec?: CustomDomainSpec;
+};
+
+/**
+ * Custom domain metadata
+ */
+export type CustomDomainMetadata = TimeFields & OwnerFields & {
+    /**
+     * Display name for the custom domain
+     */
+    displayName?: string;
+    labels?: MetadataLabels;
+    /**
+     * Domain name (e.g., "example.com")
+     */
+    name?: string;
+    /**
+     * Workspace name
+     */
+    workspace?: string;
+};
+
+/**
+ * Custom domain specification
+ */
+export type CustomDomainSpec = {
+    /**
+     * CNAME target for the domain
+     */
+    cnameRecords?: string;
+    /**
+     * Last verification attempt timestamp
+     */
+    lastVerifiedAt?: string;
+    /**
+     * Current status of the domain (pending, verified, failed)
+     */
+    status?: string;
+    /**
+     * Map of TXT record names to values for domain verification
+     */
+    txtRecords?: {
+        [key: string]: string;
+    };
+    /**
+     * Error message if verification failed
+     */
+    verificationError?: string;
 };
 
 /**
@@ -416,8 +457,6 @@ export type FunctionSpec = CoreSpec & {
     kit?: Array<FunctionKit>;
     schema?: FunctionSchema;
 };
-
-export type FunctionsList = Array<string>;
 
 /**
  * Histogram bucket
@@ -780,14 +819,6 @@ export type JobSpec = CoreSpec & {
 };
 
 /**
- * Jobs chart
- */
-export type JobsChart = {
-    failed?: JobsChartValue;
-    success?: JobsChartValue;
-};
-
-/**
  * Jobs CPU usage
  */
 export type JobsChartValue = {
@@ -799,28 +830,6 @@ export type JobsChartValue = {
      * Metric value
      */
     value?: number;
-};
-
-/**
- * Jobs executions
- */
-export type JobsExecutions = {
-    /**
-     * Failed executions
-     */
-    failed?: number;
-    /**
-     * Running executions
-     */
-    running?: number;
-    /**
-     * Success executions
-     */
-    success?: number;
-    /**
-     * Total executions
-     */
-    total?: number;
 };
 
 /**
@@ -843,28 +852,6 @@ export type JobsSuccessFailedChart = {
      */
     timestamp?: string;
     total?: JobsChartValue;
-};
-
-/**
- * Jobs tasks
- */
-export type JobsTasks = {
-    /**
-     * Failed executions
-     */
-    failed?: number;
-    /**
-     * Running executions
-     */
-    running?: number;
-    /**
-     * Success executions
-     */
-    success?: number;
-    /**
-     * Total executions
-     */
-    total?: number;
 };
 
 /**
@@ -892,56 +879,6 @@ export type JobsTotal = {
      */
     total?: number;
 };
-
-/**
- * Knowledgebase
- */
-export type Knowledgebase = {
-    events?: CoreEvents;
-    metadata?: Metadata;
-    spec?: KnowledgebaseSpec;
-    /**
-     * Knowledgebase status
-     */
-    status?: string;
-};
-
-/**
- * Knowledgebase specification
- */
-export type KnowledgebaseSpec = {
-    /**
-     * Collection name
-     */
-    collectionName?: string;
-    /**
-     * Embedding model
-     */
-    embeddingModel?: string;
-    /**
-     * Embedding model type
-     */
-    embeddingModelType?: string;
-    /**
-     * Enable or disable the agent
-     */
-    enabled?: boolean;
-    integrationConnections?: IntegrationConnectionsList;
-    /**
-     * Options specific to the knowledge base
-     */
-    options?: {
-        [key: string]: string;
-    };
-    policies?: PoliciesList;
-    revision?: RevisionConfiguration;
-    /**
-     * Sandbox mode
-     */
-    sandbox?: boolean;
-};
-
-export type KnowledgebasesList = Array<string>;
 
 /**
  * Last N requests
@@ -1559,6 +1496,10 @@ export type PreviewMetadata = TimeFields & OwnerFields & {
  */
 export type PreviewSpec = {
     /**
+     * Custom domain bound to this preview
+     */
+    customDomain?: string;
+    /**
      * Port of the preview
      */
     port?: number;
@@ -1694,6 +1635,25 @@ export type PrivateLocation = {
      * Location name
      */
     name?: string;
+};
+
+export type PublicIp = {
+    /**
+     * Description of the region/location
+     */
+    description?: string;
+    /**
+     * List of public ipv4 addresses
+     */
+    ipv4Cidrs?: Array<string>;
+    /**
+     * List of public ipv6 addresses
+     */
+    ipv6Cidrs?: Array<string>;
+};
+
+export type PublicIps = {
+    [key: string]: PublicIp;
 };
 
 /**
@@ -2094,6 +2054,10 @@ export type Runtime = {
      */
     envs?: Array<unknown>;
     /**
+     * The expiration date for the deployment in ISO 8601 format - 2024-12-31T23:59:59Z
+     */
+    expires?: string;
+    /**
      * The generation of the deployment
      */
     generation?: string;
@@ -2144,6 +2108,10 @@ export type Runtime = {
      * The timeout for the deployment in seconds
      */
     timeout?: number;
+    /**
+     * The TTL for the deployment in seconds - 30m, 24h, 7d
+     */
+    ttl?: string;
     /**
      * The type of origin for the deployment (hf_private_endpoint, hf_public_endpoint)
      */
@@ -2601,6 +2569,17 @@ export type TriggerConfiguration = {
      * The schedule of the trigger, cron expression * * * * *
      */
     schedule?: string;
+    /**
+     * The tasks configuration of the cronjob
+     */
+    tasks?: Array<TriggerConfigurationTask>;
+};
+
+/**
+ * The tasks configuration of the cronjob
+ */
+export type TriggerConfigurationTask = {
+    [key: string]: unknown;
 };
 
 /**
@@ -2848,6 +2827,122 @@ export type GetConfigurationResponses = {
 };
 
 export type GetConfigurationResponse = GetConfigurationResponses[keyof GetConfigurationResponses];
+
+export type ListCustomDomainsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/customdomains';
+};
+
+export type ListCustomDomainsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<CustomDomain>;
+};
+
+export type ListCustomDomainsResponse = ListCustomDomainsResponses[keyof ListCustomDomainsResponses];
+
+export type CreateCustomDomainData = {
+    body: CustomDomain;
+    path?: never;
+    query?: never;
+    url: '/customdomains';
+};
+
+export type CreateCustomDomainResponses = {
+    /**
+     * successful operation
+     */
+    200: CustomDomain;
+};
+
+export type CreateCustomDomainResponse = CreateCustomDomainResponses[keyof CreateCustomDomainResponses];
+
+export type DeleteCustomDomainData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the custom domain
+         */
+        domainName: string;
+    };
+    query?: never;
+    url: '/customdomains/{domainName}';
+};
+
+export type DeleteCustomDomainResponses = {
+    /**
+     * successful operation
+     */
+    200: CustomDomain;
+};
+
+export type DeleteCustomDomainResponse = DeleteCustomDomainResponses[keyof DeleteCustomDomainResponses];
+
+export type GetCustomDomainData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the custom domain
+         */
+        domainName: string;
+    };
+    query?: never;
+    url: '/customdomains/{domainName}';
+};
+
+export type GetCustomDomainResponses = {
+    /**
+     * successful operation
+     */
+    200: CustomDomain;
+};
+
+export type GetCustomDomainResponse = GetCustomDomainResponses[keyof GetCustomDomainResponses];
+
+export type UpdateCustomDomainData = {
+    body: CustomDomain;
+    path: {
+        /**
+         * Name of the custom domain
+         */
+        domainName: string;
+    };
+    query?: never;
+    url: '/customdomains/{domainName}';
+};
+
+export type UpdateCustomDomainResponses = {
+    /**
+     * successful operation
+     */
+    200: CustomDomain;
+};
+
+export type UpdateCustomDomainResponse = UpdateCustomDomainResponses[keyof UpdateCustomDomainResponses];
+
+export type VerifyCustomDomainData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the custom domain
+         */
+        domainName: string;
+    };
+    query?: never;
+    url: '/customdomains/{domainName}/verify';
+};
+
+export type VerifyCustomDomainResponses = {
+    /**
+     * successful operation
+     */
+    200: CustomDomain;
+};
+
+export type VerifyCustomDomainResponse = VerifyCustomDomainResponses[keyof VerifyCustomDomainResponses];
 
 export type ListFunctionsData = {
     body?: never;
@@ -3257,122 +3352,6 @@ export type ListJobRevisionsResponses = {
 };
 
 export type ListJobRevisionsResponse = ListJobRevisionsResponses[keyof ListJobRevisionsResponses];
-
-export type ListKnowledgebasesData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/knowledgebases';
-};
-
-export type ListKnowledgebasesResponses = {
-    /**
-     * successful operation
-     */
-    200: Array<Knowledgebase>;
-};
-
-export type ListKnowledgebasesResponse = ListKnowledgebasesResponses[keyof ListKnowledgebasesResponses];
-
-export type CreateKnowledgebaseData = {
-    body: Knowledgebase;
-    path?: never;
-    query?: never;
-    url: '/knowledgebases';
-};
-
-export type CreateKnowledgebaseResponses = {
-    /**
-     * successful operation
-     */
-    200: Knowledgebase;
-};
-
-export type CreateKnowledgebaseResponse = CreateKnowledgebaseResponses[keyof CreateKnowledgebaseResponses];
-
-export type DeleteKnowledgebaseData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the knowledgebase
-         */
-        knowledgebaseName: string;
-    };
-    query?: never;
-    url: '/knowledgebases/{knowledgebaseName}';
-};
-
-export type DeleteKnowledgebaseResponses = {
-    /**
-     * successful operation
-     */
-    200: Knowledgebase;
-};
-
-export type DeleteKnowledgebaseResponse = DeleteKnowledgebaseResponses[keyof DeleteKnowledgebaseResponses];
-
-export type GetKnowledgebaseData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the knowledgebase
-         */
-        knowledgebaseName: string;
-    };
-    query?: never;
-    url: '/knowledgebases/{knowledgebaseName}';
-};
-
-export type GetKnowledgebaseResponses = {
-    /**
-     * successful operation
-     */
-    200: Knowledgebase;
-};
-
-export type GetKnowledgebaseResponse = GetKnowledgebaseResponses[keyof GetKnowledgebaseResponses];
-
-export type UpdateKnowledgebaseData = {
-    body: Knowledgebase;
-    path: {
-        /**
-         * Name of the knowledgebase
-         */
-        knowledgebaseName: string;
-    };
-    query?: never;
-    url: '/knowledgebases/{knowledgebaseName}';
-};
-
-export type UpdateKnowledgebaseResponses = {
-    /**
-     * successful operation
-     */
-    200: Knowledgebase;
-};
-
-export type UpdateKnowledgebaseResponse = UpdateKnowledgebaseResponses[keyof UpdateKnowledgebaseResponses];
-
-export type ListKnowledgebaseRevisionsData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the knowledgebase
-         */
-        knowledgebaseName: string;
-    };
-    query?: never;
-    url: '/knowledgebases/{knowledgebaseName}/revisions';
-};
-
-export type ListKnowledgebaseRevisionsResponses = {
-    /**
-     * successful operation
-     */
-    200: Array<RevisionMetadata>;
-};
-
-export type ListKnowledgebaseRevisionsResponse = ListKnowledgebaseRevisionsResponses[keyof ListKnowledgebaseRevisionsResponses];
 
 export type ListLocationsData = {
     body?: never;
@@ -3857,6 +3836,22 @@ export type ListAllPendingInvitationsResponses = {
 };
 
 export type ListAllPendingInvitationsResponse = ListAllPendingInvitationsResponses[keyof ListAllPendingInvitationsResponses];
+
+export type ListPublicIpsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/publicIps';
+};
+
+export type ListPublicIpsResponses = {
+    /**
+     * successful operation
+     */
+    200: PublicIps;
+};
+
+export type ListPublicIpsResponse = ListPublicIpsResponses[keyof ListPublicIpsResponses];
 
 export type ListSandboxHubDefinitionsData = {
     body?: never;

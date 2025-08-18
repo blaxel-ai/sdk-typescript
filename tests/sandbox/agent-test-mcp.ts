@@ -28,7 +28,6 @@ async function getSandbox() {
       }
     }
   })
-  await sandbox.wait()
   return sandbox
 }
 async function main() {
