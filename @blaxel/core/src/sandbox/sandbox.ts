@@ -1,12 +1,12 @@
 import { v4 as uuidv4 } from "uuid";
-import { createSandbox, deleteSandbox, getSandbox, listSandboxes, Sandbox as SandboxModel } from "../client/index.js";
+import { createSandbox, deleteSandbox, getSandbox, listSandboxes, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
 import { SandboxFileSystem } from "./filesystem/index.js";
 import { SandboxNetwork } from "./network/index.js";
 import { SandboxPreviews } from "./preview.js";
 import { SandboxProcess } from "./process/index.js";
 import { SandboxSessions } from "./session.js";
-import { normalizeEnvs, normalizePorts, SandboxConfiguration, SandboxCreateConfiguration, SessionWithToken } from "./types.js";
+import { normalizeEnvs, normalizePorts, SandboxConfiguration, SandboxCreateConfiguration, SandboxUpdateMetadata, SessionWithToken } from "./types.js";
 
 export class SandboxInstance {
   fs: SandboxFileSystem;
@@ -45,7 +45,7 @@ export class SandboxInstance {
     return this;
   }
 
-  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration) {
+  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = true }: { safe?: boolean } = {}) {
     const defaultName = `sandbox-${uuidv4().replace(/-/g, '').substring(0, 8)}`
     const defaultImage = "blaxel/prod-base:latest"
     const defaultMemory = 4096
@@ -84,10 +84,10 @@ export class SandboxInstance {
 
     sandbox = sandbox as SandboxModel
     if (!sandbox.metadata) {
-      sandbox.metadata = { name: crypto.randomUUID().replace(/-/g, '') };
+      sandbox.metadata = { name: defaultName };
     }
     if (!sandbox.spec) {
-      sandbox.spec = { runtime: { image: "blaxel/prod-base:latest" } };
+      sandbox.spec = { runtime: { image: defaultImage, memory: defaultMemory } };
     }
     if (!sandbox.spec.runtime) {
       sandbox.spec.runtime = { image: defaultImage, memory: defaultMemory };
@@ -103,7 +103,11 @@ export class SandboxInstance {
     });
     const instance = new SandboxInstance(data);
     // TODO remove this part once we have a better way to handle this
-    await instance.fs.ls('/')
+    if (safe) {
+      try {
+        await instance.fs.ls('/')
+      } catch {}
+    }
     return instance;
   }
 
@@ -130,6 +134,18 @@ export class SandboxInstance {
       throwOnError: true,
     });
     return data;
+  }
+
+  static async updateMetadata(sandboxName: string, metadata: SandboxUpdateMetadata) {
+    const sandbox = await SandboxInstance.get(sandboxName);
+    const body = { ...sandbox.sandbox, metadata: { ...sandbox.metadata, ...metadata } } as SandboxModel
+    const { data } = await updateSandbox({
+      path: { sandboxName },
+      body,
+      throwOnError: true,
+    });
+    const instance = new SandboxInstance(data);
+    return instance;
   }
 
   static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration) {
