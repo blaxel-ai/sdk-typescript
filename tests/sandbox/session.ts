@@ -1,12 +1,9 @@
 import { SandboxInstance } from "@blaxel/core";
-import { createOrGetSandbox } from "../utils";
-
-const sandboxName = "sandbox-test-3"
 
 async function main() {
   try {
     // Test with controlplane
-    const sandbox = await createOrGetSandbox({sandboxName})
+    const sandbox = await SandboxInstance.create()
 
     const sessions = await sandbox.sessions.list()
     for (const session of sessions) {
