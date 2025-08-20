@@ -19,6 +19,7 @@ export class SandboxSessions {
       spec: {
         port: 443,
         public: false,
+        expires: expiresAt.toISOString(),
         requestHeaders: options.requestHeaders,
         responseHeaders: options.responseHeaders,
       },
