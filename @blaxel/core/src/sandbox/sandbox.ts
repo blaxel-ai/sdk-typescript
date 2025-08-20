@@ -6,7 +6,7 @@ import { SandboxNetwork } from "./network/index.js";
 import { SandboxPreviews } from "./preview.js";
 import { SandboxProcess } from "./process/index.js";
 import { SandboxSessions } from "./session.js";
-import { normalizeEnvs, normalizePorts, SandboxConfiguration, SandboxCreateConfiguration, SandboxUpdateMetadata, SessionWithToken } from "./types.js";
+import { normalizeEnvs, normalizePorts, normalizeVolumes, SandboxConfiguration, SandboxCreateConfiguration, SandboxUpdateMetadata, SessionWithToken } from "./types.js";
 
 export class SandboxInstance {
   fs: SandboxFileSystem;
@@ -50,8 +50,8 @@ export class SandboxInstance {
     const defaultImage = "blaxel/prod-base:latest"
     const defaultMemory = 4096
 
-    // Handle SandboxCreateConfiguration or simple dict with name/image/memory/ports/envs keys
-    if (!sandbox || 'name' in sandbox || 'image' in sandbox || 'memory' in sandbox || 'ports' in sandbox || 'envs' in sandbox) {
+    // Handle SandboxCreateConfiguration or simple dict with name/image/memory/ports/envs/volumes keys
+    if (!sandbox || 'name' in sandbox || 'image' in sandbox || 'memory' in sandbox || 'ports' in sandbox || 'envs' in sandbox || 'volumes' in sandbox) {
       if (!sandbox) sandbox = {} as SandboxCreateConfiguration
       if (!sandbox.name) sandbox.name = defaultName
       if (!sandbox.image) sandbox.image = defaultImage
@@ -59,6 +59,7 @@ export class SandboxInstance {
 
       const ports = normalizePorts(sandbox.ports);
       const envs = normalizeEnvs(sandbox.envs);
+      const volumes = normalizeVolumes(sandbox.volumes);
       const ttl = sandbox.ttl;
       const expires = sandbox.expires;
 
@@ -71,7 +72,8 @@ export class SandboxInstance {
             ports: ports,
             envs: envs,
             generation: "mk3",
-          }
+          },
+          volumes: volumes
         }
       } as SandboxModel
       if (ttl) {
