@@ -8,7 +8,9 @@
 	"scripts": {
 		"lint": "eslint src/",
 		"dev": "tsc --watch",
-		"build": "tsc",
+		"build": "npm run build:inject-commit && tsc",
+		"build:clean": "tsc",
+		"build:inject-commit": "node -e \"const fs=require('fs'),pkg=require('./package.json'),{execSync}=require('child_process');try{const commit=execSync('git rev-parse HEAD',{encoding:'utf8'}).trim();pkg.commit=commit;fs.writeFileSync('./package.json',JSON.stringify(pkg,null,'\\t')+'\\n');console.log('✅ Injected commit:',commit.substring(0,7))}catch(e){console.log('⚠️  Could not inject commit:',e.message)}\"",
 		"test": "vitest --run",
 		"test:watch": "vitest --watch"
 	},
@@ -82,5 +84,6 @@
 		"typescript-eslint": "^8.31.1",
 		"vite": "^5.2.0",
 		"vitest": "^1.5.0"
-	}
+	},
+	"commit": "17bb1b5a75544500e8b11735e9ff4614c5290a9e"
 }

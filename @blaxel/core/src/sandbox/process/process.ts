@@ -73,7 +73,7 @@ export class SandboxProcess extends SandboxAction {
 
     // Return control functions
     return {
-      close: async () => {
+      close: () => {
         isRunning = false
 
         // Clear reconnect timer

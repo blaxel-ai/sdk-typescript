@@ -6,9 +6,82 @@ export type Config = {
   apikey?: string;
   workspace?: string;
 }
+// Function to get package version
+function getPackageVersion(): string {
+  try {
+    // Try to require package.json (Node.js only, gracefully fails in browser)
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const packageJson = require("../../../package.json") as { version?: string };
+    return packageJson.version || "unknown";
+  } catch {
+    // Fallback for browser environments or if require fails
+    return "unknown";
+  }
+}
+
+// Function to get OS and architecture
+function getOsArch(): string {
+  try {
+    // Node.js environment
+    if (typeof process !== 'undefined' && process.platform && process.arch) {
+      const platform = process.platform === 'win32' ? 'windows' :
+                      process.platform === 'darwin' ? 'darwin' :
+                      process.platform === 'linux' ? 'linux' : process.platform;
+      return `${platform}/${process.arch}`;
+    }
+  } catch {
+    // Fall through to browser detection
+  }
+
+  // Browser environment - use fixed detection
+  try {
+    // @ts-ignore - navigator is available in browser environments
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    if (typeof navigator !== 'undefined' && navigator?.platform) {
+      // @ts-ignore - navigator.platform is available in browser environments
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      const navPlatform = (navigator.platform as string).toLowerCase();
+      const platform = navPlatform.includes('win') ? 'windows' :
+                      navPlatform.includes('mac') ? 'darwin' :
+                      navPlatform.includes('linux') ? 'linux' : 'browser';
+      const arch = navPlatform.includes('64') ? 'amd64' : 'unknown';
+      return `${platform}/${arch}`;
+    }
+  } catch {
+    // Ignore errors
+  }
+
+  return "browser/unknown";
+}
+
+// Function to get commit hash
+function getCommitHash(): string {
+  try {
+    // Try to require package.json and look for commit field (set during build)
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const packageJson = require("../../../package.json") as {
+      version?: string;
+      commit?: string;
+      buildInfo?: { commit?: string }
+    };
+
+    // Check for commit in various possible locations
+    const commit = packageJson.commit || packageJson.buildInfo?.commit;
+    if (commit) {
+      return commit.length > 7 ? commit.substring(0, 7) : commit;
+    }
+  } catch {
+    // Fallback for browser environments or if require fails
+  }
+
+  return "unknown";
+}
+
 class Settings {
   credentials: Credentials;
   config: Config;
+  private _version: string | null = null;
+
   constructor() {
     this.credentials = authentication();
     this.config = {
@@ -70,10 +143,20 @@ class Settings {
     return this.credentials.token;
   }
 
+  get version(): string {
+    if (this._version === null) {
+      this._version = getPackageVersion();
+    }
+    return this._version;
+  }
+
   get headers(): Record<string, string> {
+    const osArch = getOsArch();
+    const commitHash = getCommitHash();
     return {
       "x-blaxel-authorization": this.authorization,
       "x-blaxel-workspace": this.workspace || "",
+      "User-Agent": `blaxel/sdk/typescript/${this.version} (${osArch}) blaxel/${commitHash}`,
     };
   }
 
