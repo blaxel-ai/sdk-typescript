@@ -52,7 +52,7 @@ export class SandboxSessions {
     // If no valid session exists, create a new one
     if (allSessions.length > 0) {
       sessionData = allSessions[0]
-      if (sessionData.expiresAt < threshold) {
+      if (new Date(sessionData.expiresAt) < threshold) {
         await this.delete(sessionData.name);
         sessionData = await this.create(options);
       }
