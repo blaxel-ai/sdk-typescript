@@ -2137,6 +2137,10 @@ export type Sandbox = {
      * Sandbox status
      */
     status?: string;
+    /**
+     * TTL timestamp for automatic deletion (optional, nil means no auto-deletion)
+     */
+    ttl?: number;
 };
 
 /**
@@ -2193,7 +2197,9 @@ export type SandboxDefinition = {
 /**
  * Sandbox specification
  */
-export type SandboxSpec = CoreSpec & unknown;
+export type SandboxSpec = CoreSpec & {
+    volumes?: VolumeAttachments;
+};
 
 /**
  * Name of a Sandbox definition
@@ -2594,6 +2600,68 @@ export type TriggerConfigurationTask = {
  * Triggers to use your agent
  */
 export type Triggers = Array<Trigger>;
+
+/**
+ * Volume resource for persistent storage
+ */
+export type Volume = {
+    events?: CoreEvents;
+    metadata?: Metadata;
+    spec?: VolumeSpec;
+    state?: VolumeState;
+    /**
+     * Volume status computed from events
+     */
+    status?: string;
+    /**
+     * Timestamp when the volume was marked for termination
+     */
+    terminatedAt?: string;
+};
+
+/**
+ * Volume attachment configuration for sandbox
+ */
+export type VolumeAttachment = {
+    /**
+     * Mount path in the container
+     */
+    mountPath?: string;
+    /**
+     * Name of the volume to attach
+     */
+    name?: string;
+    /**
+     * Whether the volume is mounted as read-only
+     */
+    readOnly?: boolean;
+};
+
+export type VolumeAttachments = Array<VolumeAttachment>;
+
+/**
+ * Volume specification - immutable configuration
+ */
+export type VolumeSpec = {
+    /**
+     * AWS region where the volume should be created (e.g. us-west-2, eu-west-1)
+     */
+    region?: string;
+    /**
+     * Size of the volume in MB
+     */
+    size?: number;
+};
+
+/**
+ * Volume state - mutable runtime state
+ */
+export type VolumeState = {
+    /**
+     * Resource this volume is attached to (e.g. "sandbox:my-sandbox", "model:my-model")
+     */
+    attachedTo?: string;
+};
 
 /**
  * WebSocket connection details
@@ -4634,6 +4702,108 @@ export type UpdateWorkspaceUserRoleResponses = {
 };
 
 export type UpdateWorkspaceUserRoleResponse = UpdateWorkspaceUserRoleResponses[keyof UpdateWorkspaceUserRoleResponses];
+
+export type ListVolumesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/volumes';
+};
+
+export type ListVolumesResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<Volume>;
+};
+
+export type ListVolumesResponse = ListVolumesResponses[keyof ListVolumesResponses];
+
+export type CreateVolumeData = {
+    body: Volume;
+    path?: never;
+    query?: never;
+    url: '/volumes';
+};
+
+export type CreateVolumeResponses = {
+    /**
+     * successful operation
+     */
+    200: Volume;
+};
+
+export type CreateVolumeResponse = CreateVolumeResponses[keyof CreateVolumeResponses];
+
+export type DeleteVolumeData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the volume
+         */
+        volumeName: string;
+    };
+    query?: never;
+    url: '/volumes/{volumeName}';
+};
+
+export type DeleteVolumeResponses = {
+    /**
+     * successful operation
+     */
+    200: Volume;
+};
+
+export type DeleteVolumeResponse = DeleteVolumeResponses[keyof DeleteVolumeResponses];
+
+export type GetVolumeData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the volume
+         */
+        volumeName: string;
+    };
+    query?: never;
+    url: '/volumes/{volumeName}';
+};
+
+export type GetVolumeResponses = {
+    /**
+     * successful operation
+     */
+    200: Volume;
+};
+
+export type GetVolumeResponse = GetVolumeResponses[keyof GetVolumeResponses];
+
+export type UpdateVolumeData = {
+    body: Volume;
+    path: {
+        /**
+         * Name of the volume
+         */
+        volumeName: string;
+    };
+    query?: never;
+    url: '/volumes/{volumeName}';
+};
+
+export type UpdateVolumeErrors = {
+    /**
+     * Method not allowed - volume updates are not supported
+     */
+    405: unknown;
+};
+
+export type UpdateVolumeResponses = {
+    /**
+     * successful operation
+     */
+    200: Volume;
+};
+
+export type UpdateVolumeResponse = UpdateVolumeResponses[keyof UpdateVolumeResponses];
 
 export type ListWorkspacesData = {
     body?: never;

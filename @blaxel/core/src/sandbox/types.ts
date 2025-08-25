@@ -1,4 +1,4 @@
-import { Port, Sandbox } from "../client/types.gen";
+import { Port, Sandbox, VolumeAttachment } from "../client/types.gen";
 import { PostProcessResponse, ProcessRequest } from "./client";
 
 export interface SessionCreateOptions {
@@ -19,6 +19,12 @@ export interface EnvVar {
   value: string;
 }
 
+export interface VolumeBinding {
+  name: string; // Name of the volume to attach
+  mountPath: string; // Path where the volume should be mounted
+  readOnly?: boolean; // Whether the volume is mounted as read-only
+}
+
 export type SandboxConfiguration = {
   forceUrl?: string;
   headers?: Record<string, string>;
@@ -36,6 +42,7 @@ export type SandboxCreateConfiguration = {
   memory?: number;
   ports?: (Port | Record<string, any>)[];
   envs?: EnvVar[];
+  volumes?: (VolumeBinding | VolumeAttachment)[];
   ttl?: string;
   expires?: Date;
 }
@@ -89,6 +96,38 @@ export function normalizeEnvs(envs?: EnvVar[]): EnvVar[] | undefined {
   }
 
   return envObjects;
+}
+
+export function normalizeVolumes(volumes?: (VolumeBinding | VolumeAttachment)[]): VolumeAttachment[] | undefined {
+  if (!volumes || volumes.length === 0) {
+    return undefined;
+  }
+
+  const volumeObjects: VolumeAttachment[] = [];
+  for (const volume of volumes) {
+    if (typeof volume === 'object' && volume !== null) {
+      // Validate that the object has the required keys
+      if (!('name' in volume) || !('mountPath' in volume)) {
+        throw new Error(`Volume binding object must have 'name' and 'mountPath' keys: ${JSON.stringify(volume)}`);
+      }
+      if (typeof volume.name !== 'string' || typeof volume.mountPath !== 'string') {
+        throw new Error(`Volume binding 'name' and 'mountPath' must be strings: ${JSON.stringify(volume)}`);
+      }
+
+      // Convert VolumeBinding to VolumeAttachment format
+      const volumeAttachment: VolumeAttachment = {
+        name: volume.name,
+        mountPath: volume.mountPath,
+        readOnly: 'readOnly' in volume ? volume.readOnly : false
+      };
+
+      volumeObjects.push(volumeAttachment);
+    } else {
+      throw new Error(`Invalid volume type: ${typeof volume}. Expected object with 'name' and 'mountPath' keys.`);
+    }
+  }
+
+  return volumeObjects;
 }
 
 export type ProcessRequestWithLog = ProcessRequest & {
