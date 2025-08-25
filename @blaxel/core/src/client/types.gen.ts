@@ -196,7 +196,6 @@ export type CoreSpec = {
      * Sandbox mode
      */
     sandbox?: boolean;
-    volumes?: VolumeAttachments;
 };
 
 /**
@@ -289,10 +288,6 @@ export type Entrypoint = {
     env?: {
         [key: string]: unknown;
     };
-    /**
-     * Super Gateway args of the entrypoint
-     */
-    superGatewayArgs?: Array<unknown>;
 };
 
 /**
@@ -2202,7 +2197,9 @@ export type SandboxDefinition = {
 /**
  * Sandbox specification
  */
-export type SandboxSpec = CoreSpec & unknown;
+export type SandboxSpec = CoreSpec & {
+    volumes?: VolumeAttachments;
+};
 
 /**
  * Name of a Sandbox definition
@@ -2611,10 +2608,15 @@ export type Volume = {
     events?: CoreEvents;
     metadata?: Metadata;
     spec?: VolumeSpec;
+    state?: VolumeState;
     /**
      * Volume status computed from events
      */
     status?: string;
+    /**
+     * Timestamp when the volume was marked for termination
+     */
+    terminatedAt?: string;
 };
 
 /**
@@ -2638,7 +2640,7 @@ export type VolumeAttachment = {
 export type VolumeAttachments = Array<VolumeAttachment>;
 
 /**
- * Volume specification
+ * Volume specification - immutable configuration
  */
 export type VolumeSpec = {
     /**
@@ -2649,6 +2651,16 @@ export type VolumeSpec = {
      * Size of the volume in MB
      */
     size?: number;
+};
+
+/**
+ * Volume state - mutable runtime state
+ */
+export type VolumeState = {
+    /**
+     * Resource this volume is attached to (e.g. "sandbox:my-sandbox", "model:my-model")
+     */
+    attachedTo?: string;
 };
 
 /**
@@ -4775,6 +4787,13 @@ export type UpdateVolumeData = {
     };
     query?: never;
     url: '/volumes/{volumeName}';
+};
+
+export type UpdateVolumeErrors = {
+    /**
+     * Method not allowed - volume updates are not supported
+     */
+    405: unknown;
 };
 
 export type UpdateVolumeResponses = {

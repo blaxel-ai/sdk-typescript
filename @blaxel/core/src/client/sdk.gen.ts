@@ -1599,7 +1599,7 @@ export const getVolume = <ThrowOnError extends boolean = false>(options: Options
 };
 
 /**
- * Update volume
+ * Update volume (Not Implemented)
  * Update a volume by name.
  */
 export const updateVolume = <ThrowOnError extends boolean = false>(options: Options<UpdateVolumeData, ThrowOnError>) => {
