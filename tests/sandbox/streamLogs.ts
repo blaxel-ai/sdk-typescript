@@ -2,7 +2,6 @@ import { SandboxInstance } from "@blaxel/core"
 
 async function main() {
     const sandbox = await SandboxInstance.create()
-
     console.log("sandbox created => ", sandbox.metadata!.name)
 
     const resultExpected = `Hello, world!

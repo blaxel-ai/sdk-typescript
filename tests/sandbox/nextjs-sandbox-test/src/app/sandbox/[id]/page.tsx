@@ -1,6 +1,9 @@
 'use client'
 
 import { Chatbot } from "@/lib/components/Chatbot";
+import { CodeViewerTab } from "@/lib/components/CodeViewerTab";
+import { PreviewTab } from "@/lib/components/PreviewTab";
+import { ProcessesTab } from "@/lib/components/ProcessesTab";
 import { SandboxInstance } from "@blaxel/core";
 import { SessionWithToken } from "@blaxel/core/sandbox/types";
 import { useRouter } from "next/navigation";
@@ -39,6 +42,12 @@ export default function SandboxPage({ params }: { params: Promise<{ id: string }
   const [error, setError] = useState<string | null>(null);
   const [isLoadingSandbox, setIsLoadingSandbox] = useState<boolean>(false);
   const [isPreviewLoading, setIsPreviewLoading] = useState<boolean>(true);
+  const [activeTab, setActiveTab] = useState<'preview' | 'processes' | 'code'>('preview');
+  const [selectedProcessId, setSelectedProcessId] = useState<string | null>(null);
+  const [processLogs, setProcessLogs] = useState<string[]>([]);
+  const [isStreamingLogs, setIsStreamingLogs] = useState<boolean>(false);
+  const logStreamRef = useRef<{ close: () => void } | null>(null);
+  const logsEndRef = useRef<HTMLDivElement>(null);
   const hasFetchedRef = useRef<boolean>(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const router = useRouter();
@@ -235,6 +244,51 @@ export default function SandboxPage({ params }: { params: Promise<{ id: string }
     router.push('/');
   };
 
+  // Handle process selection and start streaming logs
+  const handleProcessSelection = (processId: string) => {
+    // Stop any existing log stream
+    if (logStreamRef.current) {
+      logStreamRef.current.close();
+      logStreamRef.current = null;
+    }
+
+    setSelectedProcessId(processId);
+    setProcessLogs([]);
+
+    if (processId && sandboxInstance && sandboxInstance.process && typeof sandboxInstance.process.streamLogs === 'function') {
+      setIsStreamingLogs(true);
+      try {
+        const stream = sandboxInstance.process.streamLogs(processId, {
+          onLog: (log: string) => {
+            const lines = log.split('\n').filter(line => line.trim());
+            if (lines.length > 0) {
+              setProcessLogs(prevLogs => [...prevLogs, ...lines]);
+            }
+          }
+        });
+        logStreamRef.current = stream;
+      } catch (error) {
+        console.error('Error streaming logs:', error);
+        setIsStreamingLogs(false);
+      }
+    }
+  };
+
+  // Clean up log stream on unmount or tab change
+  useEffect(() => {
+    return () => {
+      if (logStreamRef.current) {
+        logStreamRef.current.close();
+        logStreamRef.current = null;
+      }
+    };
+  }, [activeTab]);
+
+  // Auto-scroll to bottom when new logs arrive
+  useEffect(() => {
+    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [processLogs]);
+
   return (
     <div className="min-h-screen font-sans" style={{ background: 'var(--background)', color: 'var(--foreground)' }}>
       {loading ? (
@@ -276,9 +330,9 @@ export default function SandboxPage({ params }: { params: Promise<{ id: string }
             </div>
           </div>
         </div>
-      ) : (
+            ) : (
         <div className="grid grid-cols-3 h-screen">
-          {/* Left side - Sandbox Information (1/3) */}
+          {/* Left sidebar - Sandbox Information (1/3) */}
           <div className="col-span-1 p-6 shadow-lg flex flex-col h-full overflow-hidden" style={{ background: 'var(--secondary)', color: 'var(--secondary-foreground)', borderRight: '1px solid var(--border)' }}>
             <div className="flex justify-between items-center mb-4">
               <h1 className="text-2xl font-bold" style={{ color: 'var(--primary)' }}>{sandbox?.metadata?.name || 'App'}</h1>
@@ -300,179 +354,120 @@ export default function SandboxPage({ params }: { params: Promise<{ id: string }
               </div>
             </div>
 
-            {/* Chatbot section - 70% of the height */}
-            <div className="flex-grow h-[70%] mb-3 overflow-hidden flex flex-col">
+            {/* Chatbot section - main content */}
+            <div className="flex-grow mb-4 overflow-hidden flex flex-col">
               <InfoCard title="App Builder Assistant" className="flex-grow flex flex-col h-full overflow-hidden">
                 {sandbox && <Chatbot sandboxName={sandbox?.metadata?.name ?? 'unknown'} className="flex-grow" />}
               </InfoCard>
             </div>
 
-            {/* Sandbox info - 30% of the height */}
-            <div className="h-[28%] overflow-auto">
-              {/* User and sandbox basic info in a more compact layout */}
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                {user && (
-                  <InfoCard title="User">
-                    <div className="flex flex-col">
-                      <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>{user.email}</span>
-                    </div>
-                  </InfoCard>
-                )}
+            {/* App information section */}
+            <div className="space-y-3">
+              {user && (
+                <InfoCard title="User">
+                  <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>{user.email}</span>
+                </InfoCard>
+              )}
 
+              {sandbox && (
+                <InfoCard title="App Details">
+                  <div className="space-y-1">
+                    <div>
+                      <span className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>Name:</span>
+                      <span className="text-xs ml-2">{sandbox.metadata?.name}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>Session:</span>
+                      <span className="text-xs ml-2 font-mono">{sessionInfo?.name || "N/A"}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>Status:</span>
+                      <span className="text-xs ml-2">{sandbox.status}</span>
+                    </div>
+                  </div>
+                </InfoCard>
+              )}
+
+              {previewUrl && (
                 <InfoCard title="Preview URL">
                   <a
-                    href={previewUrl ?? ""}
+                    href={previewUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="underline flex items-center"
+                    className="underline flex items-center text-sm"
                     style={{ color: 'var(--primary)' }}
                   >
-                    {previewUrl ? 'Open Preview' : 'No preview URL'}
-                    {previewUrl && (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                      </svg>
-                    )}
+                    Open in new tab
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
                   </a>
                 </InfoCard>
-              </div>
-
-              {/* Collapsible sections with proper spacing */}
-              <div className="space-y-4 mb-4">
-                <Collapsible title="App Details" defaultOpen={false}>
-                  {sandbox && (
-                    <div className="flex flex-col space-y-2">
-                      <div>
-                        <span className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>Name:</span>
-                        <span className="text-sm ml-2">{sandbox.metadata?.name}</span>
-                      </div>
-                      <div>
-                        <span className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>Session ID:</span>
-                        <span className="text-sm ml-2 font-mono">{sessionInfo?.name || "N/A"}</span>
-                      </div>
-                    </div>
-                  )}
-                </Collapsible>
-
-                <Collapsible title="Processes" defaultOpen={false}>
-                  <div className="space-y-2">
-                    {processes.length === 0 ? (
-                      <div>
-                        <p className="italic mb-4" style={{ color: 'var(--muted-foreground)' }}>No processes running</p>
-                        <button
-                          onClick={startNpmDev}
-                          className="px-3 py-2 rounded-md text-sm transition-colors flex items-center cursor-pointer"
-                          style={{ background: 'var(--success)', color: 'var(--primary-foreground)' }}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          Start npm run dev
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex justify-end mb-2">
-                          <button
-                            onClick={startNpmDev}
-                            className="px-2 py-1 rounded-md text-xs transition-colors flex items-center cursor-pointer"
-                            style={{ background: 'var(--success)', color: 'var(--primary-foreground)' }}
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            Start npm run dev
-                          </button>
-                        </div>
-                        {processes.map((process, idx) => (
-                          <div key={idx} className="p-3 rounded-md" style={{ background: 'var(--muted)' }}>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center">
-                                <div className={`h-2 w-2 rounded-full mr-2`} style={{ background: process.status === 'running' ? 'var(--success)' : 'var(--muted-foreground)' }}></div>
-                                <span className="font-medium">{process.name}</span>
-                              </div>
-                              <div className="flex space-x-2">
-                                <button
-                                  onClick={() => stopProcess(process.pid)}
-                                  className="px-2 py-1 rounded-md text-xs transition-colors cursor-pointer"
-                                  style={{ background: 'var(--warning)', color: 'var(--primary-foreground)' }}
-                                  title="Stop process"
-                                >
-                                  Stop
-                                </button>
-                                <button
-                                  onClick={() => killProcess(process.pid)}
-                                  className="px-2 py-1 rounded-md text-xs transition-colors flex items-center cursor-pointer"
-                                  style={{ background: 'var(--error)', color: 'var(--primary-foreground)' }}
-                                  title="Kill process"
-                                >
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                  Kill
-                                </button>
-                              </div>
-                            </div>
-                            <div className="text-sm mt-1" style={{ color: 'var(--muted-foreground)' }}>Command: {process.command}</div>
-                            <div className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>PID: {process.pid}</div>
-                          </div>
-                        ))}
-                      </>
-                    )}
-                  </div>
-                </Collapsible>
-              </div>
+              )}
             </div>
           </div>
 
-          {/* Right side - Preview Iframe (2/3) */}
-          <div className="col-span-2 relative h-full overflow-hidden" style={{ background: 'var(--background)' }}>
-            {previewUrl ? (
-              <div className="absolute inset-0 p-4">
-                <div className="relative h-full w-full rounded-lg overflow-hidden shadow-2xl border-4" style={{ border: '4px solid var(--border)' }}>
-                  <div className="h-8 flex items-center px-4" style={{ background: 'var(--muted)' }}>
-                    <div className="flex space-x-2">
-                      <div className="h-3 w-3 rounded-full" style={{ background: 'var(--error)' }}></div>
-                      <div className="h-3 w-3 rounded-full" style={{ background: 'var(--warning)' }}></div>
-                      <div className="h-3 w-3 rounded-full" style={{ background: 'var(--success)' }}></div>
-                    </div>
-                    <div className="flex-1 text-sm font-medium text-center truncate px-4" style={{ color: 'var(--muted-foreground)' }}>
-                      {previewUrl}
-                    </div>
-                    <button
-                      onClick={refreshPreview}
-                      className="p-1 rounded-full transition-colors cursor-pointer"
-                      style={{ color: 'var(--muted-foreground)' }}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                    </button>
-                  </div>
+          {/* Right side - Tabbed Content (2/3) */}
+          <div className="col-span-2 flex flex-col h-full overflow-hidden" style={{ background: 'var(--background)' }}>
+            {/* Tab Navigation */}
+            <div className="flex border-b" style={{ background: 'var(--background)', borderColor: 'var(--border)' }}>
+              <button
+                onClick={() => setActiveTab('preview')}
+                className={`px-6 py-3 font-medium transition-colors ${activeTab === 'preview' ? 'border-b-2' : ''}`}
+                style={{
+                  borderColor: activeTab === 'preview' ? 'var(--primary)' : 'transparent',
+                  color: activeTab === 'preview' ? 'var(--primary)' : 'var(--muted-foreground)'
+                }}
+              >
+                Preview
+              </button>
+              <button
+                onClick={() => setActiveTab('processes')}
+                className={`px-6 py-3 font-medium transition-colors ${activeTab === 'processes' ? 'border-b-2' : ''}`}
+                style={{
+                  borderColor: activeTab === 'processes' ? 'var(--primary)' : 'transparent',
+                  color: activeTab === 'processes' ? 'var(--primary)' : 'var(--muted-foreground)'
+                }}
+              >
+                Processes
+              </button>
+              <button
+                onClick={() => setActiveTab('code')}
+                className={`px-6 py-3 font-medium transition-colors ${activeTab === 'code' ? 'border-b-2' : ''}`}
+                style={{
+                  borderColor: activeTab === 'code' ? 'var(--primary)' : 'transparent',
+                  color: activeTab === 'code' ? 'var(--primary)' : 'var(--muted-foreground)'
+                }}
+              >
+                Code Viewer
+              </button>
+            </div>
 
-                  {/* Loading overlay for preview */}
-                  {isPreviewLoading ? (
-                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center" style={{ background: 'var(--muted)', opacity: 0.7 }}>
-                      <div className="h-12 w-12 rounded-full border-4 animate-spin" style={{ borderColor: 'var(--border)', borderTopColor: 'var(--primary)', borderRightColor: 'transparent', borderBottomColor: 'var(--primary)', borderLeftColor: 'transparent' }}></div>
-                      <p className="mt-4 text-sm" style={{ color: 'var(--primary-foreground)' }}>Loading preview...</p>
-                    </div>
-                  ) : (
-                    <iframe
-                      ref={iframeRef}
-                      src={previewUrl}
-                      className="w-full h-[calc(100%-32px)]"
-                      title="Sandbox Preview"
-                    />
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center h-full" style={{ color: 'var(--muted-foreground)' }}>
-                No preview available
-              </div>
-            )}
+            {/* Tab Content */}
+            <div className="flex-1 overflow-hidden">
+              {activeTab === 'preview' ? (
+                <PreviewTab
+                  previewUrl={previewUrl}
+                  isPreviewLoading={isPreviewLoading}
+                  iframeRef={iframeRef}
+                  onRefresh={refreshPreview}
+                />
+              ) : activeTab === 'processes' ? (
+                <ProcessesTab
+                  processes={processes}
+                  selectedProcessId={selectedProcessId}
+                  processLogs={processLogs}
+                  isStreamingLogs={isStreamingLogs}
+                  logsEndRef={logsEndRef}
+                  onProcessSelect={handleProcessSelection}
+                  onStartNpmDev={startNpmDev}
+                  onStopProcess={stopProcess}
+                  onKillProcess={killProcess}
+                />
+              ) : (
+                <CodeViewerTab sandboxInstance={sandboxInstance} />
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -490,30 +485,3 @@ function InfoCard({ title, children, className }: { title: string, children: Rea
   );
 }
 
-function Collapsible({ title, defaultOpen, children }: { title: string, defaultOpen: boolean, children: React.ReactNode }) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-
-  return (
-    <div className="rounded-lg p-4" style={{ border: '1px solid var(--border)', background: 'var(--background)' }}>
-      <div className="flex justify-between items-center mb-2">
-        <h4 className="text-lg font-medium" style={{ color: 'var(--muted-foreground)' }}>{title}</h4>
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="p-1 rounded-full transition-colors cursor-pointer"
-          style={{ color: 'var(--muted-foreground)' }}
-        >
-          {isOpen ? (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          )}
-        </button>
-      </div>
-      {isOpen && children}
-    </div>
-  );
-}

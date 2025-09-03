@@ -50,20 +50,6 @@ export async function GET(
       "Access-Control-Max-Age": "86400",
       "Vary": "Origin"
     };
-    const response = await fetch("https://github.com/blaxel-ai/sdk-typescript/archive/refs/heads/main.zip")
-    if (!response.ok) {
-      throw new Error(`Failed to fetch: ${response.statusText}`)
-    }
-    const resp_array_buffer = await response.arrayBuffer()
-    console.log("Writing code to sandbox...")
-    console.log("response_array_buffer", resp_array_buffer)
-    try {
-      const buffer = Buffer.from(resp_array_buffer)
-      await sandboxInstance.fs.writeBinary("/workspace.zip", buffer)
-    } catch (error) {
-      console.error("Error writing code to sandbox: ", error || "Unknown error")
-      throw error
-    }
 
     // Handle preview
     const preview = await sandboxInstance.previews.createIfNotExists({

@@ -1,0 +1,3 @@
+overrides:
+  '@blaxel/core': link:../../../@blaxel/core
+  '@blaxel/vercel': link:../../../@blaxel/vercel
