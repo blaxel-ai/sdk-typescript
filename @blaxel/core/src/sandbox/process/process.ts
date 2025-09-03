@@ -10,91 +10,6 @@ export class SandboxProcess extends SandboxAction {
   }
 
   public streamLogs(
-    processName: string,
-    options: {
-      onLog?: (log: string) => void,
-      onStdout?: (stdout: string) => void,
-      onStderr?: (stderr: string) => void,
-    } = {}
-  ): { close: () => void } {
-    const reconnectInterval = 30000
-    let currentStream: { close: () => void } | null = null
-    let isRunning = true
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
-
-    // Track seen logs to avoid duplicates
-    const seenLogs = new Set<string>()
-
-    const startStream = () => {
-      let logCounter = 0
-
-      // Close existing stream if any
-      if (currentStream) {
-        currentStream.close()
-      }
-
-      // Start new stream with deduplication
-      currentStream = this._streamLogs(processName, {
-        onLog: (log) => {
-          const logKey = `${logCounter++}:${log}`
-          if (!seenLogs.has(logKey)) {
-            seenLogs.add(logKey)
-            options.onLog?.(log)
-          }
-        },
-        onStdout: (stdout) => {
-          const logKey = `${logCounter++}:${stdout}`
-          if (!seenLogs.has(logKey)) {
-            seenLogs.add(logKey)
-            options.onStdout?.(stdout)
-          }
-        },
-        onStderr: (stderr) => {
-          const logKey = `${logCounter++}:${stderr}`
-          if (!seenLogs.has(logKey)) {
-            seenLogs.add(logKey)
-            options.onStderr?.(stderr)
-          }
-        },
-      })
-
-      // Schedule next reconnection
-      if (isRunning) {
-        reconnectTimer = setTimeout(() => {
-          if (isRunning) {
-            startStream()
-          }
-        }, reconnectInterval)
-      }
-    }
-
-    // Start the initial stream
-    startStream()
-
-    // Return control functions
-    return {
-      close: () => {
-        isRunning = false
-
-        // Clear reconnect timer
-        if (reconnectTimer) {
-          clearTimeout(reconnectTimer)
-          reconnectTimer = null
-        }
-
-        // Close current stream
-        if (currentStream) {
-          currentStream.close()
-          currentStream = null
-        }
-
-        // Clear seen logs
-        seenLogs.clear()
-      }
-    }
-  }
-
-  private _streamLogs(
     identifier: string,
     options: {
       onLog?: (log: string) => void,
@@ -129,6 +44,9 @@ export class SandboxProcess extends SandboxAction {
           const lines = buffer.split(/\r?\n/);
           buffer = lines.pop()!;
           for (const line of lines) {
+            if (line.startsWith("[keepalive]")) {
+              continue;
+            }
             if (line.startsWith('stdout:')) {
               options.onStdout?.(line.slice(7));
               options.onLog?.(line.slice(7));
