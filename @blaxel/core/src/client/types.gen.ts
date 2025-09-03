@@ -288,6 +288,10 @@ export type Entrypoint = {
     env?: {
         [key: string]: unknown;
     };
+    /**
+     * Super Gateway args of the entrypoint
+     */
+    superGatewayArgs?: Array<unknown>;
 };
 
 /**
@@ -451,11 +455,8 @@ export type FunctionSpec = CoreSpec & {
      * Function description, very important for the agent function to work with an LLM
      */
     description?: string;
-    /**
-     * Function kits
-     */
-    kit?: Array<FunctionKit>;
     schema?: FunctionSchema;
+    triggers?: Triggers;
 };
 
 /**
@@ -1085,6 +1086,10 @@ export type Metadata = TimeFields & OwnerFields & {
      * Plan
      */
     plan?: unknown;
+    /**
+     * URL
+     */
+    url?: string;
     /**
      * Workspace name
      */
@@ -2131,6 +2136,10 @@ export type Runtime = {
  */
 export type Sandbox = {
     events?: CoreEvents;
+    /**
+     * Last time the sandbox was used (read-only, managed by the system)
+     */
+    lastUsedAt?: string;
     metadata?: Metadata;
     spec?: SandboxSpec;
     /**
@@ -2198,6 +2207,10 @@ export type SandboxDefinition = {
  * Sandbox specification
  */
 export type SandboxSpec = CoreSpec & {
+    /**
+     * AWS region where the sandbox should be created (e.g. us-west-2, eu-west-1)
+     */
+    region?: string;
     volumes?: VolumeAttachments;
 };
 

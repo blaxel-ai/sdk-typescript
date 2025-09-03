@@ -45,6 +45,7 @@ export type SandboxCreateConfiguration = {
   volumes?: (VolumeBinding | VolumeAttachment)[];
   ttl?: string;
   expires?: Date;
+  region?: string;
 }
 
 export function normalizePorts(ports?: (Port | Record<string, any>)[]): Port[] | undefined {
