@@ -255,6 +255,10 @@ export type CustomDomainSpec = {
      */
     lastVerifiedAt?: string;
     /**
+     * Region that the custom domain is associated with
+     */
+    region?: string;
+    /**
      * Current status of the domain (pending, verified, failed)
      */
     status?: string;
@@ -1087,10 +1091,6 @@ export type Metadata = TimeFields & OwnerFields & {
      */
     plan?: unknown;
     /**
-     * URL
-     */
-    url?: string;
-    /**
      * Workspace name
      */
     workspace?: string;
@@ -1520,6 +1520,10 @@ export type PreviewSpec = {
      * Whether the preview is public
      */
     public?: boolean;
+    /**
+     * Region where the preview is deployed, this is readonly
+     */
+    region?: string;
     /**
      * Those headers will be set in all requests to your preview. This is especially useful to set the Authorization header.
      */
@@ -4789,34 +4793,6 @@ export type GetVolumeResponses = {
 };
 
 export type GetVolumeResponse = GetVolumeResponses[keyof GetVolumeResponses];
-
-export type UpdateVolumeData = {
-    body: Volume;
-    path: {
-        /**
-         * Name of the volume
-         */
-        volumeName: string;
-    };
-    query?: never;
-    url: '/volumes/{volumeName}';
-};
-
-export type UpdateVolumeErrors = {
-    /**
-     * Method not allowed - volume updates are not supported
-     */
-    405: unknown;
-};
-
-export type UpdateVolumeResponses = {
-    /**
-     * successful operation
-     */
-    200: Volume;
-};
-
-export type UpdateVolumeResponse = UpdateVolumeResponses[keyof UpdateVolumeResponses];
 
 export type ListWorkspacesData = {
     body?: never;
