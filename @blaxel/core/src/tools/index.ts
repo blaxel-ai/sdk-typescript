@@ -1,11 +1,11 @@
 import { findFromCache } from "../cache/index.js";
 import { Function, getFunction } from "../client/client.js";
 import { getForcedUrl } from "../common/internal.js";
-import { getMcpTool } from "./mcpTool.js";
+import { getMcpTool, ToolOptions } from "./mcpTool.js";
 import { Tool } from "./types.js";
 
-export const getTool = async (name: string, ms?: number): Promise<Tool[]> => {
-  return await getMcpTool(name, ms);
+export const getTool = async (name: string, options?: number | ToolOptions): Promise<Tool[]> => {
+  return await getMcpTool(name, options);
 };
 
 export class BLTools {

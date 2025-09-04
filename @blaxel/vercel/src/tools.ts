@@ -1,14 +1,15 @@
 import { getTool, handleDynamicImportError } from "@blaxel/core";
+import { ToolOptions } from "@blaxel/core/tools/mcpTool";
 import type { Tool } from "ai";
 import { tool } from "ai";
 
 export const blTool = async (
   name: string,
-  ms?: number
+  options?: ToolOptions | number
 ) : Promise<Record<string, Tool>> => {
   try {
     const toolFormated: Record<string, Tool> = {};
-    const blaxelTool = await getTool(name, ms);
+    const blaxelTool = await getTool(name, options)
 
     for (const t of blaxelTool) {
       // @ts-ignore - Type instantiation depth issue with ai package in some environments
@@ -28,9 +29,9 @@ export const blTool = async (
 
 export const blTools = async (
   names: string[],
-  ms?: number
+  options?: ToolOptions | number
 ) : Promise<Record<string, Tool>> => {
-  const toolArrays = await Promise.all(names.map((n) => blTool(n, ms)));
+  const toolArrays = await Promise.all(names.map((n) => blTool(n, options)));
   const toolFormated: Record<string, Tool> = {};
   for (const toolServer of toolArrays) {
     for (const toolName in toolServer) {

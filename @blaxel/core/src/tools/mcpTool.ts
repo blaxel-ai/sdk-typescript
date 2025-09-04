@@ -10,6 +10,12 @@ import { startSpan } from "../telemetry/telemetry.js";
 import { Tool } from "./types.js";
 import { schemaToZodSchema } from "./zodSchema.js";
 const McpToolCache = new Map<string, McpTool>();
+
+export type ToolOptions = {
+  ms?: number;
+  meta?: Record<string, unknown> | undefined;
+};
+
 export class McpTool {
   private name: string;
   private type: string;
@@ -19,9 +25,10 @@ export class McpTool {
 
   private timer?: NodeJS.Timeout;
   private ms: number;
+  private meta: Record<string, unknown> | undefined;
   private startPromise?: Promise<void> | null;
 
-  constructor(name: string, ms: number = 5000) {
+  constructor(name: string, options: ToolOptions | number = { ms: 5000 }) {
     this.name = name;
     this.type = "function";
     this.pluralType = "functions";
@@ -33,8 +40,10 @@ export class McpTool {
     if (env.BL_CLOUD) {
       this.ms = 0;
     } else {
-      this.ms = ms;
+      this.ms = typeof options === "number" ? options : options.ms || 5000;
     }
+    this.meta = (typeof options === "object" && options.meta) || undefined
+
     this.client = new ModelContextProtocolClient(
       {
         name: this.name,
@@ -207,6 +216,7 @@ export class McpTool {
       const result = await this.client.callTool({
         name: toolName,
         arguments: args,
+        _meta: this.meta
       });
       logger.debug(`MCP:${this.name}:Tool calling:result`);
       await this.close();
@@ -235,11 +245,11 @@ export class McpTool {
   }
 }
 
-export const getMcpTool = async (name: string, ms?: number): Promise<Tool[]> => {
+export const getMcpTool = async (name: string, options?: ToolOptions | number): Promise<Tool[]> => {
   let tool = McpToolCache.get(name);
   if (!tool) {
     logger.debug(`MCP:${name}:Creating new tool`);
-    tool = new McpTool(name, ms);
+    tool = new McpTool(name, options);
     McpToolCache.set(name, tool);
   }
   return await tool.listTools();
