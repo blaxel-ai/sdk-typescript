@@ -255,6 +255,10 @@ export type CustomDomainSpec = {
      */
     lastVerifiedAt?: string;
     /**
+     * Region that the custom domain is associated with
+     */
+    region?: string;
+    /**
      * Current status of the domain (pending, verified, failed)
      */
     status?: string;
@@ -288,6 +292,10 @@ export type Entrypoint = {
     env?: {
         [key: string]: unknown;
     };
+    /**
+     * Super Gateway args of the entrypoint
+     */
+    superGatewayArgs?: Array<unknown>;
 };
 
 /**
@@ -451,11 +459,8 @@ export type FunctionSpec = CoreSpec & {
      * Function description, very important for the agent function to work with an LLM
      */
     description?: string;
-    /**
-     * Function kits
-     */
-    kit?: Array<FunctionKit>;
     schema?: FunctionSchema;
+    triggers?: Triggers;
 };
 
 /**
@@ -1516,6 +1521,10 @@ export type PreviewSpec = {
      */
     public?: boolean;
     /**
+     * Region where the preview is deployed, this is readonly
+     */
+    region?: string;
+    /**
      * Those headers will be set in all requests to your preview. This is especially useful to set the Authorization header.
      */
     requestHeaders?: {
@@ -2131,6 +2140,10 @@ export type Runtime = {
  */
 export type Sandbox = {
     events?: CoreEvents;
+    /**
+     * Last time the sandbox was used (read-only, managed by the system)
+     */
+    lastUsedAt?: string;
     metadata?: Metadata;
     spec?: SandboxSpec;
     /**
@@ -2198,6 +2211,10 @@ export type SandboxDefinition = {
  * Sandbox specification
  */
 export type SandboxSpec = CoreSpec & {
+    /**
+     * AWS region where the sandbox should be created (e.g. us-west-2, eu-west-1)
+     */
+    region?: string;
     volumes?: VolumeAttachments;
 };
 
@@ -4776,34 +4793,6 @@ export type GetVolumeResponses = {
 };
 
 export type GetVolumeResponse = GetVolumeResponses[keyof GetVolumeResponses];
-
-export type UpdateVolumeData = {
-    body: Volume;
-    path: {
-        /**
-         * Name of the volume
-         */
-        volumeName: string;
-    };
-    query?: never;
-    url: '/volumes/{volumeName}';
-};
-
-export type UpdateVolumeErrors = {
-    /**
-     * Method not allowed - volume updates are not supported
-     */
-    405: unknown;
-};
-
-export type UpdateVolumeResponses = {
-    /**
-     * successful operation
-     */
-    200: Volume;
-};
-
-export type UpdateVolumeResponse = UpdateVolumeResponses[keyof UpdateVolumeResponses];
 
 export type ListWorkspacesData = {
     body?: never;

@@ -64,10 +64,12 @@ export class SandboxInstance {
       const volumes = normalizeVolumes(sandbox.volumes);
       const ttl = sandbox.ttl;
       const expires = sandbox.expires;
+      const region = sandbox.region;
 
       sandbox = {
         metadata: { name: sandbox.name },
         spec: {
+          region: region,
           runtime: {
             image: sandbox.image,
             memory: sandbox.memory,
