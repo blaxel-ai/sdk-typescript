@@ -37,6 +37,13 @@ export function TerminalTab({ sandboxInstance }: TerminalTabProps) {
     inputRef.current?.focus();
   }, []);
 
+  // Refocus input after command execution completes
+  useEffect(() => {
+    if (!isExecuting && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isExecuting]);
+
   // Global keyboard handler for Ctrl+C
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
@@ -311,22 +318,27 @@ export function TerminalTab({ sandboxInstance }: TerminalTabProps) {
           </div>
         ))}
 
-                {/* Current Input Line */}
-        <div className="flex items-start gap-2">
-          {getPromptStyle()}
-          <input
-            ref={inputRef}
-            type="text"
-            value={currentCommand}
-            onChange={(e) => !isExecuting && setCurrentCommand(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className="flex-1 bg-transparent outline-none"
-            style={{ color: '#f8f8f2', opacity: isExecuting ? 0.5 : 1 }}
-            placeholder={isExecuting ? 'Executing... (Ctrl+C to stop)' : 'Type a command...'}
-            spellCheck={false}
-            autoComplete="off"
-          />
-        </div>
+                {/* Current Input Line or Executing Status */}
+        {isExecuting ? (
+          <>
+          </>
+        ) : (
+          <div className="flex items-start gap-2">
+            {getPromptStyle()}
+            <input
+              ref={inputRef}
+              type="text"
+              value={currentCommand}
+              onChange={(e) => setCurrentCommand(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="flex-1 bg-transparent outline-none"
+              style={{ color: '#f8f8f2' }}
+              placeholder="Type a command..."
+              spellCheck={false}
+              autoComplete="off"
+            />
+          </div>
+        )}
 
         <div ref={terminalEndRef} />
       </div>
