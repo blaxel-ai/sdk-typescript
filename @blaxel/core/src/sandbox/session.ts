@@ -70,6 +70,7 @@ export class SandboxSessions {
       },
       throwOnError: true,
     });
+    if (data === null) return [];
     return await Promise.all(data.filter((preview) => preview.metadata?.name?.includes("session-")).map(async (preview) => {
       const token = await this.getToken(preview.metadata?.name ?? "");
       return {
