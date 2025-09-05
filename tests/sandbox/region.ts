@@ -8,13 +8,13 @@ function getUniqueId(): string {
 // Configuration map for available regions per environment
 const REGION_CONFIG = {
   prod: {
-    regions: ["us-east-1", "eu-west-2", "us-west-2"],
-    defaultRegion: "us-west-2",
+    regions: ["us-pdx-1", "eu-lon-1", "us-was-1"],
+    defaultRegion: "us-pdx-1",
     image: "blaxel/prod-base:latest"
   },
   dev: {
-    regions: ["eu-west-1"],
-    defaultRegion: "eu-west-1",
+    regions: ["eu-dub-1"],
+    defaultRegion: "eu-dub-1",
     image: "blaxel/dev-base:latest"
   }
 };

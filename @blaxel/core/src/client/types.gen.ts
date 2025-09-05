@@ -2212,7 +2212,7 @@ export type SandboxDefinition = {
  */
 export type SandboxSpec = CoreSpec & {
     /**
-     * AWS region where the sandbox should be created (e.g. us-west-2, eu-west-1)
+     * Region where the sandbox should be created (e.g. us-pdx-1, eu-lon-1)
      */
     region?: string;
     volumes?: VolumeAttachments;
@@ -2661,7 +2661,7 @@ export type VolumeAttachments = Array<VolumeAttachment>;
  */
 export type VolumeSpec = {
     /**
-     * AWS region where the volume should be created (e.g. us-west-2, eu-west-1)
+     * Region where the volume should be created (e.g. us-pdx-1, eu-lon-1)
      */
     region?: string;
     /**
