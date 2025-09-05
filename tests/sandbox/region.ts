@@ -13,8 +13,8 @@ const REGION_CONFIG = {
     image: "blaxel/prod-base:latest"
   },
   dev: {
-    regions: ["eu-lon-1"],
-    defaultRegion: "eu-lon-1",
+    regions: ["eu-dub-1"],
+    defaultRegion: "eu-dub-1",
     image: "blaxel/dev-base:latest"
   }
 };
