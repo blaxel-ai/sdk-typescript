@@ -57,6 +57,10 @@ export class McpTool {
     );
   }
 
+  get resourceHash() {
+    return getGlobalUniqueHash(settings.workspace, this.type, this.name);
+  }
+
   get fallbackUrl() {
     if (this.externalUrl != this.url) {
       return this.externalUrl;
@@ -65,9 +69,21 @@ export class McpTool {
   }
 
   get externalUrl() {
+    // Check if we should use v2 URLs
+    if (settings.gwGeneration === "v2") {
+      return this.v2ExternalUrl;
+    }
     return new URL(
       `${settings.runUrl}/${settings.workspace}/${this.pluralType}/${this.name}`
     );
+  }
+
+  get v2ExternalUrl() {
+    const hash = this.resourceHash;
+    // For MCP tools (functions) and sandboxes without region info, use global origin
+    // Note: Sandbox MCP tools don't have region information available here
+    const domain = "runv2.blaxel.dev";
+    return new URL(`https://${hash}.${domain}`);
   }
 
   get internalUrl() {

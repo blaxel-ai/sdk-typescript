@@ -12,6 +12,10 @@ class BlAgent {
     this.agentName = agentName;
   }
 
+  get resourceHash() {
+    return getGlobalUniqueHash(settings.workspace, "agent", this.agentName);
+  }
+
   get fallbackUrl() {
     if (this.externalUrl != this.url) {
       return this.externalUrl;
@@ -20,9 +24,20 @@ class BlAgent {
   }
 
   get externalUrl() {
+    // Check if we should use v2 URLs
+    if (settings.gwGeneration === "v2") {
+      return this.v2ExternalUrl;
+    }
     return new URL(
       `${settings.runUrl}/${settings.workspace}/agents/${this.agentName}`
     );
+  }
+
+  get v2ExternalUrl() {
+    const hash = this.resourceHash;
+    // Agents use the global origin by default (no region specification)
+    const domain = "runv2.blaxel.dev";
+    return new URL(`https://${hash}.${domain}`);
   }
 
   get internalUrl() {

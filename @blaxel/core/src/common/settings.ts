@@ -187,6 +187,10 @@ class Settings {
     return env.BL_GENERATION || "";
   }
 
+  get gwGeneration() {
+    return env.GW_GENERATION || "";
+  }
+
   get loggerType() {
     return env.BL_LOGGER || "http";
   }

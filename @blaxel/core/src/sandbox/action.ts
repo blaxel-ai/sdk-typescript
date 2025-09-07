@@ -30,6 +30,14 @@ export class SandboxAction {
     return this.sandbox.metadata?.name ?? "";
   }
 
+  get region() {
+    return this.sandbox.spec?.region ?? "";
+  }
+
+  get resourceHash() {
+    return getGlobalUniqueHash(settings.workspace, "sandbox", this.name);
+  }
+
   get fallbackUrl() {
     if (this.externalUrl != this.url) {
       return this.externalUrl;
@@ -38,7 +46,34 @@ export class SandboxAction {
   }
 
   get externalUrl() {
+    // Check if we should use v2 URLs
+    if (settings.gwGeneration === "v2") {
+      return this.v2ExternalUrl;
+    }
     return `${settings.runUrl}/${settings.workspace}/sandboxes/${this.name}`
+  }
+
+  get v2ExternalUrl() {
+    const hash = this.resourceHash;
+    const region = this.region;
+    
+    // Map regions to the appropriate v2 domains
+    let domain = "runv2.blaxel.dev"; // Default global origin
+    
+    if (region) {
+      // Handle specific region mappings
+      if (region === "eu" || region.startsWith("eu-")) {
+        if (region === "eu-dub-1" || region === "eu-west-1") {
+          domain = "eu-dub-1.runv2.blaxel.dev";
+        } else {
+          // Generic EU region
+          domain = "eu.runv2.blaxel.dev";
+        }
+      }
+      // Add more region mappings as needed
+    }
+    
+    return `https://${hash}.${domain}`;
   }
 
   get internalUrl() {
