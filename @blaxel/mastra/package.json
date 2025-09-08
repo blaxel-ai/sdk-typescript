@@ -6,7 +6,11 @@
 	"author": "Blaxel, INC (https://blaxel.ai)",
 	"homepage": "https://blaxel.ai",
 	"scripts": {
-		"build": "tsc",
+		"build": "npm run build:cjs && npm run build:esm && npm run build:fix-esm && npm run build:esm-package",
+		"build:cjs": "tsc -p tsconfig.cjs.json",
+		"build:esm": "tsc -p tsconfig.esm.json",
+		"build:fix-esm": "node fix-esm-imports.js",
+		"build:esm-package": "echo '{\"type\":\"module\"}' > dist/esm/package.json",
 		"dev": "tsc --watch",
 		"lint": "eslint src/"
 	},
@@ -22,38 +26,22 @@
 		"agent",
 		"mcp"
 	],
-	"main": "dist/index.js",
-	"module": "dist/index.js",
-	"types": "dist/index.d.ts",
+	"main": "./dist/cjs/index.js",
+	"module": "./dist/esm/index.js",
+	"types": "./dist/cjs/types/index.d.ts",
 	"exports": {
 		".": {
-			"import": {
-				"types": "./dist/index.d.ts",
-				"default": "./dist/index.js"
-			},
-			"require": {
-				"types": "./dist/index.d.ts",
-				"default": "./dist/index.js"
-			}
+			"types": "./dist/cjs/types/index.d.ts",
+			"import": "./dist/esm/index.js",
+			"require": "./dist/cjs/index.js",
+			"default": "./dist/cjs/index.js"
 		},
-		"./*": {
-			"import": {
-				"types": "./dist/*.d.ts",
-				"default": "./dist/*.js"
-			},
-			"require": {
-				"types": "./dist/*.d.ts",
-				"default": "./dist/*.js"
-			}
-		}
+		"./package.json": "./package.json"
 	},
 	"typesVersions": {
 		"*": {
 			".": [
-				"./dist/index.d.ts"
-			],
-			"*": [
-				"./dist/*"
+				"./dist/cjs/types/index.d.ts"
 			]
 		}
 	},

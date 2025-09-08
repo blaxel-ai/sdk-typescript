@@ -1,0 +1,23 @@
+{
+  "name": "test-node16",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "tsx src/index.ts",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@blaxel/core": "workspace:*",
+    "@blaxel/telemetry": "workspace:*",
+    "@blaxel/vercel": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "@types/node": "^22.15.9",
+    "@eslint/js": "^9.26.0",
+    "eslint": "^9.27.0",
+    "typescript-eslint": "^8.31.1",
+    "tsx": "^4.19.4"
+  }
+}

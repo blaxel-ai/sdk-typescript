@@ -8,10 +8,13 @@
 	"scripts": {
 		"lint": "eslint src/",
 		"dev": "tsc --watch",
-		"build": "npm run build:inject-commit && tsc && npm run build:replace-imports",
-		"build:clean": "tsc",
+		"build": "npm run build:inject-commit && npm run build:cjs && npm run build:esm && npm run build:fix-esm && npm run build:esm-package && npm run build:replace-imports",
+		"build:cjs": "tsc -p tsconfig.cjs.json",
+		"build:esm": "tsc -p tsconfig.esm.json",
+		"build:fix-esm": "node fix-esm-imports.js",
+		"build:esm-package": "echo '{\"type\":\"module\"}' > dist/esm/package.json",
 		"build:inject-commit": "node -e \"const fs=require('fs'),pkg=require('./package.json'),{execSync}=require('child_process');try{const commit=execSync('git rev-parse HEAD',{encoding:'utf8'}).trim();pkg.commit=commit;fs.writeFileSync('./package.json',JSON.stringify(pkg,null,'\\t')+'\\n');console.log('✅ Injected commit:',commit.substring(0,7))}catch(e){console.log('⚠️  Could not inject commit:',e.message)}\"",
-		"build:replace-imports": "node -e \"const fs=require('fs'),path=require('path'),pkg=require('./package.json');const settingsPath=path.join('dist','common','settings.js');if(fs.existsSync(settingsPath)){let content=fs.readFileSync(settingsPath,'utf8');content=content.replace(/require\\(\\\".*?\\/package\\.json\\\"\\)/g,JSON.stringify({version:pkg.version,commit:pkg.commit||'unknown'}));fs.writeFileSync(settingsPath,content);console.log('✅ Replaced package.json imports in compiled JS with version:',pkg.version,'commit:',(pkg.commit||'unknown').substring(0,7));}else{console.log('⚠️  Could not find',settingsPath,'to replace imports');}\"",
+		"build:replace-imports": "node -e \"const fs=require('fs'),path=require('path'),pkg=require('./package.json');const paths=['dist/cjs/common/settings.js','dist/esm/common/settings.js'];paths.forEach(settingsPath=>{if(fs.existsSync(settingsPath)){let content=fs.readFileSync(settingsPath,'utf8');content=content.replace(/require\\(\\\".*?\\/package\\.json\\\"\\)/g,JSON.stringify({version:pkg.version,commit:pkg.commit||'unknown'}));fs.writeFileSync(settingsPath,content);console.log('✅ Replaced imports in',settingsPath);}});\"",
 		"test": "vitest --run",
 		"test:watch": "vitest --watch"
 	},
@@ -27,38 +30,22 @@
 		"agent",
 		"mcp"
 	],
-	"main": "dist/index.js",
-	"module": "dist/index.js",
-	"types": "dist/index.d.ts",
+	"main": "./dist/cjs/index.js",
+	"module": "./dist/esm/index.js",
+	"types": "./dist/cjs/types/index.d.ts",
 	"exports": {
 		".": {
-			"import": {
-				"types": "./dist/index.d.ts",
-				"default": "./dist/index.js"
-			},
-			"require": {
-				"types": "./dist/index.d.ts",
-				"default": "./dist/index.js"
-			}
+			"types": "./dist/cjs/types/index.d.ts",
+			"import": "./dist/esm/index.js",
+			"require": "./dist/cjs/index.js",
+			"default": "./dist/cjs/index.js"
 		},
-		"./*": {
-			"import": {
-				"types": "./dist/*.d.ts",
-				"default": "./dist/*.js"
-			},
-			"require": {
-				"types": "./dist/*.d.ts",
-				"default": "./dist/*.js"
-			}
-		}
+		"./package.json": "./package.json"
 	},
 	"typesVersions": {
 		"*": {
 			".": [
-				"./dist/index.d.ts"
-			],
-			"*": [
-				"./dist/*"
+				"./dist/cjs/types/index.d.ts"
 			]
 		}
 	},
@@ -89,5 +76,5 @@
 		"vite": "^5.2.0",
 		"vitest": "^1.5.0"
 	},
-	"commit": "6e51dee5cdc07457d98a2e0cebfe25d628d1cb16"
+	"commit": "83277f8cef5f8f4de76d04ef8dee10ce33dbae0f"
 }
