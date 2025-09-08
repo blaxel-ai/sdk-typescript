@@ -23,7 +23,7 @@
 		"mcp"
 	],
 	"main": "dist/index.js",
-	"module": "./dist/index.js",
+	"module": "dist/index.js",
 	"types": "dist/index.d.ts",
 	"exports": {
 		".": {
@@ -49,6 +49,9 @@
 	},
 	"typesVersions": {
 		"*": {
+			".": [
+				"./dist/index.d.ts"
+			],
 			"*": [
 				"./dist/*"
 			]

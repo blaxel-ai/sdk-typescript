@@ -28,7 +28,7 @@
 		"mcp"
 	],
 	"main": "dist/index.js",
-	"module": "./dist/index.js",
+	"module": "dist/index.js",
 	"types": "dist/index.d.ts",
 	"exports": {
 		".": {
@@ -54,6 +54,9 @@
 	},
 	"typesVersions": {
 		"*": {
+			".": [
+				"./dist/index.d.ts"
+			],
 			"*": [
 				"./dist/*"
 			]
@@ -86,5 +89,5 @@
 		"vite": "^5.2.0",
 		"vitest": "^1.5.0"
 	},
-	"commit": "62706de9b339be30f7588150c761cc23f1067fd3"
+	"commit": "6e51dee5cdc07457d98a2e0cebfe25d628d1cb16"
 }
