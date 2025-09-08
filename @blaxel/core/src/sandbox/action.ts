@@ -57,20 +57,12 @@ export class SandboxAction {
     const hash = this.resourceHash;
     const region = this.region;
     
-    // Map regions to the appropriate v2 domains
+    // Use region directly in the domain if specified
     let domain = "runv2.blaxel.dev"; // Default global origin
     
     if (region) {
-      // Handle specific region mappings
-      if (region === "eu" || region.startsWith("eu-")) {
-        if (region === "eu-dub-1" || region === "eu-west-1") {
-          domain = "eu-dub-1.runv2.blaxel.dev";
-        } else {
-          // Generic EU region
-          domain = "eu.runv2.blaxel.dev";
-        }
-      }
-      // Add more region mappings as needed
+      // Use the region as-is in the domain
+      domain = `${region}.${domain}`;
     }
     
     return `https://${hash}.${domain}`;
