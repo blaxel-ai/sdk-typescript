@@ -4,7 +4,9 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "outDir": "./dist/esm",
-    "declaration": true,
-    "declarationDir": "./dist/esm/types"
+    "declaration": false,
+    "skipLibCheck": true,
+    "incremental": true,
+    "tsBuildInfoFile": "./dist/esm/.tsbuildinfo"
   }
 }
