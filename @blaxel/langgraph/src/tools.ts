@@ -5,6 +5,7 @@ export async function blTool(name: string, options?: ToolOptions | number) {
   try {
     const blaxelTool = await getTool(name, options);
     return blaxelTool.map((t: Tool) =>
+      // @ts-ignore - Type instantiation depth issue with tool schemas
       tool(t.call.bind(t), {
         name: t.name,
         description: t.description,
