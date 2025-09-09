@@ -15,7 +15,8 @@
     "dev": "turbo dev",
     "test": "turbo test",
     "test:watch": "turbo test:watch",
-    "test:ui": "turbo test:ui"
+    "test:ui": "turbo test:ui",
+    "test:runtime-environments": "./tests/runtime-environments/test-all.sh"
   },
   "dependencies": {
     "@blaxel/core": "workspace:*",

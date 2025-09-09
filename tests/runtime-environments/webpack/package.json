@@ -1,0 +1,24 @@
+{
+  "name": "test-webpack",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "webpack",
+    "test": "node dist/bundle.js",
+    "dev": "webpack serve",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@blaxel/core": "workspace:*",
+    "@blaxel/telemetry": "workspace:*"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.26.0",
+    "@types/node": "^22.15.9",
+    "eslint": "^9.27.0",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.31.1",
+    "webpack": "^5.97.1",
+    "webpack-cli": "^5.1.4"
+  }
+}

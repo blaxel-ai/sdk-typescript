@@ -1,5 +1,4 @@
-import { getTool, handleDynamicImportError } from "@blaxel/core";
-import { ToolOptions } from "@blaxel/core/tools/mcpTool";
+import { getTool, handleDynamicImportError, ToolOptions } from "@blaxel/core";
 import type { Tool } from "ai";
 import { tool } from "ai";
 

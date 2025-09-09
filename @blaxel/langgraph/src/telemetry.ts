@@ -1,12 +1,12 @@
-import RunnableModule from "@langchain/core/runnables";
-import ToolsModule from "@langchain/core/tools";
-import VectorStoresModule from "@langchain/core/vectorstores";
+import * as RunnableModule from "@langchain/core/runnables";
+import * as ToolsModule from "@langchain/core/tools";
+import * as VectorStoresModule from "@langchain/core/vectorstores";
 import {
   registerInstrumentations
 } from "@opentelemetry/instrumentation";
 import { LangChainInstrumentation } from "@traceloop/instrumentation-langchain";
-import AgentsModule from "langchain/agents";
-import ChainsModule from "langchain/chains";
+import * as AgentsModule from "langchain/agents";
+import * as ChainsModule from "langchain/chains";
 
 const langchain = new LangChainInstrumentation();
 langchain.manuallyInstrument({
