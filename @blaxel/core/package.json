@@ -9,8 +9,8 @@
 		"lint": "eslint src/",
 		"dev": "tsc --watch",
 		"build": "npm run build:inject-commit && npm run build:cjs && npm run build:esm && npm run build:fix-esm && npm run build:esm-package && npm run build:replace-imports",
-		"build:cjs": "tsc -p tsconfig.cjs.json",
-		"build:esm": "tsc -p tsconfig.esm.json",
+		"build:cjs": "NODE_OPTIONS='--max-old-space-size=8192' tsc -p tsconfig.cjs.json",
+		"build:esm": "NODE_OPTIONS='--max-old-space-size=8192' tsc -p tsconfig.esm.json",
 		"build:fix-esm": "node fix-esm-imports.js",
 		"build:esm-package": "echo '{\"type\":\"module\"}' > dist/esm/package.json",
 		"build:inject-commit": "node -e \"const fs=require('fs'),pkg=require('./package.json'),{execSync}=require('child_process');try{const commit=execSync('git rev-parse HEAD',{encoding:'utf8'}).trim();pkg.commit=commit;fs.writeFileSync('./package.json',JSON.stringify(pkg,null,'\\t')+'\\n');console.log('✅ Injected commit:',commit.substring(0,7))}catch(e){console.log('⚠️  Could not inject commit:',e.message)}\"",
@@ -76,5 +76,5 @@
 		"vite": "^5.2.0",
 		"vitest": "^1.5.0"
 	},
-	"commit": "7d2c093b781e1e5fae24aedc9baa586e9fb4aa72"
+	"commit": "c4c08996feec9a55fb73beb2822668d29823c0d5"
 }

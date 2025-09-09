@@ -9,8 +9,8 @@
 		"lint": "eslint src/",
 		"dev": "tsc --watch",
 		"build": "npm run build:cjs && npm run build:esm && npm run build:fix-esm && npm run build:esm-package",
-		"build:cjs": "tsc -p tsconfig.cjs.json",
-		"build:esm": "tsc -p tsconfig.esm.json",
+		"build:cjs": "NODE_OPTIONS='--max-old-space-size=8192' tsc -p tsconfig.cjs.json",
+		"build:esm": "NODE_OPTIONS='--max-old-space-size=8192' tsc -p tsconfig.esm.json",
 		"build:fix-esm": "node fix-esm-imports.js",
 		"build:esm-package": "echo '{\"type\":\"module\"}' > dist/esm/package.json"
 	},
