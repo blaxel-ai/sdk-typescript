@@ -2,41 +2,41 @@
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import {
-    GenerateContentRequest,
-    GoogleGenerativeAI as GenerativeAI,
-    FunctionDeclaration as GenerativeAIFunctionDeclaration,
-    Part as GenerativeAIPart,
-    GenerativeModel,
-    FunctionDeclarationsTool as GoogleGenerativeAIFunctionDeclarationsTool,
-    ModelParams,
-    RequestOptions,
-    SafetySetting,
-    type CachedContent,
-    type FunctionDeclarationSchema as GenerativeAIFunctionDeclarationSchema,
+  GenerateContentRequest,
+  GoogleGenerativeAI as GenerativeAI,
+  FunctionDeclaration as GenerativeAIFunctionDeclaration,
+  Part as GenerativeAIPart,
+  GenerativeModel,
+  FunctionDeclarationsTool as GoogleGenerativeAIFunctionDeclarationsTool,
+  ModelParams,
+  RequestOptions,
+  SafetySetting,
+  type CachedContent,
+  type FunctionDeclarationSchema as GenerativeAIFunctionDeclarationSchema,
 } from "@google/generative-ai";
 import { NewTokenIndices } from "@langchain/core/callbacks/base";
 import { CallbackManagerForLLMRun } from "@langchain/core/callbacks/manager";
 import {
-    BaseLanguageModelInput,
-    StructuredOutputMethodOptions,
+  BaseLanguageModelInput,
+  StructuredOutputMethodOptions,
 } from "@langchain/core/language_models/base";
 import {
-    BaseChatModel,
-    type BaseChatModelCallOptions,
-    type BaseChatModelParams,
-    type LangSmithParams,
+  BaseChatModel,
+  type BaseChatModelCallOptions,
+  type BaseChatModelParams,
+  type LangSmithParams,
 } from "@langchain/core/language_models/chat_models";
 import {
-    AIMessageChunk,
-    BaseMessage,
-    UsageMetadata,
+  AIMessageChunk,
+  BaseMessage,
+  UsageMetadata,
 } from "@langchain/core/messages";
 import { BaseLLMOutputParser } from "@langchain/core/output_parsers";
 import { ChatGenerationChunk, ChatResult } from "@langchain/core/outputs";
 import {
-    Runnable,
-    RunnablePassthrough,
-    RunnableSequence,
+  Runnable,
+  RunnablePassthrough,
+  RunnableSequence,
 } from "@langchain/core/runnables";
 import { getEnvironmentVariable } from "@langchain/core/utils/env";
 import { isZodSchema } from "@langchain/core/utils/types";
@@ -44,9 +44,9 @@ import type { z } from "zod";
 import { GoogleGenerativeAIToolsOutputParser } from "./output_parsers.js";
 import { GoogleGenerativeAIToolType } from "./types.js";
 import {
-    convertBaseMessagesToContent,
-    convertResponseContentToChatGenerationChunk,
-    mapGenerateContentResultToChatResult,
+  convertBaseMessagesToContent,
+  convertResponseContentToChatGenerationChunk,
+  mapGenerateContentResultToChatResult,
 } from "./utils/common.js";
 import { convertToolsToGenAI } from "./utils/tools.js";
 import { zodToGenerativeAIParameters } from "./utils/zod_to_genai_parameters.js";
@@ -1034,28 +1034,26 @@ export class ChatGoogleGenerativeAI
           ],
         },
       ];
-      // @ts-ignore - Type instantiation depth issue with Zod schemas
-      outputParser = new GoogleGenerativeAIToolsOutputParser<
-        z.infer<typeof schema>
-      >({
+      outputParser = new GoogleGenerativeAIToolsOutputParser({
         returnSingle: true,
         keyName: functionName,
-        zodSchema: schema,
-      });
+        zodSchema: schema as any, // Type assertion to avoid deep instantiation issues
+      }) as any;
     } else {
       let geminiFunctionDefinition: GenerativeAIFunctionDeclaration;
+      const schemaAsAny = schema as any; // Type assertion to handle union type
       if (
-        typeof schema.name === "string" &&
-        typeof schema.parameters === "object" &&
-        schema.parameters != null
+        typeof schemaAsAny.name === "string" &&
+        typeof schemaAsAny.parameters === "object" &&
+        schemaAsAny.parameters != null
       ) {
-        geminiFunctionDefinition = schema as GenerativeAIFunctionDeclaration;
-        functionName = schema.name;
+        geminiFunctionDefinition = schemaAsAny as GenerativeAIFunctionDeclaration;
+        functionName = schemaAsAny.name;
       } else {
         geminiFunctionDefinition = {
           name: functionName,
-          description: schema.description ?? "",
-          parameters: schema as GenerativeAIFunctionDeclarationSchema,
+          description: schemaAsAny.description ?? "",
+          parameters: schemaAsAny as GenerativeAIFunctionDeclarationSchema,
         };
       }
       tools = [
