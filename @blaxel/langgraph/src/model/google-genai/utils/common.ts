@@ -1,38 +1,38 @@
 import {
-  CodeExecutionResult,
-  Content,
-  EnhancedGenerateContentResponse,
-  ExecutableCode,
-  FunctionCallPart,
-  FunctionResponsePart,
-  POSSIBLE_ROLES,
-  Part,
-  type FunctionDeclaration as GenerativeAIFunctionDeclaration,
-  type FunctionDeclarationsTool as GoogleGenerativeAIFunctionDeclarationsTool,
+    CodeExecutionResult,
+    Content,
+    EnhancedGenerateContentResponse,
+    ExecutableCode,
+    FunctionCallPart,
+    FunctionResponsePart,
+    POSSIBLE_ROLES,
+    Part,
+    type FunctionDeclaration as GenerativeAIFunctionDeclaration,
+    type FunctionDeclarationsTool as GoogleGenerativeAIFunctionDeclarationsTool,
 } from "@google/generative-ai";
 import { isOpenAITool } from "@langchain/core/language_models/base";
 import {
-  AIMessage,
-  AIMessageChunk,
-  BaseMessage,
-  ChatMessage,
-  MessageContent,
-  MessageContentComplex,
-  UsageMetadata,
-  isBaseMessage,
+    AIMessage,
+    AIMessageChunk,
+    BaseMessage,
+    ChatMessage,
+    MessageContent,
+    MessageContentComplex,
+    UsageMetadata,
+    isBaseMessage,
 } from "@langchain/core/messages";
 import { ToolCallChunk } from "@langchain/core/messages/tool";
 import {
-  ChatGeneration,
-  ChatGenerationChunk,
-  ChatResult,
+    ChatGeneration,
+    ChatGenerationChunk,
+    ChatResult,
 } from "@langchain/core/outputs";
 import { isLangChainTool } from "@langchain/core/utils/function_calling";
 import * as z from "zod";
 import { GoogleGenerativeAIToolType } from "../types.js";
 import {
-  jsonSchemaToGeminiParameters,
-  zodToGenerativeAIParameters,
+    jsonSchemaToGeminiParameters,
+    zodToGenerativeAIParameters,
 } from "./zod_to_genai_parameters.js";
 
 interface ToolCall {
@@ -459,6 +459,7 @@ export function convertToGenerativeAITools(
       functionDeclarations: tools.map(
         (tool): GenerativeAIFunctionDeclaration => {
           if (isLangChainTool(tool) && isZodType(tool.schema)) {
+            // @ts-ignore - Type instantiation depth issue with Zod schemas
             const jsonSchema = zodToGenerativeAIParameters(tool.schema);
             return {
               name: tool.name,
