@@ -1,0 +1,23 @@
+{
+  "name": "test-browser",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "vite build",
+    "test": "node test-runner.js",
+    "dev": "vite",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@blaxel/core": "workspace:*",
+    "@blaxel/telemetry": "workspace:*"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.26.0",
+    "@types/node": "^22.15.9",
+    "eslint": "^9.27.0",
+    "playwright": "^1.49.1",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.31.1",
+    "vite": "^5.4.11"
+  }
+}

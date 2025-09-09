@@ -1,0 +1,22 @@
+{
+  "name": "test-bun",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "test": "bun run src/index.ts",
+    "dev": "bun run src/index.ts",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@blaxel/core": "workspace:*",
+    "@blaxel/telemetry": "workspace:*"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.26.0",
+    "@types/bun": "latest",
+    "@types/node": "^22.15.9",
+    "eslint": "^9.27.0",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.31.1"
+  }
+}

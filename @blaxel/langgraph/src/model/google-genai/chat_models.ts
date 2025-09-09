@@ -577,6 +577,7 @@ export interface GoogleGenerativeAIChatInput
  *
  * <br />
  */
+// @ts-ignore - Type instantiation depth issue with complex generics
 export class ChatGoogleGenerativeAI
   extends BaseChatModel<GoogleGenerativeAIChatCallOptions, AIMessageChunk>
   implements GoogleGenerativeAIChatInput
@@ -1015,8 +1016,11 @@ export class ChatGoogleGenerativeAI
 
     let functionName = name ?? "extract";
     let outputParser: BaseLLMOutputParser<RunOutput>;
+    // @ts-ignore - Type instantiation depth issue with Zod schemas
     let tools: GoogleGenerativeAIFunctionDeclarationsTool[];
+    // @ts-ignore - Type instantiation depth issue with Zod schemas
     if (isZodSchema(schema)) {
+      // @ts-ignore - Type instantiation depth issue with Zod schemas
       const jsonSchema = zodToGenerativeAIParameters(schema);
       tools = [
         {
@@ -1030,27 +1034,26 @@ export class ChatGoogleGenerativeAI
           ],
         },
       ];
-      outputParser = new GoogleGenerativeAIToolsOutputParser<
-        z.infer<typeof schema>
-      >({
+      outputParser = new GoogleGenerativeAIToolsOutputParser({
         returnSingle: true,
         keyName: functionName,
-        zodSchema: schema,
-      });
+        zodSchema: schema as any, // Type assertion to avoid deep instantiation issues
+      }) as any;
     } else {
       let geminiFunctionDefinition: GenerativeAIFunctionDeclaration;
+      const schemaAsAny = schema as any; // Type assertion to handle union type
       if (
-        typeof schema.name === "string" &&
-        typeof schema.parameters === "object" &&
-        schema.parameters != null
+        typeof schemaAsAny.name === "string" &&
+        typeof schemaAsAny.parameters === "object" &&
+        schemaAsAny.parameters != null
       ) {
-        geminiFunctionDefinition = schema as GenerativeAIFunctionDeclaration;
-        functionName = schema.name;
+        geminiFunctionDefinition = schemaAsAny as GenerativeAIFunctionDeclaration;
+        functionName = schemaAsAny.name;
       } else {
         geminiFunctionDefinition = {
           name: functionName,
-          description: schema.description ?? "",
-          parameters: schema as GenerativeAIFunctionDeclarationSchema,
+          description: schemaAsAny.description ?? "",
+          parameters: schemaAsAny as GenerativeAIFunctionDeclarationSchema,
         };
       }
       tools = [

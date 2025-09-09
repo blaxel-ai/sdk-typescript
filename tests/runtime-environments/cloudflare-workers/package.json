@@ -1,0 +1,24 @@
+{
+  "name": "test-cloudflare-workers",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "node test-runner.js",
+    "dev": "wrangler dev --local --port 8787",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@blaxel/core": "workspace:*",
+    "@blaxel/telemetry": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241218.0",
+    "@eslint/js": "^9.26.0",
+    "@types/node": "^22.15.9",
+    "eslint": "^9.27.0",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.31.1",
+    "wrangler": "^3.100.0",
+    "tsx": "^4.19.4"
+  }
+}

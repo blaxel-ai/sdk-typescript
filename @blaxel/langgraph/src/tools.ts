@@ -1,11 +1,11 @@
-import type { Tool } from "@blaxel/core";
+import type { Tool, ToolOptions } from "@blaxel/core";
 import { getTool, handleDynamicImportError } from "@blaxel/core";
-import { ToolOptions } from "@blaxel/core/tools/mcpTool";
 import { tool } from "@langchain/core/tools";
 export async function blTool(name: string, options?: ToolOptions | number) {
   try {
     const blaxelTool = await getTool(name, options);
     return blaxelTool.map((t: Tool) =>
+      // @ts-ignore - Type instantiation depth issue with tool schemas
       tool(t.call.bind(t), {
         name: t.name,
         description: t.description,

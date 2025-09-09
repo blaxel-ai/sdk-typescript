@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 import { ToolCall } from "@langchain/core/messages/tool";
 import {
-  BaseLLMOutputParser,
-  OutputParserException,
+    BaseLLMOutputParser,
+    OutputParserException,
 } from "@langchain/core/output_parsers";
 import { JsonOutputKeyToolsParserParams } from "@langchain/core/output_parsers/openai_tools";
 import { ChatGeneration } from "@langchain/core/outputs";
@@ -35,6 +35,7 @@ export class GoogleGenerativeAIToolsOutputParser<
     super(params);
     this.keyName = params.keyName;
     this.returnSingle = params.returnSingle ?? this.returnSingle;
+    // @ts-ignore - Type instantiation depth issue with Zod schemas
     this.zodSchema = params.zodSchema;
   }
 
