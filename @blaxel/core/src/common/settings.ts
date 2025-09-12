@@ -9,10 +9,16 @@ export type Config = {
 // Function to get package version
 function getPackageVersion(): string {
   try {
-    // Try to require package.json (Node.js only, gracefully fails in browser)
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const packageJson = require("../../../package.json") as { version?: string };
-    return packageJson.version || "unknown";
+    // Check if require is available (CommonJS environment)
+    if (typeof require !== "undefined") {
+      // Try to require package.json (Node.js only, gracefully fails in browser)
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const packageJson = require("../../../package.json") as { version?: string };
+      return packageJson.version || "unknown";
+    } else {
+      // ESM environment - return unknown
+      return "unknown";
+    }
   } catch {
     // Fallback for browser environments or if require fails
     return "unknown";
@@ -57,18 +63,21 @@ function getOsArch(): string {
 // Function to get commit hash
 function getCommitHash(): string {
   try {
-    // Try to require package.json and look for commit field (set during build)
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const packageJson = require("../../../package.json") as {
-      version?: string;
-      commit?: string;
-      buildInfo?: { commit?: string }
-    };
+    // Check if require is available (CommonJS environment)
+    if (typeof require !== "undefined") {
+      // Try to require package.json and look for commit field (set during build)
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const packageJson = require("../../../package.json") as {
+        version?: string;
+        commit?: string;
+        buildInfo?: { commit?: string }
+      };
 
-    // Check for commit in various possible locations
-    const commit = packageJson.commit || packageJson.buildInfo?.commit;
-    if (commit) {
-      return commit.length > 7 ? commit.substring(0, 7) : commit;
+      // Check for commit in various possible locations
+      const commit = packageJson.commit || packageJson.buildInfo?.commit;
+      if (commit) {
+        return commit.length > 7 ? commit.substring(0, 7) : commit;
+      }
     }
   } catch {
     // Fallback for browser environments or if require fails
