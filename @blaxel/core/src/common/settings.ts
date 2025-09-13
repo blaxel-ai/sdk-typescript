@@ -192,6 +192,10 @@ class Settings {
     return env.BL_CLOUD === "true";
   }
 
+  get workspaceId() {
+    return env.BL_WORKSPACE_ID || "";
+  }
+
   get generation() {
     return env.BL_GENERATION || "";
   }

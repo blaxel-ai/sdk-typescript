@@ -1,4 +1,4 @@
-import { getForcedUrl, getGlobalUniqueHash } from "../common/internal.js";
+import { generateInternalUrl, getForcedUrl } from "../common/internal.js";
 import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
 import { startSpan } from '../telemetry/telemetry.js';
@@ -23,14 +23,17 @@ class BlJob {
   }
 
   get internalUrl() {
-    const hash = getGlobalUniqueHash(
+    const url = generateInternalUrl(
       settings.workspace,
       "job",
-      this.jobName
+      this.jobName,
+      settings.env,
+      settings.runInternalProtocol,
+      settings.runInternalHostname,
+      settings.blCloud,
+      settings.workspaceId
     );
-    return new URL(
-      `${settings.runInternalProtocol}://bl-${settings.env}-${hash}.${settings.runInternalHostname}`
-    );
+    return new URL(url);
   }
 
   get forcedUrl() {

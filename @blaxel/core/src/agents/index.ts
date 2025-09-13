@@ -1,7 +1,7 @@
 
 import { findFromCache } from "../cache/index.js";
 import { Agent, getAgent } from "../client/index.js";
-import { getForcedUrl, getGlobalUniqueHash } from "../common/internal.js";
+import { generateInternalUrl, getForcedUrl } from "../common/internal.js";
 import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
 import { startSpan } from '../telemetry/telemetry.js';
@@ -26,14 +26,17 @@ class BlAgent {
   }
 
   get internalUrl() {
-    const hash = getGlobalUniqueHash(
+    const url = generateInternalUrl(
       settings.workspace,
       "agent",
-      this.agentName
+      this.agentName,
+      settings.env,
+      settings.runInternalProtocol,
+      settings.runInternalHostname,
+      settings.blCloud,
+      settings.workspaceId
     );
-    return new URL(
-      `${settings.runInternalProtocol}://bl-${settings.env}-${hash}.${settings.runInternalHostname}`
-    );
+    return new URL(url);
   }
 
   get forcedUrl() {
