@@ -4,15 +4,12 @@ import {
   JSONRPCMessageSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { logger } from "../common/logger.js";
+import { ws } from "../common/node.js";
 import { settings } from "../common/settings.js";
 
 
 // Type definitions for WebSocket environments
 declare const globalThis: any;
-
-// Detect environment
-// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-const isBrowser = typeof globalThis !== "undefined" && globalThis.window !== undefined;
 
 // Type for WebSocket that works in both environments
 interface UniversalWebSocket {
@@ -25,18 +22,9 @@ interface UniversalWebSocket {
   onmessage?: ((event: any) => void) | null;
 }
 
-// Conditional import for Node.js WebSocket
-let NodeWebSocket: any;
-if (!isBrowser) {
-  try {
-    // Dynamic import for Node.js environment
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-require-imports
-    NodeWebSocket = require("ws");
-  } catch {
-    console.warn("ws is not available in this environment");
-    // ws is not available
-  }
-}
+// Use WebSocket from centralized node module loading
+// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+const NodeWebSocket = ws;
 
 //const SUBPROTOCOL = "mcp";
 
@@ -64,7 +52,8 @@ export class BlaxelMcpClientTransport implements Transport {
     this._retry_max = options?.retry?.max ?? 3;
     this._retry_delay = options?.retry?.delay ?? 1000;
     this._headers = headers ?? {};
-    this._isBrowser = isBrowser;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    this._isBrowser = typeof globalThis !== "undefined" && (globalThis)?.window !== undefined;
   }
 
     async start(): Promise<void> {

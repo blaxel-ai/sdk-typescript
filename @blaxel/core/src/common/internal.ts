@@ -198,3 +198,51 @@ export function getForcedUrl(type: string, name: string) {
   }
   return null;
 }
+
+export function getWorkloadTypeShort(type: string): string {
+  const lowerType = type.toLowerCase();
+  switch (lowerType) {
+    case 'agent':
+    case 'agents':
+      return 'agt';
+    case 'mcp':
+    case 'mcps':
+    case 'function':
+    case 'functions':
+      return 'mcp';
+    case 'sandbox':
+    case 'sandboxes':
+      return 'sbx';
+    case 'job':
+    case 'jobs':
+      return 'job';
+    case 'model':
+    case 'models':
+      return 'mdl';
+    default:
+      // fallback to first 3 letters of type
+      return lowerType.substring(0, 3);
+  }
+}
+
+export function generateInternalUrl(
+  workspace: string,
+  type: string,
+  name: string,
+  env: string,
+  protocol: string,
+  hostname: string,
+  blCloud: boolean,
+  workspaceId: string
+): string {
+  if (blCloud && workspaceId) {
+    // New cloud format: bl-ENV-WORKLOAD_CALLED_NAME-WORKLOAD_TYPE_SHORT-WORKSPACE_ID
+    const workloadTypeShort = getWorkloadTypeShort(type);
+    const subdomain = `bl-${env}-${name}-${workloadTypeShort}-${workspaceId}`;
+    return `${protocol}://${subdomain}.${hostname}`;
+  } else {
+    // Legacy format: bl-ENV-HASH.internalhostname
+    const hash = getGlobalUniqueHash(workspace, type, name);
+    return `${protocol}://bl-${env}-${hash}.${hostname}`;
+  }
+}
