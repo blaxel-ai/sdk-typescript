@@ -21,7 +21,7 @@ export async function localSandbox(sandboxName: string) {
 }
 
 
-export async function createOrGetSandbox({sandboxName, image = `blaxel/${env}-nextjs:latest`, ports = [], memory = 4096, envs = []}: {sandboxName: string, image?: string, ports?: { name: string, target: number, protocol: string, envs?: { name: string, value: string }[] }[], memory?: number, envs?: { name: string, value: string }[]}) {
+export async function createOrGetSandbox({sandboxName, image = `blaxel/${env}-nextjs:latest`, region = "", ports = [], memory = 4096, envs = []}: {sandboxName: string, image?: string, region?: string, ports?: { name: string, target: number, protocol: string, envs?: { name: string, value: string }[] }[], memory?: number, envs?: { name: string, value: string }[]}) {
   // return localSandbox(sandboxName)
   if (ports.length === 0) {
     ports.push({
@@ -45,6 +45,7 @@ export async function createOrGetSandbox({sandboxName, image = `blaxel/${env}-ne
       name: sandboxName
     },
     spec: {
+      region,
       runtime: {
         image,
         memory,
