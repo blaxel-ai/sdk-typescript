@@ -1117,10 +1117,6 @@ export type Metadata = TimeFields & OwnerFields & {
      */
     plan?: unknown;
     /**
-     * URL
-     */
-    url?: string;
-    /**
      * Workspace name
      */
     workspace?: string;
@@ -1859,10 +1855,6 @@ export type RequestTotalResponseData = {
  */
 export type Resource = {
     /**
-     * Region of the resource
-     */
-    infrastructureGeneration?: string;
-    /**
      * Name of the resource
      */
     name?: string;
@@ -1874,10 +1866,6 @@ export type Resource = {
      * Workspace of the resource
      */
     workspace?: string;
-    /**
-     * Workspace ID of the resource
-     */
-    workspaceId?: string;
 };
 
 /**
