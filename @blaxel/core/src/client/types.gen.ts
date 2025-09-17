@@ -125,6 +125,10 @@ export type Configuration = {
      * Private locations managed with blaxel operator
      */
     privateLocations?: Array<unknown>;
+    /**
+     * Regions
+     */
+    regions?: Array<unknown>;
 };
 
 /**
@@ -296,6 +300,24 @@ export type Entrypoint = {
      * Super Gateway args of the entrypoint
      */
     superGatewayArgs?: Array<unknown>;
+};
+
+/**
+ * Expiration policy for sandbox lifecycle management
+ */
+export type ExpirationPolicy = {
+    /**
+     * Action to take when policy is triggered
+     */
+    action?: string;
+    /**
+     * Type of expiration policy
+     */
+    type?: string;
+    /**
+     * Duration value (e.g., '1h', '24h', '7d')
+     */
+    value?: string;
 };
 
 /**
@@ -941,6 +963,10 @@ export type LocationResponse = {
      * Name of the location
      */
     location?: string;
+    /**
+     * Region of the location
+     */
+    region?: string;
     /**
      * Status of the location
      */
@@ -1674,6 +1700,36 @@ export type PublicIps = {
 };
 
 /**
+ * Region
+ */
+export type Region = {
+    /**
+     * Region display name
+     */
+    allowed?: string;
+    /**
+     * Region display name
+     */
+    continent?: string;
+    /**
+     * Region display name
+     */
+    country?: string;
+    /**
+     * Region display name
+     */
+    infoGeneration?: string;
+    /**
+     * Region display name
+     */
+    location?: string;
+    /**
+     * Region name
+     */
+    name?: string;
+};
+
+/**
  * Repository
  */
 export type Repository = {
@@ -2208,9 +2264,20 @@ export type SandboxDefinition = {
 };
 
 /**
+ * Lifecycle configuration for sandbox management
+ */
+export type SandboxLifecycle = {
+    /**
+     * List of expiration policies
+     */
+    expirationPolicies?: Array<ExpirationPolicy>;
+};
+
+/**
  * Sandbox specification
  */
 export type SandboxSpec = CoreSpec & {
+    lifecycle?: SandboxLifecycle;
     /**
      * Region where the sandbox should be created (e.g. us-pdx-1, eu-lon-1)
      */
