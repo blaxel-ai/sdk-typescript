@@ -6,10 +6,10 @@ import { blTools as vercelTools } from "@blaxel/vercel";
 
 async function main() {
   await test_mcp_tools_langchain();
-  await test_mcp_tools_llamaindex();
-  await test_mcp_tools_vercel();
-  await test_mcp_tools_mastra();
-  await test_mcp_tools_blaxel();
+  // await test_mcp_tools_llamaindex();
+  // await test_mcp_tools_vercel();
+  // await test_mcp_tools_mastra();
+  // await test_mcp_tools_blaxel();
 }
 
 async function test_mcp_tools_langchain() {

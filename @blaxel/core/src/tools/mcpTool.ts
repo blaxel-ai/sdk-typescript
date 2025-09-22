@@ -1,5 +1,5 @@
 import { Client as ModelContextProtocolClient } from "@modelcontextprotocol/sdk/client/index.js";
-import { FunctionSchema } from "../client/types.gen.js";
+import { _Function } from "../client/types.gen.js";
 import { env } from "../common/env.js";
 import { getForcedUrl, getGlobalUniqueHash } from "../common/internal.js";
 import { logger } from "../common/logger.js";
@@ -9,11 +9,17 @@ import { BlaxelMcpClientTransport } from "../mcp/client.js";
 import { startSpan } from "../telemetry/telemetry.js";
 import { Tool } from "./types.js";
 import { schemaToZodSchema } from "./zodSchema.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { findFromCache } from "../cache/index.js";
+import { getFunction } from "../client/index.js";
+import { FunctionSchema } from "./zodSchema.js";
+
 const McpToolCache = new Map<string, McpTool>();
 
 export type ToolOptions = {
   ms?: number;
   meta?: Record<string, unknown> | undefined;
+  transport?: string
 };
 
 export class McpTool {
@@ -21,10 +27,11 @@ export class McpTool {
   private type: string;
   private pluralType: string;
   private client: ModelContextProtocolClient;
-  private transport?: BlaxelMcpClientTransport;
+  private transport?: BlaxelMcpClientTransport | StreamableHTTPClientTransport;
 
   private timer?: NodeJS.Timeout;
   private ms: number;
+  private transportName?: string;
   private meta: Record<string, unknown> | undefined;
   private startPromise?: Promise<void> | null;
 
@@ -94,11 +101,7 @@ export class McpTool {
       await authenticate();
       try {
         logger.debug(`MCP:${this.name}:Connecting::${this.url.toString()}`);
-        this.transport = new BlaxelMcpClientTransport(
-          this.url.toString(),
-          settings.headers,
-          { retry: { max: 0 } }
-        );
+        this.transport = await this.getTransport();
         await this.client.connect(this.transport);
         logger.debug(`MCP:${this.name}:Connected`);
       } catch (err) {
@@ -114,10 +117,7 @@ export class McpTool {
           throw err;
         }
         logger.debug(`MCP:${this.name}:Connecting to fallback`);
-        this.transport = new BlaxelMcpClientTransport(
-          this.fallbackUrl.toString(),
-          settings.headers
-        );
+        this.transport = await this.getTransport(this.fallbackUrl);
         await this.client.connect(this.transport);
         logger.debug(`MCP:${this.name}:Connected to fallback`);
       }
@@ -241,6 +241,32 @@ export class McpTool {
       throw err;
     } finally {
       span.end();
+    }
+  }
+
+  async getTransport(forcedUrl?: URL): Promise<BlaxelMcpClientTransport | StreamableHTTPClientTransport> {
+    if (!this.transportName) {
+      const cacheData = await findFromCache("Function", this.name) as _Function | null;
+      if (typeof cacheData === "object" && cacheData !== null && "spec" in cacheData) {
+        this.transportName = cacheData.spec?.transport as string || "websocket";
+      } else {
+        const { data } = await getFunction({
+          path: {
+            functionName: this.name,
+          },
+        });
+        this.transportName = data?.spec?.transport as string || "websocket";
+      }
+    }
+    const url = forcedUrl || this.url;
+    if (this.transportName === "http-stream") {
+      return new StreamableHTTPClientTransport(url, { requestInit: { headers: settings.headers } })
+    } else {
+      return new BlaxelMcpClientTransport(
+        url.toString(),
+        settings.headers,
+        { retry: { max: 0 } }
+      );
     }
   }
 }
