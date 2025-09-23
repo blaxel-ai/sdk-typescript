@@ -260,6 +260,7 @@ export class McpTool {
     }
     const url = forcedUrl || this.url;
     if (this.transportName === "http-stream") {
+      url.pathname = url.pathname + "/mcp";
       return new StreamableHTTPClientTransport(url, { requestInit: { headers: settings.headers } })
     } else {
       return new BlaxelMcpClientTransport(

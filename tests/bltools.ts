@@ -5,11 +5,12 @@ import { blTools as mastraTools } from "@blaxel/mastra";
 import { blTools as vercelTools } from "@blaxel/vercel";
 
 async function main() {
-  await test_mcp_tools_langchain();
+  // await test_mcp_tools_langchain();
   // await test_mcp_tools_llamaindex();
   // await test_mcp_tools_vercel();
   // await test_mcp_tools_mastra();
   // await test_mcp_tools_blaxel();
+  await test_mcp_stream_and_ws();
 }
 
 async function test_mcp_tools_langchain() {
@@ -86,6 +87,26 @@ async function test_mcp_tools_blaxel() {
   });
   logger.info(result4);
 }
+async function test_mcp_stream_and_ws() {
+  const tools = await langgraphTools(["trello-mk2", "blaxel-search"]);
+  let hasTrello = false
+  let hasWebSearch = false
+  for (const tool of tools) {
+    if (tool.name === "get_cards_by_list_id") {
+      hasTrello = true;
+    }
+    if (tool.name === "web_search_exa") {
+      hasWebSearch = true;
+    }
+  }
+  if (!hasTrello) {
+    throw new Error("trello-mk2 tool not found");
+  }
+  if (!hasWebSearch) {
+    throw new Error("web_search_exa tool not found");
+  }
+}
+
 main()
   .catch((err) => {
     console.error(err);
