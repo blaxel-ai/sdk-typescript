@@ -1,5 +1,4 @@
 import { Client as ModelContextProtocolClient } from "@modelcontextprotocol/sdk/client/index.js";
-import { _Function } from "../client/types.gen.js";
 import { env } from "../common/env.js";
 import { getForcedUrl, getGlobalUniqueHash } from "../common/internal.js";
 import { logger } from "../common/logger.js";
@@ -10,8 +9,6 @@ import { startSpan } from "../telemetry/telemetry.js";
 import { Tool } from "./types.js";
 import { schemaToZodSchema } from "./zodSchema.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { findFromCache } from "../cache/index.js";
-import { getFunction } from "../client/index.js";
 import { FunctionSchema } from "./zodSchema.js";
 
 const McpToolCache = new Map<string, McpTool>();
@@ -246,18 +243,29 @@ export class McpTool {
 
   async getTransport(forcedUrl?: URL): Promise<BlaxelMcpClientTransport | StreamableHTTPClientTransport> {
     if (!this.transportName) {
-      const cacheData = await findFromCache("Function", this.name) as _Function | null;
-      if (typeof cacheData === "object" && cacheData !== null && "spec" in cacheData) {
-        this.transportName = cacheData.spec?.transport as string || "websocket";
-      } else {
-        const { data } = await getFunction({
-          path: {
-            functionName: this.name,
-          },
+      // Detect transport type dynamically by querying the function's endpoint
+      try {
+        const testUrl = (forcedUrl || this.url).toString();
+        const response = await fetch(testUrl + "/", {
+          method: "GET",
+          headers: settings.headers,
         });
-        this.transportName = data?.spec?.transport as string || "websocket";
+        const responseText = await response.text();
+
+        if (responseText.toLowerCase().includes("websocket")) {
+          this.transportName = "websocket";
+        } else {
+          this.transportName = "http-stream";
+        }
+
+        logger.debug(`Detected transport type for ${this.name}: ${this.transportName}`);
+      } catch (error) {
+        // Default to websocket if we can't determine the transport type
+        logger.warn(`Failed to detect transport type for ${this.name}: ${error}. Defaulting to websocket.`);
+        this.transportName = "websocket";
       }
     }
+
     const url = forcedUrl || this.url;
     if (this.transportName === "http-stream") {
       url.pathname = url.pathname + "/mcp";
