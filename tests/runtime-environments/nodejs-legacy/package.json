@@ -2,8 +2,8 @@
   "name": "test-node-legacy",
   "version": "1.0.0",
   "scripts": {
-    "build": "tsc --noEmit",
-    "test": "tsx src/index.ts",
+    "build": "tsc",
+    "test": "tsc && node dist/index.js",
     "lint": "eslint src/"
   },
   "dependencies": {
