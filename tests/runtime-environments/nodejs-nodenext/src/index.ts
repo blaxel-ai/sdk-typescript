@@ -1,5 +1,5 @@
 // Test NodeNext module resolution
-import { env, getTool, ToolOptions } from "@blaxel/core";
+import { env, getTool, getWebSocket, ToolOptions } from "@blaxel/core";
 import "@blaxel/telemetry";
 
 async function testCore() {
@@ -13,10 +13,49 @@ async function testCore() {
   }
 }
 
+async function testWebSocket() {
+  console.log("🔌 Testing WebSocket functionality in NodeNext...");
+
+  try {
+    const WebSocketConstructor = await getWebSocket();
+    console.log("✅ getWebSocket() successful:", typeof WebSocketConstructor);
+
+    if (typeof WebSocketConstructor === 'function') {
+      console.log("✅ WebSocket constructor valid:", WebSocketConstructor.name);
+
+      // Test caching
+      const WebSocketConstructor2 = await getWebSocket();
+      if (WebSocketConstructor === WebSocketConstructor2) {
+        console.log("✅ WebSocket caching works correctly");
+      } else {
+        console.log("⚠️ WebSocket caching issue detected");
+      }
+    } else {
+      console.log("❌ WebSocket constructor invalid");
+      return false;
+    }
+  } catch (error) {
+    console.log("❌ WebSocket test failed:", (error as Error).message);
+    return false;
+  }
+
+  return true;
+}
+
 async function main() {
   console.log("🧪 Testing NodeNext module resolution...");
   await testCore();
+
+  const wsTestPassed = await testWebSocket();
+
   console.log("✅ All imports successful with moduleResolution: NodeNext");
+
+  if (wsTestPassed) {
+    console.log("✅ WebSocket functionality verified in NodeNext");
+  } else {
+    console.log("❌ WebSocket functionality failed in NodeNext");
+    process.exit(1);
+  }
 }
 
 main().catch(console.error);

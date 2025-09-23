@@ -5,7 +5,7 @@ import { dotenv, fs } from "./node.js";
 const secretEnv: Record<string, string> = {};
 const configEnv: Record<string, string> = {};
 
-if (fs !== null && dotenv !== null) {
+if (fs !== null ) {
   try {
     const configFile = fs.readFileSync("blaxel.toml", "utf8");
       type ConfigInfos = {
@@ -18,10 +18,22 @@ if (fs !== null && dotenv !== null) {
       configEnv[key] = configInfos.env[key];
     }
   } catch (error) {}
+
   try {
     const secretFile = fs.readFileSync(".env", "utf8");
-    const parsed = dotenv.parse(secretFile);
-    Object.assign(secretEnv, parsed);
+    if (dotenv) {
+      const parsed = dotenv.parse(secretFile);
+      Object.assign(secretEnv, parsed);
+    } else {
+      // Simple .env parsing fallback when dotenv is not available
+      const lines = secretFile.split('\n');
+      for (const line of lines) {
+        const match = line.match(/^([^=]+)=(.*)$/);
+        if (match) {
+          secretEnv[match[1].trim()] = match[2].trim();
+        }
+      }
+    }
   } catch (error) {}
 }
 
