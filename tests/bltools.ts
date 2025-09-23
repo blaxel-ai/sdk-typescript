@@ -5,12 +5,12 @@ import { blTools as mastraTools } from "@blaxel/mastra";
 import { blTools as vercelTools } from "@blaxel/vercel";
 
 async function main() {
-  // await test_mcp_tools_langchain();
-  // await test_mcp_tools_llamaindex();
-  // await test_mcp_tools_vercel();
-  // await test_mcp_tools_mastra();
-  // await test_mcp_tools_blaxel();
-  await test_mcp_stream_and_ws();
+  await test_mcp_tools_langchain();
+  await test_mcp_tools_llamaindex();
+  await test_mcp_tools_vercel();
+  await test_mcp_tools_mastra();
+  await test_mcp_tools_blaxel();
+  await tmp_test_mcp_stream_and_ws();
 }
 
 async function test_mcp_tools_langchain() {
@@ -87,7 +87,7 @@ async function test_mcp_tools_blaxel() {
   });
   logger.info(result4);
 }
-async function test_mcp_stream_and_ws() {
+async function tmp_test_mcp_stream_and_ws() {
   const tools = await langgraphTools(["trello-mk2", "blaxel-search"]);
   let hasTrello = false
   let hasWebSearch = false
