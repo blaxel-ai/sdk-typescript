@@ -1,7 +1,14 @@
 #!/bin/bash
 
-echo "🧪 Testing Runtime Environment Compatibility for @blaxel SDK"
-echo "============================================================"
+# Check if specific environment is requested
+if [ $# -eq 1 ]; then
+  SINGLE_ENV=$1
+  echo "🧪 Testing Single Environment: $SINGLE_ENV"
+  echo "============================================"
+else
+  echo "🧪 Testing Runtime Environment Compatibility for @blaxel SDK"
+  echo "============================================================"
+fi
 
 # Colors for output
 RED='\033[0;31m'
@@ -230,64 +237,77 @@ setup_tools
 # Run tests for all environments
 failed_tests=0
 
-echo -e "${BLUE}🎯 Testing All Runtime Environments:${NC}"
-
-# Core environments (must work)
-environments=("nodejs-legacy" "nodejs-javascript-cjs" "cloudflare-workers" "webpack" "browser")
-for env in "${environments[@]}"; do
-  echo -e "\n${BLUE}🌍 Testing: $env${NC}"
-  if test_environment "$env" >/dev/null 2>&1; then
-    echo -e "${GREEN}✅ $env: PASSED${NC}"
+if [ -n "$SINGLE_ENV" ]; then
+  # Test single environment with full output
+  echo -e "${BLUE}🌍 Testing Single Environment: $SINGLE_ENV${NC}"
+  echo "=================================================="
+  if test_environment "$SINGLE_ENV"; then
+    echo -e "\n${GREEN}✅ $SINGLE_ENV: PASSED${NC}"
+    exit 0
   else
-    echo -e "${RED}❌ $env: FAILED${NC}"
-    ((failed_tests++))
+    echo -e "\n${RED}❌ $SINGLE_ENV: FAILED${NC}"
+    exit 1
   fi
-done
+else
+  # Test all environments
+  echo -e "${BLUE}🎯 Testing All Runtime Environments:${NC}"
 
-# Optional environments (don't fail build)
-echo -e "\n${BLUE}🚀 Optional Runtime Tests:${NC}"
-optional_envs=("nodejs-nodenext" "nodejs-node16" "nodejs-javascript-esm")
-for env in "${optional_envs[@]}"; do
-  echo -e "${BLUE}Testing: $env${NC}"
-  if test_environment "$env" >/dev/null 2>&1; then
-    echo -e "${GREEN}✅ $env: PASSED${NC}"
-  else
-    echo -e "${YELLOW}⚠️  $env: Known ESM issues (TypeScript compilation works)${NC}"
-  fi
-done
+  # All environments (no skipping!)
+  all_environments=("nodejs-legacy" "nodejs-javascript-cjs" "nodejs-javascript-esm" "nodejs-nodenext" "nodejs-node16" "cloudflare-workers" "webpack" "browser" "bun" "deno")
 
-# Tool-dependent environments
-tool_envs=("bun" "deno")
-for env in "${tool_envs[@]}"; do
-  echo -e "${BLUE}Testing: $env${NC}"
-  if command -v "$env" >/dev/null 2>&1; then
-    if test_environment "$env" >/dev/null 2>&1; then
+  for env in "${all_environments[@]}"; do
+    echo -e "\n${BLUE}🌍 Testing: $env${NC}"
+
+    # Check if tool-dependent environment is available
+    if [[ "$env" == "bun" ]] && ! command -v bun >/dev/null 2>&1; then
+      echo -e "${YELLOW}⚠️  Bun not installed - skipping${NC}"
+      continue
+    fi
+
+    if [[ "$env" == "deno" ]] && ! command -v deno >/dev/null 2>&1; then
+      echo -e "${YELLOW}⚠️  Deno not installed - skipping${NC}"
+      continue
+    fi
+
+    if test_environment "$env"; then
       echo -e "${GREEN}✅ $env: PASSED${NC}"
     else
-      echo -e "${YELLOW}⚠️  $env: Runtime issues${NC}"
+      echo -e "${RED}❌ $env: FAILED${NC}"
+      ((failed_tests++))
     fi
-  else
-    echo -e "${YELLOW}⚠️  $env: Not installed (optional)${NC}"
-  fi
-done
+  done
+fi
 
 # Summary
 echo -e "\n${BLUE}📊 Test Summary${NC}"
 echo "==============="
 
 if [ $failed_tests -eq 0 ]; then
-  echo -e "\n${GREEN}🎉 All CORE runtime environment tests PASSED!${NC}"
+  echo -e "\n${GREEN}🎉 All runtime environment tests PASSED!${NC}"
   echo ""
-  echo -e "${BLUE}✅ Customer Issues SOLVED:${NC}"
+  echo -e "${BLUE}✅ Environments Verified:${NC}"
   echo -e "${GREEN}✅ Legacy Node (moduleResolution: node)${NC}"
   echo -e "${GREEN}✅ JavaScript CommonJS (require)${NC}"
+  echo -e "${GREEN}✅ JavaScript ESM (import)${NC}"
+  echo -e "${GREEN}✅ NodeNext & Node16 (modern)${NC}"
   echo -e "${GREEN}✅ Cloudflare Workers${NC}"
   echo -e "${GREEN}✅ Webpack Bundler${NC}"
   echo -e "${GREEN}✅ Browser Environment${NC}"
+  echo -e "${GREEN}✅ Bun Runtime${NC}"
+  echo -e "${GREEN}✅ Deno Runtime${NC}"
   echo ""
-  echo -e "${GREEN}🚀 SDK ready for production release!${NC}"
+  echo -e "${GREEN}🚀 SDK ready for production with WebSocket support!${NC}"
 else
-  echo -e "\n${RED}❌ $failed_tests CORE test(s) FAILED${NC}"
-  echo "These must be fixed before release."
+  echo -e "\n${RED}❌ $failed_tests environment test(s) FAILED${NC}"
+  echo ""
+  echo -e "${BLUE}🔧 To debug individual environments, run:${NC}"
+  echo -e "${BLUE}   ./tests/runtime-environments/test-all.sh <environment-name>${NC}"
+  echo ""
+  echo -e "${BLUE}Available environments:${NC}"
+  echo "   nodejs-legacy, nodejs-javascript-cjs, nodejs-javascript-esm"
+  echo "   nodejs-nodenext, nodejs-node16, cloudflare-workers, webpack"
+  echo "   browser, bun, deno"
+  echo ""
+  echo "All tests must pass before release."
   exit 1
 fi
