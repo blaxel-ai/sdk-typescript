@@ -1117,6 +1117,10 @@ export type Metadata = TimeFields & OwnerFields & {
      */
     plan?: unknown;
     /**
+     * URL
+     */
+    url?: string;
+    /**
      * Workspace name
      */
     workspace?: string;
@@ -1855,6 +1859,10 @@ export type RequestTotalResponseData = {
  */
 export type Resource = {
     /**
+     * Region of the resource
+     */
+    infrastructureGeneration?: string;
+    /**
      * Name of the resource
      */
     name?: string;
@@ -1866,6 +1874,10 @@ export type Resource = {
      * Workspace of the resource
      */
     workspace?: string;
+    /**
+     * Workspace ID of the resource
+     */
+    workspaceId?: string;
 };
 
 /**
@@ -2006,6 +2018,14 @@ export type ResourceMetrics = {
      * Number of requests per second for the resource globally for the previous period
      */
     rpsPrevious?: number;
+    /**
+     * CPU usage over time for sandboxes
+     */
+    sandboxesCpuUsage?: Array<unknown>;
+    /**
+     * RAM usage over time for sandboxes with memory, value, and percent metrics
+     */
+    sandboxesRamUsage?: Array<unknown>;
     tokenRate?: TokenRateMetrics;
     tokenTotal?: TokenTotalMetric;
 };
@@ -2271,6 +2291,28 @@ export type SandboxLifecycle = {
      * List of expiration policies
      */
     expirationPolicies?: Array<ExpirationPolicy>;
+};
+
+/**
+ * Enhanced sandbox metrics with memory, value, and percent data
+ */
+export type SandboxMetrics = {
+    /**
+     * Memory limit in bytes (from query A)
+     */
+    memory?: number;
+    /**
+     * Memory usage percentage (from formula F1)
+     */
+    percent?: number;
+    /**
+     * Metric timestamp
+     */
+    timestamp?: string;
+    /**
+     * Memory usage in bytes (from query B)
+     */
+    value?: number;
 };
 
 /**
