@@ -20,6 +20,9 @@ class BlAgent {
   }
 
   get externalUrl() {
+    getAgentMetadata(this.agentName).then((agent) => {
+      return new URL(agent?.metadata?.url ?? "");
+    });
     return new URL(
       `${settings.runUrl}/${settings.workspace}/agents/${this.agentName}`
     );

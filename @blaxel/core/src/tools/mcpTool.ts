@@ -4,7 +4,7 @@ import { env } from "../common/env.js";
 import { getForcedUrl, getGlobalUniqueHash } from "../common/internal.js";
 import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
-import { authenticate } from "../index.js";
+import { authenticate, getToolMetadata } from "../index.js";
 import { BlaxelMcpClientTransport } from "../mcp/client.js";
 import { startSpan } from "../telemetry/telemetry.js";
 import { Tool } from "./types.js";
@@ -65,6 +65,11 @@ export class McpTool {
   }
 
   get externalUrl() {
+    getToolMetadata(this.name).then((tool) => {
+      return tool?.metadata?.url ?? new URL(
+        `${settings.runUrl}/${settings.workspace}/${this.pluralType}/${this.name}`
+      );
+    });
     return new URL(
       `${settings.runUrl}/${settings.workspace}/${this.pluralType}/${this.name}`
     );
