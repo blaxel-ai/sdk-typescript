@@ -2194,13 +2194,9 @@ export type ResourceMetrics = {
      */
     sandboxesCpuUsage?: Array<unknown>;
     /**
-     * RAM usage over time for sandboxes
+     * RAM usage over time for sandboxes with memory, value, and percent metrics
      */
     sandboxesRamUsage?: Array<unknown>;
-    /**
-     * Runtime over time for sandboxes
-     */
-    sandboxesRuntime?: Array<unknown>;
     tokenRate?: TokenRateMetrics;
     tokenTotal?: TokenTotalMetric;
 };
@@ -2466,6 +2462,28 @@ export type SandboxLifecycle = {
      * List of expiration policies
      */
     expirationPolicies?: Array<ExpirationPolicy>;
+};
+
+/**
+ * Enhanced sandbox metrics with memory, value, and percent data
+ */
+export type SandboxMetrics = {
+    /**
+     * Memory limit in bytes (from query A)
+     */
+    memory?: number;
+    /**
+     * Memory usage percentage (from formula F1)
+     */
+    percent?: number;
+    /**
+     * Metric timestamp
+     */
+    timestamp?: string;
+    /**
+     * Memory usage in bytes (from query B)
+     */
+    value?: number;
 };
 
 /**
