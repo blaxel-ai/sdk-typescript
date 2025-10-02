@@ -244,7 +244,11 @@ export class SandboxFileSystem extends SandboxAction {
           for (const line of lines) {
             const trimmed = line.trim();
             if (!trimmed) continue;
-            const fileEvent = JSON.parse(line.trim()) as WatchEvent;
+            // Skip keepalive messages
+            if (line.startsWith("[keepalive]")) {
+              continue;
+            }
+            const fileEvent = JSON.parse(trimmed) as WatchEvent;
             if (options?.withContent && ["CREATE", "WRITE"].includes(fileEvent.op)) {
               try {
                 let filePath = ""

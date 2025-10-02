@@ -217,6 +217,62 @@ export type Country = {
 };
 
 /**
+ * Request to create a job execution
+ */
+export type CreateJobExecutionRequest = {
+    /**
+     * Execution ID (optional, will be generated if not provided)
+     */
+    executionId?: string;
+    /**
+     * Unique message ID
+     */
+    id?: string;
+    /**
+     * Job ID
+     */
+    jobId?: string;
+    /**
+     * Array of task parameters for parallel execution
+     */
+    tasks?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Workspace ID
+     */
+    workspaceId?: string;
+};
+
+/**
+ * Response for creating a job execution
+ */
+export type CreateJobExecutionResponse = {
+    /**
+     * Execution ID
+     */
+    executionId?: string;
+    /**
+     * Unique message ID
+     */
+    id?: string;
+    /**
+     * Job ID
+     */
+    jobId?: string;
+    /**
+     * Array of task parameters for parallel execution
+     */
+    tasks?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Workspace ID
+     */
+    workspaceId?: string;
+};
+
+/**
  * Custom domain for preview deployments
  * The custom domain represents a base domain (e.g., example.com) that will be used
  * to serve preview deployments. Each preview will be accessible at a subdomain:
@@ -377,103 +433,6 @@ export type _Function = {
 };
 
 /**
- * Function kit
- */
-export type FunctionKit = {
-    /**
-     * Description of the function kit, very important for the agent to work with your kit
-     */
-    description?: string;
-    /**
-     * The kit name, very important for the agent to work with your kit
-     */
-    name?: string;
-    schema?: FunctionSchema;
-};
-
-/**
- * Function schema
- */
-export type FunctionSchema = {
-    /**
-     * List of schemas that this schema extends
-     */
-    allOf?: Array<unknown>;
-    /**
-     * List of possible schemas, any of which this schema could be
-     */
-    anyOf?: Array<unknown>;
-    /**
-     * Description of the schema
-     */
-    description?: string;
-    /**
-     * Enum values
-     */
-    enum?: Array<string>;
-    /**
-     * Format of the schema
-     */
-    format?: string;
-    items?: FunctionSchema;
-    /**
-     * Maximum length for string types
-     */
-    maxLength?: number;
-    /**
-     * Maximum value for number types
-     */
-    maximum?: number;
-    /**
-     * Minimum length for string types
-     */
-    minLength?: number;
-    /**
-     * Minimum value for number types
-     */
-    minimum?: number;
-    /**
-     * Schema that this schema must not be
-     */
-    not?: {
-        [key: string]: unknown;
-    };
-    /**
-     * List of schemas, one of which this schema must be
-     */
-    oneOf?: Array<unknown>;
-    /**
-     * Pattern for string types
-     */
-    pattern?: string;
-    /**
-     * Properties of the schema
-     */
-    properties?: {
-        [key: string]: FunctionSchema;
-    };
-    /**
-     * Required properties of the schema
-     */
-    required?: Array<string>;
-    /**
-     * Title of the schema
-     */
-    title?: string;
-    /**
-     * Type of the schema
-     */
-    type?: string;
-};
-
-/**
- * Helper type for AdditionalProperties which can be either a boolean or a schema
- */
-export type FunctionSchemaOrBool = {
-    [key: string]: unknown;
-};
-
-/**
  * Function specification
  */
 export type FunctionSpec = CoreSpec & {
@@ -481,7 +440,10 @@ export type FunctionSpec = CoreSpec & {
      * Function description, very important for the agent function to work with an LLM
      */
     description?: string;
-    schema?: FunctionSchema;
+    /**
+     * Transport compatibility for the MCP, can be "websocket" or "http-stream"
+     */
+    transport?: string;
     triggers?: Triggers;
 };
 
@@ -771,6 +733,20 @@ export type Job = {
 };
 
 /**
+ * Job execution
+ */
+export type JobExecution = {
+    metadata?: JobExecutionMetadata;
+    spec?: JobExecutionSpec;
+    stats?: JobExecutionStats;
+    status?: JobExecutionStatus;
+    /**
+     * List of execution tasks
+     */
+    tasks?: Array<JobExecutionTask>;
+};
+
+/**
  * Configuration for a job execution
  */
 export type JobExecutionConfig = {
@@ -787,6 +763,193 @@ export type JobExecutionConfig = {
      */
     timeout?: number;
 };
+
+/**
+ * Job execution metadata
+ */
+export type JobExecutionMetadata = {
+    /**
+     * Cluster ID
+     */
+    cluster?: string;
+    /**
+     * Completion timestamp
+     */
+    completedAt?: string;
+    /**
+     * Creation timestamp
+     */
+    createdAt?: string;
+    /**
+     * Deletion timestamp
+     */
+    deletedAt?: string;
+    /**
+     * Expiration timestamp
+     */
+    expiredAt?: string;
+    /**
+     * Execution ID
+     */
+    id?: string;
+    /**
+     * Job name
+     */
+    job?: string;
+    /**
+     * Start timestamp
+     */
+    startedAt?: string;
+    /**
+     * Last update timestamp
+     */
+    updatedAt?: string;
+    /**
+     * Workspace ID
+     */
+    workspace?: string;
+};
+
+/**
+ * Job execution specification
+ */
+export type JobExecutionSpec = {
+    /**
+     * Number of parallel tasks
+     */
+    parallelism?: number;
+    /**
+     * List of execution tasks
+     */
+    tasks?: Array<JobExecutionTask>;
+};
+
+/**
+ * Job execution statistics
+ */
+export type JobExecutionStats = {
+    /**
+     * Number of cancelled tasks
+     */
+    cancelled?: number;
+    /**
+     * Number of failed tasks
+     */
+    failure?: number;
+    /**
+     * Number of retried tasks
+     */
+    retried?: number;
+    /**
+     * Number of running tasks
+     */
+    running?: number;
+    /**
+     * Number of successful tasks
+     */
+    success?: number;
+    /**
+     * Total number of tasks
+     */
+    total?: number;
+};
+
+/**
+ * Job execution status
+ */
+export type JobExecutionStatus = string;
+
+/**
+ * Job execution task
+ */
+export type JobExecutionTask = {
+    /**
+     * Task conditions
+     */
+    conditions?: Array<JobExecutionTaskCondition>;
+    metadata?: JobExecutionTaskMetadata;
+    spec?: JobExecutionTaskSpec;
+    status?: JobExecutionTaskStatus;
+};
+
+/**
+ * Job execution task condition
+ */
+export type JobExecutionTaskCondition = {
+    /**
+     * Execution reason
+     */
+    executionReason?: string;
+    /**
+     * Condition message
+     */
+    message?: string;
+    /**
+     * Condition reason
+     */
+    reason?: string;
+    /**
+     * Condition severity
+     */
+    severity?: string;
+    /**
+     * Condition state
+     */
+    state?: string;
+    /**
+     * Condition type
+     */
+    type?: string;
+};
+
+/**
+ * Job execution task metadata
+ */
+export type JobExecutionTaskMetadata = {
+    /**
+     * Completion timestamp
+     */
+    completedAt?: string;
+    /**
+     * Creation timestamp
+     */
+    createdAt?: string;
+    /**
+     * Task name
+     */
+    name?: string;
+    /**
+     * Scheduled timestamp
+     */
+    scheduledAt?: string;
+    /**
+     * Start timestamp
+     */
+    startedAt?: string;
+    /**
+     * Last update timestamp
+     */
+    updatedAt?: string;
+};
+
+/**
+ * Job execution task specification
+ */
+export type JobExecutionTaskSpec = {
+    /**
+     * Maximum number of retries
+     */
+    maxRetries?: number;
+    /**
+     * Task timeout duration
+     */
+    timeout?: string;
+};
+
+/**
+ * Job execution task status
+ */
+export type JobExecutionTaskStatus = string;
 
 /**
  * Metrics for job
@@ -842,6 +1005,10 @@ export type JobMetrics = {
  * Job specification
  */
 export type JobSpec = CoreSpec & {
+    /**
+     * Region where the job should be created (e.g. us-pdx-1, eu-lon-1)
+     */
+    region?: string;
     triggers?: Triggers;
 };
 
@@ -1069,6 +1236,10 @@ export type McpDefinition = TimeFields & {
      * Name of the artifact
      */
     name?: string;
+    /**
+     * Transport compatibility for the MCP, can be "websocket" or "http-stream"
+     */
+    transport?: string;
     /**
      * URL of the artifact
      */
@@ -3537,6 +3708,159 @@ export type UpdateJobResponses = {
 };
 
 export type UpdateJobResponse = UpdateJobResponses[keyof UpdateJobResponses];
+
+export type ListJobExecutionsData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the job
+         */
+        jobId: string;
+    };
+    query?: {
+        /**
+         * Number of items per page
+         */
+        limit?: number;
+        /**
+         * Page offset
+         */
+        offset?: number;
+    };
+    url: '/jobs/{jobId}/executions';
+};
+
+export type ListJobExecutionsErrors = {
+    /**
+     * bad request
+     */
+    400: unknown;
+    /**
+     * internal server error
+     */
+    500: unknown;
+};
+
+export type ListJobExecutionsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<JobExecution>;
+};
+
+export type ListJobExecutionsResponse = ListJobExecutionsResponses[keyof ListJobExecutionsResponses];
+
+export type CreateJobExecutionData = {
+    body: CreateJobExecutionRequest;
+    path: {
+        /**
+         * Name of the job
+         */
+        jobId: string;
+    };
+    query?: never;
+    url: '/jobs/{jobId}/executions';
+};
+
+export type CreateJobExecutionErrors = {
+    /**
+     * bad request
+     */
+    400: unknown;
+    /**
+     * internal server error
+     */
+    500: unknown;
+};
+
+export type CreateJobExecutionResponses = {
+    /**
+     * successful operation
+     */
+    200: JobExecution;
+};
+
+export type CreateJobExecutionResponse2 = CreateJobExecutionResponses[keyof CreateJobExecutionResponses];
+
+export type DeleteJobExecutionData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the job
+         */
+        jobId: string;
+        /**
+         * Id of the execution
+         */
+        executionId: string;
+    };
+    query?: never;
+    url: '/jobs/{jobId}/executions/{executionId}';
+};
+
+export type DeleteJobExecutionErrors = {
+    /**
+     * bad request
+     */
+    400: unknown;
+    /**
+     * execution not found
+     */
+    404: unknown;
+    /**
+     * internal server error
+     */
+    500: unknown;
+};
+
+export type DeleteJobExecutionResponses = {
+    /**
+     * successful operation
+     */
+    200: JobExecution;
+};
+
+export type DeleteJobExecutionResponse = DeleteJobExecutionResponses[keyof DeleteJobExecutionResponses];
+
+export type GetJobExecutionData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the job
+         */
+        jobId: string;
+        /**
+         * Id of the execution
+         */
+        executionId: string;
+    };
+    query?: never;
+    url: '/jobs/{jobId}/executions/{executionId}';
+};
+
+export type GetJobExecutionErrors = {
+    /**
+     * bad request
+     */
+    400: unknown;
+    /**
+     * execution not found
+     */
+    404: unknown;
+    /**
+     * internal server error
+     */
+    500: unknown;
+};
+
+export type GetJobExecutionResponses = {
+    /**
+     * successful operation
+     */
+    200: JobExecution;
+};
+
+export type GetJobExecutionResponse = GetJobExecutionResponses[keyof GetJobExecutionResponses];
 
 export type ListJobRevisionsData = {
     body?: never;
