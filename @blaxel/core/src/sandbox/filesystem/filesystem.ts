@@ -1,7 +1,7 @@
 import { Sandbox } from "../../client/types.gen.js";
 import { settings } from "../../common/settings.js";
 import { SandboxAction } from "../action.js";
-import { deleteFilesystemByPath, Directory, getFilesystemByPath, getWatchFilesystemByPath, putFilesystemByPath, PutFilesystemByPathError, SuccessResponse } from "../client/index.js";
+import { deleteFilesystemByPath, Directory, getFilesystemByPath, getWatchFilesystemByPath, putFilesystemByPath, PutFilesystemByPathError, postProcess, SuccessResponse } from "../client/index.js";
 import { CopyResponse, SandboxFilesystemFile, WatchEvent } from "./types.js";
 
 
@@ -148,58 +148,20 @@ export class SandboxFileSystem extends SandboxAction {
   async cp(source: string, destination: string): Promise<CopyResponse> {
     source = this.formatPath(source);
     destination = this.formatPath(destination);
-    const { response, data, error } = await getFilesystemByPath({
-      path: { path: source },
+    const process = {
+      command: `cp -r "${source}" "${destination}"`
+    }
+    const { response, data, error } = await postProcess({
+      body: process,
       baseUrl: this.url,
       client: this.client,
     });
     this.handleResponseError(response, data, error);
-    if (data && ('files' in data || 'subdirectories' in data)) {
-      // Create destination directory
-      await this.mkdir(destination);
-
-      // Process subdirectories in batches of 5
-      const subdirectories = (data as Directory).subdirectories || [];
-      for (let i = 0; i < subdirectories.length; i += 5) {
-        const batch = subdirectories.slice(i, i + 5);
-        await Promise.all(
-          batch.map(async (subdir) => {
-            const sourcePath = subdir.path || `${source}/${subdir.path}`;
-            const destPath = `${destination}/${subdir.path}`;
-            await this.cp(sourcePath, destPath);
-          })
-        );
-      }
-
-      // Process files in batches of 10
-      const files = (data as Directory).files || [];
-      for (let i = 0; i < files.length; i += 10) {
-        const batch = files.slice(i, i + 10);
-        await Promise.all(
-          batch.map(async (file) => {
-            const sourcePath = file.path || `${source}/${file.path}`;
-            const destPath = `${destination}/${file.path}`;
-            const fileContent = await this.read(sourcePath);
-            if (typeof fileContent === 'string') {
-              await this.write(destPath, fileContent);
-            }
-          })
-        );
-      }
-      return {
-        message: "Directory copied successfully",
-        source,
-        destination,
-      }
-    } else if (data && 'content' in data) {
-      await this.write(destination, data.content);
-      return {
-        message: "File copied successfully",
-        source,
-        destination,
-      }
+    return {
+      message: "Files copied",
+      source,
+      destination,
     }
-    throw new Error("Unsupported file type");
   }
 
   watch(
