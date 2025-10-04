@@ -149,7 +149,7 @@ export class SandboxFileSystem extends SandboxAction {
     source = this.formatPath(source);
     destination = this.formatPath(destination);
     const process = {
-      command: `cp -r "${source}" "${destination}"`
+      command: `cp -r ${source} ${destination}`
     }
     const { response, data, error } = await postProcess({
       body: process,
@@ -253,12 +253,6 @@ export class SandboxFileSystem extends SandboxAction {
   }
 
   private formatPath(path: string): string {
-    if (path === "/") {
-      return path;
-    }
-    if (path.startsWith("/")) {
-      path = path.slice(1);
-    }
     return path;
   }
 }
