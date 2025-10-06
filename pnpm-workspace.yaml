@@ -5,4 +5,4 @@ packages:
   - '@blaxel/llamaindex'
   - '@blaxel/vercel'
   - '@blaxel/mastra'
-  - 'tests/runtime-environments/**'
+  # - 'tests/runtime-environments/**'
