@@ -3,8 +3,12 @@ import yaml from "yaml";
 type FsLike = { readFileSync(path: string, encoding: string): string } | null;
 let fs: FsLike = null;
 try {
-  const isNode = typeof process !== "undefined" && typeof (process as any).versions?.node === "string";
-  const isBrowser = typeof globalThis !== "undefined" && typeof (globalThis as any)?.window !== "undefined";
+  // Safe environment checks without using 'any'
+  type MaybeProcess = { versions?: { node?: unknown } };
+  type GlobalLike = typeof globalThis & { process?: MaybeProcess; window?: unknown };
+  const g = globalThis as GlobalLike;
+  const isNode = typeof g.process?.versions?.node === "string";
+  const isBrowser = typeof g.window !== "undefined";
   if (isNode && !isBrowser) {
     const req = (eval("require") as unknown as (id: string) => unknown);
     const loaded = req("fs") as { readFileSync(path: string, encoding: string): string };

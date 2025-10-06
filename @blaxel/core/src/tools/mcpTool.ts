@@ -261,7 +261,8 @@ export class McpTool {
         logger.debug(`Detected transport type for ${this.name}: ${this.transportName}`);
       } catch (error) {
         // Default to websocket if we can't determine the transport type
-        logger.warn(`Failed to detect transport type for ${this.name}: ${error}. Defaulting to websocket.`);
+        const message = error instanceof Error ? error.message : String(error);
+        logger.warn(`Failed to detect transport type for ${this.name}: ${message}. Defaulting to websocket.`);
         this.transportName = "websocket";
       }
     }
