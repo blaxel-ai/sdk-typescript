@@ -41,12 +41,12 @@ function getOsArch(): string {
 
   // Browser environment - use fixed detection
   try {
-    // @ts-ignore - navigator is available in browser environments
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    if (typeof navigator !== 'undefined' && navigator?.platform) {
-      // @ts-ignore - navigator.platform is available in browser environments
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      const navPlatform = (navigator.platform as string).toLowerCase();
+    type NavigatorLike = { platform?: unknown };
+    type GlobalLike = typeof globalThis & { navigator?: NavigatorLike };
+    const g = globalThis as GlobalLike;
+    const platformValue = g.navigator?.platform;
+    if (typeof platformValue === 'string') {
+      const navPlatform = platformValue.toLowerCase();
       const platform = navPlatform.includes('win') ? 'windows' :
                       navPlatform.includes('mac') ? 'darwin' :
                       navPlatform.includes('linux') ? 'linux' : 'browser';

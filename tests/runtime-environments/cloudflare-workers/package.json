@@ -2,7 +2,7 @@
   "name": "test-cloudflare-workers",
   "version": "1.0.0",
   "scripts": {
-    "build": "tsc --noEmit",
+    "build": "tsc",
     "test": "node test-runner.js",
     "dev": "wrangler dev --local --port 8787",
     "lint": "eslint src/"

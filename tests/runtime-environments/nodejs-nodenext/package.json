@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "build": "tsc --noEmit",
+    "build": "tsc",
     "test": "tsx src/index.ts",
     "lint": "eslint src/"
   },

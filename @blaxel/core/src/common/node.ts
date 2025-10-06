@@ -80,5 +80,5 @@ export async function getWebSocket(): Promise<any> {
   }
 }
 
-export { dotenv, fs, os, path };
+export { dotenv, fs, os, path, ws };
 
