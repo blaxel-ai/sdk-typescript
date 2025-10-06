@@ -8,3 +8,4 @@ pnpm-lock.yaml
 .turbo
 .next
 sqlite.db
+reports
