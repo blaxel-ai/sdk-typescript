@@ -1,12 +1,12 @@
 # Dynamic Sandbox Demo
 
-This is a demo application showing how to use Blaxel sandbox with user management.
+This is a demo application showing how to use Blaxel sandbox without local persistence/auth.
 
 ## Features
 
-- User login with email (no password needed for simplicity)
-- SQLite database for user storage
-- User-specific sandbox instances
+- No login/authentication required
+- No local database; uses Blaxel control plane
+- Sandbox instances managed via Blaxel SDK
 - Process management in sandbox
 
 ## Setup
@@ -24,15 +24,12 @@ This is a demo application showing how to use Blaxel sandbox with user managemen
 
 ## How It Works
 
-1. Users enter their email in the login page
-2. The system creates or retrieves a user profile from SQLite
-3. A unique sandbox instance is created for each user
-4. Processes can be started/stopped in the sandbox
-5. The live preview is displayed in the app
+1. The app lists sandboxes via SandboxInstance.list()
+2. You can create/delete sandboxes via the API routes
+3. Processes can be started/stopped in the sandbox
+4. The live preview is displayed in the app
 
 ## Tech Stack
 
 - Next.js 15
-- SQLite (via better-sqlite3)
-- Drizzle ORM
 - Blaxel SDK

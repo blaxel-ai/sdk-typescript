@@ -2,12 +2,9 @@
 
 import { ArrowTopRightOnSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
-interface User {
-  id: number;
-  email: string;
-}
+// Removed user/auth types
 
 // Define a minimal type for Blaxel sandboxes
 interface BlaxelSandbox {
@@ -21,8 +18,7 @@ interface BlaxelSandbox {
 export default function Home() {
   const [loading, setLoading] = useState<boolean>(true);
   const [sandboxes, setSandboxes] = useState<BlaxelSandbox[]>([]);
-  const [user, setUser] = useState<User | null>(null);
-  const [authChecked, setAuthChecked] = useState<boolean>(false);
+  // No auth state
   const [error, setError] = useState<string | null>(null);
   const [newSandboxName, setNewSandboxName] = useState<string>('');
   const [newSandboxDescription, setNewSandboxDescription] = useState<string>('');
@@ -32,56 +28,15 @@ export default function Home() {
 
 
   useEffect(() => {
-    // Check if user is authenticated
-    checkAuth();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // Directly fetch sandboxes without auth
+    fetchSandboxes(true).then(() => { firstFetchDone.current = true; });
+    const interval = setInterval(() => {
+      fetchSandboxes(false);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
-  useEffect(() => {
-    // Fetch sandboxes when user is authenticated
-    if (authChecked && user) {
-      fetchSandboxes(true).then(() => { firstFetchDone.current = true; });
-      const interval = setInterval(() => {
-        fetchSandboxes(false);
-      }, 3000);
-      return () => clearInterval(interval);
-    }
-  }, [authChecked, user]);
-
-  async function checkAuth() {
-    try {
-      const res = await fetch('/api/auth/user');
-      if (res.status === 401) {
-        // User is not authenticated, redirect to login
-        router.push('/login');
-        return;
-      }
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.authenticated && data.user) {
-          setUser(data.user);
-        } else {
-          router.push('/login');
-        }
-      }
-    } catch (error) {
-      console.error("Auth check error:", error);
-      router.push('/login');
-    } finally {
-      setAuthChecked(true);
-    }
-  }
-
-  async function logout() {
-    try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-      });
-      router.push('/login');
-    } catch (error) {
-      console.error("Logout error:", error);
-    }
-  }
+  // Remove auth functions and state
 
   async function fetchSandboxes(showLoading = false) {
     if (showLoading) setLoading(true);
@@ -104,7 +59,7 @@ export default function Home() {
     }
   }
 
-  async function createSandbox(e: React.FormEvent) {
+  async function createSandbox(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
     if (!newSandboxName.trim()) {
@@ -131,12 +86,15 @@ export default function Home() {
         throw new Error(errorData.error || 'Failed to create sandbox');
       }
 
+      const data = await res.json();
+
       // Reset form fields
       setNewSandboxName('');
       setNewSandboxDescription('');
 
-      // Refresh sandbox list
-      await fetchSandboxes();
+      // Navigate directly to the sandbox page
+      router.push(`/sandbox/${encodeURIComponent(data.sandboxName)}`);
+      return;
     } catch (error) {
       console.error("Error creating sandbox:", error);
       setError(`Failed to create sandbox: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -179,20 +137,7 @@ export default function Home() {
       <div className="max-w-5xl mx-auto shadow-md rounded-lg p-6" style={{ background: 'var(--secondary)', color: 'var(--secondary-foreground)', border: '1px solid var(--border)' }}>
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-2xl font-bold">My Apps</h1>
-          <div className="flex items-center gap-4">
-            {user && (
-              <span style={{ color: 'var(--muted-foreground)' }}>
-                {user.email}
-              </span>
-            )}
-            <button
-              onClick={logout}
-              className="px-4 py-2 rounded hover:opacity-90"
-              style={{ background: 'var(--muted)', color: 'var(--foreground)', border: '1px solid var(--border)' }}
-            >
-              Logout
-            </button>
-          </div>
+          <div className="flex items-center gap-4" />
         </div>
 
         {error && (

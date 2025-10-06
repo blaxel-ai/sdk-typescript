@@ -1,10 +1,5 @@
 /* eslint-disable */
 
-// Import Node.js built-in modules using ES6 imports for ESM compatibility
-import * as fsImport from "fs";
-import * as osImport from "os";
-import * as pathImport from "path";
-
 // Detect environments
 const isNode =
   typeof process !== "undefined" &&
@@ -13,7 +8,7 @@ const isNode =
 
 const isBrowser = typeof globalThis !== "undefined" && (globalThis as any)?.window !== undefined;
 
-// Initialize modules
+// Initialize modules without statically importing Node built-ins.
 let fs: typeof import("fs") | null = null;
 let os: typeof import("os") | null = null;
 let path: typeof import("path") | null = null;
@@ -21,10 +16,22 @@ let dotenv: typeof import("dotenv") | null = null;
 let ws: any = null; // Used internally by getWebSocket() for caching
 
 if (isNode && !isBrowser) {
-  // Use the imported modules directly - these are Node.js built-ins, always available
-  fs = fsImport;
-  os = osImport;
-  path = pathImport;
+  // Load Node-only modules lazily using eval("require") to avoid bundler static analysis
+  try {
+    fs = (eval("require") as any)("fs");
+  } catch {
+    fs = null;
+  }
+  try {
+    os = (eval("require") as any)("os");
+  } catch {
+    os = null;
+  }
+  try {
+    path = (eval("require") as any)("path");
+  } catch {
+    path = null;
+  }
 
   // Try to load optional dependencies
   try {
