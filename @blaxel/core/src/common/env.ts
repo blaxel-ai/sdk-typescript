@@ -1,6 +1,22 @@
 /* eslint-disable */
 import toml from "toml";
-import { dotenv, fs } from "./node.js";
+
+// Avoid importing Node built-ins in environments that don't support them (e.g., Next.js client build)
+const isNode = typeof process !== "undefined" && (process as any).versions != null && (process as any).versions.node != null;
+const isBrowser = typeof globalThis !== "undefined" && (globalThis as any)?.window !== undefined;
+
+let fs: any = null;
+let dotenv: any = null;
+
+if (isNode && !isBrowser) {
+  try {
+    // Use eval to avoid bundler static analysis of 'require(\"fs\")'
+    fs = (eval("require") as any)("fs");
+  } catch {}
+  try {
+    dotenv = (eval("require") as any)("dotenv");
+  } catch {}
+}
 
 const secretEnv: Record<string, string> = {};
 const configEnv: Record<string, string> = {};

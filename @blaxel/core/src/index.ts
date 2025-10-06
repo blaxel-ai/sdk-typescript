@@ -6,7 +6,6 @@ export * from "./common/env.js";
 export * from "./common/errors.js";
 export * from "./common/internal.js";
 export * from "./common/logger.js";
-export { getWebSocket } from "./common/node.js";
 export * from "./common/settings.js";
 export * from "./jobs/index.js";
 export * from "./mcp/index.js";
