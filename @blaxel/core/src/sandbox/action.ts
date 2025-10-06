@@ -38,7 +38,7 @@ export class SandboxAction {
   }
 
   get externalUrl() {
-    return `${settings.runUrl}/${settings.workspace}/sandboxes/${this.name}`
+    return this.sandbox.metadata?.url ?? `${settings.runUrl}/${settings.workspace}/sandboxes/${this.name}`;
   }
 
   get internalUrl() {

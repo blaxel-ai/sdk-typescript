@@ -1,10 +1,23 @@
 import yaml from "yaml";
-import { fs } from "../common/node.js";
+// Avoid static import of Node built-ins in browser bundles
+type FsLike = { readFileSync(path: string, encoding: string): string } | null;
+let fs: FsLike = null;
+try {
+  const isNode = typeof process !== "undefined" && typeof (process as any).versions?.node === "string";
+  const isBrowser = typeof globalThis !== "undefined" && typeof (globalThis as any)?.window !== "undefined";
+  if (isNode && !isBrowser) {
+    const req = (eval("require") as unknown as (id: string) => unknown);
+    const loaded = req("fs") as { readFileSync(path: string, encoding: string): string };
+    fs = loaded;
+  }
+} catch {
+  // ignore
+}
 
 const cache = new Map<string, any>();
 
 try {
-  if (fs) {
+  if (fs !== null) {
     const cacheString = fs.readFileSync(".cache.yaml", "utf8");
     const cacheData = yaml.parseAllDocuments(cacheString);
     for (const doc of cacheData) {

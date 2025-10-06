@@ -1,7 +1,34 @@
 
 import yaml from 'yaml';
 import { env } from "../common/env.js";
-import { fs, os, path } from "../common/node.js";
+// Guarded Node-only modules
+type FsLike = { readFileSync(path: string, encoding: string): string } | null;
+type OsLike = { homedir(): string } | null;
+type PathLike = { join(...parts: string[]): string } | null;
+let fs: FsLike = null;
+let os: OsLike = null;
+let path: PathLike = null;
+try {
+  const proc: unknown = typeof process !== "undefined" ? process : undefined;
+  const gw: unknown = typeof globalThis !== "undefined" ? (globalThis as unknown) : undefined;
+  const hasNodeVersions = (p: unknown): p is { versions: { node: string } } => {
+    if (typeof p !== "object" || p === null) return false;
+    const anyP = p as Record<string, unknown>;
+    if (!("versions" in anyP)) return false;
+    const v = anyP["versions"] as Record<string, unknown> | undefined;
+    return !!v && typeof v["node"] === "string";
+  };
+  const isNode = hasNodeVersions(proc);
+  const isBrowser = typeof gw === "object" && gw !== null && typeof (gw as any as { window?: unknown }).window !== "undefined";
+  if (isNode && !isBrowser) {
+    const req = (eval("require") as unknown as (id: string) => unknown);
+    fs = req("fs") as NonNullable<FsLike>;
+    os = req("os") as NonNullable<OsLike>;
+    path = req("path") as NonNullable<PathLike>;
+  }
+} catch {
+  // ignore
+}
 import { ApiKey } from "./apikey.js";
 import { ClientCredentials } from "./clientcredentials.js";
 import { Credentials } from "./credentials.js";

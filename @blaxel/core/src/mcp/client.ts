@@ -4,7 +4,7 @@ import {
   JSONRPCMessageSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { logger } from "../common/logger.js";
-import { ws } from "../common/node.js";
+import { getWebSocket } from "../common/node.js";
 import { settings } from "../common/settings.js";
 
 
@@ -22,9 +22,7 @@ interface UniversalWebSocket {
   onmessage?: ((event: any) => void) | null;
 }
 
-// Use WebSocket from centralized node module loading
-// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-const NodeWebSocket = ws;
+// WebSocket will be loaded dynamically via getWebSocket() function
 
 //const SUBPROTOCOL = "mcp";
 
@@ -89,25 +87,25 @@ export class BlaxelMcpClientTransport implements Transport {
     }
   }
 
-  private _connect(): Promise<void> {
-    // eslint-disable-next-line @typescript-eslint/no-misused-promises
+  private async _connect(): Promise<void> {
     return new Promise((resolve, reject) => {
-      try {
-        if (this._isBrowser) {
+      const setupConnection = async () => {
+        try {
+          if (this._isBrowser) {
           // Use native browser WebSocket
           const url = `${this._url.toString()}?token=${settings.token}`
           this._socket = new WebSocket(url) as UniversalWebSocket;
-        } else {
-          // Use Node.js WebSocket
-          if (!NodeWebSocket) {
-            throw new Error("WebSocket library not available in Node.js environment");
+          } else {
+            // Use Node.js WebSocket - get it via the centralized async function
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            const NodeWebSocket = await getWebSocket();
+
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+            this._socket = new NodeWebSocket(this._url, {
+              //protocols: SUBPROTOCOL,
+              headers: this._headers,
+            }) as UniversalWebSocket;
           }
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-          this._socket = new NodeWebSocket(this._url, {
-            //protocols: SUBPROTOCOL,
-            headers: this._headers,
-          }) as UniversalWebSocket;
-        }
 
         this._socket.onerror = (event) => {
           // Log websocket error with meaningful information instead of raw event
@@ -198,8 +196,10 @@ export class BlaxelMcpClientTransport implements Transport {
           this._isBrowser = true;
           return this._connect().then(resolve).catch(reject);
         }
-        reject(error as Error);
-      }
+          reject(error as Error);
+        }
+      };
+      setupConnection().catch(reject);
     });
   }
 

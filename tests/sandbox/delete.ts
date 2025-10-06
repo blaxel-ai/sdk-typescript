@@ -1,61 +1,105 @@
 import { SandboxInstance } from "@blaxel/core";
 import { createOrGetSandbox, info, sep } from "../utils";
 
-async function createAndDeleteSandbox(index: number): Promise<void> {
+async function createSandbox(index: number): Promise<string> {
   const sandboxName = `parallel-test-${index}-${Date.now()}`;
   const startTime = Date.now();
 
   try {
     info(`🚀 [${index}] Creating sandbox: ${sandboxName}`);
-    const sandbox = await createOrGetSandbox({ sandboxName });
+    await createOrGetSandbox({ sandboxName });
     const createTime = Date.now() - startTime;
     info(`✅ [${index}] Created sandbox: ${sandboxName} (${createTime}ms)`);
-
-    // Delete immediately after creation
-    const deleteStartTime = Date.now();
-    await SandboxInstance.delete(sandboxName);
-    const deleteTime = Date.now() - deleteStartTime;
-    info(`🗑️ [${index}] Deleted sandbox: ${sandboxName} (${deleteTime}ms)`);
-
-    const totalTime = Date.now() - startTime;
-    info(`🎉 [${index}] Complete: ${sandboxName} (total: ${totalTime}ms)`);
-
+    return sandboxName;
   } catch (error) {
     const totalTime = Date.now() - startTime;
-    console.error(`❌ [${index}] Failed for sandbox: ${sandboxName} (${totalTime}ms)`, error);
+    console.error(`❌ [${index}] Failed to create sandbox: ${sandboxName} (${totalTime}ms)`, error);
     throw error;
   }
 }
 
+async function deleteSandbox(sandboxName: string): Promise<void> {
+  const startTime = Date.now();
+
+  try {
+    info(`🗑️ Deleting sandbox: ${sandboxName}`);
+    await SandboxInstance.delete(sandboxName);
+    const deleteTime = Date.now() - startTime;
+    info(`✅ Deleted sandbox: ${sandboxName} (${deleteTime}ms)`);
+  } catch (error) {
+    const totalTime = Date.now() - startTime;
+    console.error(`❌ Failed to delete sandbox: ${sandboxName} (${totalTime}ms)`, error);
+    // Don't throw - we want to continue with other deletions
+  }
+}
+
 async function main() {
+  // Get max sandboxes from command line arg or use default
+  const maxSandboxes = parseInt(process.argv[2]) || 1990;
+  const batchSize = 10;
+
   console.log(sep);
-  console.log("🧪 Starting parallel sandbox creation and deletion test");
-  console.log("📊 Creating 10 sandboxes in parallel and deleting them immediately");
+  console.log("🧪 Starting batch sandbox creation and parallel deletion test");
+  console.log(`📊 Creating ${maxSandboxes} sandboxes in batches of ${batchSize}, then deleting all in parallel`);
   console.log(sep);
 
   const startTime = Date.now();
-  const numberOfSandboxes = 10;
-
-  // Create array of promises for parallel execution
-  const tasks = Array.from({ length: numberOfSandboxes }, (_, index) =>
-    createAndDeleteSandbox(index + 1)
-  );
+  const createdSandboxes: string[] = [];
 
   try {
-    // Run all creation/deletion tasks in parallel
-    await Promise.all(tasks);
+    // Phase 1: Create sandboxes in batches
+    console.log("🏗️ Phase 1: Creating sandboxes in batches...");
 
-    const totalTime = Date.now() - startTime;
+    for (let batchStart = 0; batchStart < maxSandboxes; batchStart += batchSize) {
+      const batchEnd = Math.min(batchStart + batchSize, maxSandboxes);
+      const currentBatchSize = batchEnd - batchStart;
+
+      info(`Creating batch ${Math.floor(batchStart/batchSize) + 1}: sandboxes ${batchStart + 1}-${batchEnd}`);
+
+      // Create batch of sandboxes in parallel
+      const batchTasks = Array.from({ length: currentBatchSize }, (_, index) =>
+        createSandbox(batchStart + index + 1)
+      );
+
+      const batchStartTime = Date.now();
+      const batchResults = await Promise.all(batchTasks);
+      const batchTime = Date.now() - batchStartTime;
+
+      createdSandboxes.push(...batchResults);
+      info(`✅ Batch completed: ${currentBatchSize} sandboxes created (${batchTime}ms)`);
+    }
+
+    const createTime = Date.now() - startTime;
     console.log(sep);
-    console.log(`🎉 All ${numberOfSandboxes} sandboxes created and deleted successfully!`);
+    console.log(`✅ Phase 1 complete: ${createdSandboxes.length} sandboxes created (${createTime}ms)`);
+    console.log(sep);
+
+    // Phase 2: Delete ALL sandboxes in parallel
+    console.log("🗑️ Phase 2: Deleting ALL sandboxes in parallel...");
+    console.log(`⚡ Starting ${createdSandboxes.length} parallel deletions (aggressive mode)`);
+
+    const deleteStartTime = Date.now();
+    const deleteTasks = createdSandboxes.map(sandboxName => deleteSandbox(sandboxName));
+
+    // Run ALL deletions in parallel without any batching
+    await Promise.all(deleteTasks);
+
+    const deleteTime = Date.now() - deleteStartTime;
+    const totalTime = Date.now() - startTime;
+
+    console.log(sep);
+    console.log(`🎉 All ${createdSandboxes.length} sandboxes created and deleted successfully!`);
+    console.log(`⏱️ Creation time: ${createTime}ms (${(createTime/1000).toFixed(2)}s)`);
+    console.log(`⏱️ Deletion time: ${deleteTime}ms (${(deleteTime/1000).toFixed(2)}s)`);
     console.log(`⏱️ Total time: ${totalTime}ms (${(totalTime/1000).toFixed(2)}s)`);
-    console.log(`📈 Average time per sandbox: ${(totalTime/numberOfSandboxes).toFixed(0)}ms`);
+    console.log(`📈 Average time per sandbox: ${(totalTime/createdSandboxes.length).toFixed(0)}ms`);
     console.log(sep);
 
   } catch (error) {
     const totalTime = Date.now() - startTime;
     console.log(sep);
     console.error(`❌ Some operations failed after ${totalTime}ms`);
+    console.error(`📊 Created ${createdSandboxes.length} sandboxes before failure`);
     console.log(sep);
     throw error;
   }
@@ -67,6 +111,6 @@ main()
     process.exit(1);
   })
   .then(() => {
-    console.log("✨ Parallel delete test completed");
+    console.log("✨ Batch creation and parallel deletion test completed");
     process.exit(0);
   });
