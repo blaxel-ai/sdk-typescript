@@ -1,4 +1,3 @@
-/* eslint-disable */
 import toml from "toml";
 import { dotenv, fs } from "./node.js";
 
@@ -17,7 +16,9 @@ if (fs !== null ) {
     for (const key in configInfos.env) {
       configEnv[key] = configInfos.env[key];
     }
-  } catch (error) {}
+  } catch {
+    // ignore
+  }
 
   try {
     const secretFile = fs.readFileSync(".env", "utf8");
@@ -34,7 +35,9 @@ if (fs !== null ) {
         }
       }
     }
-  } catch (error) {}
+  } catch {
+    // ignore
+  }
 }
 
 
