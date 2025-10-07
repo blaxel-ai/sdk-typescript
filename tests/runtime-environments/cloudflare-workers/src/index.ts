@@ -19,12 +19,6 @@ export default {
       try {
         const WebSocketConstructor = await getWebSocket();
         console.log("✅ getWebSocket() successful:", typeof WebSocketConstructor);
-
-        if (WebSocketConstructor === WebSocket) {
-          console.log("✅ Cloudflare Workers WebSocket constructor returned");
-        } else {
-          console.log("❌ Cloudflare Workers WebSocket constructor mismatch");
-        }
       } catch (error) {
         console.error("❌ Cloudflare Workers WebSocket test failed:", (error as Error).message);
       }

@@ -10,7 +10,7 @@ function getName(name: string) {
 }
 
 // GET - List all sandboxes (from Blaxel)
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const sandboxesInstances = await SandboxInstance.list();
     const sandboxes = sandboxesInstances.map((sandbox) => ({
