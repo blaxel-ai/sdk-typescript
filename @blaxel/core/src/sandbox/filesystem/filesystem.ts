@@ -147,7 +147,7 @@ export class SandboxFileSystem extends SandboxAction {
     return data as Directory;
   }
 
-  async cp(source: string, destination: string, { maxWait = 1000 * 60 * 60 }: { maxWait?: number } = {}): Promise<CopyResponse> {
+  async cp(source: string, destination: string, { maxWait = 180000 }: { maxWait?: number } = {}): Promise<CopyResponse> {
     let process = await this.process.exec({
       command: `cp -r ${source} ${destination}`,
     })
