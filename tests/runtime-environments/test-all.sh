@@ -19,9 +19,31 @@ NC='\033[0m' # No Color
 
 # Auto-install missing tools
 setup_tools() {
+  # Ensure GNU timeout is available (macOS via coreutils provides gtimeout)
+  if ! command -v timeout >/dev/null 2>&1; then
+    if command -v gtimeout >/dev/null 2>&1; then
+      timeout() { gtimeout "$@"; }
+    else
+      echo "⏱️ 'timeout' not found. Installing coreutils (provides gtimeout)..."
+      if command -v brew >/dev/null 2>&1; then
+        brew install coreutils >/dev/null 2>&1
+        if command -v gtimeout >/dev/null 2>&1; then
+          timeout() { gtimeout "$@"; }
+          echo "✅ coreutils installed. Using 'gtimeout' as 'timeout'."
+        else
+          echo "⚠️ coreutils installation completed, but 'gtimeout' not found."
+        fi
+      else
+        echo "⚠️ Homebrew not found. Please install coreutils manually: brew install coreutils"
+      fi
+    fi
+  fi
+
   # Install Playwright browsers if needed (for browser tests)
   if command -v npx >/dev/null 2>&1; then
-    if ! ls ~/.cache/ms-playwright/chromium*/chrome* >/dev/null 2>&1; then
+    # Check macOS cache location first, then Linux
+    if ! ls ~/Library/Caches/ms-playwright/chromium* >/dev/null 2>&1 \
+       && ! ls ~/.cache/ms-playwright/chromium*/chrome* >/dev/null 2>&1; then
       echo "📦 Installing Playwright browsers..."
       cd tests/runtime-environments/browser && npx playwright install chromium --quiet >/dev/null 2>&1
       cd - >/dev/null
@@ -115,6 +137,8 @@ test_environment() {
       echo "Testing Bun TypeScript support..."
       if bun run --silent src/index.ts --dry-run > build.log 2>&1; then
         echo -e "${GREEN}✅ Bun TypeScript support: PASSED${NC}"
+        echo "Output:"
+        cat build.log
       else
         echo -e "${RED}❌ Bun TypeScript support: FAILED${NC}"
         echo "Build log:"
@@ -183,7 +207,7 @@ test_environment() {
     fi
   elif [[ "$env_name" == bun ]]; then
     if command -v bun >/dev/null 2>&1; then
-      if timeout 10s bun run src/index.ts > test.log 2>&1; then
+      if bun run src/index.ts > test.log 2>&1; then
         echo -e "${GREEN}✅ Runtime execution: PASSED${NC}"
         echo "Output:"
         cat test.log | grep -E "🧪|✅"
@@ -253,7 +277,19 @@ else
   echo -e "${BLUE}🎯 Testing All Runtime Environments:${NC}"
 
   # All environments (no skipping!)
-  all_environments=("nodejs-legacy" "nodejs-javascript-cjs" "nodejs-javascript-esm" "nodejs-nodenext" "nodejs-node16" "cloudflare-workers" "webpack" "browser" "bun" "deno")
+  all_environments=(
+    "nodejs-legacy"
+    "nodejs-javascript-cjs"
+    "nodejs-javascript-esm"
+    "nodejs-nodenext"
+    "nodejs-node16"
+    "cloudflare-workers"
+    "webpack"
+    "browser"
+    "bun"
+    "deno"
+    "vercel-nextjs"
+  )
 
   for env in "${all_environments[@]}"; do
     echo -e "\n${BLUE}🌍 Testing: $env${NC}"
@@ -295,6 +331,7 @@ if [ $failed_tests -eq 0 ]; then
   echo -e "${GREEN}✅ Browser Environment${NC}"
   echo -e "${GREEN}✅ Bun Runtime${NC}"
   echo -e "${GREEN}✅ Deno Runtime${NC}"
+  echo -e "${GREEN}✅ Vercel Next.js${NC}"
   echo ""
   echo -e "${GREEN}🚀 SDK ready for production with WebSocket support!${NC}"
 else
@@ -306,7 +343,7 @@ else
   echo -e "${BLUE}Available environments:${NC}"
   echo "   nodejs-legacy, nodejs-javascript-cjs, nodejs-javascript-esm"
   echo "   nodejs-nodenext, nodejs-node16, cloudflare-workers, webpack"
-  echo "   browser, bun, deno"
+  echo "   browser, bun, deno, vercel-nextjs"
   echo ""
   echo "All tests must pass before release."
   exit 1

@@ -14,7 +14,6 @@ export const blTool = async (
       // @ts-ignore - Type instantiation depth issue with ai package in some environments
       const toolInstance = tool({
         description: t.description,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         parameters: t.inputSchema as any,
         execute: t.call.bind(t),
       });
