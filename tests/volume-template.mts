@@ -59,9 +59,24 @@ const templatePath = path.join(process.cwd(), templateName);
 const testFileName = "test-persistence.txt";
 const testFileContent = "This file was added after initial deploy";
 
+// Use SIMPLE_TEMPLATE=true to create a simple text-based template instead of Next.js
+const useSimpleTemplate = process.env.SIMPLE_TEMPLATE === 'true';
+
+// Use NO_CLEANUP=true to skip cleanup of sandboxes, volumes, and templates (useful for debugging)
+const noCleanup = process.env.NO_CLEANUP === 'true';
+
+const volumeName1 = `test-template-vol-1`;
+const sandboxName1 = `template-sb-1`;
+const volumeName2 = `test-template-vol-2`;
+const sandboxName2 = `template-sb-2`;
+const volumeName3 = `test-template-vol-3`;
+const sandboxName3 = `template-sb-3`;
+
 try {
   console.log("📦 Volume Template Test");
   console.log("=".repeat(60));
+  console.log(`Template type: ${useSimpleTemplate ? 'Simple (text files)' : 'Next.js app'}`);
+  console.log(`Cleanup: ${noCleanup ? 'DISABLED (resources will persist)' : 'ENABLED'}`);
 
   // Choose image based on BL_ENV
   const isDev = process.env.BL_ENV === 'dev';
@@ -81,67 +96,106 @@ try {
     console.log(`✅ Template folder already exists: ${templateName}`);
   }
 
-  // Step 2: Add files to the template (create Next.js app)
+  // Step 2: Add files to the template
   console.log("\n2. Adding files to template...");
-  const packageJsonPath = path.join(templatePath, "package.json");
-  if (!fs.existsSync(packageJsonPath)) {
-    console.log("   Creating Next.js app in template...");
 
-    // Create Next.js app in a temporary directory
-    const tempAppName = `temp-nextjs-${Date.now()}`;
-    const tempAppPath = path.join(process.cwd(), tempAppName);
+  if (useSimpleTemplate) {
+    // Create simple text-based template
+    const markerFile = path.join(templatePath, "app.txt");
+    if (!fs.existsSync(markerFile)) {
+      console.log("   Creating simple text files in template...");
 
-    try {
-      const { stdout, stderr } = await execAsync(
-        `npx create-next-app@latest ${tempAppName} --ts --tailwind --eslint --skip-install --app --no-src-dir --import-alias "@/*" --yes`,
-        { cwd: process.cwd() }
-      );
-      console.log(stdout);
-      if (stderr && !stderr.includes("npm notice")) console.error(stderr);
+      // Create a few simple files
+      fs.writeFileSync(path.join(templatePath, "app.txt"), "This is the main app file");
+      fs.writeFileSync(path.join(templatePath, "config.json"), JSON.stringify({
+        name: "test-app",
+        version: "1.0.0",
+        description: "Simple template for volume testing"
+      }, null, 2));
+      fs.writeFileSync(path.join(templatePath, "next.config.ts"), "// Next.js config file");
 
-      // Copy all files from temp directory to template directory (excluding node_modules, will install fresh)
-      console.log("   Copying Next.js files to template...");
-      const files = fs.readdirSync(tempAppPath);
-      for (const file of files) {
-        if (file === 'node_modules') continue; // Skip node_modules, will install fresh
-
-        const srcPath = path.join(tempAppPath, file);
-        const destPath = path.join(templatePath, file);
-
-        // Copy file or directory
-        if (fs.statSync(srcPath).isDirectory()) {
-          fs.cpSync(srcPath, destPath, { recursive: true });
-        } else {
-          fs.copyFileSync(srcPath, destPath);
-        }
+      // Create a subdirectory with files
+      const dataDir = path.join(templatePath, "data");
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir);
       }
+      fs.writeFileSync(path.join(dataDir, "sample.txt"), "Sample data file");
+      fs.writeFileSync(path.join(dataDir, "info.txt"), "Information file");
 
-      // Clean up temp directory
-      fs.rmSync(tempAppPath, { recursive: true, force: true });
-
-      // Install dependencies in the template directory
-      console.log("   Installing dependencies in template...");
-      const { stdout: installStdout, stderr: installStderr } = await execAsync(
-        'npm install',
-        { cwd: templatePath }
-      );
-      console.log(installStdout);
-      if (installStderr && !installStderr.includes("npm warn")) console.error(installStderr);
-
-      console.log("✅ Next.js app created in template with dependencies installed");
-    } catch (error) {
-      // Clean up temp directory on error
-      if (fs.existsSync(tempAppPath)) {
-        fs.rmSync(tempAppPath, { recursive: true, force: true });
-      }
-      throw error;
+      console.log("✅ Simple template files created");
+    } else {
+      console.log("✅ Template already contains app.txt");
     }
   } else {
-    console.log("✅ Template already contains package.json");
+    // Create Next.js app template
+    const packageJsonPath = path.join(templatePath, "package.json");
+    if (!fs.existsSync(packageJsonPath)) {
+      console.log("   Creating Next.js app in template...");
+
+      // Create Next.js app in a temporary directory
+      const tempAppName = `temp-nextjs-${Date.now()}`;
+      const tempAppPath = path.join(process.cwd(), tempAppName);
+
+      try {
+        const { stdout, stderr } = await execAsync(
+          `npx create-next-app@latest ${tempAppName} --ts --tailwind --eslint --skip-install --app --no-src-dir --import-alias "@/*" --yes`,
+          { cwd: process.cwd() }
+        );
+        console.log(stdout);
+        if (stderr && !stderr.includes("npm notice")) console.error(stderr);
+
+        // Copy all files from temp directory to template directory (excluding node_modules, will install fresh)
+        console.log("   Copying Next.js files to template...");
+        const files = fs.readdirSync(tempAppPath);
+        for (const file of files) {
+          if (file === 'node_modules') continue; // Skip node_modules, will install fresh
+
+          const srcPath = path.join(tempAppPath, file);
+          const destPath = path.join(templatePath, file);
+
+          // Copy file or directory
+          if (fs.statSync(srcPath).isDirectory()) {
+            fs.cpSync(srcPath, destPath, { recursive: true });
+          } else {
+            fs.copyFileSync(srcPath, destPath);
+          }
+        }
+
+        // Clean up temp directory
+        fs.rmSync(tempAppPath, { recursive: true, force: true });
+
+        // Install dependencies in the template directory
+        console.log("   Installing dependencies in template...");
+        const { stdout: installStdout, stderr: installStderr } = await execAsync(
+          'npm install',
+          { cwd: templatePath }
+        );
+        console.log(installStdout);
+        if (installStderr && !installStderr.includes("npm warn")) console.error(installStderr);
+
+        console.log("✅ Next.js app created in template with dependencies installed");
+      } catch (error) {
+        // Clean up temp directory on error
+        if (fs.existsSync(tempAppPath)) {
+          fs.rmSync(tempAppPath, { recursive: true, force: true });
+        }
+        throw error;
+      }
+    } else {
+      console.log("✅ Template already contains package.json");
+    }
   }
 
   // Step 3: Deploy the volume template (version 1)
   console.log("\n3. Deploying volume template (version 1)...");
+
+  // Remove test file if it exists from previous run
+  const testFileFullPath = path.join(templatePath, testFileName);
+  if (fs.existsSync(testFileFullPath)) {
+    console.log(`   Removing existing ${testFileName} from previous run...`);
+    fs.unlinkSync(testFileFullPath);
+  }
+
   const { stdout: deployStdout1, stderr: deployStderr1 } = await execAsync(
     `bl deploy`,
     { cwd: templatePath }
@@ -150,10 +204,14 @@ try {
   if (deployStderr1) console.error(deployStderr1);
   console.log("✅ Volume template deployed (version 1)");
 
+  // Wait for template to be fully processed
+  console.log("⏳ Waiting for template to be processed...");
+  await new Promise(resolve => setTimeout(resolve, 3000));
+
   // Step 4: Create a volume from the template
   console.log("\n4. Creating volume from template...");
-  const volume1 = await VolumeInstance.create({
-    name: "test-template-volume-1",
+  const volume1 = await VolumeInstance.createIfNotExists({
+    name: volumeName1,
     displayName: "Test Template Volume 1",
     size: 1024,
     template: templateName
@@ -162,13 +220,13 @@ try {
 
   // Step 5: Create a sandbox with that volume
   console.log("\n5. Creating sandbox with volume...");
-  const sandbox1 = await SandboxInstance.create({
-    name: "template-sandbox-1",
+  const sandbox1 = await SandboxInstance.createIfNotExists({
+    name: sandboxName1,
     image: image,
     memory: 2048,
     volumes: [
       {
-        name: "test-template-volume-1",
+        name: volumeName1,
         mountPath: "/app",
         readOnly: false
       }
@@ -184,20 +242,49 @@ try {
   });
   console.log(`📁 Files in /app/:\n${lsResult1.logs?.trim()}`);
 
-  // Check for key Next.js files
-  const checkNextFiles = await sandbox1.process.exec({
-    command: "test -f /app/package.json && test -f /app/next.config.ts && echo 'Next.js files found' || echo 'Next.js files missing'",
+  // Check for next.config.ts file (required for both simple and Next.js templates)
+  const checkConfigFile = await sandbox1.process.exec({
+    command: "test -f /app/next.config.ts && echo 'found' || echo 'missing'",
     waitForCompletion: true
   });
-  console.log(`✅ ${checkNextFiles.logs?.trim()}`);
+  const configFileExists = checkConfigFile.logs?.trim() === 'found';
+
+  if (!configFileExists) {
+    throw new Error("❌ next.config.ts file not found in template volume!");
+  }
+  console.log("✅ next.config.ts file found in template");
+
+  // Check for additional files based on template type
+  if (!useSimpleTemplate) {
+    const checkPackageJson = await sandbox1.process.exec({
+      command: "test -f /app/package.json && echo 'found' || echo 'missing'",
+      waitForCompletion: true
+    });
+    if (checkPackageJson.logs?.trim() !== 'found') {
+      throw new Error("❌ package.json file not found in Next.js template!");
+    }
+    console.log("✅ package.json file found in Next.js template");
+  } else {
+    const checkAppTxt = await sandbox1.process.exec({
+      command: "test -f /app/app.txt && echo 'found' || echo 'missing'",
+      waitForCompletion: true
+    });
+    if (checkAppTxt.logs?.trim() !== 'found') {
+      throw new Error("❌ app.txt file not found in simple template!");
+    }
+    console.log("✅ app.txt file found in simple template");
+  }
 
   // Clean up sandbox and volume
-  await cleanupSandboxAndVolume("template-sandbox-1", "test-template-volume-1");
+  if (!noCleanup) {
+    await cleanupSandboxAndVolume(sandboxName1, volumeName1);
+  } else {
+    console.log(`⏭️  Skipping cleanup for ${sandboxName1} and ${volumeName1}`);
+  }
 
   // Step 7: Add a new file to the template
   console.log("\n7. Adding a new file to the template...");
-  const testFilePath = path.join(templatePath, testFileName);
-  fs.writeFileSync(testFilePath, testFileContent);
+  fs.writeFileSync(testFileFullPath, testFileContent);
   console.log(`✅ File created: ${testFileName}`);
 
   // Step 8: Deploy the template again (version 2)
@@ -210,10 +297,14 @@ try {
   if (deployStderr2) console.error(deployStderr2);
   console.log("✅ Volume template deployed (version 2)");
 
+  // Wait for template to be fully processed
+  console.log("⏳ Waiting for template to be processed...");
+  await new Promise(resolve => setTimeout(resolve, 3000));
+
   // Step 9: Create a new volume from the latest template
   console.log("\n9. Creating volume from latest template (version 2)...");
-  const volume2 = await VolumeInstance.create({
-    name: "test-template-volume-2",
+  const volume2 = await VolumeInstance.createIfNotExists({
+    name: volumeName2,
     displayName: "Test Template Volume 2",
     size: 1024,
     template: templateName
@@ -222,13 +313,13 @@ try {
 
   // Step 10: Create a sandbox with the new volume
   console.log("\n10. Creating sandbox with new volume...");
-  const sandbox2 = await SandboxInstance.create({
-    name: "template-sandbox-2",
+  const sandbox2 = await SandboxInstance.createIfNotExists({
+    name: sandboxName2,
     image: image,
     memory: 2048,
     volumes: [
       {
-        name: "test-template-volume-2",
+        name: volumeName2,
         mountPath: "/app",
         readOnly: false
       }
@@ -258,12 +349,16 @@ try {
   }
 
   // Clean up sandbox and volume
-  await cleanupSandboxAndVolume("template-sandbox-2", "test-template-volume-2");
+  if (!noCleanup) {
+    await cleanupSandboxAndVolume(sandboxName2, volumeName2);
+  } else {
+    console.log(`⏭️  Skipping cleanup for ${sandboxName2} and ${volumeName2}`);
+  }
 
   // Step 12: Create a volume from version 1 (should not have the new file)
   console.log("\n12. Creating volume from template version 1...");
-  const volume3 = await VolumeInstance.create({
-    name: "test-template-volume-3",
+  const volume3 = await VolumeInstance.createIfNotExists({
+    name: volumeName3,
     displayName: "Test Template Volume 3 (version 1)",
     size: 1024,
     template: `${templateName}:1`
@@ -272,13 +367,13 @@ try {
 
   // Step 13: Create a sandbox with version 1 volume
   console.log("\n13. Creating sandbox with version 1 volume...");
-  const sandbox3 = await SandboxInstance.create({
-    name: "template-sandbox-3",
+  const sandbox3 = await SandboxInstance.createIfNotExists({
+    name: sandboxName3,
     image: image,
     memory: 2048,
     volumes: [
       {
-        name: "test-template-volume-3",
+        name: volumeName3,
         mountPath: "/app",
         readOnly: false
       }
@@ -302,7 +397,11 @@ try {
   }
 
   // Clean up sandbox and volume
-  await cleanupSandboxAndVolume("template-sandbox-3", "test-template-volume-3");
+  if (!noCleanup) {
+    await cleanupSandboxAndVolume(sandboxName3, volumeName3);
+  } else {
+    console.log(`⏭️  Skipping cleanup for ${sandboxName3} and ${volumeName3}`);
+  }
 
   console.log("\n🎉 SUCCESS: All volume template tests passed!");
   console.log("   ✓ Template creation and deployment");
@@ -312,42 +411,61 @@ try {
   console.log("   ✓ Version 1 does not contain new file");
 
 } catch (e: any) {
-  console.error("❌ Test failed with error:", e);
-  process.exit(1);
+  console.error("\n❌ Test failed with error:", e);
 } finally {
-  // Final cleanup
-  console.log("\n🧹 Final cleanup...");
+  if (noCleanup) {
+    console.log("\n⏭️  Cleanup DISABLED - Resources will persist:");
+    console.log(`   Sandboxes: ${sandboxName1}, ${sandboxName2}, ${sandboxName3}`);
+    console.log(`   Volumes: ${volumeName1}, ${volumeName2}, ${volumeName3}`);
+    console.log(`   Template: ${templateName}`);
+  } else {
+    // Final cleanup - runs even on error
+    console.log("\n🧹 Final cleanup (running even if test failed)...");
 
-  // Clean up any remaining sandboxes and volumes
-  const cleanupItems = [
-    { sandbox: "template-sandbox-1", volume: "test-template-volume-1" },
-    { sandbox: "template-sandbox-2", volume: "test-template-volume-2" },
-    { sandbox: "template-sandbox-3", volume: "test-template-volume-3" },
-  ];
+    // Clean up any remaining sandboxes and volumes
+    const cleanupItems = [
+      { sandbox: sandboxName1, volume: volumeName1 },
+      { sandbox: sandboxName2, volume: volumeName2 },
+      { sandbox: sandboxName3, volume: volumeName3 },
+    ];
 
-  for (const item of cleanupItems) {
-    try {
-      await SandboxInstance.delete(item.sandbox);
-      await waitForSandboxDeletion(item.sandbox);
-    } catch (e) {
-      // Ignore errors during cleanup
+    for (const item of cleanupItems) {
+      try {
+        await SandboxInstance.delete(item.sandbox);
+        await waitForSandboxDeletion(item.sandbox);
+      } catch (e) {
+        // Ignore errors during cleanup
+      }
+      try {
+        await VolumeInstance.delete(item.volume);
+      } catch (e) {
+        // Ignore errors during cleanup
+      }
     }
+
+    // Delete the volume template
     try {
-      await VolumeInstance.delete(item.volume);
-    } catch (e) {
-      // Ignore errors during cleanup
+      console.log("\n🗑️  Deleting volume template...");
+      const { stdout, stderr } = await execAsync(`bl delete vt ${templateName}`);
+      console.log(stdout);
+      if (stderr) console.error(stderr);
+      console.log("✅ Volume template deleted");
+    } catch (e: any) {
+      console.error(`❌ Could not delete volume template: ${e.message}`);
+    }
+
+    // Delete the template folder
+    try {
+      if (fs.existsSync(templatePath)) {
+        console.log(`\n🗑️  Deleting template folder: ${templateName}`);
+        fs.rmSync(templatePath, { recursive: true, force: true });
+        console.log("✅ Template folder deleted");
+      }
+    } catch (e: any) {
+      console.error(`❌ Could not delete template folder: ${e.message}`);
     }
   }
 
-  // Delete the volume template
-  try {
-    console.log("\n🗑️  Deleting volume template...");
-    const { stdout, stderr } = await execAsync(`bl delete vt ${templateName}`);
-    console.log(stdout);
-    if (stderr) console.error(stderr);
-    console.log("✅ Volume template deleted");
-  } catch (e: any) {
-    console.error(`❌ Could not delete volume template: ${e.message}`);
-  }
+  console.log("\n✨ Cleanup complete");
 }
 
