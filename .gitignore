@@ -10,3 +10,4 @@ pnpm-lock.yaml
 sqlite.db
 .wrangler
 test-volume-template/
+reports
