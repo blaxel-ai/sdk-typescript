@@ -106,5 +106,6 @@ export async function testWebSocketFunctionality(environmentName) {
 
 // For CommonJS environments
 if (typeof module !== 'undefined' && module.exports) {
+  console.log("✅ Shared WebSocket test module loaded");
   module.exports = { testWebSocketFunctionality };
 }

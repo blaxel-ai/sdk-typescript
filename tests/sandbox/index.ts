@@ -24,13 +24,23 @@ async function testFilesystem(sandbox: SandboxInstance) {
     throw new Error("Directory is empty");
   }
   await sandbox.fs.cp(`/Users/${user}/Downloads/test`, `/Users/${user}/Downloads/test2/test`);
-  const afterCpLs = await sandbox.fs.ls(`/Users/${user}/Downloads/test2`) as Directory;
+  const afterCpLs = await sandbox.fs.ls(`/Users/${user}/Downloads/test2`);
   if (afterCpLs.files?.length && afterCpLs.files?.length < 1) {
     throw new Error("Directory is empty");
   }
   if (!afterCpLs.files?.find((f) => f.path === `/Users/${user}/Downloads/test2/test`)) {
     throw new Error("File not found in directory");
   }
+  await sandbox.fs.read(`/Users/${user}/Downloads/test2/test`)
+  if (content !== "Hello world") {
+    throw new Error("File content is not correct");
+  }
+  await sandbox.fs.cp(`/blaxel`, `/blaxel2`);
+  const afterCpLs2 = await sandbox.fs.ls(`/blaxel2`);
+  if (afterCpLs2.files?.length && afterCpLs2.files?.length < 1) {
+    throw new Error("Directory is empty");
+  }
+
   await sandbox.fs.rm(`/Users/${user}/Downloads/test`);
   try {
     await sandbox.fs.rm(`/Users/${user}/Downloads/test2`);
@@ -284,7 +294,7 @@ async function testWatch(sandbox: SandboxInstance) {
 async function main() {
   try {
     // Test with controlplane
-    const sandbox = await createOrGetSandbox({sandboxName})
+    const sandbox = await createOrGetSandbox({sandboxName, memory: 8096})
 
     await testFilesystem(sandbox);
     await testProcess(sandbox);

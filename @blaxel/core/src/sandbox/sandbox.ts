@@ -17,9 +17,9 @@ export class SandboxInstance {
   sessions: SandboxSessions;
 
   constructor(private sandbox: SandboxConfiguration) {
-    this.fs = new SandboxFileSystem(sandbox);
-    this.network = new SandboxNetwork(sandbox);
     this.process = new SandboxProcess(sandbox);
+    this.fs = new SandboxFileSystem(sandbox, this.process);
+    this.network = new SandboxNetwork(sandbox);
     this.previews = new SandboxPreviews(sandbox);
     this.sessions = new SandboxSessions(sandbox);
   }

@@ -1,14 +1,16 @@
 import { Sandbox } from "../../client/types.gen.js";
 import { settings } from "../../common/settings.js";
 import { SandboxAction } from "../action.js";
-import { deleteFilesystemByPath, Directory, getFilesystemByPath, getWatchFilesystemByPath, putFilesystemByPath, PutFilesystemByPathError, postProcess, SuccessResponse } from "../client/index.js";
+import { deleteFilesystemByPath, Directory, getFilesystemByPath, getWatchFilesystemByPath, putFilesystemByPath, PutFilesystemByPathError, SuccessResponse } from "../client/index.js";
+import { SandboxProcess } from "../process/index.js";
 import { CopyResponse, SandboxFilesystemFile, WatchEvent } from "./types.js";
 
 
 
 export class SandboxFileSystem extends SandboxAction {
-  constructor(sandbox: Sandbox) {
+  constructor(sandbox: Sandbox, private process: SandboxProcess) {
     super(sandbox);
+    this.process = process;
   }
 
   async mkdir(path: string, permissions: string = "0755"): Promise<SuccessResponse> {
@@ -92,7 +94,7 @@ export class SandboxFileSystem extends SandboxAction {
       baseUrl: this.url,
       client: this.client,
     }
-    const path = destinationPath ?? ""
+    const path = this.formatPath(destinationPath ?? "")
     const { response, data, error } = await this.client.put<Directory, PutFilesystemByPathError>({
       url: `/filesystem/tree/${path}`,
       ...options,
@@ -145,18 +147,14 @@ export class SandboxFileSystem extends SandboxAction {
     return data as Directory;
   }
 
-  async cp(source: string, destination: string): Promise<CopyResponse> {
-    source = this.formatPath(source);
-    destination = this.formatPath(destination);
-    const process = {
-      command: `cp -r "${source}" "${destination}"`
+  async cp(source: string, destination: string, { maxWait = 180000 }: { maxWait?: number } = {}): Promise<CopyResponse> {
+    let process = await this.process.exec({
+      command: `cp -r ${source} ${destination}`,
+    })
+    process = await this.process.wait(process.pid, { maxWait, interval: 100 })
+    if (process.status === "failed") {
+      throw new Error(`Could not copy ${source} to ${destination} cause: ${process.logs}`)
     }
-    const { response, data, error } = await postProcess({
-      body: process,
-      baseUrl: this.url,
-      client: this.client,
-    });
-    this.handleResponseError(response, data, error);
     return {
       message: "Files copied",
       source,
@@ -253,12 +251,6 @@ export class SandboxFileSystem extends SandboxAction {
   }
 
   private formatPath(path: string): string {
-    if (path === "/") {
-      return path;
-    }
-    if (path.startsWith("/")) {
-      path = path.slice(1);
-    }
     return path;
   }
 }

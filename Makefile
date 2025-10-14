@@ -15,7 +15,6 @@ sdk-sandbox:
 
 	sed -i.bak 's/from '\''\.\/sdk\.gen'\''/from '\''\.\/sdk\.gen\.js'\''/g' @blaxel/core/src/sandbox/client/index.ts
 	sed -i.bak 's/from '\''\.\/types\.gen'\''/from '\''\.\/types\.gen\.js'\''/g' @blaxel/core/src/sandbox/client/index.ts
-	sed -i.bak '1s/^/\/\* eslint-disable \*\/\n/' @blaxel/core/src/sandbox/client/types.gen.ts
 	rm -f @blaxel/core/src/sandbox/client/index.ts.bak
 	rm -f @blaxel/core/src/sandbox/client/types.gen.ts.bak
 	rm -f @blaxel/core/src/sandbox/client/sdk.gen.ts.bak
@@ -27,7 +26,7 @@ sdk-controlplane:
 	@curl -H "Authorization: token $$(gh auth token)" \
 		-H "Accept: application/vnd.github.v3.raw" \
 		-o ./definition.yml \
-		https://api.github.com/repos/blaxel-ai/controlplane/contents/api/api/definitions/controlplane.yml?ref=develop
+		https://api.github.com/repos/blaxel-ai/controlplane/contents/api/api/definitions/controlplane.yml?ref=main
 	rm -rf @blaxel/core/src/client/types.gen.ts @blaxel/core/src/client/sdk.gen.ts
 	npx @hey-api/openapi-ts@0.66.0 -i ./definition.yml -o ./tmp/ -c @hey-api/client-fetch
 	cp -r ./tmp/* @blaxel/core/src/client
@@ -35,7 +34,6 @@ sdk-controlplane:
 	sed -i.bak 's/from '\''\.\/sdk\.gen'\''/from '\''\.\/sdk\.gen\.js'\''/g' @blaxel/core/src/client/index.ts
 	sed -i.bak 's/from '\''\.\/types\.gen'\''/from '\''\.\/types\.gen\.js'\''/g' @blaxel/core/src/client/index.ts
 	sed -i.bak 's/from '\''\.\/types\.gen'\''/from '\''\.\/types\.gen\.js'\''/g' @blaxel/core/src/client/sdk.gen.ts
-	sed -i.bak '1s/^/\/\* eslint-disable \*\/\n/' @blaxel/core/src/client/types.gen.ts
 	rm -f @blaxel/core/src/client/index.ts.bak
 	rm -f @blaxel/core/src/client/sdk.gen.ts.bak
 	rm -f @blaxel/core/src/client/types.gen.ts.bak

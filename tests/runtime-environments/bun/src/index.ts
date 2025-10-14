@@ -62,7 +62,20 @@ async function main() {
     });
 
     console.log(`✅ Bun server running at http://localhost:${server.port}`);
-    console.log("Press Ctrl+C to stop the server");
+    // Validate the server responds, then stop it so the test exits cleanly
+    try {
+      const res = await fetch(`http://localhost:${server.port}`);
+      const json = await res.json();
+      if (json?.status === "success") {
+        console.log("✅ Server responded with success payload");
+      } else {
+        console.log("⚠️  Server responded with unexpected payload", json);
+      }
+    } catch (e) {
+      console.log("⚠️  Failed to reach Bun server:", (e as Error).message);
+    } finally {
+      server.stop();
+    }
 
   } catch (error) {
     console.error("❌ Bun test failed:", error);
