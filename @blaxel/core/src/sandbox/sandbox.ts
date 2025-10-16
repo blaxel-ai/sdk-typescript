@@ -53,7 +53,17 @@ export class SandboxInstance {
     const defaultMemory = 4096
 
     // Handle SandboxCreateConfiguration or simple dict with name/image/memory/ports/envs/volumes keys
-    if (!sandbox || 'name' in sandbox || 'image' in sandbox || 'memory' in sandbox || 'ports' in sandbox || 'envs' in sandbox || 'volumes' in sandbox || 'lifecycle' in sandbox) {
+    if (
+      !sandbox ||
+      'name' in sandbox ||
+      'image' in sandbox ||
+      'memory' in sandbox ||
+      'ports' in sandbox ||
+      'envs' in sandbox ||
+      'volumes' in sandbox ||
+      'lifecycle' in sandbox ||
+      'snapshotEnabled' in sandbox
+    ) {
       if (!sandbox) sandbox = {} as SandboxCreateConfiguration
       if (!sandbox.name) sandbox.name = defaultName
       if (!sandbox.image) sandbox.image = defaultImage
@@ -66,6 +76,7 @@ export class SandboxInstance {
       const expires = sandbox.expires;
       const region = sandbox.region;
       const lifecycle = sandbox.lifecycle;
+      const snapshotEnabled = sandbox.snapshotEnabled;
 
       sandbox = {
         metadata: { name: sandbox.name },
@@ -77,9 +88,10 @@ export class SandboxInstance {
             ports: ports,
             envs: envs,
             generation: "mk3",
+            snapshotEnabled,
           },
           volumes: volumes,
-          lifecycle: lifecycle
+          lifecycle: lifecycle,
         }
       } as SandboxModel
       if (ttl) {

@@ -47,6 +47,7 @@ export type SandboxCreateConfiguration = {
   expires?: Date;
   region?: string;
   lifecycle?: SandboxLifecycle;
+  snapshotEnabled?: boolean;
 }
 
 export function normalizePorts(ports?: (Port | Record<string, any>)[]): Port[] | undefined {
