@@ -2114,6 +2114,10 @@ export type Runtime = {
     organization?: string;
     ports?: Ports;
     /**
+     * Enable snapshot feature on your deployment, default to true
+     */
+    snapshotEnabled?: boolean;
+    /**
      * The readiness probe. Should be a Kubernetes Probe type
      */
     startupProbe?: {
@@ -4974,6 +4978,45 @@ export type UpdateVolumeTemplateResponses = {
 };
 
 export type UpdateVolumeTemplateResponse = UpdateVolumeTemplateResponses[keyof UpdateVolumeTemplateResponses];
+
+export type DeleteVolumeTemplateVersionData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the volume template
+         */
+        volumeTemplateName: string;
+        /**
+         * Name of the version to delete
+         */
+        versionName: string;
+    };
+    query?: never;
+    url: '/volume_templates/{volumeTemplateName}/versions/{versionName}';
+};
+
+export type DeleteVolumeTemplateVersionErrors = {
+    /**
+     * Cannot delete the only version
+     */
+    400: unknown;
+    /**
+     * Version not found
+     */
+    404: unknown;
+};
+
+export type DeleteVolumeTemplateVersionResponses = {
+    /**
+     * Version deleted successfully
+     */
+    200: {
+        message?: string;
+        template?: VolumeTemplate;
+    };
+};
+
+export type DeleteVolumeTemplateVersionResponse = DeleteVolumeTemplateVersionResponses[keyof DeleteVolumeTemplateVersionResponses];
 
 export type ListVolumesData = {
     body?: never;
