@@ -66,7 +66,7 @@
 	],
 	"dependencies": {
 		"@hey-api/client-fetch": "^0.10.0",
-		"@modelcontextprotocol/sdk": "^1.11.0",
+		"@modelcontextprotocol/sdk": "^1.20.0",
 		"axios": "^1.9.0",
 		"dotenv": "^16.5.0",
 		"form-data": "^4.0.2",
@@ -88,5 +88,5 @@
 		"vite": "^5.2.0",
 		"vitest": "^1.5.0"
 	},
-	"commit": "81d8333f3a9b656da89197af745abefc310e523e"
+	"commit": "8808cbf3dcaebc0c8aa7852c940ac9babbb668f4"
 }
