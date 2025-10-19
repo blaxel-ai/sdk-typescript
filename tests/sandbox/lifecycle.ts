@@ -8,7 +8,7 @@ async function wait(ms: number): Promise<void> {
 }
 
 // Determine the base image based on environment
-const baseImage = process.env.BL_ENV === 'dev' ? "blaxel/dev-base:latest" : "blaxel/prod-base:latest";
+const baseImage = "blaxel/base:latest"
 console.log(`Using base image: ${baseImage} (BL_ENV=${process.env.BL_ENV || 'not set'})\n`);
 
 // Test 1: TTL Max-Age expiration policy

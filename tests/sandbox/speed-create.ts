@@ -11,7 +11,7 @@ async function main() {
     // const sandbox = await createOrGetSandbox({ sandboxName })
     const sandbox = await SandboxInstance.create({
       name: sandboxName,
-      image: "blaxel/dev-base:latest",
+      image: "blaxel/base:latest",
       memory: 4096,
     })
     console.log(`Sandbox create time: ${Date.now() - start}ms`)
