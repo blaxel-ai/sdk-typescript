@@ -175,7 +175,17 @@ export class SandboxInstance {
         if (!name) {
           throw new Error("Sandbox name is required");
         }
+
+        // Get the existing sandbox to check its status
         const sandboxInstance = await SandboxInstance.get(name);
+
+          // If the sandbox is TERMINATED, treat it as not existing
+          if (sandboxInstance.status === "TERMINATED") {
+            // Create a new sandbox - backend will handle cleanup of the terminated one
+            return await SandboxInstance.create(sandbox);
+          }
+
+        // Otherwise return the existing running sandbox
         return sandboxInstance;
       }
       throw e;
