@@ -10,12 +10,12 @@ const REGION_CONFIG = {
   prod: {
     regions: ["us-pdx-1", "eu-lon-1", "us-was-1"],
     defaultRegion: "us-pdx-1",
-    image: "blaxel/prod-base:latest"
+    image: "blaxel/base:latest"
   },
   dev: {
     regions: ["eu-dub-1"],
     defaultRegion: "eu-dub-1",
-    image: "blaxel/dev-base:latest"
+    image: "blaxel/base:latest"
   }
 };
 

@@ -35,8 +35,7 @@ async function main() {
     console.log("=" .repeat(40));
 
     // Choose image based on BL_ENV
-    const isDev = process.env.BL_ENV === 'dev';
-    const imageBase = isDev ? 'dev-base' : 'prod-base';
+    const imageBase = 'base';
     const image = `blaxel/${imageBase}:latest`;
     const fileContent = "Hello from sandbox!";
 

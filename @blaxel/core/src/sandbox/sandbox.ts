@@ -1,7 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { createSandbox, deleteSandbox, getSandbox, listSandboxes, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
-import { settings } from "../common/settings.js";
 import { SandboxFileSystem } from "./filesystem/index.js";
 import { SandboxNetwork } from "./network/index.js";
 import { SandboxPreviews } from "./preview.js";
@@ -47,9 +46,8 @@ export class SandboxInstance {
   }
 
   static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = true }: { safe?: boolean } = {}) {
-    const env = settings.env
     const defaultName = `sandbox-${uuidv4().replace(/-/g, '').substring(0, 8)}`
-    const defaultImage = `blaxel/${env}-base:latest`
+    const defaultImage = `blaxel/base:latest`
     const defaultMemory = 4096
 
     // Handle SandboxCreateConfiguration or simple dict with name/image/memory/ports/envs/volumes keys
@@ -177,7 +175,17 @@ export class SandboxInstance {
         if (!name) {
           throw new Error("Sandbox name is required");
         }
+
+        // Get the existing sandbox to check its status
         const sandboxInstance = await SandboxInstance.get(name);
+
+          // If the sandbox is TERMINATED, treat it as not existing
+          if (sandboxInstance.status === "TERMINATED") {
+            // Create a new sandbox - backend will handle cleanup of the terminated one
+            return await SandboxInstance.create(sandbox);
+          }
+
+        // Otherwise return the existing running sandbox
         return sandboxInstance;
       }
       throw e;

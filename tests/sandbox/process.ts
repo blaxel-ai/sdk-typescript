@@ -237,7 +237,7 @@ async function main() {
     // Create or get sandbox using the utils function with proper parameters
     const sandbox = await createOrGetSandbox({
       sandboxName: SANDBOX_NAME,
-      image: "blaxel/prod-base:latest"
+      image: "blaxel/base:latest"
     });
     console.log(`✅ Sandbox ready: ${sandbox.metadata?.name}`);
 

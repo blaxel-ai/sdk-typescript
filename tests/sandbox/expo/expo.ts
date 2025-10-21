@@ -59,7 +59,7 @@ async function configureExpoProxyUrl(sandbox: SandboxInstance, previewUrl: strin
 async function main() {
   try {
     // Test with controlplane
-    const sandbox = await createOrGetSandbox({sandboxName, image: 'blaxel/prod-expo:latest'})
+    const sandbox = await createOrGetSandbox({sandboxName, image: 'blaxel/expo:latest'})
 
     await sandbox.fs.ls("/")
 
