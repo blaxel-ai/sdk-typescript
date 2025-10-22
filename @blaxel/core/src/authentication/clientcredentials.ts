@@ -56,10 +56,13 @@ export class ClientCredentials extends Credentials {
       return await this.process();
     } catch (error) {
       if (retry > 0) {
+        console.error(`Authentication failed, retrying... (${4 - retry}/3)`, error);
         await this.sleep(1000);
         return this.processWithRetry(retry - 1);
       }
-      throw error;
+      this.currentPromise = null;
+      const originalMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Authentication failed after 4 attempts: ${originalMessage}`, { cause: error });
     }
   }
 
