@@ -216,6 +216,62 @@ export type Country = {
 };
 
 /**
+ * Request to create a job execution
+ */
+export type CreateJobExecutionRequest = {
+    /**
+     * Execution ID (optional, will be generated if not provided)
+     */
+    executionId?: string;
+    /**
+     * Unique message ID
+     */
+    id?: string;
+    /**
+     * Job ID
+     */
+    jobId?: string;
+    /**
+     * Array of task parameters for parallel execution
+     */
+    tasks?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Workspace ID
+     */
+    workspaceId?: string;
+};
+
+/**
+ * Response for creating a job execution
+ */
+export type CreateJobExecutionResponse = {
+    /**
+     * Execution ID
+     */
+    executionId?: string;
+    /**
+     * Unique message ID
+     */
+    id?: string;
+    /**
+     * Job ID
+     */
+    jobId?: string;
+    /**
+     * Array of task parameters for parallel execution
+     */
+    tasks?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Workspace ID
+     */
+    workspaceId?: string;
+};
+
+/**
  * Custom domain for preview deployments
  * The custom domain represents a base domain (e.g., example.com) that will be used
  * to serve preview deployments. Each preview will be accessible at a subdomain:
@@ -676,6 +732,20 @@ export type Job = {
 };
 
 /**
+ * Job execution
+ */
+export type JobExecution = {
+    metadata?: JobExecutionMetadata;
+    spec?: JobExecutionSpec;
+    stats?: JobExecutionStats;
+    status?: JobExecutionStatus;
+    /**
+     * List of execution tasks
+     */
+    tasks?: Array<JobExecutionTask>;
+};
+
+/**
  * Configuration for a job execution
  */
 export type JobExecutionConfig = {
@@ -692,6 +762,197 @@ export type JobExecutionConfig = {
      */
     timeout?: number;
 };
+
+/**
+ * Job execution metadata
+ */
+export type JobExecutionMetadata = {
+    /**
+     * Cluster ID
+     */
+    cluster?: string;
+    /**
+     * Completion timestamp
+     */
+    completedAt?: string;
+    /**
+     * Creation timestamp
+     */
+    createdAt?: string;
+    /**
+     * Deletion timestamp
+     */
+    deletedAt?: string;
+    /**
+     * Expiration timestamp
+     */
+    expiredAt?: string;
+    /**
+     * Execution ID
+     */
+    id?: string;
+    /**
+     * Job name
+     */
+    job?: string;
+    /**
+     * Start timestamp
+     */
+    startedAt?: string;
+    /**
+     * Last update timestamp
+     */
+    updatedAt?: string;
+    /**
+     * Workspace ID
+     */
+    workspace?: string;
+};
+
+/**
+ * Job execution specification
+ */
+export type JobExecutionSpec = {
+    /**
+     * Number of parallel tasks
+     */
+    parallelism?: number;
+    /**
+     * List of execution tasks
+     */
+    tasks?: Array<JobExecutionTask>;
+    /**
+     * Job timeout in seconds (captured at execution creation time)
+     */
+    timeout?: number;
+};
+
+/**
+ * Job execution statistics
+ */
+export type JobExecutionStats = {
+    /**
+     * Number of cancelled tasks
+     */
+    cancelled?: number;
+    /**
+     * Number of failed tasks
+     */
+    failure?: number;
+    /**
+     * Number of retried tasks
+     */
+    retried?: number;
+    /**
+     * Number of running tasks
+     */
+    running?: number;
+    /**
+     * Number of successful tasks
+     */
+    success?: number;
+    /**
+     * Total number of tasks
+     */
+    total?: number;
+};
+
+/**
+ * Job execution status
+ */
+export type JobExecutionStatus = string;
+
+/**
+ * Job execution task
+ */
+export type JobExecutionTask = {
+    /**
+     * Task conditions
+     */
+    conditions?: Array<JobExecutionTaskCondition>;
+    metadata?: JobExecutionTaskMetadata;
+    spec?: JobExecutionTaskSpec;
+    status?: JobExecutionTaskStatus;
+};
+
+/**
+ * Job execution task condition
+ */
+export type JobExecutionTaskCondition = {
+    /**
+     * Execution reason
+     */
+    executionReason?: string;
+    /**
+     * Condition message
+     */
+    message?: string;
+    /**
+     * Condition reason
+     */
+    reason?: string;
+    /**
+     * Condition severity
+     */
+    severity?: string;
+    /**
+     * Condition state
+     */
+    state?: string;
+    /**
+     * Condition type
+     */
+    type?: string;
+};
+
+/**
+ * Job execution task metadata
+ */
+export type JobExecutionTaskMetadata = {
+    /**
+     * Completion timestamp
+     */
+    completedAt?: string;
+    /**
+     * Creation timestamp
+     */
+    createdAt?: string;
+    /**
+     * Task name
+     */
+    name?: string;
+    /**
+     * Scheduled timestamp
+     */
+    scheduledAt?: string;
+    /**
+     * Start timestamp
+     */
+    startedAt?: string;
+    /**
+     * Last update timestamp
+     */
+    updatedAt?: string;
+};
+
+/**
+ * Job execution task specification
+ */
+export type JobExecutionTaskSpec = {
+    /**
+     * Maximum number of retries
+     */
+    maxRetries?: number;
+    /**
+     * Task timeout duration
+     */
+    timeout?: string;
+};
+
+/**
+ * Job execution task status
+ */
+export type JobExecutionTaskStatus = string;
 
 /**
  * Metrics for job
@@ -743,6 +1004,10 @@ export type JobMetrics = {
  * Job specification
  */
 export type JobSpec = CoreSpec & {
+    /**
+     * Region where the job should be created (e.g. us-was-1, eu-lon-1)
+     */
+    region?: string;
     triggers?: Triggers;
 };
 
@@ -956,6 +1221,10 @@ export type McpDefinition = TimeFields & {
         [key: string]: unknown;
     };
     /**
+     * If the artifact is hidden
+     */
+    hidden?: boolean;
+    /**
      * Hidden secrets of the artifact
      */
     hiddenSecrets?: Array<string>;
@@ -1155,7 +1424,9 @@ export type ModelPrivateCluster = {
 /**
  * Model specification
  */
-export type ModelSpec = CoreSpec & unknown;
+export type ModelSpec = CoreSpec & {
+    [key: string]: unknown;
+};
 
 /**
  * OAuth of the artifact
@@ -2114,10 +2385,6 @@ export type Runtime = {
     organization?: string;
     ports?: Ports;
     /**
-     * Enable snapshot feature on your deployment, default to true
-     */
-    snapshotEnabled?: boolean;
-    /**
      * The readiness probe. Should be a Kubernetes Probe type
      */
     startupProbe?: {
@@ -2183,6 +2450,10 @@ export type SandboxDefinition = {
      */
     enterprise?: boolean;
     /**
+     * If the definition is hidden
+     */
+    hidden?: boolean;
+    /**
      * Icon of the definition
      */
     icon?: string;
@@ -2203,6 +2474,10 @@ export type SandboxDefinition = {
      */
     name?: string;
     ports?: Ports;
+    /**
+     * Tags of the definition
+     */
+    tags?: string;
     /**
      * URL of the definition
      */
@@ -3000,7 +3275,12 @@ export type GetAgentData = {
          */
         agentName: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Show secret values (admin only)
+         */
+        show_secrets?: boolean;
+    };
     url: '/agents/{agentName}';
 };
 
@@ -3248,7 +3528,12 @@ export type GetFunctionData = {
          */
         functionName: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Show secret values (admin only)
+         */
+        show_secrets?: boolean;
+    };
     url: '/functions/{functionName}';
 };
 
@@ -3541,7 +3826,12 @@ export type GetJobData = {
          */
         jobId: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Show secret values (admin only)
+         */
+        show_secrets?: boolean;
+    };
     url: '/jobs/{jobId}';
 };
 
@@ -3574,6 +3864,159 @@ export type UpdateJobResponses = {
 };
 
 export type UpdateJobResponse = UpdateJobResponses[keyof UpdateJobResponses];
+
+export type ListJobExecutionsData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the job
+         */
+        jobId: string;
+    };
+    query?: {
+        /**
+         * Number of items per page
+         */
+        limit?: number;
+        /**
+         * Page offset
+         */
+        offset?: number;
+    };
+    url: '/jobs/{jobId}/executions';
+};
+
+export type ListJobExecutionsErrors = {
+    /**
+     * bad request
+     */
+    400: unknown;
+    /**
+     * internal server error
+     */
+    500: unknown;
+};
+
+export type ListJobExecutionsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<JobExecution>;
+};
+
+export type ListJobExecutionsResponse = ListJobExecutionsResponses[keyof ListJobExecutionsResponses];
+
+export type CreateJobExecutionData = {
+    body: CreateJobExecutionRequest;
+    path: {
+        /**
+         * Name of the job
+         */
+        jobId: string;
+    };
+    query?: never;
+    url: '/jobs/{jobId}/executions';
+};
+
+export type CreateJobExecutionErrors = {
+    /**
+     * bad request
+     */
+    400: unknown;
+    /**
+     * internal server error
+     */
+    500: unknown;
+};
+
+export type CreateJobExecutionResponses = {
+    /**
+     * successful operation
+     */
+    200: JobExecution;
+};
+
+export type CreateJobExecutionResponse2 = CreateJobExecutionResponses[keyof CreateJobExecutionResponses];
+
+export type DeleteJobExecutionData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the job
+         */
+        jobId: string;
+        /**
+         * Id of the execution
+         */
+        executionId: string;
+    };
+    query?: never;
+    url: '/jobs/{jobId}/executions/{executionId}';
+};
+
+export type DeleteJobExecutionErrors = {
+    /**
+     * bad request
+     */
+    400: unknown;
+    /**
+     * execution not found
+     */
+    404: unknown;
+    /**
+     * internal server error
+     */
+    500: unknown;
+};
+
+export type DeleteJobExecutionResponses = {
+    /**
+     * successful operation
+     */
+    200: JobExecution;
+};
+
+export type DeleteJobExecutionResponse = DeleteJobExecutionResponses[keyof DeleteJobExecutionResponses];
+
+export type GetJobExecutionData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the job
+         */
+        jobId: string;
+        /**
+         * Id of the execution
+         */
+        executionId: string;
+    };
+    query?: never;
+    url: '/jobs/{jobId}/executions/{executionId}';
+};
+
+export type GetJobExecutionErrors = {
+    /**
+     * bad request
+     */
+    400: unknown;
+    /**
+     * execution not found
+     */
+    404: unknown;
+    /**
+     * internal server error
+     */
+    500: unknown;
+};
+
+export type GetJobExecutionResponses = {
+    /**
+     * successful operation
+     */
+    200: JobExecution;
+};
+
+export type GetJobExecutionResponse = GetJobExecutionResponses[keyof GetJobExecutionResponses];
 
 export type ListJobRevisionsData = {
     body?: never;
@@ -4173,7 +4616,12 @@ export type GetSandboxData = {
          */
         sandboxName: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Show secret values (admin only)
+         */
+        show_secrets?: boolean;
+    };
     url: '/sandboxes/{sandboxName}';
 };
 
