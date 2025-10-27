@@ -10,8 +10,8 @@ async function testJobExecutions() {
   console.log("\n1. Creating new execution...");
   const executionId = await job.createExecution({
     tasks: [
-      { task: "Process item 1", data: { value: 1 } },
-      { task: "Process item 2", data: { value: 2 } },
+      { duration: 60 },
+      { duration: 60 },
     ],
   });
   console.log(`✓ Created execution: ${executionId}`);
@@ -24,7 +24,7 @@ async function testJobExecutions() {
 
   // Get just the status
   console.log("\n3. Getting execution status...");
-  const status = await job.getExecutionStatus(executionId);
+  let status = await job.getExecutionStatus(executionId);
   console.log(`✓ Status: ${status}`);
 
   // List all executions
@@ -44,10 +44,10 @@ async function testJobExecutions() {
     console.log(`⚠ Execution still running or timed out: ${(error as Error).message}`);
   }
 
-  // Clean up - cancel the execution
-  console.log("\n6. Cancelling execution...");
-  await job.cancelExecution(executionId);
-  console.log(`✓ Execution cancelled`);
+  // Get just the status
+  console.log("\n6. Getting execution status...");
+  status = await job.getExecutionStatus(executionId);
+  console.log(`✓ Status: ${status}`);
 
   console.log("\n✅ All tests completed!");
 }

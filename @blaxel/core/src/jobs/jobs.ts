@@ -215,11 +215,11 @@ class BlJob {
       const execution = await this.getExecution(executionId);
       const status = execution.status;
 
-      // Terminal states
+      // Terminal states (Kubernetes-style: succeeded, failed, cancelled)
       if (
-        status === "COMPLETED" ||
-        status === "FAILED" ||
-        status === "CANCELLED"
+        status === "succeeded" ||
+        status === "failed" ||
+        status === "cancelled"
       ) {
         logger.debug(
           `Execution ${executionId} finished with status: ${status}`,
