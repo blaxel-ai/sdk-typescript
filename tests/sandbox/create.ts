@@ -11,7 +11,7 @@ async function main() {
 
     console.log("\nTest 2: Create sandbox with spec containing runtime image...");
     sandbox = await SandboxInstance.create(
-      { spec: { runtime: { image: "blaxel/base:latest" } } }
+      { spec: { runtime: { image: "blaxel/base-image:latest" } } }
     );
     console.log(`✅ Created sandbox with spec: ${sandbox.metadata?.name}`);
     console.log(await sandbox.fs.ls('/blaxel'));
@@ -28,7 +28,7 @@ async function main() {
     console.log("\nTest 4: Create sandbox with SandboxCreateConfiguration...");
     const config: SandboxCreateConfiguration = {
       name: "sandbox-config",
-      image: "blaxel/base:latest",
+      image: "blaxel/base-image:latest",
       memory: 2048
     };
     sandbox = await SandboxInstance.create(config);
@@ -54,7 +54,7 @@ async function main() {
     console.log("\nTest 7: Create sandbox with ports...");
     const portsConfig: SandboxCreateConfiguration = {
       name: "sandbox-with-ports",
-      image: "blaxel/base:latest",
+      image: "blaxel/base-image:latest",
       memory: 2048,
       ports: [
         { name: "web", target: 3000 }, // Will default to HTTP
@@ -80,7 +80,7 @@ async function main() {
     console.log("\nTest 8: Create sandbox with environment variables...");
     const envsConfig: SandboxCreateConfiguration = {
       name: "sandbox-with-envs",
-      image: "blaxel/base:latest",
+      image: "blaxel/base-image:latest",
       memory: 2048,
       envs: [
         { name: "NODE_ENV", value: "development" },
@@ -109,7 +109,7 @@ async function main() {
     console.log("\nTest 9: Create sandbox with envs using dict syntax...");
     sandbox = await SandboxInstance.create({
       name: "sandbox-with-envs-dict",
-      image: "blaxel/base:latest",
+      image: "blaxel/base-image:latest",
       memory: 2048,
       envs: [
         { name: "ENVIRONMENT", value: "test" },
