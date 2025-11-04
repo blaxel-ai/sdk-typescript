@@ -368,7 +368,12 @@ export type GetFilesystemByPathData = {
          */
         path: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Force download mode for files
+         */
+        download?: boolean;
+    };
     url: '/filesystem/{path}';
 };
 
@@ -393,7 +398,7 @@ export type GetFilesystemByPathResponses = {
     /**
      * Directory listing
      */
-    200: Directory | FileWithContent;
+    200: Directory | FileWithContent | (Blob | File);
 };
 
 export type GetFilesystemByPathResponse = GetFilesystemByPathResponses[keyof GetFilesystemByPathResponses];

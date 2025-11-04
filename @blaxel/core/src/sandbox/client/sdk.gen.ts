@@ -208,7 +208,7 @@ export const deleteFilesystemByPath = <ThrowOnError extends boolean = false>(opt
 
 /**
  * Get file or directory information
- * Get content of a file or listing of a directory
+ * Get content of a file or listing of a directory. Use Accept header to control response format for files.
  */
 export const getFilesystemByPath = <ThrowOnError extends boolean = false>(options: Options<GetFilesystemByPathData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetFilesystemByPathResponse, GetFilesystemByPathError, ThrowOnError>({

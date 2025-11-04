@@ -4,6 +4,7 @@ import { SandboxAction } from "../action.js";
 import { deleteFilesystemByPath, Directory, getFilesystemByPath, getWatchFilesystemByPath, putFilesystemByPath, PutFilesystemByPathError, SuccessResponse } from "../client/index.js";
 import { SandboxProcess } from "../process/index.js";
 import { CopyResponse, SandboxFilesystemFile, WatchEvent } from "./types.js";
+import { readFile, writeFile } from "fs/promises";
 
 
 
@@ -37,7 +38,7 @@ export class SandboxFileSystem extends SandboxAction {
     return data as SuccessResponse;
   }
 
-  async writeBinary(path: string, content: Buffer | Blob | File | Uint8Array) {
+  async writeBinary(path: string, content: Buffer | Blob | File | Uint8Array | string) {
     path = this.formatPath(path);
     const formData = new FormData();
 
@@ -51,6 +52,9 @@ export class SandboxFileSystem extends SandboxAction {
     } else if (content instanceof Uint8Array) {
       // Convert Uint8Array to Blob
       fileBlob = new Blob([content]);
+    } else if (typeof content === 'string') {
+      const buffer = await readFile(content);
+      fileBlob = new Blob([buffer]);
     } else {
       throw new Error("Unsupported content type");
     }
@@ -108,7 +112,6 @@ export class SandboxFileSystem extends SandboxAction {
 
   async read(path: string): Promise<string> {
     path = this.formatPath(path);
-
     const { response, data, error } = await getFilesystemByPath({
       path: { path },
       baseUrl: this.url,
@@ -119,6 +122,30 @@ export class SandboxFileSystem extends SandboxAction {
       return data.content;
     }
     throw new Error("Unsupported file type");
+  }
+
+  async readBinary(path: string): Promise<Blob> {
+    path = this.formatPath(path);
+    const { response, data, error } = await getFilesystemByPath({
+      path: { path },
+      baseUrl: this.url,
+      client: this.client,
+      headers: {
+        'Accept': 'application/octet-stream',
+      },
+    });
+    this.handleResponseError(response, data, error);
+    if (typeof data === 'string') {
+      return new Blob([data]);
+    }
+    return data as Blob;
+  }
+
+  async download(src: string, destinationPath: string, { mode = 0o644 }: { mode?: number } = {}): Promise<void> {
+    const blob = await this.readBinary(src);
+    const arrayBuffer = await blob.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    await writeFile(destinationPath, buffer, { mode: mode ?? 0o644 });
   }
 
   async rm(path: string, recursive: boolean = false): Promise<SuccessResponse> {
@@ -219,7 +246,7 @@ export class SandboxFileSystem extends SandboxAction {
                 }
 
                 const content = await this.read(filePath);
-                await callback({ ...fileEvent, content });
+                await callback({ ...fileEvent, content: content });
               } catch {
                 await callback({ ...fileEvent, content: undefined });
               }
