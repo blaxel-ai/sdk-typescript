@@ -55,6 +55,39 @@ export type FileWithContent = {
     size: number;
 };
 
+export type MultipartCompleteRequest = {
+    parts?: Array<MultipartPartInfo>;
+};
+
+export type MultipartInitiateRequest = {
+    permissions?: string;
+};
+
+export type MultipartInitiateResponse = {
+    path?: string;
+    uploadId?: string;
+};
+
+export type MultipartListPartsResponse = {
+    parts?: Array<FilesystemUploadedPart>;
+    uploadId?: string;
+};
+
+export type MultipartListUploadsResponse = {
+    uploads?: Array<FilesystemMultipartUpload>;
+};
+
+export type MultipartPartInfo = {
+    etag?: string;
+    partNumber?: number;
+};
+
+export type MultipartUploadPartResponse = {
+    etag?: string;
+    partNumber?: number;
+    size?: number;
+};
+
 export type PortMonitorRequest = {
     /**
      * URL to call when a new port is detected
@@ -123,6 +156,23 @@ export type WelcomeResponse = {
     description?: string;
     documentation?: string;
     message?: string;
+};
+
+export type FilesystemMultipartUpload = {
+    initiatedAt?: string;
+    parts?: {
+        [key: string]: FilesystemUploadedPart;
+    };
+    path?: string;
+    permissions?: number;
+    uploadId?: string;
+};
+
+export type FilesystemUploadedPart = {
+    etag?: string;
+    partNumber?: number;
+    size?: number;
+    uploadedAt?: string;
 };
 
 export type DeleteData = {
@@ -316,6 +366,233 @@ export type GetCodegenRerankingByPathResponses = {
 };
 
 export type GetCodegenRerankingByPathResponse = GetCodegenRerankingByPathResponses[keyof GetCodegenRerankingByPathResponses];
+
+export type GetFilesystemMultipartData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/filesystem-multipart';
+};
+
+export type GetFilesystemMultipartErrors = {
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type GetFilesystemMultipartError = GetFilesystemMultipartErrors[keyof GetFilesystemMultipartErrors];
+
+export type GetFilesystemMultipartResponses = {
+    /**
+     * List of active uploads
+     */
+    200: MultipartListUploadsResponse;
+};
+
+export type GetFilesystemMultipartResponse = GetFilesystemMultipartResponses[keyof GetFilesystemMultipartResponses];
+
+export type DeleteFilesystemMultipartByUploadIdAbortData = {
+    body?: never;
+    path: {
+        /**
+         * Upload ID
+         */
+        uploadId: string;
+    };
+    query?: never;
+    url: '/filesystem-multipart/{uploadId}/abort';
+};
+
+export type DeleteFilesystemMultipartByUploadIdAbortErrors = {
+    /**
+     * Bad request
+     */
+    400: ErrorResponse;
+    /**
+     * Upload not found
+     */
+    404: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type DeleteFilesystemMultipartByUploadIdAbortError = DeleteFilesystemMultipartByUploadIdAbortErrors[keyof DeleteFilesystemMultipartByUploadIdAbortErrors];
+
+export type DeleteFilesystemMultipartByUploadIdAbortResponses = {
+    /**
+     * Upload aborted
+     */
+    200: SuccessResponse;
+};
+
+export type DeleteFilesystemMultipartByUploadIdAbortResponse = DeleteFilesystemMultipartByUploadIdAbortResponses[keyof DeleteFilesystemMultipartByUploadIdAbortResponses];
+
+export type PostFilesystemMultipartByUploadIdCompleteData = {
+    /**
+     * List of parts
+     */
+    body: MultipartCompleteRequest;
+    path: {
+        /**
+         * Upload ID
+         */
+        uploadId: string;
+    };
+    query?: never;
+    url: '/filesystem-multipart/{uploadId}/complete';
+};
+
+export type PostFilesystemMultipartByUploadIdCompleteErrors = {
+    /**
+     * Bad request
+     */
+    400: ErrorResponse;
+    /**
+     * Upload not found
+     */
+    404: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type PostFilesystemMultipartByUploadIdCompleteError = PostFilesystemMultipartByUploadIdCompleteErrors[keyof PostFilesystemMultipartByUploadIdCompleteErrors];
+
+export type PostFilesystemMultipartByUploadIdCompleteResponses = {
+    /**
+     * Upload completed
+     */
+    200: SuccessResponse;
+};
+
+export type PostFilesystemMultipartByUploadIdCompleteResponse = PostFilesystemMultipartByUploadIdCompleteResponses[keyof PostFilesystemMultipartByUploadIdCompleteResponses];
+
+export type PutFilesystemMultipartByUploadIdPartData = {
+    body: {
+        /**
+         * Part data
+         */
+        file: Blob | File;
+    };
+    path: {
+        /**
+         * Upload ID
+         */
+        uploadId: string;
+    };
+    query: {
+        /**
+         * Part number (1-10000)
+         */
+        partNumber: number;
+    };
+    url: '/filesystem-multipart/{uploadId}/part';
+};
+
+export type PutFilesystemMultipartByUploadIdPartErrors = {
+    /**
+     * Bad request
+     */
+    400: ErrorResponse;
+    /**
+     * Upload not found
+     */
+    404: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type PutFilesystemMultipartByUploadIdPartError = PutFilesystemMultipartByUploadIdPartErrors[keyof PutFilesystemMultipartByUploadIdPartErrors];
+
+export type PutFilesystemMultipartByUploadIdPartResponses = {
+    /**
+     * Part uploaded
+     */
+    200: MultipartUploadPartResponse;
+};
+
+export type PutFilesystemMultipartByUploadIdPartResponse = PutFilesystemMultipartByUploadIdPartResponses[keyof PutFilesystemMultipartByUploadIdPartResponses];
+
+export type GetFilesystemMultipartByUploadIdPartsData = {
+    body?: never;
+    path: {
+        /**
+         * Upload ID
+         */
+        uploadId: string;
+    };
+    query?: never;
+    url: '/filesystem-multipart/{uploadId}/parts';
+};
+
+export type GetFilesystemMultipartByUploadIdPartsErrors = {
+    /**
+     * Bad request
+     */
+    400: ErrorResponse;
+    /**
+     * Upload not found
+     */
+    404: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type GetFilesystemMultipartByUploadIdPartsError = GetFilesystemMultipartByUploadIdPartsErrors[keyof GetFilesystemMultipartByUploadIdPartsErrors];
+
+export type GetFilesystemMultipartByUploadIdPartsResponses = {
+    /**
+     * List of parts
+     */
+    200: MultipartListPartsResponse;
+};
+
+export type GetFilesystemMultipartByUploadIdPartsResponse = GetFilesystemMultipartByUploadIdPartsResponses[keyof GetFilesystemMultipartByUploadIdPartsResponses];
+
+export type PostFilesystemMultipartInitiateByPathData = {
+    /**
+     * Optional permissions
+     */
+    body?: MultipartInitiateRequest;
+    path: {
+        /**
+         * File path
+         */
+        path: string;
+    };
+    query?: never;
+    url: '/filesystem-multipart/initiate/{path}';
+};
+
+export type PostFilesystemMultipartInitiateByPathErrors = {
+    /**
+     * Bad request
+     */
+    400: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type PostFilesystemMultipartInitiateByPathError = PostFilesystemMultipartInitiateByPathErrors[keyof PostFilesystemMultipartInitiateByPathErrors];
+
+export type PostFilesystemMultipartInitiateByPathResponses = {
+    /**
+     * Upload session created
+     */
+    200: MultipartInitiateResponse;
+};
+
+export type PostFilesystemMultipartInitiateByPathResponse = PostFilesystemMultipartInitiateByPathResponses[keyof PostFilesystemMultipartInitiateByPathResponses];
 
 export type DeleteFilesystemByPathData = {
     body?: never;

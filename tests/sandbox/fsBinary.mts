@@ -1,6 +1,12 @@
 import { SandboxInstance } from "@blaxel/core";
 import { createOrGetSandbox, info, sep } from "../utils";
 import { createHash } from "crypto";
+import { readFile, unlink } from "fs/promises";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const sandboxName = "sandbox-test-fsbinary";
 
@@ -80,7 +86,7 @@ async function testBinaryFileUpload(sandbox: SandboxInstance) {
 // Test 2: Streaming Large File (5MB)
 async function testStreamingLargeFile(sandbox: SandboxInstance) {
   console.log(sep);
-  info("Test 2: Streaming Large File (5MB)");
+  info("Test 5: Streaming Large File (5MB)");
 
   const timestamp = Date.now();
   const sourceFile = `/tmp/streaming-test-source-${timestamp}.bin`;
@@ -161,7 +167,7 @@ async function testStreamingLargeFile(sandbox: SandboxInstance) {
     }
 
     info("✅ Copied file verified successfully!");
-    info("✅ Test 2 passed: Streaming Large File");
+    info("✅ Test 5 passed: Streaming Large File");
 
   } finally {
     // Clean up
@@ -185,7 +191,7 @@ async function testStreamingLargeFile(sandbox: SandboxInstance) {
 // Test 3: Various binary content types
 async function testVariousBinaryTypes(sandbox: SandboxInstance) {
   console.log(sep);
-  info("Test 3: Various Binary Content Types");
+  info("Test 2: Various Binary Content Types");
 
   const timestamp = Date.now();
 
@@ -225,13 +231,13 @@ async function testVariousBinaryTypes(sandbox: SandboxInstance) {
     info(`✅ ${testCase.name} verified`);
   }
 
-  info("✅ Test 3 passed: Various Binary Content Types");
+  info("✅ Test 2 passed: Various Binary Content Types");
 }
 
 // Test 4: Binary file from local filesystem
 async function testBinaryFromLocalFile(sandbox: SandboxInstance) {
   console.log(sep);
-  info("Test 4: Upload Binary File from Local Filesystem");
+  info("Test 3: Upload Binary File from Local Filesystem");
 
   const timestamp = Date.now();
   const localFilePath = `/tmp/local-test-${timestamp}.bin`;
@@ -273,7 +279,79 @@ async function testBinaryFromLocalFile(sandbox: SandboxInstance) {
     }
   }
 
-  info("✅ Test 4 passed: Binary File from Local Filesystem");
+  info("✅ Test 3 passed: Binary File from Local Filesystem");
+}
+
+// Test 5: Image Upload/Download with Integrity Verification
+async function testImageUploadDownload(sandbox: SandboxInstance) {
+  console.log(sep);
+  info("Test 4: Image Upload/Download with Integrity Verification");
+
+  const imagePath = join(__dirname, "assets", "sample-image.png");
+  const remoteImagePath = "/tmp/uploaded-image.png";
+  const downloadPath = join(__dirname, "assets", "downloaded-image.png");
+
+  try {
+    // Read the original image
+    const imageBuffer = await readFile(imagePath);
+    const imageSize = imageBuffer.length;
+    info(`Original image size: ${(imageSize / 1024).toFixed(2)} KB`);
+
+    // Calculate original hash
+    const originalHash = calculateHash(imageBuffer);
+    info(`Original hash: ${originalHash.substring(0, 16)}...`);
+
+    // Upload the image to sandbox
+    info(`Uploading image to ${remoteImagePath}...`);
+    await sandbox.fs.writeBinary(remoteImagePath, imageBuffer);
+    info("✓ Image uploaded to sandbox");
+
+    // Download the image back using sandbox.fs.download
+    info(`Downloading image from sandbox to ${downloadPath}...`);
+    await sandbox.fs.download(remoteImagePath, downloadPath);
+    info("✓ Image downloaded from sandbox");
+
+    // Read the downloaded image and compare
+    const downloadedBuffer = await readFile(downloadPath);
+    const downloadedSize = downloadedBuffer.length;
+    info(`Downloaded image size: ${(downloadedSize / 1024).toFixed(2)} KB`);
+
+    // Verify sizes match
+    if (downloadedSize !== imageSize) {
+      throw new Error(`Size mismatch! Original: ${imageSize}, Downloaded: ${downloadedSize}`);
+    }
+    info("✓ Image sizes match");
+
+    // Calculate downloaded hash
+    const downloadedHash = calculateHash(downloadedBuffer);
+    info(`Downloaded hash: ${downloadedHash.substring(0, 16)}...`);
+
+    // Verify byte-by-byte content
+    if (Buffer.compare(imageBuffer, downloadedBuffer) !== 0) {
+      throw new Error("Binary content mismatch!");
+    }
+    info("✓ Image content verified (byte-perfect match)");
+
+    // Verify hash match
+    if (originalHash !== downloadedHash) {
+      throw new Error(`Hash mismatch! Original: ${originalHash}, Downloaded: ${downloadedHash}`);
+    }
+    info("✓ Hash verification passed");
+
+    // Clean up remote file
+    await sandbox.fs.rm(remoteImagePath);
+
+  } finally {
+    // Clean up downloaded image
+    try {
+      await unlink(downloadPath);
+      info("✓ Downloaded image cleaned up");
+    } catch (e) {
+      // File might not exist if test failed before download
+    }
+  }
+
+  info("✅ Test 4 passed: Image Upload/Download with Integrity Verification");
 }
 
 // Main test runner
@@ -300,6 +378,7 @@ async function runTests() {
     await testBinaryFileUpload(sandbox);
     await testVariousBinaryTypes(sandbox);
     await testBinaryFromLocalFile(sandbox);
+    await testImageUploadDownload(sandbox);
     await testStreamingLargeFile(sandbox); // Run this last as it's the most intensive
 
     console.log(sep);
