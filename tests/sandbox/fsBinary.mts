@@ -139,7 +139,7 @@ async function testStreamingLargeFile(sandbox: SandboxInstance) {
     const sourceBuffer = Buffer.from(await sourceBlob.arrayBuffer());
 
     // Upload to target while processing
-    await sandbox.fs.writeBinary(targetFile, sourceBuffer);
+    await sandbox.fs.writeBinary(targetFile, sourceBlob);
 
     const copyDuration = Date.now() - startCopy;
     const copyMBps = (fileSize / (1024 * 1024)) / (copyDuration / 1000);
@@ -337,6 +337,17 @@ async function testImageUploadDownload(sandbox: SandboxInstance) {
       throw new Error(`Hash mismatch! Original: ${originalHash}, Downloaded: ${downloadedHash}`);
     }
     info("✓ Hash verification passed");
+
+    info("Verifying read/write of image...");
+    const binaryData = await sandbox.fs.readBinary(remoteImagePath);
+    const binaryDataBuffer = Buffer.from(await binaryData.arrayBuffer());
+    await sandbox.fs.writeBinary("/tmp/logo2.png", binaryData);
+    const binaryData2 = await sandbox.fs.readBinary("/tmp/logo2.png");
+    const binaryData2Buffer = Buffer.from(await binaryData2.arrayBuffer());
+    if (Buffer.compare(binaryDataBuffer, binaryData2Buffer) !== 0) {
+      throw new Error("Binary data mismatch!");
+    }
+    info("✓ Read/write of image verified");
 
     // Clean up remote file
     await sandbox.fs.rm(remoteImagePath);
