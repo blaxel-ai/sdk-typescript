@@ -1,10 +1,10 @@
 import { Sandbox } from "../../client/types.gen.js";
 import { settings } from "../../common/settings.js";
+import { fs } from "../../common/node.js";
 import { SandboxAction } from "../action.js";
 import { deleteFilesystemByPath, Directory, getFilesystemByPath, getWatchFilesystemByPath, putFilesystemByPath, PutFilesystemByPathError, SuccessResponse, postFilesystemMultipartInitiateByPath, putFilesystemMultipartByUploadIdPart, postFilesystemMultipartByUploadIdComplete, deleteFilesystemMultipartByUploadIdAbort, MultipartInitiateResponse, MultipartUploadPartResponse, MultipartPartInfo } from "../client/index.js";
 import { SandboxProcess } from "../process/index.js";
 import { CopyResponse, SandboxFilesystemFile, WatchEvent } from "./types.js";
-import { readFile, writeFile } from "fs/promises";
 
 // Multipart upload constants
 const MULTIPART_THRESHOLD = 5 * 1024 * 1024; // 5MB
@@ -78,7 +78,11 @@ export class SandboxFileSystem extends SandboxAction {
       // Handle other TypedArray views
       fileBlob = new Blob([content]);
     } else if (typeof content === 'string') {
-      const buffer = await readFile(content);
+      // Read file from local filesystem (Node.js only)
+      if (!fs) {
+        throw new Error("File path upload is only supported in Node.js environments");
+      }
+      const buffer = fs.readFileSync(content);
       fileBlob = new Blob([buffer]);
     } else {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
@@ -175,10 +179,13 @@ export class SandboxFileSystem extends SandboxAction {
   }
 
   async download(src: string, destinationPath: string, { mode = 0o644 }: { mode?: number } = {}): Promise<void> {
+    if (!fs) {
+      throw new Error("File download to local filesystem is only supported in Node.js environments");
+    }
     const blob = await this.readBinary(src);
     const arrayBuffer = await blob.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    await writeFile(destinationPath, buffer, { mode: mode ?? 0o644 });
+    fs.writeFileSync(destinationPath, buffer, { mode: mode ?? 0o644 });
   }
 
   async rm(path: string, recursive: boolean = false): Promise<SuccessResponse> {
