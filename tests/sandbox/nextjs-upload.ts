@@ -29,7 +29,7 @@ async function main() {
     // Create zip file from nextjs-sandbox-test directory
     const currentDir = path.dirname(new URL(import.meta.url).pathname);
     const sourceDir = path.join(currentDir, 'nextjs-sandbox-test');
-    const zipPath = path.join(currentDir, 'archive.zip');
+    const zipPath = path.join(currentDir, 'assets/archive.zip');
     console.log(sep)
     console.log(`📁 Creating zip file from ${sourceDir} to ${zipPath}`)
     fs.rmSync(zipPath, { force: true })

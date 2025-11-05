@@ -9,7 +9,7 @@ import { authenticate, getModelMetadata, handleDynamicImportError, settings } fr
 export const blModel = async (
   model: string,
   options?: Record<string, unknown>
-) => {
+): Promise<ReturnType<ReturnType<typeof createOpenAI>>> => {
   const url = `${settings.runUrl}/${settings.workspace}/models/${model}`;
   const modelData = await getModelMetadata(model);
   if (!modelData) {

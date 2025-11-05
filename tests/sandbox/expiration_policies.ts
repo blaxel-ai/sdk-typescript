@@ -1,7 +1,7 @@
 import { SandboxInstance } from "@blaxel/core";
 
 // Determine base image based on environment
-const baseImage = process.env.BL_ENV === 'dev' ? "blaxel/vite:latest" : "blaxel/prod-base:latest";
+const baseImage = "blaxel/base-image:latest"
 console.log(`Using base image: ${baseImage} (BL_ENV=${process.env.BL_ENV || 'not set'})\n`);
 
 async function waitForTermination(sandboxName: string, maxMinutes: number = 10): Promise<boolean> {
