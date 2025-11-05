@@ -15,7 +15,7 @@ await sandbox.fs.write("/tmp/test.txt", "Hello world")
 console.log("✓ Text file written");
 
 // Test binary file write
-await sandbox.fs.writeBinary("/tmp/archive.zip", join(__dirname, "archive.zip"))
+await sandbox.fs.writeBinary("/tmp/archive.zip", join(__dirname, "assets/archive.zip"))
 console.log("✓ Binary file written");
 
 // Test ls
@@ -38,12 +38,12 @@ assert(textContentBinary instanceof Blob, "readBinary should return a Blob");
 console.log("✓ Binary file read correctly");
 
 // Test download
-await sandbox.fs.download("/tmp/archive.zip", join(__dirname, "archive.downloaded.zip"))
+await sandbox.fs.download("/tmp/archive.zip", join(__dirname, "assets/archive.downloaded.zip"))
 console.log("✓ Binary file downloaded");
 
 // Compare file sizes
-const originalPath = join(__dirname, "archive.zip");
-const downloadedPath = join(__dirname, "archive.downloaded.zip");
+const originalPath = join(__dirname, "assets/archive.zip");
+const downloadedPath = join(__dirname, "assets/archive.downloaded.zip");
 const originalStats = await stat(originalPath);
 const downloadedStats = await stat(downloadedPath);
 
