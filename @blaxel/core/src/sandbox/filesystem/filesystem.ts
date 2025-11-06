@@ -9,7 +9,7 @@ import { CopyResponse, SandboxFilesystemFile, WatchEvent } from "./types.js";
 // Multipart upload constants
 const MULTIPART_THRESHOLD = 5 * 1024 * 1024; // 5MB
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB per part
-const MAX_PARALLEL_UPLOADS = 3; // Number of parallel part uploads
+const MAX_PARALLEL_UPLOADS = 20; // Number of parallel part uploads
 
 export class SandboxFileSystem extends SandboxAction {
   constructor(sandbox: Sandbox, private process: SandboxProcess) {
@@ -324,19 +324,19 @@ export class SandboxFileSystem extends SandboxAction {
   // Multipart upload helper methods
   private async initiateMultipartUpload(path: string, permissions: string = "0644"): Promise<MultipartInitiateResponse> {
     path = this.formatPath(path);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
+
     const { data } = await postFilesystemMultipartInitiateByPath({
       path: { path },
       body: { permissions },
       baseUrl: this.url,
       client: this.client,
       throwOnError: true,
-    } as any);
-    return data as MultipartInitiateResponse;
+    });
+    return data;
   }
 
   private async uploadPart(uploadId: string, partNumber: number, fileBlob: Blob): Promise<MultipartUploadPartResponse> {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
+
     const { data } = await putFilesystemMultipartByUploadIdPart({
       path: { uploadId },
       query: { partNumber },
@@ -344,37 +344,36 @@ export class SandboxFileSystem extends SandboxAction {
       baseUrl: this.url,
       client: this.client,
       throwOnError: true,
-    } as any);
-    return data as MultipartUploadPartResponse;
+    });
+    return data;
   }
 
   private async completeMultipartUpload(uploadId: string, parts: Array<MultipartPartInfo>): Promise<SuccessResponse> {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
     const { data } = await postFilesystemMultipartByUploadIdComplete({
       path: { uploadId },
       body: { parts },
       baseUrl: this.url,
       client: this.client,
       throwOnError: true,
-    } as any);
-    return data as SuccessResponse;
+    });
+    return data;
   }
 
-  private async abortMultipartUpload(uploadId: string): Promise<void> {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-    await deleteFilesystemMultipartByUploadIdAbort({
+  private async abortMultipartUpload(uploadId: string): Promise<SuccessResponse> {
+    const { data } = await deleteFilesystemMultipartByUploadIdAbort({
       path: { uploadId },
       baseUrl: this.url,
       client: this.client,
       throwOnError: true,
-    } as any);
+    });
+    return data;
   }
 
   private async uploadWithMultipart(path: string, blob: Blob, permissions: string = "0644"): Promise<SuccessResponse> {
     // Initiate multipart upload
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
     const initResponse = await this.initiateMultipartUpload(path, permissions);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+
     const uploadId = initResponse.uploadId;
 
     if (!uploadId) {
@@ -396,28 +395,27 @@ export class SandboxFileSystem extends SandboxAction {
           const end = Math.min(start + CHUNK_SIZE, size);
           const chunk = blob.slice(start, end);
 
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
           batch.push(this.uploadPart(uploadId, partNumber, chunk));
         }
 
         // Wait for batch to complete
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
         const batchResults = await Promise.all(batch);
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument
-        parts.push(...batchResults.map((r: MultipartUploadPartResponse) => ({ partNumber: r.partNumber, etag: r.etag })));
+        parts.push(...batchResults);
       }
 
       // Sort parts by partNumber to ensure correct order
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+
       parts.sort((a, b) => (a.partNumber ?? 0) - (b.partNumber ?? 0));
 
       // Complete the upload
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
       return await this.completeMultipartUpload(uploadId, parts);
     } catch (error) {
       // Abort the upload on failure
       try {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
         await this.abortMultipartUpload(uploadId);
       } catch (abortError) {
         // Log but don't throw - we want to throw the original error
