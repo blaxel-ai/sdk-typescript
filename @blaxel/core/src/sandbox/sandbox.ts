@@ -2,28 +2,52 @@ import { v4 as uuidv4 } from "uuid";
 import { createSandbox, deleteSandbox, getSandbox, listSandboxes, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
 import { SandboxFileSystem } from "./filesystem/index.js";
+import { SandboxFileSystemWebSocket } from "./filesystem/filesystem-ws.js";
 import { SandboxNetwork } from "./network/index.js";
+import { SandboxNetworkWebSocket } from "./network/network-ws.js";
 import { SandboxPreviews } from "./preview.js";
 import { SandboxProcess } from "./process/index.js";
+import { SandboxProcessWebSocket } from "./process/process-ws.js";
 import { SandboxCodegen } from "./codegen/index.js";
+import { SandboxCodegenWebSocket } from "./codegen/codegen-ws.js";
 import { SandboxSessions } from "./session.js";
+import { WebSocketClient } from "./websocket/index.js";
 import { normalizeEnvs, normalizePorts, normalizeVolumes, SandboxConfiguration, SandboxCreateConfiguration, SandboxUpdateMetadata, SessionWithToken } from "./types.js";
 
 export class SandboxInstance {
-  fs: SandboxFileSystem;
-  network: SandboxNetwork;
-  process: SandboxProcess;
+  fs: SandboxFileSystem | SandboxFileSystemWebSocket;
+  network: SandboxNetwork | SandboxNetworkWebSocket;
+  process: SandboxProcess | SandboxProcessWebSocket;
   previews: SandboxPreviews;
   sessions: SandboxSessions;
-  codegen: SandboxCodegen;
+  codegen: SandboxCodegen | SandboxCodegenWebSocket;
+  private wsClient?: WebSocketClient;
 
   constructor(private sandbox: SandboxConfiguration) {
-    this.process = new SandboxProcess(sandbox);
-    this.fs = new SandboxFileSystem(sandbox, this.process);
-    this.network = new SandboxNetwork(sandbox);
+    // If connection type is websocket, initialize WebSocket client and use WebSocket transport layers
+    if (sandbox.connectionType === "websocket") {
+      const url = sandbox.forceUrl || sandbox.metadata?.url || "";
+      this.wsClient = new WebSocketClient({
+        url,
+        headers: sandbox.headers,
+      });
+
+      // Initialize WebSocket-based action handlers
+      this.process = new SandboxProcessWebSocket(sandbox, this.wsClient);
+      this.fs = new SandboxFileSystemWebSocket(sandbox, this.process, this.wsClient);
+      this.network = new SandboxNetworkWebSocket(sandbox, this.wsClient);
+      this.codegen = new SandboxCodegenWebSocket(sandbox, this.wsClient);
+    } else {
+      // Default to HTTP-based action handlers
+      this.process = new SandboxProcess(sandbox);
+      this.fs = new SandboxFileSystem(sandbox, this.process);
+      this.network = new SandboxNetwork(sandbox);
+      this.codegen = new SandboxCodegen(sandbox);
+    }
+
+    // These are always HTTP-based
     this.previews = new SandboxPreviews(sandbox);
     this.sessions = new SandboxSessions(sandbox);
-    this.codegen = new SandboxCodegen(sandbox);
   }
 
   get metadata() {
@@ -48,10 +72,19 @@ export class SandboxInstance {
     return this;
   }
 
+  closeConnection(): void {
+    if (this.wsClient) {
+      this.wsClient.close();
+    }
+  }
+
   static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = true }: { safe?: boolean } = {}) {
     const defaultName = `sandbox-${uuidv4().replace(/-/g, '').substring(0, 8)}`
     const defaultImage = `blaxel/base-image:latest`
     const defaultMemory = 4096
+
+    // Store connection type if provided
+    let connectionType: "http" | "websocket" | undefined;
 
     // Handle SandboxCreateConfiguration or simple dict with name/image/memory/ports/envs/volumes keys
     if (
@@ -63,12 +96,15 @@ export class SandboxInstance {
       'envs' in sandbox ||
       'volumes' in sandbox ||
       'lifecycle' in sandbox ||
-      'snapshotEnabled' in sandbox
+      'snapshotEnabled' in sandbox ||
+      'connectionType' in sandbox
     ) {
       if (!sandbox) sandbox = {} as SandboxCreateConfiguration
       if (!sandbox.name) sandbox.name = defaultName
       if (!sandbox.image) sandbox.image = defaultImage
       if (!sandbox.memory) sandbox.memory = defaultMemory
+
+      connectionType = sandbox.connectionType;
 
       const ports = normalizePorts(sandbox.ports);
       const envs = normalizeEnvs(sandbox.envs);
@@ -122,7 +158,20 @@ export class SandboxInstance {
       body: sandbox,
       throwOnError: true,
     });
-    const instance = new SandboxInstance(data);
+
+    // Add connection type to configuration
+    const config: SandboxConfiguration = {
+      ...data,
+      connectionType: connectionType || "http",
+    };
+
+    const instance = new SandboxInstance(config);
+
+    // Connect WebSocket if needed
+    if (connectionType === "websocket" && instance.wsClient) {
+      await instance.wsClient.connect();
+    }
+
     // TODO remove this part once we have a better way to handle this
     if (safe) {
       try {
@@ -132,14 +181,28 @@ export class SandboxInstance {
     return instance;
   }
 
-  static async get(sandboxName: string) {
+  static async get(sandboxName: string, connectionType?: "http" | "websocket") {
     const { data } = await getSandbox({
       path: {
         sandboxName,
       },
       throwOnError: true,
     });
-    return new SandboxInstance(data);
+
+    // Add connection type to configuration
+    const config: SandboxConfiguration = {
+      ...data,
+      connectionType: connectionType || "http",
+    };
+
+    const instance = new SandboxInstance(config);
+
+    // Connect WebSocket if needed
+    if (connectionType === "websocket" && instance.wsClient) {
+      await instance.wsClient.connect();
+    }
+
+    return instance;
   }
 
   static async list() {
@@ -147,7 +210,12 @@ export class SandboxInstance {
     return data.map((sandbox) => new SandboxInstance(sandbox));
   }
 
-  static async delete(sandboxName: string) {
+  static async delete(sandboxName: string, instance?: SandboxInstance) {
+    // Close WebSocket connection if instance is provided
+    if (instance && instance.wsClient) {
+      instance.closeConnection();
+    }
+
     const { data } = await deleteSandbox({
       path: {
         sandboxName,
@@ -179,8 +247,11 @@ export class SandboxInstance {
           throw new Error("Sandbox name is required");
         }
 
+        // Get connection type if specified
+        const connectionType = 'connectionType' in sandbox ? sandbox.connectionType : undefined;
+
         // Get the existing sandbox to check its status
-        const sandboxInstance = await SandboxInstance.get(name);
+        const sandboxInstance = await SandboxInstance.get(name, connectionType);
 
           // If the sandbox is TERMINATED, treat it as not existing
           if (sandboxInstance.status === "TERMINATED") {
