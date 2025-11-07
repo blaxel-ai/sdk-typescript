@@ -9,20 +9,21 @@ export const sep = '--------------------------------'
 
 export const info = (msg: string) => console.log(`[INFO] ${msg}`)
 
-export async function localSandbox(sandboxName: string) {
+export async function localSandbox(sandboxName: string, connectionType: "http" | "websocket" = "http") {
   info(`Using local sandbox ${sandboxName}`)
   const sandbox = new SandboxInstance({
     metadata: {
       name: sandboxName
     },
-    forceUrl: "http://localhost:8080"
+    forceUrl: "http://localhost:8080",
+    connectionType
   })
   return sandbox
 }
 
 
-export async function createOrGetSandbox({sandboxName, image = `blaxel/nextjs:latest`, ports = [], memory = 4096, envs = []}: {sandboxName: string, image?: string, ports?: { name: string, target: number, protocol: string, envs?: { name: string, value: string }[] }[], memory?: number, envs?: { name: string, value: string }[]}) {
-  // return localSandbox(sandboxName)
+export async function createOrGetSandbox({sandboxName, image = `blaxel/nextjs:latest`, ports = [], memory = 4096, envs = [], connectionType = "http"}: {sandboxName: string, image?: string, ports?: { name: string, target: number, protocol: string, envs?: { name: string, value: string }[] }[], memory?: number, envs?: { name: string, value: string }[], connectionType?: "http" | "websocket"}) {
+  return localSandbox(sandboxName, connectionType)
   if (ports.length === 0) {
     ports.push({
       name: "sandbox-api",
@@ -41,17 +42,12 @@ export async function createOrGetSandbox({sandboxName, image = `blaxel/nextjs:la
     })
   }
   const sandboxModel = {
-    metadata: {
-      name: sandboxName
-    },
-    spec: {
-      runtime: {
-        image,
-        memory,
-        ports,
-        envs
-      }
-    }
+    name: sandboxName,
+    image,
+    memory,
+    ports,
+    envs,
+    connectionType
   }
   const sandbox = await SandboxInstance.createIfNotExists(sandboxModel)
   return sandbox

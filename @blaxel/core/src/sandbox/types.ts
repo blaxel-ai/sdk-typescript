@@ -25,10 +25,13 @@ export interface VolumeBinding {
   readOnly?: boolean; // Whether the volume is mounted as read-only
 }
 
+export type ConnectionType = "http" | "websocket";
+
 export type SandboxConfiguration = {
   forceUrl?: string;
   headers?: Record<string, string>;
   params?: Record<string, string>;
+  connectionType?: ConnectionType;
 } & Sandbox;
 
 export type SandboxUpdateMetadata = {
@@ -48,6 +51,7 @@ export type SandboxCreateConfiguration = {
   region?: string;
   lifecycle?: SandboxLifecycle;
   snapshotEnabled?: boolean;
+  connectionType?: ConnectionType;
 }
 
 export function normalizePorts(ports?: (Port | Record<string, any>)[]): Port[] | undefined {
