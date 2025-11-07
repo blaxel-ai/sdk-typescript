@@ -138,8 +138,8 @@ export class SandboxProcessWebSocket extends SandboxAction {
   }
 
   async list(): Promise<ProcessResponse[]> {
-    const data = await this.wsClient.send<ProcessResponse[]>("process:list", {});
-    return data;
+    const data = await this.wsClient.send<{processes: ProcessResponse[]}>("process:list", {});
+    return data.processes || [];
   }
 
   async stop(identifier: string): Promise<SuccessResponse> {

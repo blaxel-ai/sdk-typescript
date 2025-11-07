@@ -1,10 +1,9 @@
-import { createOrGetSandbox } from "../utils.ts";
+import { SandboxInstance } from "@blaxel/core";
 
 async function testWebSocketOperations() {
   console.log("=== Starting WebSocket Tests ===\n");
 
-  const sandbox = await createOrGetSandbox({
-    sandboxName: "websocket-test",
+  const sandbox = await SandboxInstance.create({
     connectionType: "websocket"
   });
 
@@ -77,7 +76,7 @@ async function testWebSocketOperations() {
     // List processes
     console.log("  - Listing all processes");
     const processes = await sandbox.process.list();
-    console.log(`    ✓ Total processes: ${processes.processes?.length || 0}`);
+    console.log(`    ✓ Total processes: ${processes?.length || 0}`);
 
     // Execute background process
     console.log("  - Executing background process: sleep 1");
