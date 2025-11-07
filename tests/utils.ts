@@ -23,7 +23,7 @@ export async function localSandbox(sandboxName: string, connectionType: "http" |
 
 
 export async function createOrGetSandbox({sandboxName, image = `blaxel/nextjs:latest`, ports = [], memory = 4096, envs = [], connectionType = "http"}: {sandboxName: string, image?: string, ports?: { name: string, target: number, protocol: string, envs?: { name: string, value: string }[] }[], memory?: number, envs?: { name: string, value: string }[], connectionType?: "http" | "websocket"}) {
-  return localSandbox(sandboxName, connectionType)
+  // return localSandbox(sandboxName, connectionType)
   if (ports.length === 0) {
     ports.push({
       name: "sandbox-api",

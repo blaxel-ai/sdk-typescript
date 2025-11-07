@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { getWebSocket } from "../../common/node.js";
+import { settings } from "../../common/settings.js";
 
 export interface WebSocketMessage {
   id: string;
@@ -29,7 +30,6 @@ export class WebSocketClient {
   private ws: any = null;
   private WebSocketClass: any = null;
   private url: string;
-  private headers: Record<string, string>;
   private reconnect: boolean;
   private reconnectInterval: number;
   private maxReconnectAttempts: number;
@@ -44,7 +44,6 @@ export class WebSocketClient {
 
   constructor(options: WebSocketClientOptions) {
     this.url = options.url;
-    this.headers = options.headers || {};
     this.reconnect = options.reconnect ?? true;
     this.reconnectInterval = options.reconnectInterval ?? 5000;
     this.maxReconnectAttempts = options.maxReconnectAttempts ?? 5;
@@ -82,16 +81,9 @@ export class WebSocketClient {
           if (!wsUrl.endsWith("/ws")) {
             wsUrl = `${wsUrl}/ws`;
           }
-
-          // Create WebSocket with headers (if supported by the environment)
-          const wsOptions: any = {};
-          if (Object.keys(this.headers).length > 0) {
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-            wsOptions.headers = this.headers;
-          }
-
+          wsUrl = `${wsUrl}?token=${settings.token}`;
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
-          this.ws = new this.WebSocketClass(wsUrl, wsOptions);
+          this.ws = new this.WebSocketClass(wsUrl);
 
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         this.ws.onopen = () => {
