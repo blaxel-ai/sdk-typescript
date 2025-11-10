@@ -3,13 +3,49 @@ import { env } from '../common/env.js';
 import { flush } from '../telemetry/telemetry.js';
 import { ExecutionArgs } from './types.js';
 class BlJobWrapper {
+  private async fetchWithRetry(url: string, maxRetries = 3): Promise<Response> {
+    let lastError: Error | undefined;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await fetch(url);
+
+        // If the response is successful, return it
+        if (response.ok) {
+          return response;
+        }
+
+        // If it's not the last attempt and the status is retriable, retry
+        if (attempt < maxRetries && (response.status >= 500 || response.status === 429)) {
+          lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
+        } else {
+          // For non-retriable errors or last attempt, return the response
+          return response;
+        }
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        // If this is the last attempt, throw the error
+        if (attempt === maxRetries) {
+          throw lastError;
+        }
+      }
+
+      // Calculate exponential backoff delay: 2^attempt * 1000ms (1s, 2s, 4s)
+      const delay = Math.pow(2, attempt) * 1000;
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+
+    throw lastError || new Error('Failed to fetch after retries');
+  }
+
   async getArguments() {
     if(!env.BL_EXECUTION_DATA_URL) {
       const args = this.parseCommandLineArgs()
       return args
     }
 
-    const response = await fetch(env.BL_EXECUTION_DATA_URL);
+    const response = await this.fetchWithRetry(env.BL_EXECUTION_DATA_URL);
     const data = await response.json() as {tasks: ExecutionArgs};
     return data.tasks[this.index] ?? {};
   }
