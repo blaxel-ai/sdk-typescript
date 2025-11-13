@@ -1,17 +1,36 @@
 import { SandboxInstance } from "@blaxel/core";
 
+async function waitForTermination(sandboxName: string, maxWaitTimeMs: number = 600000): Promise<boolean> {
+  const startTime = Date.now();
+  const checkIntervalMs = 30000; // 30 seconds
+
+  while (Date.now() - startTime < maxWaitTimeMs) {
+    const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+    console.log(`⏳ Checking sandbox status... (${elapsedSeconds}s elapsed)`);
+
+    const sandboxStatus = await SandboxInstance.get(sandboxName);
+    if (sandboxStatus.status === "TERMINATED") {
+      console.log(`✅ Sandbox terminated after ${elapsedSeconds}s`);
+      return true;
+    }
+
+    console.log(`   Current status: ${sandboxStatus.status}, waiting 30s before next check...`);
+    await new Promise(resolve => setTimeout(resolve, checkIntervalMs));
+  }
+
+  return false;
+}
+
 async function main() {
   try {
     console.log("Test 1: Create sandbox with ttl...");
     let sandbox = await SandboxInstance.create({ ttl: "60s", name: "sandbox-ttl" });
     await sandbox.wait();
     console.log(`✅ Created sandbox with default name: ${sandbox.metadata?.name}`);
-    await new Promise(resolve => setTimeout(resolve, 120000));
-    let sandboxStatus = await SandboxInstance.get(sandbox.metadata?.name!)
-    if (sandboxStatus.status === "TERMINATED") {
-      console.log(`✅ Sandbox status: ${sandboxStatus.status}`);
-    } else {
-      console.log(`❌ Sandbox status: ${sandboxStatus.status}`);
+
+    const terminated = await waitForTermination(sandbox.metadata?.name!);
+    if (!terminated) {
+      console.log(`❌ Sandbox did not terminate within 10 minutes`);
     }
 
 
@@ -21,12 +40,10 @@ async function main() {
     sandbox = await SandboxInstance.create({ expires: date, name: "sandbox-expires" });
     await sandbox.wait();
     console.log(`✅ Created sandbox with default name: ${sandbox.metadata?.name}`);
-    await new Promise(resolve => setTimeout(resolve, 120000));
-    sandboxStatus = await SandboxInstance.get(sandbox.metadata?.name!)
-    if (sandboxStatus.status === "TERMINATED") {
-      console.log(`✅ Sandbox status: ${sandboxStatus.status}`);
-    } else {
-      console.log(`❌ Sandbox status: ${sandboxStatus.status}`);
+
+    const terminated2 = await waitForTermination(sandbox.metadata?.name!);
+    if (!terminated2) {
+      console.log(`❌ Sandbox did not terminate within 10 minutes`);
     }
   } catch (e) {
     console.error("❌ There was an error => ", e);

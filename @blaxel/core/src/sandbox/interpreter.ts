@@ -1,4 +1,4 @@
-import { Sandbox, SandboxLifecycle, Port } from "../client/types.gen.js";
+import { Port, Sandbox, SandboxLifecycle } from "../client/types.gen.js";
 import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
 import { SandboxInstance } from "./sandbox.js";
@@ -35,7 +35,7 @@ export class CodeInterpreter extends SandboxInstance {
 
   static async create(
     sandbox?: Sandbox | SandboxCreateConfiguration | Record<string, any> | null,
-    { safe = true }: { safe?: boolean } = {}
+    { safe = false }: { safe?: boolean } = {}
   ): Promise<CodeInterpreter> {
     const payload: Record<string, any> = {
       image: CodeInterpreter.DEFAULT_IMAGE,

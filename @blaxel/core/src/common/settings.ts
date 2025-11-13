@@ -1,28 +1,12 @@
 import { Credentials } from "../authentication/credentials.js";
 import { authentication } from "../authentication/index.js";
 import { env } from "../common/env.js";
+import { PACKAGE_COMMIT, PACKAGE_VERSION } from "./version.js";
+
 export type Config = {
   proxy?: string;
   apikey?: string;
   workspace?: string;
-}
-// Function to get package version
-function getPackageVersion(): string {
-  try {
-    // Check if require is available (CommonJS environment)
-    if (typeof require !== "undefined") {
-      // Try to require package.json (Node.js only, gracefully fails in browser)
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const packageJson = require("../../../package.json") as { version?: string };
-      return packageJson.version || "unknown";
-    } else {
-      // ESM environment - return unknown
-      return "unknown";
-    }
-  } catch {
-    // Fallback for browser environments or if require fails
-    return "unknown";
-  }
 }
 
 // Function to get OS and architecture
@@ -60,31 +44,6 @@ function getOsArch(): string {
   return "browser/unknown";
 }
 
-// Function to get commit hash
-function getCommitHash(): string {
-  try {
-    // Check if require is available (CommonJS environment)
-    if (typeof require !== "undefined") {
-      // Try to require package.json and look for commit field (set during build)
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const packageJson = require("../../../package.json") as {
-        version?: string;
-        commit?: string;
-        buildInfo?: { commit?: string }
-      };
-
-      // Check for commit in various possible locations
-      const commit = packageJson.commit || packageJson.buildInfo?.commit;
-      if (commit) {
-        return commit.length > 7 ? commit.substring(0, 7) : commit;
-      }
-    }
-  } catch {
-    // Fallback for browser environments or if require fails
-  }
-
-  return "unknown";
-}
 
 class Settings {
   credentials: Credentials;
@@ -154,14 +113,14 @@ class Settings {
 
   get version(): string {
     if (this._version === null) {
-      this._version = getPackageVersion();
+      this._version = PACKAGE_VERSION;
     }
     return this._version;
   }
 
   get headers(): Record<string, string> {
     const osArch = getOsArch();
-    const commitHash = getCommitHash();
+    const commitHash = PACKAGE_COMMIT.length > 7 ? PACKAGE_COMMIT.substring(0, 7) : PACKAGE_COMMIT;
     return {
       "x-blaxel-authorization": this.authorization,
       "x-blaxel-workspace": this.workspace || "",
