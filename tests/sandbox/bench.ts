@@ -1,7 +1,7 @@
 import { SandboxInstance } from "@blaxel/core";
 
 // ============ CONFIGURATION ============
-const RUNS_PER_IMAGE = 2; // Number of times to run each image
+const RUNS_PER_IMAGE = 5; // Number of times to run each image
 const AUTO_CLEANUP = false; // Set to true to automatically delete sandboxes after each test
 const PARALLEL = 1; // Number of sandboxes to create/test in parallel (1 = sequential)
 // Determine environment and region from BL_ENV
@@ -26,6 +26,7 @@ const images = [
   'blaxel/py-app',
   'blaxel/ts-app',
   'blaxel/vite',
+  'blaxel/jupyter-server'
 ];
 
 interface BenchResult {
