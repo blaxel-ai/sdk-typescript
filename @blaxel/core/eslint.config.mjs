@@ -6,7 +6,7 @@ import tseslint from "typescript-eslint";
 export default tseslint.config(
   // 1. Global ignores
   {
-    ignores: ["dist", "tmp", "eslint.config.mjs"],
+    ignores: ["dist", "tmp", "eslint.config.mjs", "*.js"],
   },
 
   // 2. Basic ESLint recommendations
