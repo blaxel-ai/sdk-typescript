@@ -1,83 +1,180 @@
 import { SandboxInstance } from "@blaxel/core";
 
-async function main() {
-  const sandboxName = `fastrun-test-${Date.now()}`;
+// Get loop count from command line argument (default: 1)
+const loopCount = parseInt(process.argv[2] || "1", 10);
 
-  console.log("🚀 Starting fastrun test");
-  console.log(`📦 Sandbox: ${sandboxName}`);
-  console.log(`🖼️  Image: blaxel/base-image\n`);
+async function runSingleTest(iteration: number): Promise<{
+  success: boolean;
+  createTime: number;
+  execTime: number;
+  error?: string;
+  sandboxName: string;
+}> {
+  const sandboxName = `fastrun-test-${Date.now()}-${iteration}`;
 
   try {
     // Create sandbox and time it
-    console.log("⏱️  Creating sandbox...");
     const createStart = Date.now();
     const sandbox = await SandboxInstance.create({
       name: sandboxName,
       image: "blaxel/base-image",
     });
-    console.log("Sandbox URL:", sandbox.metadata?.url);
     const createTime = Date.now() - createStart;
-    console.log(`✅ Sandbox created in ${createTime}ms\n`);
 
     // Run ls process and time it
-    console.log("⏱️  Running ls process...");
     const execStart = Date.now();
-    const result = await sandbox.process.exec({ command: "ls" });
-    const execTime = Date.now() - execStart;
-    console.log(`✅ Process executed in ${execTime}ms\n`);
-
-    // Print results summary
-    console.log("========================================");
-    console.log("           RESULTS SUMMARY");
-    console.log("========================================");
-    console.log(`Create time: ${createTime}ms`);
-    console.log(`Exec time:   ${execTime}ms`);
-    console.log(`Total time:  ${createTime + execTime}ms`);
-    console.log("========================================\n");
-
-    // Delete sandbox (no timing needed)
-    console.log("🧹 Cleaning up...");
-    await SandboxInstance.delete(sandboxName);
-    console.log("✅ Sandbox deleted\n");
-
-    console.log("✅ Test completed successfully!");
-  } catch (error) {
-    console.error("\n❌ Test failed!");
-    console.error("========================================");
-    console.error("           ERROR DETAILS");
-    console.error("========================================");
-
-    if (error instanceof Error) {
-      console.error("Error name:", error.name);
-      console.error("Error message:", error.message);
-      if (error.stack) {
-        console.error("Stack trace:");
-        console.error(error.stack);
-      }
-    } else if (typeof error === 'object' && error !== null) {
-      console.error("Error object:");
-      console.error(JSON.stringify(error, null, 2));
-    } else {
-      console.error("Error:", String(error));
-    }
-
-    console.error("========================================\n");
-
-    // Attempt cleanup on error
     try {
-      console.log("🧹 Attempting cleanup...");
+      await sandbox.process.exec({ command: "ls" });
+      const execTime = Date.now() - execStart;
+
+      // Delete sandbox
       await SandboxInstance.delete(sandboxName);
-      console.log("✅ Cleaned up sandbox after error");
-    } catch (cleanupError) {
-      console.error("⚠️  Failed to cleanup sandbox:");
-      if (cleanupError instanceof Error) {
-        console.error(cleanupError.message);
-      } else {
-        console.error(String(cleanupError));
+
+      return {
+        success: true,
+        createTime,
+        execTime,
+        sandboxName,
+      };
+    } catch (execError) {
+      const execTime = Date.now() - execStart;
+
+      // Try to cleanup
+      try {
+        await SandboxInstance.delete(sandboxName);
+      } catch {
+        // Ignore cleanup errors
       }
+
+      let errorMsg = "Unknown error";
+      if (execError instanceof Error) {
+        errorMsg = execError.message;
+
+        if ('response' in execError && execError.response) {
+          const response = execError.response as Response;
+          errorMsg = `${response.status} ${response.statusText} - ${execError.message}`;
+        }
+      }
+
+      return {
+        success: false,
+        createTime,
+        execTime,
+        error: errorMsg,
+        sandboxName,
+      };
+    }
+  } catch (createError) {
+    // Try to cleanup if sandbox was partially created
+    try {
+      await SandboxInstance.delete(sandboxName);
+    } catch {
+      // Ignore cleanup errors
     }
 
+    let errorMsg = "Unknown error";
+    if (createError instanceof Error) {
+      errorMsg = createError.message;
+    }
+
+    return {
+      success: false,
+      createTime: 0,
+      execTime: 0,
+      error: `Create failed: ${errorMsg}`,
+      sandboxName,
+    };
+  }
+}
+
+async function main() {
+  console.log("🚀 Starting fastrun test");
+  console.log(`🖼️  Image: blaxel/base-image`);
+  console.log(`🔁 Loop count: ${loopCount}\n`);
+
+  const createTimes: number[] = [];
+  const execTimes: number[] = [];
+  let successCount = 0;
+  let failureCount = 0;
+  const errors: Array<{ iteration: number; error: string }> = [];
+
+  const totalStart = Date.now();
+
+  for (let i = 1; i <= loopCount; i++) {
+    console.log(`\n[${i}/${loopCount}] Starting test iteration...`);
+
+    const result = await runSingleTest(i);
+
+    if (result.success) {
+      successCount++;
+      createTimes.push(result.createTime);
+      execTimes.push(result.execTime);
+      console.log(`✅ Iteration ${i} succeeded`);
+      console.log(`   Create: ${result.createTime}ms | Exec: ${result.execTime}ms | Total: ${result.createTime + result.execTime}ms`);
+    } else {
+      failureCount++;
+      console.error(`❌ Iteration ${i} failed`);
+      console.error(`   Error: ${result.error}`);
+      if (result.createTime > 0) {
+        console.error(`   Create: ${result.createTime}ms | Exec: ${result.execTime}ms`);
+      }
+      errors.push({ iteration: i, error: result.error || "Unknown error" });
+    }
+  }
+
+  const totalTime = Date.now() - totalStart;
+
+  // Calculate statistics
+  const avgCreateTime = createTimes.length > 0
+    ? Math.round(createTimes.reduce((a, b) => a + b, 0) / createTimes.length)
+    : 0;
+  const avgExecTime = execTimes.length > 0
+    ? Math.round(execTimes.reduce((a, b) => a + b, 0) / execTimes.length)
+    : 0;
+  const minCreateTime = createTimes.length > 0 ? Math.min(...createTimes) : 0;
+  const maxCreateTime = createTimes.length > 0 ? Math.max(...createTimes) : 0;
+  const minExecTime = execTimes.length > 0 ? Math.min(...execTimes) : 0;
+  const maxExecTime = execTimes.length > 0 ? Math.max(...execTimes) : 0;
+
+  // Print results summary
+  console.log("\n========================================");
+  console.log("           RESULTS SUMMARY");
+  console.log("========================================");
+  console.log(`Total iterations: ${loopCount}`);
+  console.log(`Successful:       ${successCount}`);
+  console.log(`Failed:           ${failureCount}`);
+  console.log(`Success rate:     ${((successCount / loopCount) * 100).toFixed(1)}%`);
+  console.log();
+  if (createTimes.length > 0) {
+    console.log(`Create times:`);
+    console.log(`  Avg: ${avgCreateTime}ms | Min: ${minCreateTime}ms | Max: ${maxCreateTime}ms`);
+  }
+  if (execTimes.length > 0) {
+    console.log(`Exec times:`);
+    console.log(`  Avg: ${avgExecTime}ms | Min: ${minExecTime}ms | Max: ${maxExecTime}ms`);
+  }
+  console.log();
+  console.log(`Total time:       ${totalTime}ms`);
+  console.log(`Avg per cycle:    ${Math.round(totalTime / loopCount)}ms`);
+  console.log("========================================");
+
+  // Print error details if any
+  if (errors.length > 0) {
+    console.log("\n========================================");
+    console.log("           ERROR DETAILS");
+    console.log("========================================");
+    errors.forEach(({ iteration, error }) => {
+      console.log(`Iteration ${iteration}: ${error}`);
+    });
+    console.log("========================================");
+  }
+
+  // Exit with appropriate code
+  if (failureCount > 0) {
+    console.log(`\n⚠️  Test completed with ${failureCount} failure(s)`);
     process.exit(1);
+  } else {
+    console.log("\n✅ All tests completed successfully!");
   }
 }
 
