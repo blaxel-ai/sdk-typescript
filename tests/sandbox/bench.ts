@@ -3,7 +3,7 @@ import { SandboxInstance } from "@blaxel/core";
 // ============ CONFIGURATION ============
 const RUNS_PER_IMAGE = 5; // Number of times to run each image
 const AUTO_CLEANUP = false; // Set to true to automatically delete sandboxes after each test
-const PARALLEL = 1; // Number of sandboxes to create/test in parallel (1 = sequential)
+const PARALLEL = 5; // Number of sandboxes to create/test in parallel (1 = sequential)
 // Determine environment and region from BL_ENV
 const blEnv = process.env.BL_ENV;
 const env = blEnv === 'dev' ? 'dev' : 'prod';
