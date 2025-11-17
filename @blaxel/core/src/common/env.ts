@@ -15,6 +15,7 @@ if (fs !== null ) {
     const configInfos = toml.parse(configFile) as ConfigInfos;
     for (const key in configInfos.env) {
       configEnv[key] = configInfos.env[key];
+      process.env[key] = configInfos.env[key];
     }
   } catch {
     // ignore
@@ -25,6 +26,7 @@ if (fs !== null ) {
     if (dotenv) {
       const parsed = dotenv.parse(secretFile);
       Object.assign(secretEnv, parsed);
+      Object.assign(process.env, parsed);
     } else {
       // Simple .env parsing fallback when dotenv is not available
       const lines = secretFile.split('\n');
@@ -32,6 +34,7 @@ if (fs !== null ) {
         const match = line.match(/^([^=]+)=(.*)$/);
         if (match) {
           secretEnv[match[1].trim()] = match[2].trim();
+          process.env[match[1].trim()] = match[2].trim();
         }
       }
     }
