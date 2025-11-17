@@ -308,7 +308,7 @@ async function main() {
     console.error("There was an error => ", e);
   } finally {
     console.log("Deleting sandbox");
-    // await SandboxInstance.delete(sandboxName)
+    await SandboxInstance.delete(sandboxName)
   }
 }
 
