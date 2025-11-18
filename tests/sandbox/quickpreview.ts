@@ -8,9 +8,9 @@ async function main() {
     const sandboxStartTime = Date.now();
     const sandbox = await SandboxInstance.create({
       name: randomSandboxName,
-      image: "blaxel/base-image:latest",
+      image: "blaxel/node:latest",
       memory: 4096,
-      // ports: [{ target: 3000, protocol: "HTTP" }],   // ports to expose
+      ports: [{ target: 3000, protocol: "HTTP" }],   // ports to expose
     });
     const sandboxTime = Date.now() - sandboxStartTime;
     console.log(`Sandbox creation: ${sandboxTime}ms`);
@@ -47,19 +47,16 @@ async function main() {
     console.log(`LS: ${lsTime}ms`);
 
     const fileWriteStartTime = Date.now();
-    await sandbox.fs.write("/tmp/server.py", `from http.server import HTTPServer, BaseHTTPRequestHandler
+    await sandbox.fs.write("/tmp/server.js", `const http = require('http');
 
-class Handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-type', 'text/plain')
-        self.end_headers()
-        self.wfile.write(b'hello world')
-    def log_message(self, format, *args):
-        pass
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('hello world');
+});
 
-httpd = HTTPServer(('0.0.0.0', 3000), Handler)
-httpd.serve_forever()
+server.listen(3000, '0.0.0.0', () => {
+  console.log('Server running on port 3000');
+});
 `);
     const fileWriteTime = Date.now() - fileWriteStartTime;
     console.log(`File write: ${fileWriteTime}ms`);
@@ -67,7 +64,7 @@ httpd.serve_forever()
     const serverStartTime = Date.now();
     await sandbox.process.exec({
       name: "hello-server",
-      command: "python3 /tmp/server.py",
+      command: "node /tmp/server.js",
       waitForPorts: [3000],
     });
     const serverTime = Date.now() - serverStartTime;
