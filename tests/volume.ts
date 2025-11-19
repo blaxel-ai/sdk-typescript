@@ -1,8 +1,10 @@
 import { SandboxInstance, VolumeInstance } from "@blaxel/core";
 import console from "console";
 
-const region = process.env.BL_REGION || process.env.BL_ENV === "dev" ? "eu-dub-1" : "us-pdx-1";
-
+let region = process.env.BL_REGION
+if(!region || region === "") {
+  region = process.env.BL_ENV === "dev" ? "eu-dub-1" : "us-pdx-1";
+}
 /**
  * Waits for a sandbox deletion to fully complete by polling until the sandbox no longer exists
  * @param sandboxName The name of the sandbox to wait for deletion
