@@ -791,7 +791,12 @@ export class ChatGoogleGenerativeAI
     AIMessageChunk,
     GoogleGenerativeAIChatCallOptions
   > {
-    return this.bind({ tools: convertToolsToGenAI(tools)?.tools, ...kwargs });
+    const convertedTools = convertToolsToGenAI(tools);
+    const bindOptions = { tools: convertedTools?.tools, ...kwargs };
+    // BaseChatModel extends Runnable which has a bind method
+    // Access bind through unknown to satisfy TypeScript's type checking
+    const baseModel = this as unknown as { bind: (options: Record<string, unknown>) => Runnable<BaseLanguageModelInput, AIMessageChunk, GoogleGenerativeAIChatCallOptions> };
+    return baseModel.bind(bindOptions);
   }
 
   invocationParams(
@@ -1066,7 +1071,8 @@ export class ChatGoogleGenerativeAI
         keyName: functionName,
       });
     }
-    const llm = this.bind({
+    // @ts-ignore - bind method exists on BaseChatModel but TypeScript can't infer it
+    const llm = super.bind({
       tools,
       tool_choice: functionName,
     });
