@@ -19,11 +19,12 @@ async function main() {
       }),
     }
   );
-  const response = await createReactAgent({
+  const agent = createReactAgent({
     llm: await blModel("sandbox-openai"),
-    prompt: prompt,
     tools: [...(await blTools(["blaxel-search"])), weatherTool],
-  }).invoke({
+    prompt: prompt,
+  });
+  const response = await agent.invoke({
     messages: [new HumanMessage("Give me info about troyes")],
   });
   console.log(response.messages[response.messages.length - 1].content);

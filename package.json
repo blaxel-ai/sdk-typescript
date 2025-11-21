@@ -34,7 +34,7 @@
     "@langchain/core": "^1.0.6",
     "@langchain/langgraph": "^1.0.2",
     "@langchain/openai": "^1.1.2",
-    "@mastra/core": "^0.9.1",
+    "@mastra/core": "^0.24.5",
     "@modelcontextprotocol/sdk": "^1.22.0",
     "@opentelemetry/api-logs": "^0.200.0",
     "@opentelemetry/exporter-logs-otlp-http": "^0.200.0",

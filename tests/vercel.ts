@@ -5,7 +5,7 @@ import { z } from "zod";
 import { prompt } from "./prompt";
 async function main() {
   const stream = streamText({
-    model: await blModel("gpt-4o-mini"),
+    model: await blModel("sandbox-openai"),
     messages: [{ role: "user", content: "Give me info about troyes" }],
     system: prompt,
     tools: {

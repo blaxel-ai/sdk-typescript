@@ -6,7 +6,7 @@ import { prompt } from "./prompt";
 
 async function main() {
   const tools = await blTools(["blaxel-search"]);
-  const llm = await blModel("gpt-4o-mini");
+  const llm = await blModel("sandbox-openai");
   const stream = agent({
     llm,
     tools: [

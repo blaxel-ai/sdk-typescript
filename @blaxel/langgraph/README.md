@@ -73,7 +73,7 @@ When running Blaxel SDK from a remote server that is not Blaxel-hosted, we recom
 import { blTools, blModel } from "@blaxel/langgraph";
 
 const stream = await createReactAgent({
-  llm: await blModel("gpt-4o-mini"),
+  llm: await blModel("sandbox-openai"),
   prompt: prompt,
   tools: [
     ...(await blTools(["blaxel-search", "webcrawl"])),
