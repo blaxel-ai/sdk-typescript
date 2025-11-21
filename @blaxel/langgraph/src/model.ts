@@ -4,9 +4,9 @@ import { ChatCohere } from "@langchain/cohere";
 import { LanguageModelLike } from "@langchain/core/language_models/base";
 import { ChatDeepSeek } from "@langchain/deepseek";
 import { ChatOpenAI } from "@langchain/openai";
+import { AuthenticatedChatGoogleGenerativeAI } from "./model/google-genai.js";
 import { CohereClient } from "cohere-ai";
 import { createCohereFetcher } from "./model/cohere.js";
-import { AuthenticatedChatGoogleGenerativeAI } from "./model/google-genai.js";
 import { ChatXAI } from "./model/xai.js";
 
 /**
@@ -67,7 +67,7 @@ export const blModel = async (
     if (type === "gemini") {
       return new AuthenticatedChatGoogleGenerativeAI({
         apiKey: settings.token,
-        model: modelData?.spec?.runtime?.model,
+        model: modelData?.spec?.runtime?.model as string,
         baseUrl: url,
         customHeaders: settings.headers,
         ...options,

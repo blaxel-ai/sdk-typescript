@@ -1,7 +1,8 @@
 import { blModel, blTools } from "@blaxel/langgraph";
 import { HumanMessage } from "@langchain/core/messages";
 import { tool } from "@langchain/core/tools";
-import { createAgent } from "langchain";
+
+import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { z } from "zod";
 import { prompt } from "./prompt.js";
 import { getModels } from "./utils.js";
@@ -22,17 +23,14 @@ async function runAgent(model: string) {
         }),
       }
     );
-    const agent = createAgent({
-      model: await blModel(model),
+    const agent = createReactAgent({
+      llm: await blModel(model),
       tools: [...(await blTools(["blaxel-search"])), weatherTool],
-      systemPrompt: prompt,
+      prompt: prompt,
     });
-    const stream = await agent.stream({
-      messages: [new HumanMessage("Give me the weather in Paris")],
+    await agent.invoke({
+      messages: [new HumanMessage("Give me info about troyes")],
     });
-    for await (const chunk of stream) {
-      continue
-    }
     console.log(`✅ Successfully ran agent for model ${model}`);
   } catch (error) {
     console.error(`❌ Error running agent for model ${model}:`, error);

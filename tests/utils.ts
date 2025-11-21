@@ -168,10 +168,10 @@ export function getModels() {
     "gpt-5-1",
     "claude-sonnet-4-5",
     "cerebras-sandbox",
-    // "cohere-command-a-reasoning",
+    "cohere-command-a-reasoning",
     "mistral-large-latest",
     "deepseek-chat",
-    // "gemini-3-pro-preview",
+    "gemini-3-pro-preview",
     "xai-grok-beta",
   ]
 }

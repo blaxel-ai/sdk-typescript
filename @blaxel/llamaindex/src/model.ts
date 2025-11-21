@@ -74,13 +74,52 @@ class BlaxelLLM implements ToolCallLLM<object, ToolCallLLMMessageOptions> {
 
   private async createLLM(): Promise<ToolCallLLM<object, ToolCallLLMMessageOptions>> {
     await authenticate();
+    // Capture fresh headers and token after authentication
+    // Use getter to ensure we get the latest values
+    const currentToken = settings.token;
     const url = `${settings.runUrl}/${settings.workspace}/models/${this.model}`;
+
+    // Custom fetch function that adds authentication headers
+    const authenticatedFetch = async (input: string | URL | Request, init?: RequestInit) => {
+      await authenticate();
+      // Get fresh headers after authentication
+      const freshHeaders = { ...settings.headers };
+      const headers: Record<string, string> = {
+        ...freshHeaders,
+        ...(init?.headers as Record<string, string> || {}),
+      };
+
+      // Ensure Content-Type is set for JSON requests if body exists and Content-Type is not already set
+      if (init?.body && !headers['Content-Type'] && !headers['content-type']) {
+        // If body is a string, check if it looks like JSON
+        if (typeof init.body === 'string') {
+          const trimmed = init.body.trim();
+          if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+            headers['Content-Type'] = 'application/json';
+          }
+        } else {
+          // For non-string bodies (FormData, Blob, etc.), let fetch handle it
+          // For objects, assume JSON
+          if (typeof init.body === 'object' && !(init.body instanceof FormData) && !(init.body instanceof Blob)) {
+            headers['Content-Type'] = 'application/json';
+          }
+        }
+      }
+
+      return fetch(input, {
+        ...init,
+        headers,
+      });
+    };
 
     if (this.type === "mistral") {
       return openai({
         model: this.modelData?.spec?.runtime?.model,
-        apiKey: settings.token,
+        apiKey: currentToken,
         baseURL: `${url}/v1`,
+        additionalSessionOptions: {
+          fetch: authenticatedFetch,
+        },
         ...this.options,
       }) as unknown as ToolCallLLM<object, ToolCallLLMMessageOptions>;
     }
@@ -89,11 +128,13 @@ class BlaxelLLM implements ToolCallLLM<object, ToolCallLLMMessageOptions> {
       // Set a dummy API key to satisfy AnthropicSession constructor requirement
       // The actual authentication is handled via defaultHeaders
       process.env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "dummy-key-for-blaxel";
+      // Get fresh headers right before creating the session
+      const anthropicHeaders = { ...settings.headers };
       const llm = anthropic({
         model: this.modelData?.spec?.runtime?.model,
         session: new AnthropicSession({
           baseURL: url,
-          defaultHeaders: settings.headers,
+          defaultHeaders: anthropicHeaders,
         }),
         ...this.options,
       });
@@ -165,8 +206,11 @@ class BlaxelLLM implements ToolCallLLM<object, ToolCallLLMMessageOptions> {
     if (this.type === "cohere") {
       const llm = openai({
         model: this.modelData?.spec?.runtime?.model,
-        apiKey: settings.token,
-        baseURL: `${url}/compatibility/v1`,
+        apiKey: currentToken,
+        baseURL: `${url}/compatibility/v1`, // OpenAI compatibility endpoint
+        additionalSessionOptions: {
+          fetch: authenticatedFetch,
+        },
         ...this.options,
       });
       return {
@@ -191,8 +235,11 @@ class BlaxelLLM implements ToolCallLLM<object, ToolCallLLMMessageOptions> {
 
     return openai({
       model: this.modelData?.spec?.runtime?.model,
-      apiKey: settings.token,
+      apiKey: currentToken,
       baseURL: `${url}/v1`,
+      additionalSessionOptions: {
+        fetch: authenticatedFetch,
+      },
       ...this.options,
     }) as unknown as ToolCallLLM<object, ToolCallLLMMessageOptions>;
   }
