@@ -114,6 +114,44 @@ export const createCohereFetcher = (): FetchFunction => {
           if ('tool_results' in transformedObj) {
             delete transformedObj.tool_results;
           }
+
+          // Transform tools array to ensure each tool has a 'type' field (required by Cohere v2)
+          if ('tools' in transformedObj && Array.isArray(transformedObj.tools)) {
+            const tools = transformedObj.tools as unknown[];
+            transformedObj.tools = tools.map((tool) => {
+              if (typeof tool === 'object' && tool !== null) {
+                const toolObj = tool as Record<string, unknown>;
+                // If tool already has 'type' field, keep it
+                if ('type' in toolObj) {
+                  return toolObj;
+                }
+                // If tool has 'function' field (OpenAI format), wrap it with type
+                if ('function' in toolObj) {
+                  return {
+                    type: 'function',
+                    function: toolObj.function,
+                  };
+                }
+                // If tool has name/description/parameters (direct format), wrap it
+                if ('name' in toolObj && ('description' in toolObj || 'parameters' in toolObj)) {
+                  return {
+                    type: 'function',
+                    function: {
+                      name: toolObj.name,
+                      description: toolObj.description || '',
+                      parameters: toolObj.parameters || toolObj.inputSchema || {},
+                    },
+                  };
+                }
+                // Default: add type field
+                return {
+                  type: 'function',
+                  ...toolObj,
+                };
+              }
+              return tool;
+            });
+          }
         }
         requestBody = JSON.stringify(transformedBody);
       } else if (requestType === 'bytes' && body instanceof Uint8Array) {
@@ -159,6 +197,44 @@ export const createCohereFetcher = (): FetchFunction => {
                   ];
                 }
                 delete transformed.message;
+              }
+
+              // Transform tools array to ensure each tool has a 'type' field (required by Cohere v2)
+              if ('tools' in transformed && Array.isArray(transformed.tools)) {
+                const tools = transformed.tools as unknown[];
+                transformed.tools = tools.map((tool) => {
+                  if (typeof tool === 'object' && tool !== null) {
+                    const toolObj = tool as Record<string, unknown>;
+                    // If tool already has 'type' field, keep it
+                    if ('type' in toolObj) {
+                      return toolObj;
+                    }
+                    // If tool has 'function' field (OpenAI format), wrap it with type
+                    if ('function' in toolObj) {
+                      return {
+                        type: 'function',
+                        function: toolObj.function,
+                      };
+                    }
+                    // If tool has name/description/parameters (direct format), wrap it
+                    if ('name' in toolObj && ('description' in toolObj || 'parameters' in toolObj)) {
+                      return {
+                        type: 'function',
+                        function: {
+                          name: toolObj.name,
+                          description: toolObj.description || '',
+                          parameters: toolObj.parameters || toolObj.inputSchema || {},
+                        },
+                      };
+                    }
+                    // Default: add type field
+                    return {
+                      type: 'function',
+                      ...toolObj,
+                    };
+                  }
+                  return tool;
+                });
               }
 
               requestBody = JSON.stringify(transformed);

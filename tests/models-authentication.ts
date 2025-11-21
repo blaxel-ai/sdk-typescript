@@ -3,6 +3,7 @@ import { blModel as blModelLlamaIndex } from "@blaxel/llamaindex";
 import { blModel as blModelMastra } from "@blaxel/mastra";
 import { blModel as blModelVercel } from "@blaxel/vercel";
 import { generateText } from "ai";
+import { getModels } from "./utils.js";
 
 // Execution mode:
 // - "parallel": All first calls in parallel, wait 40s, all second calls in parallel
@@ -10,16 +11,7 @@ import { generateText } from "ai";
 const executionMode: "parallel" | "sequential" = "parallel";
 
 // Models that support authentication/tokens
-const models = [
-  "gpt-5-1",
-  "claude-sonnet-4-5",
-  "cerebras-sandbox",
-  "cohere-command-a-reasoning",
-  "mistral-large-latest",
-  "deepseek-chat",
-  "gemini-3-pro-preview",
-  "xai-grok-beta",
-];
+const models = getModels();
 
 // Frameworks to test - comment out any you don't want to test
 const frameworks = [
