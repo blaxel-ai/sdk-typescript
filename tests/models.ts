@@ -5,7 +5,7 @@ import { blModel as blModelVercel } from "@blaxel/vercel";
 import { generateText } from "ai";
 
 const models = [
-  "gpt-4o-mini",
+  "sandbox-openai",
   "claude-sonnet-4",
   "cerebras-sandbox",
   "cohere-command-r-plus",

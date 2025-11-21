@@ -74,7 +74,7 @@ import { blTools, blModel } from "@blaxel/mastra";
 
 const agent = new Agent({
   name: "blaxel-agent-mastra",
-  model: await blModel("gpt-4o-mini"),
+  model: await blModel("sandbox-openai"),
   instructions: prompt,
   tools: {
     ...(await blTools(["blaxel-search", "webcrawl"])),
