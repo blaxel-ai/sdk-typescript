@@ -3,7 +3,9 @@ import { createCerebras } from "@ai-sdk/cerebras";
 import { createCohere } from "@ai-sdk/cohere";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
+import { createMistral } from "@ai-sdk/mistral";
 import { createOpenAI } from "@ai-sdk/openai";
+import { createDeepSeek } from "@ai-sdk/deepseek";
 import { authenticate, getModelMetadata, handleDynamicImportError, settings } from "@blaxel/core";
 
 export const blModel = async (
@@ -73,6 +75,20 @@ export const blModel = async (
       return createCohere({
         apiKey: "replaced",
         baseURL: `${url}/v2`,
+        fetch: authenticatedFetch,
+        ...options,
+      })(modelId);
+    } else if (type === "mistral") {
+      return createMistral({
+        apiKey: "replaced",
+        baseURL: `${url}/v1`,
+        fetch: authenticatedFetch,
+        ...options,
+      })(modelId);
+    } else if (type === "deepseek") {
+      return createDeepSeek({
+        apiKey: "replaced",
+        baseURL: `${url}/v1`,
         fetch: authenticatedFetch,
         ...options,
       })(modelId);

@@ -52,11 +52,6 @@ export class McpTool {
       {
         name: this.name,
         version: "1.0.0",
-      },
-      {
-        capabilities: {
-          tools: {},
-        },
       }
     );
   }

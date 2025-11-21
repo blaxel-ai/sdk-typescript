@@ -1,4 +1,5 @@
 import { Serialized } from "@langchain/core/load/serializable";
+import { type LangSmithParams } from "@langchain/core/language_models/chat_models";
 import { getEnvironmentVariable } from "@langchain/core/utils/env";
 import { ChatOpenAI } from "@langchain/openai";
 
@@ -81,7 +82,7 @@ export class ChatXAI extends ChatOpenAI {
    * @param options - Additional options for parameter retrieval.
    * @returns An object containing LangChain parameters.
    */
-  getLsParams(options: unknown) {
+  getLsParams(options: unknown): LangSmithParams {
     const params = super.getLsParams(options as this["ParsedCallOptions"]);
     params.ls_provider = "xai";
     return params;

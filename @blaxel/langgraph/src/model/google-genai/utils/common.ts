@@ -164,6 +164,9 @@ export function convertMessageContentToParts(
         if (!isMultimodalModel) {
           throw new Error(`This model does not support images`);
         }
+        if (!c.image_url) {
+          throw new Error("Please provide image as base64 encoded data URL");
+        }
         let source;
         if (typeof c.image_url === "string") {
           source = c.image_url;
@@ -331,7 +334,7 @@ export function mapGenerateContentResultToChatResult(
         };
       }
       return p;
-    });
+    }) as MessageContent;
   }
 
   let text = "";
@@ -401,7 +404,7 @@ export function convertResponseContentToChatGenerationChunk(
         };
       }
       return p;
-    });
+    }) as MessageContent;
   }
 
   let text = "";

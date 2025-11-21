@@ -50,14 +50,14 @@
 	],
 	"dependencies": {
 		"@blaxel/core": "workspace:*",
-		"@llamaindex/anthropic": "^0.3.15",
-		"@llamaindex/core": "0.6.13",
-		"@llamaindex/google": "0.3.12",
-		"@llamaindex/mistral": "^0.1.13",
-		"@llamaindex/openai": "^0.4.7",
+		"@llamaindex/anthropic": "^0.3.26",
+		"@llamaindex/core": "0.6.22",
+		"@llamaindex/google": "0.3.22",
+		"@llamaindex/mistral": "^0.1.22",
+		"@llamaindex/openai": "^0.4.21",
 		"@opentelemetry/instrumentation": "^0.203.0",
 		"@traceloop/instrumentation-llamaindex": "^0.14.0",
-		"llamaindex": "^0.11.13"
+		"llamaindex": "^0.12.0"
 	},
 	"devDependencies": {
 		"@eslint/js": "^9.30.1",

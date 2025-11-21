@@ -1,6 +1,7 @@
 import { authenticate, getModelMetadata, handleDynamicImportError, settings } from "@blaxel/core";
 import { anthropic, AnthropicSession } from "@llamaindex/anthropic";
 import type { ChatResponse, ChatResponseChunk, CompletionResponse, LLMChatParamsNonStreaming, LLMChatParamsStreaming, LLMCompletionParamsNonStreaming, LLMCompletionParamsStreaming, LLMMetadata, ToolCallLLM, ToolCallLLMMessageOptions } from '@llamaindex/core/llms' with { "resolution-mode": "import" };
+import { ZodSchema } from '@llamaindex/core/zod';
 import { Gemini, GEMINI_MODEL } from "@llamaindex/google";
 import { openai } from "@llamaindex/openai";
 
@@ -53,8 +54,21 @@ class BlaxelLLM implements ToolCallLLM<object, ToolCallLLMMessageOptions> {
 
   private async ensureMetadata(): Promise<void> {
     if (!this._metadata) {
-      const llm = await this.createLLM();
-      this._metadata = llm.metadata;
+      try {
+        const llm = await this.createLLM();
+        this._metadata = llm.metadata;
+      } catch {
+        // If metadata access fails (e.g., Gemini), use default metadata
+        this._metadata = {
+          model: this.modelData?.spec?.runtime?.model || this.model,
+          temperature: this.options?.temperature as number | undefined ?? 0,
+          topP: this.options?.topP as number | undefined ?? 1,
+          maxTokens: this.options?.maxTokens as number | undefined ?? undefined,
+          contextWindow: this.options?.contextWindow as number | undefined ?? 4096,
+          tokenizer: undefined,
+          structuredOutput: (this.options?.structuredOutput as boolean | undefined) ?? false,
+        };
+      }
     }
   }
 
@@ -72,6 +86,9 @@ class BlaxelLLM implements ToolCallLLM<object, ToolCallLLMMessageOptions> {
     }
 
     if (this.type === "anthropic") {
+      // Set a dummy API key to satisfy AnthropicSession constructor requirement
+      // The actual authentication is handled via defaultHeaders
+      process.env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "dummy-key-for-blaxel";
       const llm = anthropic({
         model: this.modelData?.spec?.runtime?.model,
         session: new AnthropicSession({
@@ -80,10 +97,69 @@ class BlaxelLLM implements ToolCallLLM<object, ToolCallLLMMessageOptions> {
         }),
         ...this.options,
       });
-      return {
+
+      // Wrap the LLM to normalize Anthropic's response format (array content -> string)
+      // Create overloaded chat function
+      const chatWrapper = async (
+        params: LLMChatParamsStreaming<object, ToolCallLLMMessageOptions> | LLMChatParamsNonStreaming<object, ToolCallLLMMessageOptions>
+      ): Promise<AsyncIterable<ChatResponseChunk<object>> | ChatResponse<ToolCallLLMMessageOptions>> => {
+        // Type guard to determine if params is streaming or non-streaming
+        const isStreaming = 'stream' in params && params.stream === true;
+
+        let response: AsyncIterable<ChatResponseChunk<object>> | ChatResponse<ToolCallLLMMessageOptions>;
+        if (isStreaming) {
+          response = await llm.chat(params);
+        } else {
+          response = await llm.chat(params);
+        }
+
+        // Handle streaming responses (AsyncIterable)
+        const isAsyncIterable = (value: unknown): value is AsyncIterable<ChatResponseChunk<object>> => {
+          return value !== null && typeof value === 'object' && Symbol.asyncIterator in value;
+        };
+
+        if (isAsyncIterable(response)) {
+          return response; // Streaming responses are handled differently, return as-is
+        }
+
+        // Transform array content to string for non-streaming responses
+        const chatResponse = response;
+        if (chatResponse && typeof chatResponse === 'object' && chatResponse !== null && 'message' in chatResponse) {
+          if (chatResponse.message && Array.isArray(chatResponse.message.content)) {
+            const contentArray = chatResponse.message.content as Array<{ type?: string; text?: string }>;
+            const textContent = contentArray
+              .filter((item) => item.type === 'text' && item.text)
+              .map((item) => item.text)
+              .join('');
+            return {
+              ...chatResponse,
+              message: {
+                ...chatResponse.message,
+                content: textContent || chatResponse.message.content,
+              },
+            };
+          }
+        }
+        return chatResponse;
+      };
+
+      // Add overload signatures
+      const chatWithOverloads = chatWrapper as {
+        (params: LLMChatParamsStreaming<object, ToolCallLLMMessageOptions>): Promise<AsyncIterable<ChatResponseChunk<object>>>;
+        (params: LLMChatParamsNonStreaming<object, ToolCallLLMMessageOptions>): Promise<ChatResponse<ToolCallLLMMessageOptions>>;
+      };
+
+      const wrappedLLM: ToolCallLLM<object, ToolCallLLMMessageOptions> = {
         ...llm,
         supportToolCall: true,
-      } as unknown as ToolCallLLM<object, ToolCallLLMMessageOptions>;
+        chat: chatWithOverloads,
+        complete: llm.complete.bind(llm),
+        exec: llm.exec.bind(llm),
+        streamExec: llm.streamExec.bind(llm),
+        metadata: llm.metadata,
+      };
+
+      return wrappedLLM;
     }
 
     if (this.type === "cohere") {
@@ -149,6 +225,27 @@ class BlaxelLLM implements ToolCallLLM<object, ToolCallLLMMessageOptions> {
     } else {
       return llm.complete(params);
     }
+  }
+
+  // Overloaded exec method
+  async exec<Z extends ZodSchema>(params: LLMChatParamsStreaming<object, ToolCallLLMMessageOptions, Z>): Promise<any>;
+  async exec<Z extends ZodSchema>(params: LLMChatParamsNonStreaming<object, ToolCallLLMMessageOptions, Z>): Promise<any>;
+  async exec<Z extends ZodSchema>(params: LLMChatParamsStreaming<object, ToolCallLLMMessageOptions, Z> | LLMChatParamsNonStreaming<object, ToolCallLLMMessageOptions, Z>): Promise<any> {
+    await this.ensureMetadata();
+    const llm = await this.createLLM();
+    // Type guard to handle overloads
+    if ('stream' in params && params.stream === true) {
+      return llm.exec(params);
+    } else {
+      return llm.exec(params);
+    }
+  }
+
+  // streamExec method
+  async streamExec<Z extends ZodSchema>(params: LLMChatParamsStreaming<object, ToolCallLLMMessageOptions, Z>): Promise<any> {
+    await this.ensureMetadata();
+    const llm = await this.createLLM();
+    return llm.streamExec(params);
   }
 }
 

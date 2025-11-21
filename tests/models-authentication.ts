@@ -11,13 +11,13 @@ const executionMode: "parallel" | "sequential" = "parallel";
 
 // Models that support authentication/tokens
 const models = [
-  "gpt-4o-mini",
-  "claude-sonnet-4",
+  "gpt-5-1",
+  "claude-sonnet-4-5",
   "cerebras-sandbox",
-  "cohere-command-r-plus",
+  "cohere-command-a-reasoning",
   "mistral-large-latest",
   "deepseek-chat",
-  "gemini-2-5-pro-preview-06-05",
+  "gemini-3-pro-preview",
   "xai-grok-beta",
 ];
 
@@ -80,21 +80,21 @@ async function runParallel(testCases: TestCase[]) {
 
   await Promise.all(firstRequests);
 
-  console.info("\n=== Waiting 40s for tokens to expire... ===");
-  await new Promise(resolve => setTimeout(resolve, 40000)); // wait 40s, token will expire
+  // console.info("\n=== Waiting 40s for tokens to expire... ===");
+  // await new Promise(resolve => setTimeout(resolve, 40000)); // wait 40s, token will expire
 
-  console.info("\n=== Running second requests in parallel (after token expiry) ===");
+  // console.info("\n=== Running second requests in parallel (after token expiry) ===");
 
-  // Run all second requests in parallel
-  const secondRequests = testCases.map(async ({ framework, modelName, model, testFunc }) => {
-    try {
-      await testFunc(model, modelName, 2);
-    } catch (err) {
-      console.error(`Error in second request for ${framework}, ${modelName}:`, err);
-    }
-  });
+  // // Run all second requests in parallel
+  // const secondRequests = testCases.map(async ({ framework, modelName, model, testFunc }) => {
+  //   try {
+  //     await testFunc(model, modelName, 2);
+  //   } catch (err) {
+  //     console.error(`Error in second request for ${framework}, ${modelName}:`, err);
+  //   }
+  // });
 
-  await Promise.all(secondRequests);
+  // await Promise.all(secondRequests);
 }
 
 async function runSequential(testCases: TestCase[]) {

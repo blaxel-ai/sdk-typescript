@@ -10,5 +10,6 @@ export * from "./filesystem/index.js";
 export * from "./codegen/index.js";
 export * from "./sandbox.js";
 export * from "./types.js";
+export * from "./interpreter.js";
 // Re-export everything from client except ClientOptions to avoid conflict
 

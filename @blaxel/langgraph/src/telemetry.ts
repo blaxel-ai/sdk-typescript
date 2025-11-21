@@ -1,18 +1,17 @@
 import * as RunnableModule from "@langchain/core/runnables";
 import * as ToolsModule from "@langchain/core/tools";
+import * as AgentsModule from "@langchain/core/agents";
 import * as VectorStoresModule from "@langchain/core/vectorstores";
 import {
   registerInstrumentations
 } from "@opentelemetry/instrumentation";
 import { LangChainInstrumentation } from "@traceloop/instrumentation-langchain";
-import * as AgentsModule from "langchain/agents";
-import * as ChainsModule from "langchain/chains";
 
 const langchain = new LangChainInstrumentation();
 langchain.manuallyInstrument({
+  // @ts-ignore - Type definitions may be incorrect, but the method accepts these parameters at runtime
   runnablesModule: RunnableModule,
   toolsModule: ToolsModule,
-  chainsModule: ChainsModule,
   agentsModule: AgentsModule,
   vectorStoreModule: VectorStoresModule,
 });

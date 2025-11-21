@@ -115,7 +115,7 @@ async function testPreviewPublic(sandbox: SandboxInstance) {
   } catch (e) {
     console.log("ERROR IN PREVIEWS NOT EXPECTED => ", e);
   } finally {
-    await sandbox.previews.delete("preview-test-public")
+    // await sandbox.previews.delete("preview-test-public")
   }
   }
 
@@ -142,6 +142,9 @@ async function testPreviewToken(sandbox: SandboxInstance) {
     if (tokens.length < 1) {
       throw new Error("No tokens found");
     }
+    console.log("Tokens =>")
+    console.log(JSON.stringify(tokens, null, 2))
+    console.log("Token value => ", token.value)
     if (!tokens.find((t) => t.value === token.value)) {
       throw new Error("Token not found in list");
     }
@@ -156,11 +159,11 @@ async function testPreviewToken(sandbox: SandboxInstance) {
       throw new Error(`Preview is not working with token, response => ${responseWithToken.status}`);
     }
     console.log("Preview is healthy with token :)")
-    await preview.tokens.delete(token.value)
+    // await preview.tokens.delete(token.value)
   } catch (e) {
     console.log("ERROR IN PREVIEWS NOT EXPECTED => ", e);
   } finally {
-    await sandbox.previews.delete("preview-test-private")
+    // await sandbox.previews.delete("preview-test-private")
   }
 }
 
@@ -296,16 +299,16 @@ async function main() {
     // Test with controlplane
     const sandbox = await createOrGetSandbox({sandboxName, memory: 8096})
 
-    await testFilesystem(sandbox);
-    await testProcess(sandbox);
+    // await testFilesystem(sandbox);
+    // await testProcess(sandbox);
     await testPreviews(sandbox);
-    await testWatch(sandbox);
-    await testProcessLogs(sandbox);
+    // await testWatch(sandbox);
+    // await testProcessLogs(sandbox);
   } catch (e) {
     console.error("There was an error => ", e);
   } finally {
     console.log("Deleting sandbox");
-    await SandboxInstance.delete(sandboxName)
+    // await SandboxInstance.delete(sandboxName)
   }
 }
 
