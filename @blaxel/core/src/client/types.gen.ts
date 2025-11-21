@@ -1482,7 +1482,7 @@ export type ModelPrivateCluster = {
 /**
  * Model specification
  */
-export type ModelSpec = CoreSpec & unknown;
+export type ModelSpec = CoreSpec;
 
 /**
  * OAuth of the artifact

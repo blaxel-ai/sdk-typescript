@@ -73,7 +73,7 @@ When running Blaxel SDK from a remote server that is not Blaxel-hosted, we recom
 import { blTools, blModel } from "@blaxel/llamaindex";
 
 const stream = agent({
-  llm: await blModel("gpt-4o-mini"),
+  llm: await blModel("sandbox-openai"),
   tools: [
     ...(await blTools(["blaxel-search", "webcrawl"])),
     tool({

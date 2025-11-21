@@ -1,6 +1,5 @@
 import { authenticate, settings } from "@blaxel/core";
 import { APIResponse, FetchFunction, Fetcher } from "cohere-ai/core";
-
 /**
  * Creates a custom fetcher for CohereClient that adds dynamic headers
  * CohereClient's fetcher expects a function that intercepts fetch requests
@@ -28,7 +27,9 @@ export const createCohereFetcher = (): FetchFunction => {
     } = args;
 
     // Build URL with query parameters
-    let requestUrl = url;
+    // Rewrite /v1/chat to /v2/chat for Cohere API v2 compatibility
+    let requestUrl = url.replace('/v1/chat', '/v2/chat');
+    const isV2Endpoint = requestUrl.includes('/v2/chat');
     if (queryParameters) {
       const params = new URLSearchParams();
       Object.entries(queryParameters).forEach(([key, value]) => {
@@ -78,7 +79,81 @@ export const createCohereFetcher = (): FetchFunction => {
     let requestBody: string | Blob | ArrayBuffer | FormData | ReadableStream | undefined;
     if (body !== undefined) {
       if (requestType === 'json' || !requestType) {
-        requestBody = JSON.stringify(body);
+        // Transform body for Cohere v2 API compatibility (only if using v2 endpoint)
+        let transformedBody = body;
+        if (isV2Endpoint && typeof body === 'object' && body !== null && !Array.isArray(body)) {
+          const bodyObj = body as Record<string, unknown>;
+          transformedBody = { ...bodyObj };
+          const transformedObj = transformedBody as Record<string, unknown>;
+
+          // Remove v1-only fields that are not supported in v2
+          const fieldsToRemove = ['chat_history'];
+          for (const field of fieldsToRemove) {
+            if (field in transformedObj) {
+              delete transformedObj[field];
+            }
+          }
+
+          // Convert 'message' to 'messages' format if message exists and messages doesn't
+          if ('message' in transformedObj && !('messages' in transformedObj)) {
+            const message = transformedObj.message;
+            if (typeof message === 'string' && message.trim().length > 0) {
+              // Convert single message string to messages array format
+              transformedObj.messages = [
+                {
+                  role: 'user',
+                  content: message,
+                },
+              ];
+            }
+            // Remove the old message field
+            delete transformedObj.message;
+          }
+
+          // Handle tool_results - v2 might use a different format, remove for now
+          if ('tool_results' in transformedObj) {
+            delete transformedObj.tool_results;
+          }
+
+          // Transform tools array to ensure each tool has a 'type' field (required by Cohere v2)
+          if ('tools' in transformedObj && Array.isArray(transformedObj.tools)) {
+            const tools = transformedObj.tools as unknown[];
+            transformedObj.tools = tools.map((tool) => {
+              if (typeof tool === 'object' && tool !== null) {
+                const toolObj = tool as Record<string, unknown>;
+                // If tool already has 'type' field, keep it
+                if ('type' in toolObj) {
+                  return toolObj;
+                }
+                // If tool has 'function' field (OpenAI format), wrap it with type
+                if ('function' in toolObj) {
+                  return {
+                    type: 'function',
+                    function: toolObj.function,
+                  };
+                }
+                // If tool has name/description/parameters (direct format), wrap it
+                if ('name' in toolObj && ('description' in toolObj || 'parameters' in toolObj)) {
+                  return {
+                    type: 'function',
+                    function: {
+                      name: toolObj.name,
+                      description: toolObj.description || '',
+                      parameters: toolObj.parameters || toolObj.inputSchema || {},
+                    },
+                  };
+                }
+                // Default: add type field
+                return {
+                  type: 'function',
+                  ...toolObj,
+                };
+              }
+              return tool;
+            });
+          }
+        }
+        requestBody = JSON.stringify(transformedBody);
       } else if (requestType === 'bytes' && body instanceof Uint8Array) {
         // Create a new ArrayBuffer from the Uint8Array to avoid SharedArrayBuffer issues
         const arrayBuffer = new ArrayBuffer(body.length);
@@ -88,7 +163,90 @@ export const createCohereFetcher = (): FetchFunction => {
       } else if (requestType === 'file' && body instanceof Blob) {
         requestBody = body;
       } else if (typeof body === 'string') {
-        requestBody = body;
+        // Parse and transform JSON strings (only if using v2 endpoint)
+        if (isV2Endpoint) {
+          try {
+            const parsed: unknown = JSON.parse(body);
+            if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+              interface RequestBody {
+                chat_history?: unknown;
+                tool_results?: unknown;
+                message?: unknown;
+                messages?: unknown;
+                [key: string]: unknown;
+              }
+              const transformed: RequestBody = { ...parsed as Record<string, unknown> };
+
+              // Remove v1-only fields
+              if ('chat_history' in transformed) {
+                delete transformed.chat_history;
+              }
+              if ('tool_results' in transformed) {
+                delete transformed.tool_results;
+              }
+
+              // Convert 'message' to 'messages' format if message exists and messages doesn't
+              if ('message' in transformed && !('messages' in transformed)) {
+                const message = transformed.message;
+                if (typeof message === 'string' && message.trim().length > 0) {
+                  transformed.messages = [
+                    {
+                      role: 'user',
+                      content: message,
+                    },
+                  ];
+                }
+                delete transformed.message;
+              }
+
+              // Transform tools array to ensure each tool has a 'type' field (required by Cohere v2)
+              if ('tools' in transformed && Array.isArray(transformed.tools)) {
+                const tools = transformed.tools as unknown[];
+                transformed.tools = tools.map((tool) => {
+                  if (typeof tool === 'object' && tool !== null) {
+                    const toolObj = tool as Record<string, unknown>;
+                    // If tool already has 'type' field, keep it
+                    if ('type' in toolObj) {
+                      return toolObj;
+                    }
+                    // If tool has 'function' field (OpenAI format), wrap it with type
+                    if ('function' in toolObj) {
+                      return {
+                        type: 'function',
+                        function: toolObj.function,
+                      };
+                    }
+                    // If tool has name/description/parameters (direct format), wrap it
+                    if ('name' in toolObj && ('description' in toolObj || 'parameters' in toolObj)) {
+                      return {
+                        type: 'function',
+                        function: {
+                          name: toolObj.name,
+                          description: toolObj.description || '',
+                          parameters: toolObj.parameters || toolObj.inputSchema || {},
+                        },
+                      };
+                    }
+                    // Default: add type field
+                    return {
+                      type: 'function',
+                      ...toolObj,
+                    };
+                  }
+                  return tool;
+                });
+              }
+
+              requestBody = JSON.stringify(transformed);
+            } else {
+              requestBody = body;
+            }
+          } catch {
+            requestBody = body;
+          }
+        } else {
+          requestBody = body;
+        }
       } else {
         requestBody = JSON.stringify(body);
       }
@@ -144,6 +302,61 @@ export const createCohereFetcher = (): FetchFunction => {
         } else {
           // Default to JSON
           responseBody = await response.json();
+
+          // Transform v2 response format to v1 format for ChatCohere compatibility
+          if (isV2Endpoint && typeof responseBody === 'object' && responseBody !== null) {
+            // Cohere v2 returns: { message: { role: "assistant", content: [...] }, ... }
+            // ChatCohere expects: { text: "...", ... } or similar v1 format
+            interface ResponseBody {
+              message?: {
+                role?: string;
+                content?: unknown;
+              };
+              [key: string]: unknown;
+            }
+            const responseObj = responseBody as ResponseBody;
+            if ('message' in responseObj && typeof responseObj.message === 'object' && responseObj.message !== null) {
+              const v2Message = responseObj.message as { role?: string; content?: unknown };
+
+              // Extract text from content array
+              let text = '';
+              if (Array.isArray(v2Message.content)) {
+                // Type guard for content items
+                interface ContentItem {
+                  type?: string;
+                  text?: string;
+                  thinking?: string;
+                }
+                const contentArray = v2Message.content as ContentItem[];
+
+                // Find the text content block
+                const textBlock = contentArray.find(
+                  (item) => item.type === 'text' && item.text
+                );
+                if (textBlock && textBlock.text) {
+                  text = textBlock.text;
+                } else {
+                  // Fallback: join all text-like content
+                  text = contentArray
+                    .map((item) => item.text || item.thinking || '')
+                    .filter(Boolean)
+                    .join('\n');
+                }
+              } else if (typeof v2Message.content === 'string') {
+                text = v2Message.content;
+              }
+
+              // Transform to v1-like format that ChatCohere expects
+              const transformedResponse: Record<string, unknown> = {
+                ...responseObj,
+                text: text,
+                // Keep the original message structure in case ChatCohere needs it
+                message: responseObj.message,
+              };
+
+              responseBody = transformedResponse as R;
+            }
+          }
         }
 
         // Return success response in the format CohereClient expects
