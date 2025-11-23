@@ -1,5 +1,8 @@
 import { SandboxInstance } from "@blaxel/core";
 
+const BL_ENV = process.env.BL_ENV || "prod";
+const BL_REGION = process.env.BL_REGION || (BL_ENV === "dev" ? "eu-dub-1" : "us-pdx-1");
+
 async function main() {
   try {
     const startTime = Date.now();
@@ -10,6 +13,7 @@ async function main() {
       name: randomSandboxName,
       image: "blaxel/node:latest",
       memory: 4096,
+      region: BL_REGION,
       ports: [{ target: 3000, protocol: "HTTP" }],   // ports to expose
     });
     const sandboxTime = Date.now() - sandboxStartTime;
