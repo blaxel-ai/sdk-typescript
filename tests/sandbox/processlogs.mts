@@ -32,7 +32,7 @@ async function executeProcess(index: number): Promise<ProcessResult> {
     const result = await sandbox.process.exec({
       command: 'echo "hello" && ls /nonexistent 2>&1',
       waitForCompletion: true,
-      workingDir: '/agent',  // FUSE mount
+      workingDir: '/blaxel',  // FUSE mount
       name: `process-${index}`,
       onLog: (log) => {
         onLogCollected.get(index)?.push(log);
