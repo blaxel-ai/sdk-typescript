@@ -59,7 +59,7 @@
 		"@langchain/openai": "^1.1.2",
 		"@opentelemetry/instrumentation": "^0.200.0",
 		"@traceloop/instrumentation-langchain": "^0.20.0",
-		"cohere-ai": "^7.19.0",
+		"cohere-ai": "7.19.0",
 		"langchain": "^1.0.6",
 		"zod": "^3.24.3",
 		"zod-to-json-schema": "^3.24.5"
