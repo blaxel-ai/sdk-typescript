@@ -31,3 +31,11 @@ export interface FilesystemFindOptions {
   excludeDirs?: string[];
   excludeHidden?: boolean;
 }
+
+export interface FilesystemGrepOptions {
+  caseSensitive?: boolean;
+  contextLines?: number;
+  maxResults?: number;
+  filePattern?: string;
+  excludeDirs?: string[];
+}

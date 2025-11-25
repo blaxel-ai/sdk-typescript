@@ -14,6 +14,20 @@ export type ApplyEditResponse = {
     updatedContent?: string;
 };
 
+export type ContentSearchMatch = {
+    column?: number;
+    context?: string;
+    line?: number;
+    path?: string;
+    text?: string;
+};
+
+export type ContentSearchResponse = {
+    matches?: Array<ContentSearchMatch>;
+    query?: string;
+    total?: number;
+};
+
 export type Directory = {
     files: Array<File>;
     name: string;
@@ -399,6 +413,69 @@ export type GetCodegenRerankingByPathResponses = {
 };
 
 export type GetCodegenRerankingByPathResponse = GetCodegenRerankingByPathResponses[keyof GetCodegenRerankingByPathResponses];
+
+export type GetFilesystemContentSearchByPathData = {
+    body?: never;
+    path: {
+        /**
+         * Directory path to search in
+         */
+        path: string;
+    };
+    query: {
+        /**
+         * Text to search for
+         */
+        query: string;
+        /**
+         * Case sensitive search (default: false)
+         */
+        caseSensitive?: boolean;
+        /**
+         * Number of context lines to include (default: 0)
+         */
+        contextLines?: number;
+        /**
+         * Maximum number of results to return (default: 100)
+         */
+        maxResults?: number;
+        /**
+         * File pattern to include (e.g., *.go)
+         */
+        filePattern?: string;
+        /**
+         * Comma-separated directory names to skip (default: node_modules,vendor,.git,dist,build,target,__pycache__,.venv,.next,coverage)
+         */
+        excludeDirs?: string;
+    };
+    url: '/filesystem-content-search/{path}';
+};
+
+export type GetFilesystemContentSearchByPathErrors = {
+    /**
+     * Bad request
+     */
+    400: ErrorResponse;
+    /**
+     * Unprocessable entity
+     */
+    422: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type GetFilesystemContentSearchByPathError = GetFilesystemContentSearchByPathErrors[keyof GetFilesystemContentSearchByPathErrors];
+
+export type GetFilesystemContentSearchByPathResponses = {
+    /**
+     * Content search results
+     */
+    200: ContentSearchResponse;
+};
+
+export type GetFilesystemContentSearchByPathResponse = GetFilesystemContentSearchByPathResponses[keyof GetFilesystemContentSearchByPathResponses];
 
 export type GetFilesystemFindByPathData = {
     body?: never;

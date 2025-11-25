@@ -2,9 +2,9 @@ import { Sandbox } from "../../client/types.gen.js";
 import { fs } from "../../common/node.js";
 import { settings } from "../../common/settings.js";
 import { SandboxAction } from "../action.js";
-import { deleteFilesystemByPath, deleteFilesystemMultipartByUploadIdAbort, Directory, FindResponse, FuzzySearchResponse, getFilesystemByPath, getFilesystemFindByPath, getFilesystemSearchByPath, getWatchFilesystemByPath, MultipartInitiateResponse, MultipartPartInfo, MultipartUploadPartResponse, postFilesystemMultipartByUploadIdComplete, postFilesystemMultipartInitiateByPath, putFilesystemByPath, PutFilesystemByPathError, putFilesystemMultipartByUploadIdPart, SuccessResponse } from "../client/index.js";
+import { ContentSearchResponse, deleteFilesystemByPath, deleteFilesystemMultipartByUploadIdAbort, Directory, FindResponse, FuzzySearchResponse, getFilesystemByPath, getFilesystemContentSearchByPath, getFilesystemFindByPath, getFilesystemSearchByPath, getWatchFilesystemByPath, MultipartInitiateResponse, MultipartPartInfo, MultipartUploadPartResponse, postFilesystemMultipartByUploadIdComplete, postFilesystemMultipartInitiateByPath, putFilesystemByPath, PutFilesystemByPathError, putFilesystemMultipartByUploadIdPart, SuccessResponse } from "../client/index.js";
 import { SandboxProcess } from "../process/index.js";
-import { CopyResponse, FilesystemFindOptions, FilesystemSearchOptions, SandboxFilesystemFile, WatchEvent } from "./types.js";
+import { CopyResponse, FilesystemFindOptions, FilesystemGrepOptions, FilesystemSearchOptions, SandboxFilesystemFile, WatchEvent } from "./types.js";
 
 // Multipart upload constants
 const MULTIPART_THRESHOLD = 5 * 1024 * 1024; // 5MB
@@ -290,6 +290,51 @@ export class SandboxFileSystem extends SandboxAction {
     });
     this.handleResponseError(result.response, result.data, result.error);
     return result.data as FindResponse;
+  }
+
+  async grep(
+    query: string,
+    path: string = "/",
+    options?: FilesystemGrepOptions
+  ): Promise<ContentSearchResponse> {
+    const formattedPath = this.formatPath(path);
+
+    const queryParams: {
+      query: string;
+      caseSensitive?: boolean;
+      contextLines?: number;
+      maxResults?: number;
+      filePattern?: string;
+      excludeDirs?: string;
+    } = {
+      query,
+    };
+
+    if (options?.caseSensitive !== undefined) {
+      queryParams.caseSensitive = options.caseSensitive;
+    }
+    if (options?.contextLines !== undefined) {
+      queryParams.contextLines = options.contextLines;
+    }
+    if (options?.maxResults !== undefined) {
+      queryParams.maxResults = options.maxResults;
+    }
+    if (options?.filePattern) {
+      queryParams.filePattern = options.filePattern;
+    }
+    if (options?.excludeDirs && options.excludeDirs.length > 0) {
+      queryParams.excludeDirs = options.excludeDirs.join(',');
+    }
+
+    const result = await getFilesystemContentSearchByPath({
+      path: { path: formattedPath },
+      query: queryParams,
+      baseUrl: this.url,
+      client: this.client,
+    });
+
+    this.handleResponseError(result.response, result.data, result.error);
+    return result.data as ContentSearchResponse;
   }
 
   async cp(source: string, destination: string, { maxWait = 180000 }: { maxWait?: number } = {}): Promise<CopyResponse> {
