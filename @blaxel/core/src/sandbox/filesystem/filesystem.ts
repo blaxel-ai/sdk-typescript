@@ -1,10 +1,10 @@
 import { Sandbox } from "../../client/types.gen.js";
-import { settings } from "../../common/settings.js";
 import { fs } from "../../common/node.js";
+import { settings } from "../../common/settings.js";
 import { SandboxAction } from "../action.js";
-import { deleteFilesystemByPath, Directory, getFilesystemByPath, getWatchFilesystemByPath, putFilesystemByPath, PutFilesystemByPathError, SuccessResponse, postFilesystemMultipartInitiateByPath, putFilesystemMultipartByUploadIdPart, postFilesystemMultipartByUploadIdComplete, deleteFilesystemMultipartByUploadIdAbort, MultipartInitiateResponse, MultipartUploadPartResponse, MultipartPartInfo } from "../client/index.js";
+import { deleteFilesystemByPath, deleteFilesystemMultipartByUploadIdAbort, Directory, FindResponse, FuzzySearchResponse, getFilesystemByPath, getFilesystemFindByPath, getFilesystemSearchByPath, getWatchFilesystemByPath, MultipartInitiateResponse, MultipartPartInfo, MultipartUploadPartResponse, postFilesystemMultipartByUploadIdComplete, postFilesystemMultipartInitiateByPath, putFilesystemByPath, PutFilesystemByPathError, putFilesystemMultipartByUploadIdPart, SuccessResponse } from "../client/index.js";
 import { SandboxProcess } from "../process/index.js";
-import { CopyResponse, SandboxFilesystemFile, WatchEvent } from "./types.js";
+import { CopyResponse, FilesystemFindOptions, FilesystemSearchOptions, SandboxFilesystemFile, WatchEvent } from "./types.js";
 
 // Multipart upload constants
 const MULTIPART_THRESHOLD = 5 * 1024 * 1024; // 5MB
@@ -212,6 +212,84 @@ export class SandboxFileSystem extends SandboxAction {
       throw new Error(JSON.stringify({ error: "Directory not found" }));
     }
     return data as Directory;
+  }
+
+  async search(
+    query: string,
+    path: string = "/",
+    options?: FilesystemSearchOptions
+  ): Promise<FuzzySearchResponse> {
+    const formattedPath = this.formatPath(path);
+
+    const queryParams: {
+      maxResults?: number;
+      patterns?: string;
+      excludeDirs?: string;
+      excludeHidden?: boolean;
+    } = {};
+
+    if (options?.maxResults !== undefined) {
+      queryParams.maxResults = options.maxResults;
+    }
+    if (options?.patterns && options.patterns.length > 0) {
+      queryParams.patterns = options.patterns.join(',');
+    }
+    if (options?.excludeDirs && options.excludeDirs.length > 0) {
+      queryParams.excludeDirs = options.excludeDirs.join(',');
+    }
+    if (options?.excludeHidden !== undefined) {
+      queryParams.excludeHidden = options.excludeHidden;
+    }
+
+    const result = await getFilesystemSearchByPath({
+      path: { path: formattedPath },
+      query: queryParams,
+      baseUrl: this.url,
+      client: this.client,
+    });
+
+    this.handleResponseError(result.response, result.data, result.error);
+    return result.data as FuzzySearchResponse;
+  }
+
+  async find(
+    path: string,
+    options?: FilesystemFindOptions
+  ): Promise<FindResponse> {
+    const formattedPath = this.formatPath(path);
+
+    const queryParams: {
+      type?: string;
+      patterns?: string;
+      maxResults?: number;
+      excludeDirs?: string;
+      excludeHidden?: boolean;
+    } = {};
+
+    if (options?.type) {
+      queryParams.type = options.type;
+    }
+    if (options?.patterns && options.patterns.length > 0) {
+      queryParams.patterns = options.patterns.join(',');
+    }
+    if (options?.maxResults !== undefined) {
+      queryParams.maxResults = options.maxResults;
+    }
+    if (options?.excludeDirs && options.excludeDirs.length > 0) {
+      queryParams.excludeDirs = options.excludeDirs.join(',');
+    }
+    if (options?.excludeHidden !== undefined) {
+      queryParams.excludeHidden = options.excludeHidden;
+    }
+
+    const result = await getFilesystemFindByPath({
+      path: { path: formattedPath },
+      query: queryParams,
+      baseUrl: this.url,
+      client: this.client,
+    });
+    this.handleResponseError(result.response, result.data, result.error);
+    return result.data as FindResponse;
   }
 
   async cp(source: string, destination: string, { maxWait = 180000 }: { maxWait?: number } = {}): Promise<CopyResponse> {

@@ -55,6 +55,33 @@ export type FileWithContent = {
     size: number;
 };
 
+export type FindMatch = {
+    path?: string;
+    /**
+     * "file" or "directory"
+     */
+    type?: string;
+};
+
+export type FindResponse = {
+    matches?: Array<FindMatch>;
+    total?: number;
+};
+
+export type FuzzySearchMatch = {
+    path?: string;
+    score?: number;
+    /**
+     * "file" or "directory"
+     */
+    type?: string;
+};
+
+export type FuzzySearchResponse = {
+    matches?: Array<FuzzySearchMatch>;
+    total?: number;
+};
+
 export type MultipartCompleteRequest = {
     parts?: Array<MultipartPartInfo>;
 };
@@ -120,11 +147,11 @@ export type ProcessResponse = {
     completedAt: string;
     exitCode: number;
     logs: string;
-    maxRestarts: number;
+    maxRestarts?: number;
     name: string;
     pid: string;
-    restartCount: number;
-    restartOnFailure: boolean;
+    restartCount?: number;
+    restartOnFailure?: boolean;
     startedAt: string;
     status: 'failed' | 'killed' | 'stopped' | 'running' | 'completed';
     workingDir: string;
@@ -150,6 +177,12 @@ export type Subdirectory = {
 export type SuccessResponse = {
     message: string;
     path?: string;
+};
+
+export type TreeRequest = {
+    files?: {
+        [key: string]: string;
+    };
 };
 
 export type WelcomeResponse = {
@@ -366,6 +399,65 @@ export type GetCodegenRerankingByPathResponses = {
 };
 
 export type GetCodegenRerankingByPathResponse = GetCodegenRerankingByPathResponses[keyof GetCodegenRerankingByPathResponses];
+
+export type GetFilesystemFindByPathData = {
+    body?: never;
+    path: {
+        /**
+         * Path to search in (e.g., /home/user/projects)
+         */
+        path: string;
+    };
+    query?: {
+        /**
+         * Type of search (file or directory)
+         */
+        type?: string;
+        /**
+         * Comma-separated file patterns to include (e.g., *.go,*.js)
+         */
+        patterns?: string;
+        /**
+         * Maximum number of results to return (default: 20). If set to 0, all results will be returned.
+         */
+        maxResults?: number;
+        /**
+         * Comma-separated directory names to skip (default: node_modules,vendor,.git,dist,build,target,__pycache__,.venv,.next,coverage). Use empty string to skip no directories.
+         */
+        excludeDirs?: string;
+        /**
+         * Exclude hidden files and directories (default: true)
+         */
+        excludeHidden?: boolean;
+    };
+    url: '/filesystem-find/{path}';
+};
+
+export type GetFilesystemFindByPathErrors = {
+    /**
+     * Bad request
+     */
+    400: ErrorResponse;
+    /**
+     * Unprocessable entity
+     */
+    422: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type GetFilesystemFindByPathError = GetFilesystemFindByPathErrors[keyof GetFilesystemFindByPathErrors];
+
+export type GetFilesystemFindByPathResponses = {
+    /**
+     * Find results
+     */
+    200: FindResponse;
+};
+
+export type GetFilesystemFindByPathResponse = GetFilesystemFindByPathResponses[keyof GetFilesystemFindByPathResponses];
 
 export type GetFilesystemMultipartData = {
     body?: never;
@@ -594,6 +686,61 @@ export type PostFilesystemMultipartInitiateByPathResponses = {
 
 export type PostFilesystemMultipartInitiateByPathResponse = PostFilesystemMultipartInitiateByPathResponses[keyof PostFilesystemMultipartInitiateByPathResponses];
 
+export type GetFilesystemSearchByPathData = {
+    body?: never;
+    path: {
+        /**
+         * Path to search in (e.g., /home/user/projects)
+         */
+        path: string;
+    };
+    query?: {
+        /**
+         * Maximum number of results to return (default: 20)
+         */
+        maxResults?: number;
+        /**
+         * Comma-separated file patterns to include (e.g., *.go,*.js)
+         */
+        patterns?: string;
+        /**
+         * Comma-separated directory names to skip (default: node_modules,vendor,.git,dist,build,target,__pycache__,.venv,.next,coverage). Use empty string to skip no directories.
+         */
+        excludeDirs?: string;
+        /**
+         * Exclude hidden files and directories (default: true)
+         */
+        excludeHidden?: boolean;
+    };
+    url: '/filesystem-search/{path}';
+};
+
+export type GetFilesystemSearchByPathErrors = {
+    /**
+     * Bad request
+     */
+    400: ErrorResponse;
+    /**
+     * Unprocessable entity
+     */
+    422: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type GetFilesystemSearchByPathError = GetFilesystemSearchByPathErrors[keyof GetFilesystemSearchByPathErrors];
+
+export type GetFilesystemSearchByPathResponses = {
+    /**
+     * Fuzzy search results
+     */
+    200: FuzzySearchResponse;
+};
+
+export type GetFilesystemSearchByPathResponse = GetFilesystemSearchByPathResponses[keyof GetFilesystemSearchByPathResponses];
+
 export type DeleteFilesystemByPathData = {
     body?: never;
     path: {
@@ -720,6 +867,128 @@ export type PutFilesystemByPathResponses = {
 };
 
 export type PutFilesystemByPathResponse = PutFilesystemByPathResponses[keyof PutFilesystemByPathResponses];
+
+export type DeleteFilesystemTreeByPathData = {
+    body?: never;
+    path: {
+        /**
+         * Root directory path
+         */
+        path: string;
+    };
+    query?: {
+        /**
+         * Delete directory recursively
+         */
+        recursive?: boolean;
+    };
+    url: '/filesystem/tree/{path}';
+};
+
+export type DeleteFilesystemTreeByPathErrors = {
+    /**
+     * Bad request
+     */
+    400: ErrorResponse;
+    /**
+     * Unprocessable entity
+     */
+    422: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type DeleteFilesystemTreeByPathError = DeleteFilesystemTreeByPathErrors[keyof DeleteFilesystemTreeByPathErrors];
+
+export type DeleteFilesystemTreeByPathResponses = {
+    /**
+     * Directory deleted successfully
+     */
+    200: SuccessResponse;
+};
+
+export type DeleteFilesystemTreeByPathResponse = DeleteFilesystemTreeByPathResponses[keyof DeleteFilesystemTreeByPathResponses];
+
+export type GetFilesystemTreeByPathData = {
+    body?: never;
+    path: {
+        /**
+         * Root directory path
+         */
+        path: string;
+    };
+    query?: never;
+    url: '/filesystem/tree/{path}';
+};
+
+export type GetFilesystemTreeByPathErrors = {
+    /**
+     * Bad request
+     */
+    400: ErrorResponse;
+    /**
+     * Unprocessable entity
+     */
+    422: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type GetFilesystemTreeByPathError = GetFilesystemTreeByPathErrors[keyof GetFilesystemTreeByPathErrors];
+
+export type GetFilesystemTreeByPathResponses = {
+    /**
+     * Directory tree
+     */
+    200: Directory | FileWithContent | (Blob | File);
+};
+
+export type GetFilesystemTreeByPathResponse = GetFilesystemTreeByPathResponses[keyof GetFilesystemTreeByPathResponses];
+
+export type PutFilesystemTreeByPathData = {
+    /**
+     * Map of file paths to content
+     */
+    body: TreeRequest;
+    path: {
+        /**
+         * Root directory path
+         */
+        path: string;
+    };
+    query?: never;
+    url: '/filesystem/tree/{path}';
+};
+
+export type PutFilesystemTreeByPathErrors = {
+    /**
+     * Bad request
+     */
+    400: ErrorResponse;
+    /**
+     * Unprocessable entity
+     */
+    422: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type PutFilesystemTreeByPathError = PutFilesystemTreeByPathErrors[keyof PutFilesystemTreeByPathErrors];
+
+export type PutFilesystemTreeByPathResponses = {
+    /**
+     * Updated directory tree
+     */
+    200: Directory | FileWithContent | (Blob | File);
+};
+
+export type PutFilesystemTreeByPathResponse = PutFilesystemTreeByPathResponses[keyof PutFilesystemTreeByPathResponses];
 
 export type DeleteNetworkProcessByPidMonitorData = {
     body?: never;
@@ -1117,6 +1386,13 @@ export type GetWatchFilesystemByPathResponses = {
 
 export type GetWatchFilesystemByPathResponse = GetWatchFilesystemByPathResponses[keyof GetWatchFilesystemByPathResponses];
 
+export type GetWsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/ws';
+};
+
 export type ClientOptions = {
-    baseUrl: 'https://run.blaxel.ai/{workspace_id}/sandboxes/{sandbox_id}' | (string & {});
+    baseUrl: 'https://sbx-{sandbox_id}-{workspace_id}.{region}.bl.run' | (string & {});
 };

@@ -16,3 +16,18 @@ export type SandboxFilesystemFile = {
   path: string;
   content: string;
 }
+
+export interface FilesystemSearchOptions {
+  maxResults?: number;
+  patterns?: string[];
+  excludeDirs?: string[];
+  excludeHidden?: boolean;
+}
+
+export interface FilesystemFindOptions {
+  type?: 'file' | 'directory';
+  patterns?: string[];
+  maxResults?: number;
+  excludeDirs?: string[];
+  excludeHidden?: boolean;
+}
