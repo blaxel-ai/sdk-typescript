@@ -1,4 +1,4 @@
-import { blTools, getTool, logger } from "@blaxel/core";
+import { blTools, getTool, logger, settings } from "@blaxel/core";
 import { blTools as langgraphTools } from "@blaxel/langgraph";
 import { blTools as llamaindexTools } from "@blaxel/llamaindex";
 import { blTools as mastraTools } from "@blaxel/mastra";
@@ -10,6 +10,7 @@ async function main() {
   await test_mcp_tools_vercel();
   await test_mcp_tools_mastra();
   await test_mcp_tools_blaxel();
+  await test_mcp_stream_and_ws();
 }
 
 async function test_mcp_tools_langchain() {
@@ -36,7 +37,6 @@ async function test_mcp_tools_llamaindex() {
 
 async function test_mcp_tools_vercel() {
   const tools = await vercelTools(["blaxel-search"]);
-  console.log(tools);
   if (!tools.web_search_exa) {
     throw new Error("No tools found");
   }
@@ -86,6 +86,47 @@ async function test_mcp_tools_blaxel() {
   });
   logger.info(result4);
 }
+async function test_mcp_stream_and_ws() {
+  try {
+    const tools = await langgraphTools(["trello-mk2", "blaxel-search", "sandboxes/base"]);
+    let hasTrello = false
+    let hasWebSearch = false
+    let hasSandbox = false
+    for (const tool of tools) {
+      if (tool.name === "get_cards_by_list_id") {
+        hasTrello = true;
+      }
+      if (tool.name === "web_search_exa") {
+        hasWebSearch = true;
+      }
+      if (tool.name === "fsGetWorkingDirectory") {
+        hasSandbox = true;
+      }
+    }
+    if (!hasTrello) {
+      throw new Error("trello-mk2 tool not found");
+    }
+    if (!hasWebSearch) {
+      throw new Error("web_search_exa tool not found");
+    }
+    if (!hasSandbox) {
+      throw new Error("fsGetWorkingDirectory tool not found");
+    }
+  } catch (error) {
+    if (error.toString().includes("Workload not found")) {
+      const appUrl = settings.baseUrl.replace("api.", "app.").replace("/v0", "");
+      console.info(`test_mcp_stream_and_ws: Workload not found.
+Check your workspace here: ${appUrl}/${settings.workspace}/global-agentic-network/functions
+Look for MCP servers named:
+- trello-mk2
+- blaxel-search
+And Sandbox named:
+- base
+`);
+    }
+  }
+}
+
 main()
   .catch((err) => {
     console.error(err);

@@ -1,5 +1,4 @@
 import { Client as ModelContextProtocolClient } from "@modelcontextprotocol/sdk/client/index.js";
-import { FunctionSchema } from "../client/types.gen.js";
 import { env } from "../common/env.js";
 import { generateInternalUrl, getForcedUrl } from "../common/internal.js";
 import { logger } from "../common/logger.js";
@@ -9,11 +8,15 @@ import { BlaxelMcpClientTransport } from "../mcp/client.js";
 import { startSpan } from "../telemetry/telemetry.js";
 import { Tool } from "./types.js";
 import { schemaToZodSchema } from "./zodSchema.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { FunctionSchema } from "./zodSchema.js";
+
 const McpToolCache = new Map<string, McpTool>();
 
 export type ToolOptions = {
   ms?: number;
   meta?: Record<string, unknown> | undefined;
+  transport?: string
 };
 
 export class McpTool {
@@ -21,10 +24,11 @@ export class McpTool {
   private type: string;
   private pluralType: string;
   private client: ModelContextProtocolClient;
-  private transport?: BlaxelMcpClientTransport;
+  private transport?: BlaxelMcpClientTransport | StreamableHTTPClientTransport;
 
   private timer?: NodeJS.Timeout;
   private ms: number;
+  private transportName?: string;
   private meta: Record<string, unknown> | undefined;
   private startPromise?: Promise<void> | null;
 
@@ -48,11 +52,6 @@ export class McpTool {
       {
         name: this.name,
         version: "1.0.0",
-      },
-      {
-        capabilities: {
-          tools: {},
-        },
       }
     );
   }
@@ -101,11 +100,7 @@ export class McpTool {
       await authenticate();
       try {
         logger.debug(`MCP:${this.name}:Connecting::${this.url.toString()}`);
-        this.transport = new BlaxelMcpClientTransport(
-          this.url.toString(),
-          settings.headers,
-          { retry: { max: 0 } }
-        );
+        this.transport = await this.getTransport();
         await this.client.connect(this.transport);
         logger.debug(`MCP:${this.name}:Connected`);
       } catch (err) {
@@ -121,10 +116,7 @@ export class McpTool {
           throw err;
         }
         logger.debug(`MCP:${this.name}:Connecting to fallback`);
-        this.transport = new BlaxelMcpClientTransport(
-          this.fallbackUrl.toString(),
-          settings.headers
-        );
+        this.transport = await this.getTransport(this.fallbackUrl);
         await this.client.connect(this.transport);
         logger.debug(`MCP:${this.name}:Connected to fallback`);
       }
@@ -248,6 +240,45 @@ export class McpTool {
       throw err;
     } finally {
       span.end();
+    }
+  }
+
+  async getTransport(forcedUrl?: URL): Promise<BlaxelMcpClientTransport | StreamableHTTPClientTransport> {
+    if (!this.transportName) {
+      // Detect transport type dynamically by querying the function's endpoint
+      try {
+        const testUrl = (forcedUrl || this.url).toString();
+        const response = await fetch(testUrl + "/", {
+          method: "GET",
+          headers: settings.headers,
+        });
+        const responseText = await response.text();
+
+        if (responseText.toLowerCase().includes("websocket")) {
+          this.transportName = "websocket";
+        } else {
+          this.transportName = "http-stream";
+        }
+
+        logger.debug(`Detected transport type for ${this.name}: ${this.transportName}`);
+      } catch (error) {
+        // Default to websocket if we can't determine the transport type
+        const message = error instanceof Error ? error.message : String(error);
+        logger.warn(`Failed to detect transport type for ${this.name}: ${message}. Defaulting to websocket.`);
+        this.transportName = "websocket";
+      }
+    }
+
+    const url = forcedUrl || this.url;
+    if (this.transportName === "http-stream") {
+      url.pathname = url.pathname + "/mcp";
+      return new StreamableHTTPClientTransport(url, { requestInit: { headers: settings.headers } })
+    } else {
+      return new BlaxelMcpClientTransport(
+        url.toString(),
+        settings.headers,
+        { retry: { max: 0 } }
+      );
     }
   }
 }

@@ -1,6 +1,10 @@
 import { SandboxInstance, VolumeInstance } from "@blaxel/core";
 import console from "console";
 
+let region = process.env.BL_REGION
+if(!region || region === "") {
+  region = process.env.BL_ENV === "dev" ? "eu-dub-1" : "us-pdx-1";
+}
 /**
  * Waits for a sandbox deletion to fully complete by polling until the sandbox no longer exists
  * @param sandboxName The name of the sandbox to wait for deletion
@@ -35,8 +39,7 @@ async function main() {
     console.log("=" .repeat(40));
 
     // Choose image based on BL_ENV
-    const isDev = process.env.BL_ENV === 'dev';
-    const imageBase = isDev ? 'dev-base' : 'prod-base';
+    const imageBase = 'base-image';
     const image = `blaxel/${imageBase}:latest`;
     const fileContent = "Hello from sandbox!";
 
@@ -47,7 +50,8 @@ async function main() {
     const volume = await VolumeInstance.create({
       name: "test-persistence-volume",
       displayName: "Test Persistence Volume",
-      size: 1024 // 1GB
+      size: 1024, // 1GB
+      region: region
     });
     console.log(`✅ Volume created: ${volume.name}`);
 
@@ -57,6 +61,7 @@ async function main() {
       name: "first-sandbox",
       image: image,
       memory: 2048,
+      region: region,
       volumes: [
         {
           name: "test-persistence-volume",
@@ -134,6 +139,7 @@ async function main() {
       name: "second-sandbox",
       image: image,
       memory: 2048,
+      region: region,
       volumes: [
         {
           name: "test-persistence-volume",

@@ -1,5 +1,4 @@
 import z from "zod";
-import { FunctionSchema } from "../client/index.js";
 
 /**
  * Converts an array of `FunctionSchema` objects into a Zod schema for validation.
@@ -44,4 +43,79 @@ export const schemaToZodSchema = (schema: FunctionSchema): z.ZodObject<any> => {
       });
     }
     return z.object(shape);
+};
+
+/**
+* Function schema
+*/
+export type FunctionSchema = {
+  /**
+   * List of schemas that this schema extends
+   */
+  allOf?: Array<unknown>;
+  /**
+   * List of possible schemas, any of which this schema could be
+   */
+  anyOf?: Array<unknown>;
+  /**
+   * Description of the schema
+   */
+  description?: string;
+  /**
+   * Enum values
+   */
+  enum?: Array<string>;
+  /**
+   * Format of the schema
+   */
+  format?: string;
+  items?: FunctionSchema;
+  /**
+   * Maximum length for string types
+   */
+  maxLength?: number;
+  /**
+   * Maximum value for number types
+   */
+  maximum?: number;
+  /**
+   * Minimum length for string types
+   */
+  minLength?: number;
+  /**
+   * Minimum value for number types
+   */
+  minimum?: number;
+  /**
+   * Schema that this schema must not be
+   */
+  not?: {
+      [key: string]: unknown;
   };
+  /**
+   * List of schemas, one of which this schema must be
+   */
+  oneOf?: Array<unknown>;
+  /**
+   * Pattern for string types
+   */
+  pattern?: string;
+  /**
+   * Properties of the schema
+   */
+  properties?: {
+      [key: string]: FunctionSchema;
+  };
+  /**
+   * Required properties of the schema
+   */
+  required?: Array<string>;
+  /**
+   * Title of the schema
+   */
+  title?: string;
+  /**
+   * Type of the schema
+   */
+  type?: string;
+};

@@ -1,4 +1,4 @@
-import { Port, Sandbox, VolumeAttachment } from "../client/types.gen";
+import { Port, Sandbox, SandboxLifecycle, VolumeAttachment } from "../client/types.gen";
 import { PostProcessResponse, ProcessRequest } from "./client";
 
 export interface SessionCreateOptions {
@@ -46,6 +46,8 @@ export type SandboxCreateConfiguration = {
   ttl?: string;
   expires?: Date;
   region?: string;
+  lifecycle?: SandboxLifecycle;
+  snapshotEnabled?: boolean;
 }
 
 export function normalizePorts(ports?: (Port | Record<string, any>)[]): Port[] | undefined {

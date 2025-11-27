@@ -8,3 +8,6 @@ pnpm-lock.yaml
 .turbo
 .next
 sqlite.db
+.wrangler
+test-volume-template/
+reports

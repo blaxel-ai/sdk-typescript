@@ -1,21 +1,6 @@
-import { db } from '@/lib/db';
-import { users } from '@/lib/db/schema';
 import { createOrGetSandbox } from '@/lib/sandboxes';
 import { SandboxInstance } from '@blaxel/core';
-import { eq } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
-
-// Helper function to get authenticated user
-async function getAuthenticatedUser(request: NextRequest) {
-  const userEmail = request.cookies.get('user_email')?.value;
-
-  if (!userEmail) {
-    return null;
-  }
-
-  const user = await db.select().from(users).where(eq(users.email, userEmail)).get();
-  return user;
-}
 
 // GET - Get a single sandbox by name (from Blaxel)
 export async function GET(
@@ -23,18 +8,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getAuthenticatedUser(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-
     // Await params before accessing
     const { id } = await params;
     if (!id) {
       return NextResponse.json({ error: 'Invalid app name' }, { status: 400 });
-    }
-    if (!id.startsWith(user.email.split('@')[0])) {
-      return NextResponse.json({ error: 'App not found' }, { status: 404 });
     }
     // Get actual sandbox instance from Blaxel
     const sandboxName = id;
@@ -88,11 +65,6 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getAuthenticatedUser(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    }
-
     // Optionally, verify the sandbox belongs to the user if possible
     // For now, just attempt to delete
     try {
@@ -101,9 +73,6 @@ export async function DELETE(
       const { id } = await params;
       if (!id) {
         return NextResponse.json({ error: 'Invalid app name' }, { status: 400 });
-      }
-      if (!id.startsWith(user.email.split('@')[0])) {
-        return NextResponse.json({ error: 'App not found' }, { status: 404 });
       }
       await SandboxInstance.delete(id);
     } catch {

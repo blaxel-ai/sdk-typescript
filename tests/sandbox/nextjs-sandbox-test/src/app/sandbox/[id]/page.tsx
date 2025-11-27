@@ -4,10 +4,11 @@ import { Chatbot } from "@/lib/components/Chatbot";
 import { CodeViewerTab } from "@/lib/components/CodeViewerTab";
 import { PreviewTab } from "@/lib/components/PreviewTab";
 import { ProcessesTab } from "@/lib/components/ProcessesTab";
+import { TerminalTab } from "@/lib/components/TerminalTab";
 import { SandboxInstance } from "@blaxel/core";
-import { SessionWithToken } from "@blaxel/core/sandbox/types";
+// Removed SessionWithToken import to avoid type dependency
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 // Define a type for processes
 interface Process {
@@ -17,10 +18,7 @@ interface Process {
   pid?: string;
 }
 
-interface User {
-  id: number;
-  email: string;
-}
+// Removed auth: no user model here
 
 // Minimal type for Blaxel sandboxes
 interface BlaxelSandbox {
@@ -36,13 +34,12 @@ export default function SandboxPage({ params }: { params: Promise<{ id: string }
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [processes, setProcesses] = useState<Process[]>([]);
-  const [sessionInfo, setSessionInfo] = useState<SessionWithToken | null>(null);
-  const [user, setUser] = useState<User | null>(null);
-  const [authChecked, setAuthChecked] = useState<boolean>(false);
+  const [sessionInfo, setSessionInfo] = useState<{ name?: string } | null>(null);
+  // Removed auth state
   const [error, setError] = useState<string | null>(null);
   const [isLoadingSandbox, setIsLoadingSandbox] = useState<boolean>(false);
   const [isPreviewLoading, setIsPreviewLoading] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<'preview' | 'processes' | 'code'>('preview');
+  const [activeTab, setActiveTab] = useState<'preview' | 'processes' | 'code' | 'terminal'>('preview');
   const [selectedProcessId, setSelectedProcessId] = useState<string | null>(null);
   const [processLogs, setProcessLogs] = useState<string[]>([]);
   const [isStreamingLogs, setIsStreamingLogs] = useState<boolean>(false);
@@ -55,17 +52,11 @@ export default function SandboxPage({ params }: { params: Promise<{ id: string }
 
 
   useEffect(() => {
-    // Check if user is authenticated
-    checkAuth();
-  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    // Only fetch sandbox once when user is authenticated
-    if (authChecked && user && !hasFetchedRef.current && !isLoadingSandbox) {
+    if (!hasFetchedRef.current && !isLoadingSandbox) {
       hasFetchedRef.current = true;
       fetchSandbox();
     }
-  }, [authChecked, user, isLoadingSandbox]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isLoadingSandbox]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Simplified preview loading and refresh logic
   async function refreshPreview() {
@@ -102,41 +93,7 @@ export default function SandboxPage({ params }: { params: Promise<{ id: string }
     }
   }, [processes]);
 
-  async function checkAuth() {
-    try {
-      const res = await fetch('/api/auth/user');
-      if (res.status === 401) {
-        // User is not authenticated, redirect to login
-        router.push('/login');
-        return;
-      }
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.authenticated && data.user) {
-          setUser(data.user);
-        } else {
-          router.push('/login');
-        }
-      }
-    } catch (error) {
-      console.error("Auth check error:", error);
-      router.push('/login');
-    } finally {
-      setAuthChecked(true);
-    }
-  }
-
-  async function logout() {
-    try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-      });
-      router.push('/login');
-    } catch (error) {
-      console.error("Logout error:", error);
-    }
-  }
+  // Removed auth-related functions
 
   async function fetchSandbox() {
     if (isLoadingSandbox) return; // Prevent concurrent calls
@@ -145,8 +102,8 @@ export default function SandboxPage({ params }: { params: Promise<{ id: string }
     setError(null);
     setIsPreviewLoading(true); // Set preview as loading when fetching sandbox
     try {
-      const p = await params;
-      const res = await fetch(`/api/sandboxes/${p.id}`);
+      const { id } = (await params) as { id: string };
+      const res = await fetch(`/api/sandboxes/${id}`);
 
       if (!res.ok) {
         throw new Error('Failed to fetch sandbox');
@@ -262,7 +219,7 @@ export default function SandboxPage({ params }: { params: Promise<{ id: string }
           onLog: (log: string) => {
             const lines = log.split('\n').filter(line => line.trim());
             if (lines.length > 0) {
-              setProcessLogs(prevLogs => [...prevLogs, ...lines]);
+              setProcessLogs((prevLogs: string[]) => [...prevLogs, ...lines]);
             }
           }
         });
@@ -284,10 +241,39 @@ export default function SandboxPage({ params }: { params: Promise<{ id: string }
     };
   }, [activeTab]);
 
-  // Auto-scroll to bottom when new logs arrive
+  // Refresh processes list when Processes tab is selected or when switching tabs
   useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [processLogs]);
+    if (sandboxInstance) {
+      const refreshProcesses = async () => {
+        try {
+          const processList = await sandboxInstance.process.list();
+          setProcesses(processList);
+        } catch (error) {
+          console.error('Error fetching processes:', error);
+        }
+      };
+
+      // Refresh immediately when tab changes or sandboxInstance changes
+      refreshProcesses();
+
+      // Set up periodic refresh every 2 seconds only while on Processes tab
+      if (activeTab === 'processes') {
+        const interval = setInterval(refreshProcesses, 2000);
+        return () => clearInterval(interval);
+      }
+    }
+  }, [activeTab, sandboxInstance]);
+
+  // Auto-scroll to bottom when new logs arrive (only within log container)
+  useEffect(() => {
+    if (logsEndRef.current && activeTab === 'processes') {
+      // Scroll only the log container, not the entire page
+      const logContainer = logsEndRef.current.closest('.overflow-auto');
+      if (logContainer) {
+        logContainer.scrollTop = logContainer.scrollHeight;
+      }
+    }
+  }, [processLogs, activeTab]);
 
   return (
     <div className="min-h-screen font-sans" style={{ background: 'var(--background)', color: 'var(--foreground)' }}>
@@ -344,13 +330,7 @@ export default function SandboxPage({ params }: { params: Promise<{ id: string }
                 >
                   Back to List
                 </button>
-                <button
-                  onClick={logout}
-                  className="px-3 py-1 rounded-md text-sm transition-colors cursor-pointer hover:bg-blue-400"
-                  style={{ color: 'var(--foreground)' }}
-                >
-                  Logout
-                </button>
+                {/* Removed Logout */}
               </div>
             </div>
 
@@ -363,11 +343,7 @@ export default function SandboxPage({ params }: { params: Promise<{ id: string }
 
             {/* App information section */}
             <div className="space-y-3">
-              {user && (
-                <InfoCard title="User">
-                  <span className="text-sm" style={{ color: 'var(--muted-foreground)' }}>{user.email}</span>
-                </InfoCard>
-              )}
+              {/* No user info */}
 
               {sandbox && (
                 <InfoCard title="App Details">
@@ -431,7 +407,7 @@ export default function SandboxPage({ params }: { params: Promise<{ id: string }
               >
                 Processes
               </button>
-              <button
+                            <button
                 onClick={() => setActiveTab('code')}
                 className={`px-6 py-3 font-medium transition-colors ${activeTab === 'code' ? 'border-b-2' : ''}`}
                 style={{
@@ -440,6 +416,16 @@ export default function SandboxPage({ params }: { params: Promise<{ id: string }
                 }}
               >
                 Code Viewer
+              </button>
+              <button
+                onClick={() => setActiveTab('terminal')}
+                className={`px-6 py-3 font-medium transition-colors ${activeTab === 'terminal' ? 'border-b-2' : ''}`}
+                style={{
+                  borderColor: activeTab === 'terminal' ? 'var(--primary)' : 'transparent',
+                  color: activeTab === 'terminal' ? 'var(--primary)' : 'var(--muted-foreground)'
+                }}
+              >
+                Terminal
               </button>
             </div>
 
@@ -464,8 +450,10 @@ export default function SandboxPage({ params }: { params: Promise<{ id: string }
                   onStopProcess={stopProcess}
                   onKillProcess={killProcess}
                 />
-              ) : (
+              ) : activeTab === 'code' ? (
                 <CodeViewerTab sandboxInstance={sandboxInstance} />
+              ) : (
+                <TerminalTab sandboxInstance={sandboxInstance} />
               )}
             </div>
           </div>
