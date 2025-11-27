@@ -1,9 +1,9 @@
-import { SandboxInstance, VolumeInstance, VolumeCreateConfiguration } from "@blaxel/core";
-import console from "console";
+import { SandboxInstance, VolumeCreateConfiguration, VolumeInstance } from "@blaxel/core";
 import { exec } from "child_process";
-import { promisify } from "util";
+import console from "console";
 import * as fs from "fs";
 import * as path from "path";
+import { promisify } from "util";
 
 const execAsync = promisify(exec);
 
