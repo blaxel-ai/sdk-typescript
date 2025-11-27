@@ -79,7 +79,7 @@ try {
   console.log(`Cleanup: ${noCleanup ? 'DISABLED (resources will persist)' : 'ENABLED'}`);
 
   // Choose image based on BL_ENV
-  const imageBase = 'base';
+  const imageBase = 'base-image';
   const image = `blaxel/${imageBase}:latest`;
   console.log(`Using image: ${image} (BL_ENV=${process.env.BL_ENV || 'not set'})`);
 
