@@ -149,6 +149,10 @@ export type Continent = {
  */
 export type CoreEvent = {
     /**
+     * Canary revisionID link to the event
+     */
+    canaryRevision?: string;
+    /**
      * Event message
      */
     message?: string;
@@ -192,7 +196,6 @@ export type CoreSpec = {
     flavors?: Flavors;
     integrationConnections?: IntegrationConnectionsList;
     policies?: PoliciesList;
-    privateClusters?: ModelPrivateCluster;
     revision?: RevisionConfiguration;
     runtime?: Runtime;
     /**
@@ -439,10 +442,6 @@ export type FunctionSpec = CoreSpec & {
      * Function description, very important for the agent function to work with an LLM
      */
     description?: string;
-    /**
-     * Transport compatibility for the MCP, can be "websocket" or "http-stream"
-     */
-    transport?: string;
     triggers?: Triggers;
 };
 
@@ -484,6 +483,72 @@ export type HistogramStats = {
      * P99 request duration
      */
     p99?: number;
+};
+
+export type Image = {
+    metadata?: ImageMetadata;
+    spec?: ImageSpec;
+};
+
+export type ImageMetadata = {
+    /**
+     * The date and time when the image was created.
+     */
+    createdAt?: string;
+    /**
+     * The display name of the image (registry/workspace/repository).
+     */
+    displayName?: string;
+    /**
+     * The date and time when the image was last deployed (most recent across all tags).
+     */
+    lastDeployedAt?: string;
+    /**
+     * The name of the image (repository name).
+     */
+    name?: string;
+    /**
+     * The resource type of the image.
+     */
+    resourceType?: string;
+    /**
+     * The date and time when the image was last updated.
+     */
+    updatedAt?: string;
+    /**
+     * The workspace of the image.
+     */
+    workspace?: string;
+};
+
+export type ImageSpec = {
+    /**
+     * The size of the image in bytes.
+     */
+    size?: number;
+    /**
+     * List of tags available for this image.
+     */
+    tags?: Array<ImageTag>;
+};
+
+export type ImageTag = {
+    /**
+     * The date and time when the tag was created.
+     */
+    createdAt?: string;
+    /**
+     * The name of the tag.
+     */
+    name?: string;
+    /**
+     * The size of the image in bytes.
+     */
+    size?: number;
+    /**
+     * The date and time when the tag was last updated.
+     */
+    updatedAt?: string;
 };
 
 /**
@@ -1062,10 +1127,6 @@ export type JobsTotal = {
      */
     failed?: number;
     /**
-     * Retried executions
-     */
-    retried?: number;
-    /**
      * Running executions
      */
     running?: number;
@@ -1346,6 +1407,7 @@ export type Metrics = {
      * Metrics for functions
      */
     functions?: unknown;
+    inferenceErrorGlobal?: ArrayMetric;
     /**
      * Historical requests for all resources globally
      */
@@ -1354,6 +1416,10 @@ export type Metrics = {
      * Historical requests for all resources globally
      */
     items?: Array<RequestTotalResponseData>;
+    /**
+     * Metrics for jobs
+     */
+    jobs?: unknown;
     /**
      * Metric value
      */
@@ -1404,29 +1470,9 @@ export type Model = {
 };
 
 /**
- * Private cluster where the model deployment is deployed
- */
-export type ModelPrivateCluster = {
-    /**
-     * The base url of the model in the private cluster
-     */
-    baseUrl?: string;
-    /**
-     * If true, the private cluster is available
-     */
-    enabled?: boolean;
-    /**
-     * The name of the private cluster
-     */
-    name?: string;
-};
-
-/**
  * Model specification
  */
-export type ModelSpec = CoreSpec & {
-    [key: string]: unknown;
-};
+export type ModelSpec = CoreSpec & unknown;
 
 /**
  * OAuth of the artifact
@@ -1813,52 +1859,6 @@ export type PreviewTokenSpec = {
      * Token
      */
     token?: string;
-};
-
-/**
- * A private cluster where models can be located on.
- */
-export type PrivateCluster = TimeFields & OwnerFields & {
-    /**
-     * The private cluster's continent, used to determine the closest private cluster to serve inference requests based on the user's location
-     */
-    continent?: string;
-    /**
-     * The country where the private cluster is located, used to determine the closest private cluster to serve inference requests based on the user's location
-     */
-    country?: string;
-    /**
-     * The private cluster's display Name
-     */
-    displayName?: string;
-    /**
-     * Whether the private cluster is healthy or not, used to determine if the private cluster is ready to run inference
-     */
-    healthy?: boolean;
-    /**
-     * The private cluster's unique name
-     */
-    lastHealthCheckTime?: string;
-    /**
-     * The private cluster's latitude, used to determine the closest private cluster to serve inference requests based on the user's location
-     */
-    latitude?: string;
-    /**
-     * The private cluster's longitude, used to determine the closest private cluster to serve inference requests based on the user's location
-     */
-    longitude?: string;
-    /**
-     * The name of the private cluster, it must be unique
-     */
-    name?: string;
-    /**
-     * The service account (operator) that owns the cluster
-     */
-    ownedBy?: string;
-    /**
-     * The workspace the private cluster belongs to
-     */
-    workspace?: string;
 };
 
 /**
@@ -2395,6 +2395,10 @@ export type Runtime = {
      */
     timeout?: number;
     /**
+     * The transport for the deployment, used by MCPs: "websocket" or "http-stream"
+     */
+    transport?: string;
+    /**
      * The TTL for the deployment in seconds - 30m, 24h, 7d
      */
     ttl?: string;
@@ -2893,6 +2897,10 @@ export type TraceIdsResponse = {
 export type Trigger = {
     configuration?: TriggerConfiguration;
     /**
+     * Enable or disable the trigger (default: true)
+     */
+    enabled?: boolean;
+    /**
      * The id of the trigger
      */
     id?: string;
@@ -2982,6 +2990,10 @@ export type VolumeAttachments = Array<VolumeAttachment>;
  * Volume specification - immutable configuration
  */
 export type VolumeSpec = {
+    /**
+     * The internal infrastructure resource identifier for this volume
+     */
+    infrastructureId?: string;
     /**
      * Region where the volume should be created (e.g. us-pdx-1, eu-lon-1)
      */
@@ -3101,6 +3113,10 @@ export type WebsocketChannel = TimeFields & {
      * Unique connection ID
      */
     connection_id?: string;
+    /**
+     * Source region the connection belongs to
+     */
+    sourceRegion?: string;
     /**
      * Workspace the connection belongs to
      */
@@ -3587,6 +3603,123 @@ export type ListFunctionRevisionsResponses = {
 };
 
 export type ListFunctionRevisionsResponse = ListFunctionRevisionsResponses[keyof ListFunctionRevisionsResponses];
+
+export type ListImagesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/images';
+};
+
+export type ListImagesResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<Image>;
+};
+
+export type ListImagesResponse = ListImagesResponses[keyof ListImagesResponses];
+
+export type DeleteImageData = {
+    body?: never;
+    path: {
+        /**
+         * Resource type of the image
+         */
+        resourceType: string;
+        /**
+         * Name of the image
+         */
+        imageName: string;
+    };
+    query?: never;
+    url: '/images/{resourceType}/{imageName}';
+};
+
+export type DeleteImageErrors = {
+    /**
+     * image used
+     */
+    400: unknown;
+    /**
+     * image not found
+     */
+    404: unknown;
+};
+
+export type DeleteImageResponses = {
+    /**
+     * successful operation
+     */
+    200: Image;
+};
+
+export type DeleteImageResponse = DeleteImageResponses[keyof DeleteImageResponses];
+
+export type GetImageData = {
+    body?: never;
+    path: {
+        /**
+         * Resource type of the image
+         */
+        resourceType: string;
+        /**
+         * Name of the image
+         */
+        imageName: string;
+    };
+    query?: never;
+    url: '/images/{resourceType}/{imageName}';
+};
+
+export type GetImageResponses = {
+    /**
+     * successful operation
+     */
+    200: Image;
+};
+
+export type GetImageResponse = GetImageResponses[keyof GetImageResponses];
+
+export type DeleteImageTagData = {
+    body?: never;
+    path: {
+        /**
+         * Resource type of the image
+         */
+        resourceType: string;
+        /**
+         * Name of the image
+         */
+        imageName: string;
+        /**
+         * Name of the tag to delete
+         */
+        tagName: string;
+    };
+    query?: never;
+    url: '/images/{resourceType}/{imageName}/tags/{tagName}';
+};
+
+export type DeleteImageTagErrors = {
+    /**
+     * tag is in use
+     */
+    400: unknown;
+    /**
+     * image or tag not found
+     */
+    404: unknown;
+};
+
+export type DeleteImageTagResponses = {
+    /**
+     * successful operation
+     */
+    200: Image;
+};
+
+export type DeleteImageTagResponse = DeleteImageTagResponses[keyof DeleteImageTagResponses];
 
 export type GetIntegrationData = {
     body?: never;
@@ -4281,224 +4414,6 @@ export type UpdatePolicyResponses = {
 };
 
 export type UpdatePolicyResponse = UpdatePolicyResponses[keyof UpdatePolicyResponses];
-
-export type ListPrivateClustersData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/privateclusters';
-};
-
-export type ListPrivateClustersErrors = {
-    /**
-     * unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * workspace not found
-     */
-    404: unknown;
-};
-
-export type ListPrivateClustersResponses = {
-    /**
-     * successful operation
-     */
-    200: Array<PrivateCluster>;
-};
-
-export type ListPrivateClustersResponse = ListPrivateClustersResponses[keyof ListPrivateClustersResponses];
-
-export type CreatePrivateClusterData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/privateclusters';
-};
-
-export type CreatePrivateClusterErrors = {
-    /**
-     * unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-};
-
-export type CreatePrivateClusterResponses = {
-    /**
-     * successful operation
-     */
-    200: PrivateCluster;
-};
-
-export type CreatePrivateClusterResponse = CreatePrivateClusterResponses[keyof CreatePrivateClusterResponses];
-
-export type DeletePrivateClusterData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the private cluster
-         */
-        privateClusterName: string;
-    };
-    query?: never;
-    url: '/privateclusters/{privateClusterName}';
-};
-
-export type DeletePrivateClusterErrors = {
-    /**
-     * unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-};
-
-export type DeletePrivateClusterResponses = {
-    /**
-     * successful operation
-     */
-    200: PrivateCluster;
-};
-
-export type DeletePrivateClusterResponse = DeletePrivateClusterResponses[keyof DeletePrivateClusterResponses];
-
-export type GetPrivateClusterData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the private cluster
-         */
-        privateClusterName: string;
-    };
-    query?: never;
-    url: '/privateclusters/{privateClusterName}';
-};
-
-export type GetPrivateClusterErrors = {
-    /**
-     * unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * private cluster not found
-     */
-    404: unknown;
-};
-
-export type GetPrivateClusterResponses = {
-    /**
-     * successful operation
-     */
-    200: PrivateCluster;
-};
-
-export type GetPrivateClusterResponse = GetPrivateClusterResponses[keyof GetPrivateClusterResponses];
-
-export type UpdatePrivateClusterData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the private cluster
-         */
-        privateClusterName: string;
-    };
-    query?: never;
-    url: '/privateclusters/{privateClusterName}';
-};
-
-export type UpdatePrivateClusterErrors = {
-    /**
-     * unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-};
-
-export type UpdatePrivateClusterResponses = {
-    /**
-     * successful operation
-     */
-    200: PrivateCluster;
-};
-
-export type UpdatePrivateClusterResponse = UpdatePrivateClusterResponses[keyof UpdatePrivateClusterResponses];
-
-export type GetPrivateClusterHealthData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the private cluster
-         */
-        privateClusterName: string;
-    };
-    query?: never;
-    url: '/privateclusters/{privateClusterName}/health';
-};
-
-export type GetPrivateClusterHealthErrors = {
-    /**
-     * unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-};
-
-export type GetPrivateClusterHealthResponses = {
-    /**
-     * successful operation
-     */
-    200: unknown;
-};
-
-export type UpdatePrivateClusterHealthData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the private cluster
-         */
-        privateClusterName: string;
-    };
-    query?: never;
-    url: '/privateclusters/{privateClusterName}/health';
-};
-
-export type UpdatePrivateClusterHealthErrors = {
-    /**
-     * unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-};
-
-export type UpdatePrivateClusterHealthResponses = {
-    /**
-     * successful operation
-     */
-    200: unknown;
-};
 
 export type ListAllPendingInvitationsData = {
     body?: never;

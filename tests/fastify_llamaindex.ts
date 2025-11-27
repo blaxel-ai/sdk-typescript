@@ -12,7 +12,7 @@ interface RequestBody {
 
 async function agent(input: string) {
   const tools = await blTools(["blaxel-search"]);
-  const llm = await blModel("gpt-4o-mini");
+  const llm = await blModel("sandbox-openai");
   const stream = llamaIndexAgent({
     llm,
     tools: [

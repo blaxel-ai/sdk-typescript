@@ -4,6 +4,7 @@ import { createOrGetSandbox } from "../utils.js";
 
 const SANDBOX_NAME = "sandbox-test-typescript-process-features";
 
+
 async function testWaitForCompletionWithLogs(sandbox: SandboxInstance) {
   console.log("🔧 Testing waitForCompletion with logs...");
 
@@ -230,18 +231,45 @@ async function testStreamClose(sandbox: SandboxInstance) {
   }
 }
 
+async function testProcessRestartOnFailure(sandbox: SandboxInstance) {
+  console.log("🔧 Testing process restart on failure...");
+
+  // Test 1: Process that fails initially but fails on retry
+  console.log("   📝 Test 1: Process that fails after restart");
+
+  // Create a process that fails the first time but fails on second attempt
+  // Using inline script instead of writing to filesystem
+  const processRequest: ProcessRequest = {
+    name: "restart-test-failure",
+    command: `sh -c 'echo \"before-exit\"; sleep 0.5; exit 1'`,
+    restartOnFailure: true,
+    maxRestarts: 5,
+    waitForCompletion: true,
+  };
+
+  const response = await sandbox.process.exec(processRequest);
+
+  console.assert(response.name === "restart-test-failure", "Process name should match");
+  console.assert(response.status === "failed", `Process should eventually fail, got status: ${response.status}`);
+  console.assert(response.restartOnFailure === true, "restartOnFailure should be true");
+  console.assert(response.maxRestarts === 5, "maxRestarts should be 5");
+  console.assert(response.restartCount > 0, `Process should have restarted at least once, got: ${response.restartCount}`);
+
+  if (response.restartCount !== 5) {
+    throw new Error(`Process should have failed 5 times, got: ${response.restartCount}`);
+  }
+  console.log(`✅ Process failed after ${response.restartCount} failures`);
+
+  console.log("✅ Process failure on restart tests completed successfully");
+}
+
 async function main() {
   console.log("🚀 Starting sandbox process feature tests...");
 
   try {
     // Create or get sandbox using the utils function with proper parameters
-    const sandbox = await createOrGetSandbox({
-      sandboxName: SANDBOX_NAME,
-      image: "blaxel/base:latest"
-    });
+    const sandbox = await createOrGetSandbox({ sandboxName: SANDBOX_NAME });
     console.log(`✅ Sandbox ready: ${sandbox.metadata?.name}`);
-
-    await sandbox.fs.ls("/blaxel");
 
     // Run tests
     await testWaitForCompletionWithLogs(sandbox);
@@ -258,6 +286,10 @@ async function main() {
 
     await testStreamClose(sandbox);
     console.log();
+
+    await testProcessRestartOnFailure(sandbox);
+    console.log();
+
 
     console.log("🎉 All process feature tests completed successfully!");
 
