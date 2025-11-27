@@ -45,6 +45,7 @@ export async function createOrGetSandbox({sandboxName, image = `blaxel/nextjs:la
       name: sandboxName
     },
     spec: {
+      region,
       runtime: {
         image,
         memory,
