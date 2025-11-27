@@ -3,7 +3,7 @@ import { SandboxInstance } from "@blaxel/core";
 async function main() {
   try {
     console.log("Test 1: Create sandbox with ttl...");
-    let sandbox = await SandboxInstance.create({ ttl: "60s", name: "sandbox-ttl", image: "blaxel/dev-base:latest" });
+    let sandbox = await SandboxInstance.create({ ttl: "60s", name: "sandbox-ttl"});
     await sandbox.wait();
     console.log(`✅ Created sandbox with default name: ${sandbox.metadata?.name}`);
     await new Promise(resolve => setTimeout(resolve, 120000));
