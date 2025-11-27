@@ -27,7 +27,7 @@ async function agent(input: string) {
     }
   );
   const response = await createReactAgent({
-    llm: await blModel("gpt-4o-mini"),
+    llm: await blModel("sandbox-openai"),
     prompt: prompt,
     tools: [...(await blTools(["blaxel-search"])), weatherTool],
   }).invoke({

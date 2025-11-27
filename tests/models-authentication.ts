@@ -3,6 +3,7 @@ import { blModel as blModelLlamaIndex } from "@blaxel/llamaindex";
 import { blModel as blModelMastra } from "@blaxel/mastra";
 import { blModel as blModelVercel } from "@blaxel/vercel";
 import { generateText } from "ai";
+import { getModels } from "./utils.js";
 
 // Execution mode:
 // - "parallel": All first calls in parallel, wait 40s, all second calls in parallel
@@ -10,16 +11,7 @@ import { generateText } from "ai";
 const executionMode: "parallel" | "sequential" = "parallel";
 
 // Models that support authentication/tokens
-const models = [
-  "gpt-4o-mini",
-  "claude-sonnet-4",
-  "cerebras-sandbox",
-  "cohere-command-r-plus",
-  "mistral-large-latest",
-  "deepseek-chat",
-  "gemini-2-5-pro-preview-06-05",
-  "xai-grok-beta",
-];
+const models = getModels();
 
 // Frameworks to test - comment out any you don't want to test
 const frameworks = [
@@ -80,21 +72,21 @@ async function runParallel(testCases: TestCase[]) {
 
   await Promise.all(firstRequests);
 
-  console.info("\n=== Waiting 40s for tokens to expire... ===");
-  await new Promise(resolve => setTimeout(resolve, 40000)); // wait 40s, token will expire
+  // console.info("\n=== Waiting 40s for tokens to expire... ===");
+  // await new Promise(resolve => setTimeout(resolve, 40000)); // wait 40s, token will expire
 
-  console.info("\n=== Running second requests in parallel (after token expiry) ===");
+  // console.info("\n=== Running second requests in parallel (after token expiry) ===");
 
-  // Run all second requests in parallel
-  const secondRequests = testCases.map(async ({ framework, modelName, model, testFunc }) => {
-    try {
-      await testFunc(model, modelName, 2);
-    } catch (err) {
-      console.error(`Error in second request for ${framework}, ${modelName}:`, err);
-    }
-  });
+  // // Run all second requests in parallel
+  // const secondRequests = testCases.map(async ({ framework, modelName, model, testFunc }) => {
+  //   try {
+  //     await testFunc(model, modelName, 2);
+  //   } catch (err) {
+  //     console.error(`Error in second request for ${framework}, ${modelName}:`, err);
+  //   }
+  // });
 
-  await Promise.all(secondRequests);
+  // await Promise.all(secondRequests);
 }
 
 async function runSequential(testCases: TestCase[]) {

@@ -32,6 +32,8 @@ async function main() {
     await runProcess(sandbox)
   } catch (e) {
     console.error("There was an error => ", e);
+  } finally {
+    await SandboxInstance.delete(sandboxName)
   }
 }
 

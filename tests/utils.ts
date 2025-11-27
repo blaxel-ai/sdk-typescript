@@ -162,3 +162,16 @@ export async function checkUsage(sandbox: SandboxInstance) {
   console.log(`🧠 Memory:\n${memoryLogs}`)
   console.log(`💾 Disk Space:\n${diskSpaceLogs}`)
 }
+
+export function getModels() {
+  return [
+    "gpt-5-1",
+    "claude-sonnet-4-5",
+    "cerebras-sandbox",
+    "cohere-command-a-reasoning",
+    "mistral-large-latest",
+    "deepseek-chat",
+    "gemini-3-pro-preview",
+    "xai-grok-beta",
+  ]
+}

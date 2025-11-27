@@ -4,9 +4,9 @@ import { ChatCohere } from "@langchain/cohere";
 import { LanguageModelLike } from "@langchain/core/language_models/base";
 import { ChatDeepSeek } from "@langchain/deepseek";
 import { ChatOpenAI } from "@langchain/openai";
+import { AuthenticatedChatGoogleGenerativeAI } from "./model/google-genai.js";
 import { CohereClient } from "cohere-ai";
 import { createCohereFetcher } from "./model/cohere.js";
-import { AuthenticatedChatGoogleGenerativeAI } from "./model/google-genai.js";
 import { ChatXAI } from "./model/xai.js";
 
 /**
@@ -19,10 +19,28 @@ const authenticatedFetch = () => {
     const dynamicHeaders = settings.headers;
 
     // Merge headers: init headers take precedence over dynamic headers
-    const headers = {
+    const headers: Record<string, string> = {
       ...dynamicHeaders,
       ...(init?.headers as Record<string, string> || {}),
     };
+
+    // Ensure Content-Type is set for JSON requests if body exists and Content-Type is not already set
+    if (init?.body && !headers['Content-Type'] && !headers['content-type']) {
+      // If body is an object, it will be serialized to JSON by fetch
+      // If body is a string, check if it looks like JSON
+      if (typeof init.body === 'string') {
+        const trimmed = init.body.trim();
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+          headers['Content-Type'] = 'application/json';
+        }
+      } else {
+        // For non-string bodies (FormData, Blob, etc.), let fetch handle it
+        // For objects, assume JSON
+        if (typeof init.body === 'object' && !(init.body instanceof FormData) && !(init.body instanceof Blob)) {
+          headers['Content-Type'] = 'application/json';
+        }
+      }
+    }
 
     // Make the request with merged headers
     return await fetch(input, {
@@ -49,7 +67,7 @@ export const blModel = async (
     if (type === "gemini") {
       return new AuthenticatedChatGoogleGenerativeAI({
         apiKey: settings.token,
-        model: modelData?.spec?.runtime?.model,
+        model: modelData?.spec?.runtime?.model as string,
         baseUrl: url,
         customHeaders: settings.headers,
         ...options,
@@ -66,6 +84,11 @@ export const blModel = async (
         ...options,
       });
     } else if (type === "cohere") {
+      // ChatCohere requires a custom client with fetcher for:
+      // 1. Dynamic authentication headers (settings.headers)
+      // 2. Custom environment URL (url)
+      // 3. URL rewriting (v1 -> v2) and body transformation for v2 compatibility
+      // @ts-ignore Error in langgraph
       return new ChatCohere({
         apiKey: "replaced",
         model: modelData?.spec?.runtime?.model,
@@ -77,6 +100,7 @@ export const blModel = async (
         ...options,
       });
     } else if (type === "deepseek") {
+      // @ts-ignore Error in langgraph
       return new ChatDeepSeek({
         apiKey: "replaced",
         model: modelData?.spec?.runtime?.model,
@@ -88,9 +112,11 @@ export const blModel = async (
         ...options,
       });
     } else if (type === "anthropic") {
+      // @ts-ignore Error in langgraph
       return new ChatAnthropic({
         anthropicApiUrl: url,
         model: modelData?.spec?.runtime?.model,
+        apiKey: "replaced",
         clientOptions: {
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           fetch: authenticatedFetch(),
@@ -111,7 +137,6 @@ export const blModel = async (
       });
     } else if (type === "cerebras") {
       // We don't use ChatCerebras because there is a problem with apiKey headers
-
       return new ChatOpenAI({
         apiKey: "replaced",
         model: modelData?.spec?.runtime?.model,
