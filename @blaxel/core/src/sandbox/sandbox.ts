@@ -1,11 +1,11 @@
 import { v4 as uuidv4 } from "uuid";
 import { createSandbox, deleteSandbox, getSandbox, listSandboxes, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
-import { settings } from "../common/settings.js";
 import { SandboxFileSystem } from "./filesystem/index.js";
 import { SandboxNetwork } from "./network/index.js";
 import { SandboxPreviews } from "./preview.js";
 import { SandboxProcess } from "./process/index.js";
+import { SandboxCodegen } from "./codegen/index.js";
 import { SandboxSessions } from "./session.js";
 import { normalizeEnvs, normalizePorts, normalizeVolumes, SandboxConfiguration, SandboxCreateConfiguration, SandboxUpdateMetadata, SessionWithToken } from "./types.js";
 
@@ -15,13 +15,15 @@ export class SandboxInstance {
   process: SandboxProcess;
   previews: SandboxPreviews;
   sessions: SandboxSessions;
+  codegen: SandboxCodegen;
 
   constructor(private sandbox: SandboxConfiguration) {
-    this.fs = new SandboxFileSystem(sandbox);
-    this.network = new SandboxNetwork(sandbox);
     this.process = new SandboxProcess(sandbox);
+    this.fs = new SandboxFileSystem(sandbox, this.process);
+    this.network = new SandboxNetwork(sandbox);
     this.previews = new SandboxPreviews(sandbox);
     this.sessions = new SandboxSessions(sandbox);
+    this.codegen = new SandboxCodegen(sandbox);
   }
 
   get metadata() {
@@ -47,13 +49,22 @@ export class SandboxInstance {
   }
 
   static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = true }: { safe?: boolean } = {}) {
-    const env = settings.env
     const defaultName = `sandbox-${uuidv4().replace(/-/g, '').substring(0, 8)}`
-    const defaultImage = `blaxel/${env}-base:latest`
+    const defaultImage = `blaxel/base-image:latest`
     const defaultMemory = 4096
 
     // Handle SandboxCreateConfiguration or simple dict with name/image/memory/ports/envs/volumes keys
-    if (!sandbox || 'name' in sandbox || 'image' in sandbox || 'memory' in sandbox || 'ports' in sandbox || 'envs' in sandbox || 'volumes' in sandbox) {
+    if (
+      !sandbox ||
+      'name' in sandbox ||
+      'image' in sandbox ||
+      'memory' in sandbox ||
+      'ports' in sandbox ||
+      'envs' in sandbox ||
+      'volumes' in sandbox ||
+      'lifecycle' in sandbox ||
+      'snapshotEnabled' in sandbox
+    ) {
       if (!sandbox) sandbox = {} as SandboxCreateConfiguration
       if (!sandbox.name) sandbox.name = defaultName
       if (!sandbox.image) sandbox.image = defaultImage
@@ -65,6 +76,8 @@ export class SandboxInstance {
       const ttl = sandbox.ttl;
       const expires = sandbox.expires;
       const region = sandbox.region;
+      const lifecycle = sandbox.lifecycle;
+      const snapshotEnabled = sandbox.snapshotEnabled;
 
       sandbox = {
         metadata: { name: sandbox.name },
@@ -76,8 +89,10 @@ export class SandboxInstance {
             ports: ports,
             envs: envs,
             generation: "mk3",
+            snapshotEnabled,
           },
-          volumes: volumes
+          volumes: volumes,
+          lifecycle: lifecycle,
         }
       } as SandboxModel
       if (ttl) {
@@ -163,7 +178,17 @@ export class SandboxInstance {
         if (!name) {
           throw new Error("Sandbox name is required");
         }
+
+        // Get the existing sandbox to check its status
         const sandboxInstance = await SandboxInstance.get(name);
+
+          // If the sandbox is TERMINATED, treat it as not existing
+          if (sandboxInstance.status === "TERMINATED") {
+            // Create a new sandbox - backend will handle cleanup of the terminated one
+            return await SandboxInstance.create(sandbox);
+          }
+
+        // Otherwise return the existing running sandbox
         return sandboxInstance;
       }
       throw e;

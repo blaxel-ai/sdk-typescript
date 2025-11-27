@@ -20,7 +20,7 @@ export async function createOrGetSandbox({sandboxName }: {sandboxName: string}) 
     },
     spec: {
       runtime: {
-        image: "blaxel/prod-nextjs:latest",
+        image: "blaxel/nextjs:latest",
         memory: 4096,
         ports: [
           {

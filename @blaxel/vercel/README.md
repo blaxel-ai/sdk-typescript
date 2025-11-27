@@ -73,7 +73,7 @@ When running Blaxel SDK from a remote server that is not Blaxel-hosted, we recom
 import { blTools, blModel } from "@blaxel/vercel";
 
 const stream = streamText({
-  model: await blModel("gpt-4o-mini"),
+  model: await blModel("sandbox-openai"),
   messages: [{ role: "user", content: process.argv[2] }],
   system: prompt,
   tools: {

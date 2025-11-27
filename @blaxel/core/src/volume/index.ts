@@ -6,6 +6,7 @@ export interface VolumeCreateConfiguration {
   displayName?: string;
   size?: number; // Size in MB
   region?: string; // AWS region
+  template?: string; // Template
 }
 
 export class VolumeInstance {
@@ -60,7 +61,8 @@ export class VolumeInstance {
         },
         spec: {
           size: volumeConfig.size || defaultSize,
-          region: volumeConfig.region
+          region: volumeConfig.region,
+          template: volumeConfig.template
         }
       };
     }

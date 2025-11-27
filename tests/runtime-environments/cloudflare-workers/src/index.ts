@@ -1,4 +1,5 @@
 // Test Cloudflare Workers compatibility
+import { getWebSocket } from "@blaxel/core";
 
 interface Env {
   [key: string]: any;
@@ -15,7 +16,12 @@ export default {
       // Test that we can access environment variables
       const blEnv = (globalThis as any).env || {};
       console.log("✅ Blaxel env access:", typeof blEnv);
-
+      try {
+        const WebSocketConstructor = await getWebSocket();
+        console.log("✅ getWebSocket() successful:", typeof WebSocketConstructor);
+      } catch (error) {
+        console.error("❌ Cloudflare Workers WebSocket test failed:", (error as Error).message);
+      }
       return new Response(JSON.stringify({
         status: "success",
         message: "✅ All imports successful in Cloudflare Workers",

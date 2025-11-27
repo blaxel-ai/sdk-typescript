@@ -12,10 +12,10 @@ export const blTool = async (
 
     for (const t of blaxelTool) {
       // @ts-ignore - Type instantiation depth issue with ai package in some environments
-      const toolInstance = tool({
+      const toolInstance: Tool = tool({
         description: t.description,
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        parameters: t.inputSchema as any,
+        inputSchema: t.inputSchema as any,
         execute: t.call.bind(t),
       });
       toolFormated[t.name] = toolInstance;

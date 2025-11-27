@@ -1,5 +1,5 @@
 // Test Browser environment compatibility
-import { env } from "@blaxel/core";
+import { env, getWebSocket } from "@blaxel/core";
 
 const results = document.getElementById('results')!;
 const consoleOutput = document.getElementById('console-output')!;
@@ -36,17 +36,39 @@ async function runBrowserTests() {
     const envKeys = Object.keys(env || {});
     console.log("✅ Environment keys available:", envKeys.length);
 
+    // Test WebSocket functionality in browser
+    console.log("🔌 Testing WebSocket functionality in Browser...");
+    let wsTestPassed = false;
+    try {
+      const WebSocketConstructor = await getWebSocket();
+      console.log("✅ getWebSocket() successful:", typeof WebSocketConstructor);
+
+      if (WebSocketConstructor === WebSocket) {
+        console.log("✅ Browser WebSocket constructor returned");
+        wsTestPassed = true;
+      } else {
+        console.log("❌ Browser WebSocket constructor mismatch");
+      }
+    } catch (error) {
+      console.error("❌ Browser WebSocket test failed:", (error as Error).message);
+    }
+
     results.innerHTML = `
-      <div class="success">
-        <h3>✅ All Browser Tests Passed!</h3>
+      <div class="${wsTestPassed ? 'success' : 'error'}">
+        <h3>${wsTestPassed ? '✅ All Browser Tests Passed!' : '⚠️ Browser Tests Completed with Issues'}</h3>
         <ul>
           <li>@blaxel/core imported successfully</li>
           <li>Environment object accessible: ${typeof env}</li>
           <li>Browser APIs available: window, document</li>
+          <li>WebSocket functionality: ${wsTestPassed ? '✅ PASSED' : '❌ FAILED'}</li>
           <li>Bundle size optimized by Vite</li>
         </ul>
       </div>
     `;
+
+    if (!wsTestPassed) {
+      throw new Error("WebSocket functionality test failed in browser");
+    }
 
   } catch (error) {
     console.error("❌ Browser test failed:", error);
@@ -57,6 +79,7 @@ async function runBrowserTests() {
         <p>Check the console output below for details.</p>
       </div>
     `;
+    throw error;
   }
 }
 

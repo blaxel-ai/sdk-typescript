@@ -21,7 +21,7 @@ export async function localSandbox(sandboxName: string) {
 }
 
 
-export async function createOrGetSandbox({sandboxName, image = `blaxel/${env}-nextjs:latest`, region = "", ports = [], memory = 4096, envs = []}: {sandboxName: string, image?: string, region?: string, ports?: { name: string, target: number, protocol: string, envs?: { name: string, value: string }[] }[], memory?: number, envs?: { name: string, value: string }[]}) {
+export async function createOrGetSandbox({sandboxName, image = `blaxel/nextjs:latest`, ports = [], memory = 4096, envs = []}: {sandboxName: string, image?: string, ports?: { name: string, target: number, protocol: string, envs?: { name: string, value: string }[] }[], memory?: number, envs?: { name: string, value: string }[]}) {
   // return localSandbox(sandboxName)
   if (ports.length === 0) {
     ports.push({
@@ -162,4 +162,17 @@ export async function checkUsage(sandbox: SandboxInstance) {
   const diskSpaceLogs = await sandbox.process.logs(diskSpace.pid!, 'all')
   console.log(`🧠 Memory:\n${memoryLogs}`)
   console.log(`💾 Disk Space:\n${diskSpaceLogs}`)
+}
+
+export function getModels() {
+  return [
+    "gpt-5-1",
+    "claude-sonnet-4-5",
+    "cerebras-sandbox",
+    "cohere-command-a-reasoning",
+    "mistral-large-latest",
+    "deepseek-chat",
+    "gemini-3-pro-preview",
+    "xai-grok-beta",
+  ]
 }
