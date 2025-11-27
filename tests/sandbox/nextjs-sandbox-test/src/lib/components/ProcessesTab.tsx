@@ -32,6 +32,18 @@ export function ProcessesTab({
   onStopProcess,
   onKillProcess,
 }: ProcessesTabProps) {
+  // Sort processes by status (running first) and then by PID
+  const sortedProcesses = [...processes].sort((a, b) => {
+    // First sort by status (running comes before other statuses)
+    if (a.status === 'running' && b.status !== 'running') return -1;
+    if (a.status !== 'running' && b.status === 'running') return 1;
+
+    // Then sort by PID (numerically if possible)
+    const pidA = a.pid ? parseInt(a.pid, 10) : 0;
+    const pidB = b.pid ? parseInt(b.pid, 10) : 0;
+    return pidA - pidB;
+  });
+
   return (
     <div className="h-full flex flex-col p-6" style={{ background: 'var(--background)', overflow: 'auto' }}>
       <div className="rounded-lg p-6 flex-1 flex flex-col" style={{ border: '1px solid var(--border)', background: 'var(--secondary)' }}>
@@ -50,7 +62,7 @@ export function ProcessesTab({
               }}
             >
               <option value="">Select a process...</option>
-              {processes.map((process) => (
+              {sortedProcesses.map((process) => (
                 <option key={process.pid} value={process.pid || ''}>
                   {process.status === 'running' ? '🟢' : '🔴'} {process.name || 'Unnamed'} (PID: {process.pid})
                 </option>
@@ -90,10 +102,10 @@ export function ProcessesTab({
         </div>
 
         {/* Process Details */}
-        {selectedProcessId && processes.find(p => p.pid === selectedProcessId) && (
+        {selectedProcessId && sortedProcesses.find(p => p.pid === selectedProcessId) && (
           <div className="mb-4 p-3 rounded-md" style={{ background: 'var(--muted)' }}>
             {(() => {
-              const process = processes.find(p => p.pid === selectedProcessId);
+              const process = sortedProcesses.find(p => p.pid === selectedProcessId);
               return process ? (
                 <div className="flex items-center justify-between">
                   <div>
@@ -123,7 +135,7 @@ export function ProcessesTab({
         )}
 
         {/* Logs Viewer */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-h-0">
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-sm font-medium" style={{ color: 'var(--muted-foreground)' }}>Logs Output</h4>
             {isStreamingLogs && (
@@ -139,7 +151,8 @@ export function ProcessesTab({
             style={{
               background: '#1e1e1e',
               color: '#d4d4d4',
-              border: '1px solid var(--border)'
+              border: '1px solid var(--border)',
+              minHeight: '200px'
             }}
           >
             {processLogs.length === 0 ? (

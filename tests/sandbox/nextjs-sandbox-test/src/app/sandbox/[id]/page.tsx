@@ -4,6 +4,7 @@ import { Chatbot } from "@/lib/components/Chatbot";
 import { CodeViewerTab } from "@/lib/components/CodeViewerTab";
 import { PreviewTab } from "@/lib/components/PreviewTab";
 import { ProcessesTab } from "@/lib/components/ProcessesTab";
+import { TerminalTab } from "@/lib/components/TerminalTab";
 import { SandboxInstance } from "@blaxel/core";
 // Removed SessionWithToken import to avoid type dependency
 import { useRouter } from "next/navigation";
@@ -38,7 +39,7 @@ export default function SandboxPage({ params }: { params: Promise<{ id: string }
   const [error, setError] = useState<string | null>(null);
   const [isLoadingSandbox, setIsLoadingSandbox] = useState<boolean>(false);
   const [isPreviewLoading, setIsPreviewLoading] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<'preview' | 'processes' | 'code'>('preview');
+  const [activeTab, setActiveTab] = useState<'preview' | 'processes' | 'code' | 'terminal'>('preview');
   const [selectedProcessId, setSelectedProcessId] = useState<string | null>(null);
   const [processLogs, setProcessLogs] = useState<string[]>([]);
   const [isStreamingLogs, setIsStreamingLogs] = useState<boolean>(false);
@@ -240,10 +241,39 @@ export default function SandboxPage({ params }: { params: Promise<{ id: string }
     };
   }, [activeTab]);
 
-  // Auto-scroll to bottom when new logs arrive
+  // Refresh processes list when Processes tab is selected or when switching tabs
   useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [processLogs]);
+    if (sandboxInstance) {
+      const refreshProcesses = async () => {
+        try {
+          const processList = await sandboxInstance.process.list();
+          setProcesses(processList);
+        } catch (error) {
+          console.error('Error fetching processes:', error);
+        }
+      };
+
+      // Refresh immediately when tab changes or sandboxInstance changes
+      refreshProcesses();
+
+      // Set up periodic refresh every 2 seconds only while on Processes tab
+      if (activeTab === 'processes') {
+        const interval = setInterval(refreshProcesses, 2000);
+        return () => clearInterval(interval);
+      }
+    }
+  }, [activeTab, sandboxInstance]);
+
+  // Auto-scroll to bottom when new logs arrive (only within log container)
+  useEffect(() => {
+    if (logsEndRef.current && activeTab === 'processes') {
+      // Scroll only the log container, not the entire page
+      const logContainer = logsEndRef.current.closest('.overflow-auto');
+      if (logContainer) {
+        logContainer.scrollTop = logContainer.scrollHeight;
+      }
+    }
+  }, [processLogs, activeTab]);
 
   return (
     <div className="min-h-screen font-sans" style={{ background: 'var(--background)', color: 'var(--foreground)' }}>
@@ -377,7 +407,7 @@ export default function SandboxPage({ params }: { params: Promise<{ id: string }
               >
                 Processes
               </button>
-              <button
+                            <button
                 onClick={() => setActiveTab('code')}
                 className={`px-6 py-3 font-medium transition-colors ${activeTab === 'code' ? 'border-b-2' : ''}`}
                 style={{
@@ -386,6 +416,16 @@ export default function SandboxPage({ params }: { params: Promise<{ id: string }
                 }}
               >
                 Code Viewer
+              </button>
+              <button
+                onClick={() => setActiveTab('terminal')}
+                className={`px-6 py-3 font-medium transition-colors ${activeTab === 'terminal' ? 'border-b-2' : ''}`}
+                style={{
+                  borderColor: activeTab === 'terminal' ? 'var(--primary)' : 'transparent',
+                  color: activeTab === 'terminal' ? 'var(--primary)' : 'var(--muted-foreground)'
+                }}
+              >
+                Terminal
               </button>
             </div>
 
@@ -410,8 +450,10 @@ export default function SandboxPage({ params }: { params: Promise<{ id: string }
                   onStopProcess={stopProcess}
                   onKillProcess={killProcess}
                 />
-              ) : (
+              ) : activeTab === 'code' ? (
                 <CodeViewerTab sandboxInstance={sandboxInstance} />
+              ) : (
+                <TerminalTab sandboxInstance={sandboxInstance} />
               )}
             </div>
           </div>
