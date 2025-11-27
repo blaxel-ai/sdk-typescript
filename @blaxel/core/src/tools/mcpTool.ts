@@ -1,6 +1,6 @@
 import { Client as ModelContextProtocolClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { env } from "../common/env.js";
-import { getForcedUrl, getGlobalUniqueHash } from "../common/internal.js";
+import { generateInternalUrl, getForcedUrl } from "../common/internal.js";
 import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
 import { authenticate } from "../index.js";
@@ -70,10 +70,17 @@ export class McpTool {
   }
 
   get internalUrl() {
-    const hash = getGlobalUniqueHash(settings.workspace, this.type, this.name);
-    return new URL(
-      `${settings.runInternalProtocol}://bl-${settings.env}-${hash}.${settings.runInternalHostname}`
+    const url = generateInternalUrl(
+      settings.workspace,
+      this.type,
+      this.name,
+      settings.env,
+      settings.runInternalProtocol,
+      settings.runInternalHostname,
+      settings.blCloud,
+      settings.workspaceId
     );
+    return new URL(url);
   }
 
   get forcedUrl() {

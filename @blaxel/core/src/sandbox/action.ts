@@ -1,5 +1,5 @@
 import { createClient } from "@hey-api/client-fetch";
-import { getForcedUrl, getGlobalUniqueHash } from "../common/internal.js";
+import { generateInternalUrl, getForcedUrl } from "../common/internal.js";
 import { settings } from "../common/settings.js";
 import { client as defaultClient } from "./client/client.gen.js";
 import { SandboxConfiguration } from "./types.js";
@@ -42,8 +42,16 @@ export class SandboxAction {
   }
 
   get internalUrl() {
-    const hash = getGlobalUniqueHash(settings.workspace, "sandbox", this.name);
-    return `${settings.runInternalProtocol}://bl-${settings.env}-${hash}.${settings.runInternalHostname}`
+    return generateInternalUrl(
+      settings.workspace,
+      "sandbox",
+      this.name,
+      settings.env,
+      settings.runInternalProtocol,
+      settings.runInternalHostname,
+      settings.blCloud,
+      settings.workspaceId
+    );
   }
 
   get client() {
