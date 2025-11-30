@@ -55,9 +55,20 @@ async function testPreviewToken(sandbox: SandboxInstance) {
     if (responseWithToken.status !== 200) {
       throw new Error(`Preview is not working with token, response => ${responseWithToken.status}`);
     }
-    const responseWithTokenProvidedBefore = await fetch(`${preview.spec?.url}/health`)
+
+    // Extract the cookie from the response to use in the next request
+    const cookie = responseWithToken.headers.get('set-cookie');
+    if (!cookie) {
+      throw new Error('No cookie was set by the preview token endpoint');
+    }
+
+    const responseWithTokenProvidedBefore = await fetch(`${preview.spec?.url}/health`, {
+      headers: {
+        'Cookie': cookie
+      }
+    })
     if (responseWithTokenProvidedBefore.status !== 200) {
-      throw new Error(`Preview is not working with token already provided, response => ${responseWithToken.status}`);
+      throw new Error(`Preview is not working with token already provided, response => ${responseWithTokenProvidedBefore.status}`);
     }
 
   } catch (e) {

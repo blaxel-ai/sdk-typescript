@@ -184,7 +184,7 @@ async function main() {
 }
 
 // Helper function to fetch with timeout
-async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs: number = 100): Promise<Response> {
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs: number = 10000): Promise<Response> {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
