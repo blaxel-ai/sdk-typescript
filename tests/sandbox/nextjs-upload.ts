@@ -14,7 +14,7 @@ async function main() {
     console.log(sep)
     const sandbox = await createOrGetSandbox({
       sandboxName,
-      image: 'prod/main/node-custom:latest',
+      image: 'blaxel/node:latest',
       memory: 8192,
       ports: [
         { name: 'sandbox-api', target: 8080, protocol: 'HTTP' },

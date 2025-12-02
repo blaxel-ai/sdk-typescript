@@ -1,6 +1,6 @@
 import { SandboxInstance } from "@blaxel/core";
-import { promises as fs } from "fs";
 import { randomBytes } from "crypto";
+import { promises as fs } from "fs";
 import { createOrGetSandbox } from "../utils";
 
 const sandboxName = "sandbox-test-fswrite-2"
@@ -109,7 +109,7 @@ async function performanceComparison(sandbox: SandboxInstance) {
 }
 
 try {
-  const sandbox = await createOrGetSandbox({ sandboxName, image: "sandbox/custom-sandbox:latest" });
+  const sandbox = await createOrGetSandbox({ sandboxName, image: "blaxel/base-image:latest" });
 
   // Ensure base directories exist (mkdir is idempotent on server side)
   try { await sandbox.fs.mkdir("/blaxel/perf"); } catch {}
