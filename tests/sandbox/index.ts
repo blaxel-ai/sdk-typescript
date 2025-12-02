@@ -299,16 +299,16 @@ async function main() {
     // Test with controlplane
     const sandbox = await createOrGetSandbox({sandboxName, memory: 8096})
 
-    // await testFilesystem(sandbox);
-    // await testProcess(sandbox);
+    await testFilesystem(sandbox);
+    await testProcess(sandbox);
     await testPreviews(sandbox);
-    // await testWatch(sandbox);
-    // await testProcessLogs(sandbox);
+    await testWatch(sandbox);
+    await testProcessLogs(sandbox);
   } catch (e) {
     console.error("There was an error => ", e);
   } finally {
     console.log("Deleting sandbox");
-    // await SandboxInstance.delete(sandboxName)
+    await SandboxInstance.delete(sandboxName)
   }
 }
 
