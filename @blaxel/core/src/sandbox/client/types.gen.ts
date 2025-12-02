@@ -120,11 +120,11 @@ export type ProcessResponse = {
     completedAt: string;
     exitCode: number;
     logs: string;
-    maxRestarts: number;
+    maxRestarts?: number;
     name: string;
     pid: string;
-    restartCount: number;
-    restartOnFailure: boolean;
+    restartCount?: number;
+    restartOnFailure?: boolean;
     startedAt: string;
     status: 'failed' | 'killed' | 'stopped' | 'running' | 'completed';
     workingDir: string;
@@ -1118,5 +1118,5 @@ export type GetWatchFilesystemByPathResponses = {
 export type GetWatchFilesystemByPathResponse = GetWatchFilesystemByPathResponses[keyof GetWatchFilesystemByPathResponses];
 
 export type ClientOptions = {
-    baseUrl: 'https://run.blaxel.ai/{workspace_id}/sandboxes/{sandbox_id}' | (string & {});
+    baseUrl: 'https://sbx-{sandbox_id}-{workspace_id}.{region}.bl.run' | (string & {});
 };
