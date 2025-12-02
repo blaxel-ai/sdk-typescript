@@ -2,6 +2,7 @@ import { client } from "../client/client.gen.js";
 import { interceptors } from "../client/interceptors.js";
 import { responseInterceptors } from "../client/responseInterceptor.js";
 import { client as clientSandbox } from "../sandbox/client/client.gen.js";
+import { initSentry } from "./sentry.js";
 import { Config, settings } from "./settings.js";
 
 client.setConfig({
@@ -21,6 +22,9 @@ for (const interceptor of responseInterceptors) {
   client.interceptors.response.use(interceptor);
   clientSandbox.interceptors.response.use(interceptor);
 }
+
+// Initialize Sentry for SDK error tracking immediately when module loads
+initSentry();
 
 // Allow to set custom configuration for browser environment
 export function initialize(config: Config) {

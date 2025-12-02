@@ -1,29 +1,17 @@
 import { Credentials } from "../authentication/credentials.js";
 import { authentication } from "../authentication/index.js";
 import { env } from "../common/env.js";
+
 export type Config = {
   proxy?: string;
   apikey?: string;
   workspace?: string;
 }
-// Function to get package version
-function getPackageVersion(): string {
-  try {
-    // Check if require is available (CommonJS environment)
-    if (typeof require !== "undefined") {
-      // Try to require package.json (Node.js only, gracefully fails in browser)
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const packageJson = require("../../../package.json") as { version?: string };
-      return packageJson.version || "unknown";
-    } else {
-      // ESM environment - return unknown
-      return "unknown";
-    }
-  } catch {
-    // Fallback for browser environments or if require fails
-    return "unknown";
-  }
-}
+
+// Build info - these placeholders are replaced at build time by build:replace-imports
+const BUILD_VERSION = "__BUILD_VERSION__";
+const BUILD_COMMIT = "__BUILD_COMMIT__";
+const BUILD_SENTRY_DSN = "__BUILD_SENTRY_DSN__";
 
 // Function to get OS and architecture
 function getOsArch(): string {
@@ -60,36 +48,9 @@ function getOsArch(): string {
   return "browser/unknown";
 }
 
-// Function to get commit hash
-function getCommitHash(): string {
-  try {
-    // Check if require is available (CommonJS environment)
-    if (typeof require !== "undefined") {
-      // Try to require package.json and look for commit field (set during build)
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const packageJson = require("../../../package.json") as {
-        version?: string;
-        commit?: string;
-        buildInfo?: { commit?: string }
-      };
-
-      // Check for commit in various possible locations
-      const commit = packageJson.commit || packageJson.buildInfo?.commit;
-      if (commit) {
-        return commit.length > 7 ? commit.substring(0, 7) : commit;
-      }
-    }
-  } catch {
-    // Fallback for browser environments or if require fails
-  }
-
-  return "unknown";
-}
-
 class Settings {
   credentials: Credentials;
   config: Config;
-  private _version: string | null = null;
 
   constructor() {
     this.credentials = authentication();
@@ -153,19 +114,24 @@ class Settings {
   }
 
   get version(): string {
-    if (this._version === null) {
-      this._version = getPackageVersion();
-    }
-    return this._version;
+    return BUILD_VERSION || "unknown";
+  }
+
+  get commit(): string {
+    const commit = BUILD_COMMIT || "unknown";
+    return commit.length > 7 ? commit.substring(0, 7) : commit;
+  }
+
+  get sentryDsn(): string {
+    return BUILD_SENTRY_DSN || "";
   }
 
   get headers(): Record<string, string> {
     const osArch = getOsArch();
-    const commitHash = getCommitHash();
     return {
       "x-blaxel-authorization": this.authorization,
       "x-blaxel-workspace": this.workspace || "",
-      "User-Agent": `blaxel/sdk/typescript/${this.version} (${osArch}) blaxel/${commitHash}`,
+      "User-Agent": `blaxel/sdk/typescript/${this.version} (${osArch}) blaxel/${this.commit}`,
     };
   }
 
