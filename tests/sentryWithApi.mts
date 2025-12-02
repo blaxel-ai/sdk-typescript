@@ -11,6 +11,7 @@ async function main() {
       console.log(settings.headers);
       return reply.status(200).send('Hello, world !');
     } catch (error: any) {
+      // Important to have the error in Sentry
       console.error(error);
       return reply.status(500).send(error.stack);
     }
