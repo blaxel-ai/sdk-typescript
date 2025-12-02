@@ -263,12 +263,58 @@ async function testProcessRestartOnFailure(sandbox: SandboxInstance) {
   console.log("✅ Process failure on restart tests completed successfully");
 }
 
+async function testProcessLogs(sandbox: SandboxInstance) {
+  let logAccumulator = '';
+  let onLogCallCount = 0;
+
+  const command = `
+  python3 << 'EOF'
+import time
+for i in range(1, 11):
+    print(i)
+    time.sleep(1)
+EOF
+  `
+
+  console.info('Blaxel exec starting', {
+    command,
+    workingDir: '/blaxel',
+    hasOnLog: true,
+    waitForCompletion: true,
+  });
+
+  const result = await sandbox.process.exec({
+    command,
+    waitForCompletion: true,
+    workingDir: '/blaxel',
+    onLog: (log: string) => {
+      onLogCallCount++;
+      console.info('Blaxel onLog callback', { log, callCount: onLogCallCount });
+      logAccumulator += log + '\n';
+    },
+  } as Parameters<typeof sandbox.process.exec>[0]);
+
+  console.info('Blaxel exec completed', {
+    result,
+    onLogCallCount,
+    logAccumulatorLength: logAccumulator.length,
+    logAccumulatorPreview: logAccumulator.slice(0, 200),
+    resultLogsLength: result.logs?.length ?? 0,
+    resultLogsPreview: result.logs?.slice(0, 200) ?? null,
+  });
+
+  return {
+    log: logAccumulator || (result.logs ?? ''),
+    exitCode: result.exitCode ?? 0,
+  };
+}
+
 async function main() {
   console.log("🚀 Starting sandbox process feature tests...");
 
   try {
     // Create or get sandbox using the utils function with proper parameters
-    const sandbox = await createOrGetSandbox({ sandboxName: SANDBOX_NAME });
+    const sandbox = await createOrGetSandbox({ sandboxName: SANDBOX_NAME, image: 'blaxel/py-app' });
     console.log(`✅ Sandbox ready: ${sandbox.metadata?.name}`);
 
     // Run tests
@@ -290,6 +336,8 @@ async function main() {
     await testProcessRestartOnFailure(sandbox);
     console.log();
 
+    await testProcessLogs(sandbox);
+    console.log();
 
     console.log("🎉 All process feature tests completed successfully!");
 
