@@ -2266,6 +2266,10 @@ export type RevisionConfiguration = {
      */
     canaryPercent?: number;
     /**
+     * Sticky session TTL in seconds (0 = disabled)
+     */
+    stickySessionTtl?: number;
+    /**
      * Traffic percentage
      */
     traffic?: number;
@@ -3603,6 +3607,31 @@ export type ListFunctionRevisionsResponses = {
 };
 
 export type ListFunctionRevisionsResponse = ListFunctionRevisionsResponses[keyof ListFunctionRevisionsResponses];
+
+export type CleanupImagesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/images';
+};
+
+export type CleanupImagesResponses = {
+    /**
+     * successful operation
+     */
+    200: {
+        /**
+         * Number of images deleted
+         */
+        deleted?: number;
+        /**
+         * Result message
+         */
+        message?: string;
+    };
+};
+
+export type CleanupImagesResponse = CleanupImagesResponses[keyof CleanupImagesResponses];
 
 export type ListImagesData = {
     body?: never;
