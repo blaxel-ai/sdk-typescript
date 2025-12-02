@@ -52,6 +52,9 @@ export function initSentry() {
       tracesSampleRate: 0,
       // Filter errors before sending - only send SDK errors
       beforeSend(event, hint) {
+        if (event.environment !== 'dev' && event.environment !== 'prod') {
+          return null;
+        }
         const error = hint.originalException;
         if (error instanceof Error) {
           if (!isFromSDK(error)) {
