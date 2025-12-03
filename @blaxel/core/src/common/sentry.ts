@@ -32,6 +32,11 @@ function isFromSDK(error: Error): boolean {
  */
 export function initSentry() {
   try {
+    // Check if tracking is disabled
+    if (!settings.tracking) {
+      return;
+    }
+
     const dsn = settings.sentryDsn;
 
     if (!dsn) {

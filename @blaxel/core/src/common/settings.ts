@@ -1,6 +1,8 @@
+import yaml from 'yaml';
 import { Credentials } from "../authentication/credentials.js";
 import { authentication } from "../authentication/index.js";
 import { env } from "../common/env.js";
+import { fs, os, path } from "../common/node.js";
 
 export type Config = {
   proxy?: string;
@@ -12,6 +14,40 @@ export type Config = {
 const BUILD_VERSION = "__BUILD_VERSION__";
 const BUILD_COMMIT = "__BUILD_COMMIT__";
 const BUILD_SENTRY_DSN = "__BUILD_SENTRY_DSN__";
+
+// Cache for config.yaml tracking value
+let configTrackingValue: boolean | null = null;
+let configTrackingLoaded = false;
+
+function getConfigTracking(): boolean | null {
+  if (configTrackingLoaded) {
+    return configTrackingValue;
+  }
+  configTrackingLoaded = true;
+
+  if (os === null || fs === null || path === null) {
+    return null;
+  }
+
+  try {
+    const homeDir = os.homedir();
+    const config = fs.readFileSync(
+      path.join(homeDir, ".blaxel/config.yaml"),
+      "utf8"
+    );
+    type ConfigWithTracking = {
+      tracking?: boolean;
+    };
+    const configJson = yaml.parse(config) as ConfigWithTracking;
+    if (typeof configJson.tracking === 'boolean') {
+      configTrackingValue = configJson.tracking;
+      return configTrackingValue;
+    }
+  } catch {
+    // If any error, return null
+  }
+  return null;
+}
 
 // Function to get OS and architecture
 function getOsArch(): string {
@@ -164,6 +200,20 @@ class Settings {
 
   get loggerType() {
     return env.BL_LOGGER || "http";
+  }
+
+  get tracking(): boolean {
+    // Environment variable has highest priority
+    if (env.BL_TRACKING !== undefined) {
+      return env.BL_TRACKING === "true";
+    }
+    // Then check config.yaml
+    const configValue = getConfigTracking();
+    if (configValue !== null) {
+      return configValue;
+    }
+    // Default to true if neither is set
+    return true;
   }
 
   async authenticate() {
