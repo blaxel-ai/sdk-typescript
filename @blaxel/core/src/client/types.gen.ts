@@ -2923,6 +2923,14 @@ export type TriggerConfiguration = {
      */
     authenticationType?: string;
     /**
+     * The callback secret for async triggers (auto-generated, encrypted)
+     */
+    callbackSecret?: string;
+    /**
+     * The callback URL for async triggers (optional)
+     */
+    callbackUrl?: string;
+    /**
      * The path of the trigger
      */
     path?: string;
@@ -2938,6 +2946,10 @@ export type TriggerConfiguration = {
      * The tasks configuration of the cronjob
      */
     tasks?: Array<TriggerConfigurationTask>;
+    /**
+     * The timeout in seconds for async triggers (max 900s, MK3 only)
+     */
+    timeout?: number;
 };
 
 /**
