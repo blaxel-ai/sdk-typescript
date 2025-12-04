@@ -15,9 +15,18 @@ export class SandboxProcess extends SandboxAction {
       onLog?: (log: string) => void,
       onStdout?: (stdout: string) => void,
       onStderr?: (stderr: string) => void,
-    }
+      onError?: (error: Error) => void,
+    } = {}
   ): { close: () => void } {
     const controller = new AbortController();
+    const handleError = (err: Error) => {
+      if (options.onError) {
+        options.onError(err);
+      } else {
+        console.error("Stream error:", err);
+      }
+    };
+
     void (async () => {
       try {
         const headers = this.sandbox.forceUrl ? this.sandbox.headers : settings.headers;
@@ -28,9 +37,13 @@ export class SandboxProcess extends SandboxAction {
         });
 
         if (stream.status !== 200) {
-          throw new Error(`Failed to stream logs: ${await stream.text()}`);
+          handleError(new Error(`Failed to stream logs: ${await stream.text()}`));
+          return;
         }
-        if (!stream.body) throw new Error('No stream body');
+        if (!stream.body) {
+          handleError(new Error('No stream body'));
+          return;
+        }
 
         const reader = stream.body.getReader();
         const decoder = new TextDecoder();
@@ -59,12 +72,13 @@ export class SandboxProcess extends SandboxAction {
           }
         }
       } catch (err: unknown) {
-        if (err && typeof err === 'object' && 'name' in err && err.name !== 'AbortError') {
-          console.error("Stream error:", err);
-          throw new Error(err instanceof Error ? err.message : 'Unknown stream error');
+        if (err && typeof err === 'object' && 'name' in err && err.name === 'AbortError') {
+          return;
         }
+        handleError(err instanceof Error ? err : new Error('Unknown stream error'));
       }
     })();
+
     return {
       close: () => controller.abort(),
     };

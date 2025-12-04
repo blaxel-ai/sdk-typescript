@@ -1,9 +1,9 @@
-import { SandboxInstance, VolumeInstance, VolumeCreateConfiguration } from "@blaxel/core";
-import console from "console";
+import { SandboxInstance, VolumeCreateConfiguration, VolumeInstance } from "@blaxel/core";
 import { exec } from "child_process";
-import { promisify } from "util";
+import console from "console";
 import * as fs from "fs";
 import * as path from "path";
+import { promisify } from "util";
 
 const execAsync = promisify(exec);
 
@@ -79,7 +79,7 @@ try {
   console.log(`Cleanup: ${noCleanup ? 'DISABLED (resources will persist)' : 'ENABLED'}`);
 
   // Choose image based on BL_ENV
-  const imageBase = 'base';
+  const imageBase = 'base-image';
   const image = `blaxel/${imageBase}:latest`;
   console.log(`Using image: ${image} (BL_ENV=${process.env.BL_ENV || 'not set'})`);
 

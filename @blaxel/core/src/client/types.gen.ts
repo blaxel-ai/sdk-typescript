@@ -149,6 +149,10 @@ export type Continent = {
  */
 export type CoreEvent = {
     /**
+     * Canary revisionID link to the event
+     */
+    canaryRevision?: string;
+    /**
      * Event message
      */
     message?: string;
@@ -192,7 +196,6 @@ export type CoreSpec = {
     flavors?: Flavors;
     integrationConnections?: IntegrationConnectionsList;
     policies?: PoliciesList;
-    privateClusters?: ModelPrivateCluster;
     revision?: RevisionConfiguration;
     runtime?: Runtime;
     /**
@@ -1404,6 +1407,7 @@ export type Metrics = {
      * Metrics for functions
      */
     functions?: unknown;
+    inferenceErrorGlobal?: ArrayMetric;
     /**
      * Historical requests for all resources globally
      */
@@ -1412,6 +1416,10 @@ export type Metrics = {
      * Historical requests for all resources globally
      */
     items?: Array<RequestTotalResponseData>;
+    /**
+     * Metrics for jobs
+     */
+    jobs?: unknown;
     /**
      * Metric value
      */
@@ -1462,27 +1470,9 @@ export type Model = {
 };
 
 /**
- * Private cluster where the model deployment is deployed
- */
-export type ModelPrivateCluster = {
-    /**
-     * The base url of the model in the private cluster
-     */
-    baseUrl?: string;
-    /**
-     * If true, the private cluster is available
-     */
-    enabled?: boolean;
-    /**
-     * The name of the private cluster
-     */
-    name?: string;
-};
-
-/**
  * Model specification
  */
-export type ModelSpec = CoreSpec;
+export type ModelSpec = CoreSpec & unknown;
 
 /**
  * OAuth of the artifact
@@ -1869,52 +1859,6 @@ export type PreviewTokenSpec = {
      * Token
      */
     token?: string;
-};
-
-/**
- * A private cluster where models can be located on.
- */
-export type PrivateCluster = TimeFields & OwnerFields & {
-    /**
-     * The private cluster's continent, used to determine the closest private cluster to serve inference requests based on the user's location
-     */
-    continent?: string;
-    /**
-     * The country where the private cluster is located, used to determine the closest private cluster to serve inference requests based on the user's location
-     */
-    country?: string;
-    /**
-     * The private cluster's display Name
-     */
-    displayName?: string;
-    /**
-     * Whether the private cluster is healthy or not, used to determine if the private cluster is ready to run inference
-     */
-    healthy?: boolean;
-    /**
-     * The private cluster's unique name
-     */
-    lastHealthCheckTime?: string;
-    /**
-     * The private cluster's latitude, used to determine the closest private cluster to serve inference requests based on the user's location
-     */
-    latitude?: string;
-    /**
-     * The private cluster's longitude, used to determine the closest private cluster to serve inference requests based on the user's location
-     */
-    longitude?: string;
-    /**
-     * The name of the private cluster, it must be unique
-     */
-    name?: string;
-    /**
-     * The service account (operator) that owns the cluster
-     */
-    ownedBy?: string;
-    /**
-     * The workspace the private cluster belongs to
-     */
-    workspace?: string;
 };
 
 /**
@@ -2321,6 +2265,10 @@ export type RevisionConfiguration = {
      * Canary revision percent
      */
     canaryPercent?: number;
+    /**
+     * Sticky session TTL in seconds (0 = disabled)
+     */
+    stickySessionTtl?: number;
     /**
      * Traffic percentage
      */
@@ -2953,6 +2901,10 @@ export type TraceIdsResponse = {
 export type Trigger = {
     configuration?: TriggerConfiguration;
     /**
+     * Enable or disable the trigger (default: true)
+     */
+    enabled?: boolean;
+    /**
      * The id of the trigger
      */
     id?: string;
@@ -2971,6 +2923,14 @@ export type TriggerConfiguration = {
      */
     authenticationType?: string;
     /**
+     * The callback secret for async triggers (auto-generated, encrypted)
+     */
+    callbackSecret?: string;
+    /**
+     * The callback URL for async triggers (optional)
+     */
+    callbackUrl?: string;
+    /**
      * The path of the trigger
      */
     path?: string;
@@ -2986,6 +2946,10 @@ export type TriggerConfiguration = {
      * The tasks configuration of the cronjob
      */
     tasks?: Array<TriggerConfigurationTask>;
+    /**
+     * The timeout in seconds for async triggers (max 900s, MK3 only)
+     */
+    timeout?: number;
 };
 
 /**
@@ -3165,6 +3129,10 @@ export type WebsocketChannel = TimeFields & {
      * Unique connection ID
      */
     connection_id?: string;
+    /**
+     * Source region the connection belongs to
+     */
+    sourceRegion?: string;
     /**
      * Workspace the connection belongs to
      */
@@ -3651,6 +3619,31 @@ export type ListFunctionRevisionsResponses = {
 };
 
 export type ListFunctionRevisionsResponse = ListFunctionRevisionsResponses[keyof ListFunctionRevisionsResponses];
+
+export type CleanupImagesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/images';
+};
+
+export type CleanupImagesResponses = {
+    /**
+     * successful operation
+     */
+    200: {
+        /**
+         * Number of images deleted
+         */
+        deleted?: number;
+        /**
+         * Result message
+         */
+        message?: string;
+    };
+};
+
+export type CleanupImagesResponse = CleanupImagesResponses[keyof CleanupImagesResponses];
 
 export type ListImagesData = {
     body?: never;
@@ -4462,224 +4455,6 @@ export type UpdatePolicyResponses = {
 };
 
 export type UpdatePolicyResponse = UpdatePolicyResponses[keyof UpdatePolicyResponses];
-
-export type ListPrivateClustersData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/privateclusters';
-};
-
-export type ListPrivateClustersErrors = {
-    /**
-     * unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * workspace not found
-     */
-    404: unknown;
-};
-
-export type ListPrivateClustersResponses = {
-    /**
-     * successful operation
-     */
-    200: Array<PrivateCluster>;
-};
-
-export type ListPrivateClustersResponse = ListPrivateClustersResponses[keyof ListPrivateClustersResponses];
-
-export type CreatePrivateClusterData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/privateclusters';
-};
-
-export type CreatePrivateClusterErrors = {
-    /**
-     * unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-};
-
-export type CreatePrivateClusterResponses = {
-    /**
-     * successful operation
-     */
-    200: PrivateCluster;
-};
-
-export type CreatePrivateClusterResponse = CreatePrivateClusterResponses[keyof CreatePrivateClusterResponses];
-
-export type DeletePrivateClusterData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the private cluster
-         */
-        privateClusterName: string;
-    };
-    query?: never;
-    url: '/privateclusters/{privateClusterName}';
-};
-
-export type DeletePrivateClusterErrors = {
-    /**
-     * unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-};
-
-export type DeletePrivateClusterResponses = {
-    /**
-     * successful operation
-     */
-    200: PrivateCluster;
-};
-
-export type DeletePrivateClusterResponse = DeletePrivateClusterResponses[keyof DeletePrivateClusterResponses];
-
-export type GetPrivateClusterData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the private cluster
-         */
-        privateClusterName: string;
-    };
-    query?: never;
-    url: '/privateclusters/{privateClusterName}';
-};
-
-export type GetPrivateClusterErrors = {
-    /**
-     * unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-    /**
-     * private cluster not found
-     */
-    404: unknown;
-};
-
-export type GetPrivateClusterResponses = {
-    /**
-     * successful operation
-     */
-    200: PrivateCluster;
-};
-
-export type GetPrivateClusterResponse = GetPrivateClusterResponses[keyof GetPrivateClusterResponses];
-
-export type UpdatePrivateClusterData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the private cluster
-         */
-        privateClusterName: string;
-    };
-    query?: never;
-    url: '/privateclusters/{privateClusterName}';
-};
-
-export type UpdatePrivateClusterErrors = {
-    /**
-     * unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-};
-
-export type UpdatePrivateClusterResponses = {
-    /**
-     * successful operation
-     */
-    200: PrivateCluster;
-};
-
-export type UpdatePrivateClusterResponse = UpdatePrivateClusterResponses[keyof UpdatePrivateClusterResponses];
-
-export type GetPrivateClusterHealthData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the private cluster
-         */
-        privateClusterName: string;
-    };
-    query?: never;
-    url: '/privateclusters/{privateClusterName}/health';
-};
-
-export type GetPrivateClusterHealthErrors = {
-    /**
-     * unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-};
-
-export type GetPrivateClusterHealthResponses = {
-    /**
-     * successful operation
-     */
-    200: unknown;
-};
-
-export type UpdatePrivateClusterHealthData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the private cluster
-         */
-        privateClusterName: string;
-    };
-    query?: never;
-    url: '/privateclusters/{privateClusterName}/health';
-};
-
-export type UpdatePrivateClusterHealthErrors = {
-    /**
-     * unauthorized
-     */
-    401: unknown;
-    /**
-     * Forbidden
-     */
-    403: unknown;
-};
-
-export type UpdatePrivateClusterHealthResponses = {
-    /**
-     * successful operation
-     */
-    200: unknown;
-};
 
 export type ListAllPendingInvitationsData = {
     body?: never;

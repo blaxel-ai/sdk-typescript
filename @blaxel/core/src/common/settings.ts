@@ -1,28 +1,52 @@
+import yaml from 'yaml';
 import { Credentials } from "../authentication/credentials.js";
 import { authentication } from "../authentication/index.js";
 import { env } from "../common/env.js";
+import { fs, os, path } from "../common/node.js";
+
 export type Config = {
   proxy?: string;
   apikey?: string;
   workspace?: string;
 }
-// Function to get package version
-function getPackageVersion(): string {
+
+// Build info - these placeholders are replaced at build time by build:replace-imports
+const BUILD_VERSION = "__BUILD_VERSION__";
+const BUILD_COMMIT = "__BUILD_COMMIT__";
+const BUILD_SENTRY_DSN = "__BUILD_SENTRY_DSN__";
+
+// Cache for config.yaml tracking value
+let configTrackingValue: boolean | null = null;
+let configTrackingLoaded = false;
+
+function getConfigTracking(): boolean | null {
+  if (configTrackingLoaded) {
+    return configTrackingValue;
+  }
+  configTrackingLoaded = true;
+
+  if (os === null || fs === null || path === null) {
+    return null;
+  }
+
   try {
-    // Check if require is available (CommonJS environment)
-    if (typeof require !== "undefined") {
-      // Try to require package.json (Node.js only, gracefully fails in browser)
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const packageJson = require("../../../package.json") as { version?: string };
-      return packageJson.version || "unknown";
-    } else {
-      // ESM environment - return unknown
-      return "unknown";
+    const homeDir = os.homedir();
+    const config = fs.readFileSync(
+      path.join(homeDir, ".blaxel/config.yaml"),
+      "utf8"
+    );
+    type ConfigWithTracking = {
+      tracking?: boolean;
+    };
+    const configJson = yaml.parse(config) as ConfigWithTracking;
+    if (typeof configJson.tracking === 'boolean') {
+      configTrackingValue = configJson.tracking;
+      return configTrackingValue;
     }
   } catch {
-    // Fallback for browser environments or if require fails
-    return "unknown";
+    // If any error, return null
   }
+  return null;
 }
 
 // Function to get OS and architecture
@@ -60,36 +84,9 @@ function getOsArch(): string {
   return "browser/unknown";
 }
 
-// Function to get commit hash
-function getCommitHash(): string {
-  try {
-    // Check if require is available (CommonJS environment)
-    if (typeof require !== "undefined") {
-      // Try to require package.json and look for commit field (set during build)
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const packageJson = require("../../../package.json") as {
-        version?: string;
-        commit?: string;
-        buildInfo?: { commit?: string }
-      };
-
-      // Check for commit in various possible locations
-      const commit = packageJson.commit || packageJson.buildInfo?.commit;
-      if (commit) {
-        return commit.length > 7 ? commit.substring(0, 7) : commit;
-      }
-    }
-  } catch {
-    // Fallback for browser environments or if require fails
-  }
-
-  return "unknown";
-}
-
 class Settings {
   credentials: Credentials;
   config: Config;
-  private _version: string | null = null;
 
   constructor() {
     this.credentials = authentication();
@@ -153,19 +150,24 @@ class Settings {
   }
 
   get version(): string {
-    if (this._version === null) {
-      this._version = getPackageVersion();
-    }
-    return this._version;
+    return BUILD_VERSION || "unknown";
+  }
+
+  get commit(): string {
+    const commit = BUILD_COMMIT || "unknown";
+    return commit.length > 7 ? commit.substring(0, 7) : commit;
+  }
+
+  get sentryDsn(): string {
+    return BUILD_SENTRY_DSN || "";
   }
 
   get headers(): Record<string, string> {
     const osArch = getOsArch();
-    const commitHash = getCommitHash();
     return {
       "x-blaxel-authorization": this.authorization,
       "x-blaxel-workspace": this.workspace || "",
-      "User-Agent": `blaxel/sdk/typescript/${this.version} (${osArch}) blaxel/${commitHash}`,
+      "User-Agent": `blaxel/sdk/typescript/${this.version} (${osArch}) blaxel/${this.commit}`,
     };
   }
 
@@ -198,6 +200,20 @@ class Settings {
 
   get loggerType() {
     return env.BL_LOGGER || "http";
+  }
+
+  get tracking(): boolean {
+    // Environment variable has highest priority
+    if (env.BL_TRACKING !== undefined) {
+      return env.BL_TRACKING === "true";
+    }
+    // Then check config.yaml
+    const configValue = getConfigTracking();
+    if (configValue !== null) {
+      return configValue;
+    }
+    // Default to true if neither is set
+    return true;
   }
 
   async authenticate() {
