@@ -432,10 +432,6 @@ export type GetFilesystemContentSearchByPathData = {
          */
         caseSensitive?: boolean;
         /**
-         * Number of context lines to include (default: 0)
-         */
-        contextLines?: number;
-        /**
          * Maximum number of results to return (default: 100)
          */
         maxResults?: number;
@@ -1462,13 +1458,6 @@ export type GetWatchFilesystemByPathResponses = {
 };
 
 export type GetWatchFilesystemByPathResponse = GetWatchFilesystemByPathResponses[keyof GetWatchFilesystemByPathResponses];
-
-export type GetWsData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/ws';
-};
 
 export type ClientOptions = {
     baseUrl: 'https://sbx-{sandbox_id}-{workspace_id}.{region}.bl.run' | (string & {});
