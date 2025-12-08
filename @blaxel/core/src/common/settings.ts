@@ -204,8 +204,9 @@ class Settings {
 
   get tracking(): boolean {
     // Environment variable has highest priority
-    if (env.BL_TRACKING !== undefined) {
-      return env.BL_TRACKING === "true";
+    if (env.DO_NOT_TRACK !== undefined) {
+      // DO_NOT_TRACK has inverted semantics: true means tracking disabled
+      return env.DO_NOT_TRACK !== "true" && env.DO_NOT_TRACK !== "1";
     }
     // Then check config.yaml
     const configValue = getConfigTracking();
