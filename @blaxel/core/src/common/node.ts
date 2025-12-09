@@ -4,6 +4,7 @@
 import * as fsImport from "fs";
 import * as osImport from "os";
 import * as pathImport from "path";
+import * as cryptoImport from "crypto";
 
 // Detect environments
 const isNode =
@@ -17,6 +18,7 @@ const isBrowser = typeof globalThis !== "undefined" && (globalThis as any)?.wind
 let fs: typeof import("fs") | null = null;
 let os: typeof import("os") | null = null;
 let path: typeof import("path") | null = null;
+let crypto: typeof import("crypto") | null = null;
 let dotenv: typeof import("dotenv") | null = null;
 let ws: any = null; // Used internally by getWebSocket() for caching
 
@@ -25,6 +27,7 @@ if (isNode && !isBrowser) {
   fs = fsImport;
   os = osImport;
   path = pathImport;
+  crypto = cryptoImport;
 
   // Try to load optional dependencies
   try {
@@ -73,5 +76,5 @@ export async function getWebSocket(): Promise<any> {
   }
 }
 
-export { dotenv, fs, os, path };
+export { crypto, dotenv, fs, os, path };
 

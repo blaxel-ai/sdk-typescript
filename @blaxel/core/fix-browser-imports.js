@@ -63,6 +63,33 @@ function replaceNodeWithBrowser(buildDir) {
   }
 }
 
+function replaceSentryWithBrowser(buildDir) {
+  // File paths for both sentry and sentry-browser files
+  const sentryPath = path.join(buildDir, 'common', 'sentry.js');
+  const sentryTypesPath = path.join(buildDir, 'common', 'sentry.d.ts');
+  const sentryBrowserPath = path.join(buildDir, 'common', 'sentry-browser.js');
+  const sentryBrowserTypesPath = path.join(buildDir, 'common', 'sentry-browser.d.ts');
+
+  // Replace sentry.js with sentry-browser.js content
+  if (fs.existsSync(sentryBrowserPath) && fs.existsSync(sentryPath)) {
+    // Delete the original sentry.js
+    fs.unlinkSync(sentryPath);
+    // Rename sentry-browser.js to sentry.js (keep the same filename for imports)
+    fs.renameSync(sentryBrowserPath, sentryPath);
+    console.log(`  ✅ Replaced sentry.js with sentry-browser.js content`);
+  } else if (!fs.existsSync(sentryBrowserPath)) {
+    console.error(`  ⚠️  Warning: sentry-browser.js not found in ${buildDir}/common/`);
+    console.error(`     Make sure sentry-browser.ts is compiled in the regular build first.`);
+  }
+
+  // Replace sentry.d.ts with sentry-browser.d.ts if they exist
+  if (fs.existsSync(sentryBrowserTypesPath) && fs.existsSync(sentryTypesPath)) {
+    fs.unlinkSync(sentryTypesPath);
+    fs.renameSync(sentryBrowserTypesPath, sentryTypesPath);
+    console.log(`  ✅ Replaced sentry.d.ts with sentry-browser.d.ts content`);
+  }
+}
+
 // Create browser-specific builds
 const builds = ['dist/esm-browser', 'dist/cjs-browser'];
 
@@ -89,6 +116,9 @@ builds.forEach(buildDir => {
 
     // Replace node.js with browser.js content
     replaceNodeWithBrowser(buildDir);
+
+    // Replace sentry.js with sentry-browser.js content
+    replaceSentryWithBrowser(buildDir);
 
     // Note: We don't need to fix imports since node.js now contains browser.js content
     // All imports to node.js will get the browser-safe version

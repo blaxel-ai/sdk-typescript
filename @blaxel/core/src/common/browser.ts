@@ -4,6 +4,7 @@
 // In browser environments, Node.js built-in modules are not available
 
 // All Node.js modules are null in browser
+export const crypto: any = null;
 export const fs: any = null;
 export const os: any = null;
 export const path: any = null;
