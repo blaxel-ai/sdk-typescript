@@ -49,11 +49,6 @@ function getConfigTracking(): boolean | null {
   return null;
 }
 
-// Build info - these placeholders are replaced at build time by build:replace-imports
-const BUILD_VERSION = "__BUILD_VERSION__";
-const BUILD_COMMIT = "__BUILD_COMMIT__";
-const BUILD_SENTRY_DSN = "__BUILD_SENTRY_DSN__";
-
 // Function to get OS and architecture
 function getOsArch(): string {
   try {
