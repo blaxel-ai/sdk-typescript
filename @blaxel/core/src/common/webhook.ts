@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'crypto';
+import { crypto } from './node.js';
 
 /**
  * Webhook signature verification for async-sidecar callbacks
@@ -72,6 +72,11 @@ export function verifyWebhookSignature(options: WebhookVerificationOptions): boo
     return false;
   }
 
+  // crypto is only available in Node.js environments
+  if (!crypto) {
+    throw new Error('verifyWebhookSignature is only available in Node.js environments');
+  }
+
   try {
     // Verify timestamp if provided (prevents replay attacks)
     if (timestamp) {
@@ -88,12 +93,12 @@ export function verifyWebhookSignature(options: WebhookVerificationOptions): boo
     const expectedSignature = signature.replace('sha256=', '');
 
     // Compute HMAC-SHA256 signature
-    const hmac = createHmac('sha256', secret);
+    const hmac = crypto.createHmac('sha256', secret);
     hmac.update(body);
     const computedSignature = hmac.digest('hex');
 
     // Timing-safe comparison to prevent timing attacks
-    return timingSafeEqual(
+    return crypto.timingSafeEqual(
       Buffer.from(expectedSignature, 'hex'),
       Buffer.from(computedSignature, 'hex')
     );
