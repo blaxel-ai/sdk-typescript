@@ -432,10 +432,6 @@ export type GetFilesystemContentSearchByPathData = {
          */
         caseSensitive?: boolean;
         /**
-         * Number of context lines to include (default: 0)
-         */
-        contextLines?: number;
-        /**
          * Maximum number of results to return (default: 100)
          */
         maxResults?: number;
