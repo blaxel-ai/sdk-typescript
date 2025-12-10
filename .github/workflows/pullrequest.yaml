@@ -6,23 +6,77 @@ on:
       - "main"
 
 jobs:
-  build:
-    name: Build
+  test-environment:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        runtime:
+          - nodejs-legacy
+          - nodejs-javascript-cjs
+          - nodejs-javascript-esm
+          - nodejs-nodenext
+          - nodejs-node16
+          - cloudflare-workers
+          - webpack
+          - browser
+          - bun
+          - deno
+          - vercel-nextjs
     steps:
-      - uses: actions/checkout@v4
-        name: Checkout
-        with:
-          fetch-tags: true
-          fetch-depth: 0
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Install pnpm
         uses: pnpm/action-setup@v4
-      - name: Install Node.js
+
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 23
-          registry-url: "https://registry.npmjs.org"
-      - name: Build
+          node-version: '22'
+
+      - name: Setup Bun
+        if: matrix.runtime == 'bun'
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Deno
+        if: matrix.runtime == 'deno'
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Install Playwright browsers
+        if: matrix.runtime == 'browser'
+        run: npx playwright install chromium
+
+      - name: Install and build SDK packages
         run: |
-          pnpm install
+          pnpm install --no-frozen-lockfile
           pnpm build
+
+      - name: Enable runtime-environments in workspace
+        run: sed -i "s/# - 'tests\/runtime-environments/- 'tests\/runtime-environments/" pnpm-workspace.yaml
+
+      - name: Install runtime-environments dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build runtime test (if applicable)
+        working-directory: tests/runtime-environments/${{ matrix.runtime }}
+        run: |
+          if [ "${{ matrix.runtime }}" != "nodejs-javascript-cjs" ] && \
+             [ "${{ matrix.runtime }}" != "nodejs-javascript-esm" ] && \
+             [ "${{ matrix.runtime }}" != "deno" ] && \
+             [ "${{ matrix.runtime }}" != "bun" ]; then
+            pnpm run build
+          fi
+
+      - name: Run test
+        working-directory: tests/runtime-environments/${{ matrix.runtime }}
+        run: |
+          if [ "${{ matrix.runtime }}" == "deno" ]; then
+            timeout 120s deno task test
+          elif [ "${{ matrix.runtime }}" == "bun" ]; then
+            timeout 120s bun run test
+          else
+            timeout 120s pnpm test
+          fi
