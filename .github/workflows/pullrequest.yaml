@@ -72,14 +72,14 @@ jobs:
 
       - name: Install and build SDK packages
         run: |
-          pnpm install
+          pnpm install --no-frozen-lockfile
           pnpm build
 
       - name: Enable runtime-environments in workspace
         run: sed -i "s/# - 'tests\/runtime-environments/- 'tests\/runtime-environments/" pnpm-workspace.yaml
 
       - name: Install runtime-environments dependencies
-        run: pnpm install
+        run: pnpm install --no-frozen-lockfile
 
       - name: Build runtime test (if applicable)
         working-directory: tests/runtime-environments/${{ matrix.runtime }}
