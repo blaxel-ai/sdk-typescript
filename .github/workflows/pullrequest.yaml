@@ -73,21 +73,19 @@ jobs:
       - name: Enable runtime-environments in workspace
         run: sed -i "s/# - 'tests\/runtime-environments/- 'tests\/runtime-environments/" pnpm-workspace.yaml
 
-      - name: Install dependencies
-        working-directory: tests/runtime-environments/${{ matrix.runtime }}
+      - name: Install and build SDK packages
         run: |
-          if [ "${{ matrix.runtime }}" != "deno" ]; then
-            pnpm install
-          fi
+          pnpm install
+          pnpm build
 
-      - name: Build (if applicable)
+      - name: Build runtime test (if applicable)
         working-directory: tests/runtime-environments/${{ matrix.runtime }}
         run: |
           if [ "${{ matrix.runtime }}" != "nodejs-javascript-cjs" ] && \
              [ "${{ matrix.runtime }}" != "nodejs-javascript-esm" ] && \
              [ "${{ matrix.runtime }}" != "deno" ] && \
              [ "${{ matrix.runtime }}" != "bun" ]; then
-            pnpm run build || true
+            pnpm run build
           fi
 
       - name: Run test
