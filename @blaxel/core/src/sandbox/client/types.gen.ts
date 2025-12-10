@@ -1459,13 +1459,6 @@ export type GetWatchFilesystemByPathResponses = {
 
 export type GetWatchFilesystemByPathResponse = GetWatchFilesystemByPathResponses[keyof GetWatchFilesystemByPathResponses];
 
-export type GetWsData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/ws';
-};
-
 export type ClientOptions = {
     baseUrl: 'https://sbx-{sandbox_id}-{workspace_id}.{region}.bl.run' | (string & {});
 };

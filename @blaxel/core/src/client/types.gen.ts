@@ -4812,62 +4812,6 @@ export type DeleteSandboxPreviewTokenResponses = {
 
 export type DeleteSandboxPreviewTokenResponse = DeleteSandboxPreviewTokenResponses[keyof DeleteSandboxPreviewTokenResponses];
 
-export type StartSandboxData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the Sandbox
-         */
-        sandboxName: string;
-    };
-    query?: never;
-    url: '/sandboxes/{sandboxName}/start';
-};
-
-export type StartSandboxErrors = {
-    /**
-     * Sandbox is already running
-     */
-    409: unknown;
-};
-
-export type StartSandboxResponses = {
-    /**
-     * successful operation
-     */
-    200: StartSandbox;
-};
-
-export type StartSandboxResponse = StartSandboxResponses[keyof StartSandboxResponses];
-
-export type StopSandboxData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the Sandbox
-         */
-        sandboxName: string;
-    };
-    query?: never;
-    url: '/sandboxes/{sandboxName}/stop';
-};
-
-export type StopSandboxErrors = {
-    /**
-     * Sandbox is not running
-     */
-    409: unknown;
-};
-
-export type StopSandboxResponses = {
-    /**
-     * successful operation
-     */
-    200: StopSandbox;
-};
-
-export type StopSandboxResponse = StopSandboxResponses[keyof StopSandboxResponses];
-
 export type GetWorkspaceServiceAccountsData = {
     body?: never;
     path?: never;

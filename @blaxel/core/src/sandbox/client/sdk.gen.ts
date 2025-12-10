@@ -659,20 +659,3 @@ export const getWatchFilesystemByPath = <ThrowOnError extends boolean = false>(o
         ...options
     });
 };
-
-/**
- * WebSocket endpoint
- * WebSocket endpoint for all sandbox operations
- */
-export const getWs = <ThrowOnError extends boolean = false>(options?: Options<GetWsData, ThrowOnError>) => {
-    return (options?.client ?? _heyApiClient).get<unknown, unknown, ThrowOnError>({
-        security: [
-            {
-                scheme: 'bearer',
-                type: 'http'
-            }
-        ],
-        url: '/ws',
-        ...options
-    });
-};
