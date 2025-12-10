@@ -70,13 +70,16 @@ jobs:
         if: matrix.runtime == 'browser'
         run: npx playwright install chromium
 
-      - name: Enable runtime-environments in workspace
-        run: sed -i "s/# - 'tests\/runtime-environments/- 'tests\/runtime-environments/" pnpm-workspace.yaml
-
       - name: Install and build SDK packages
         run: |
           pnpm install
           pnpm build
+
+      - name: Enable runtime-environments in workspace
+        run: sed -i "s/# - 'tests\/runtime-environments/- 'tests\/runtime-environments/" pnpm-workspace.yaml
+
+      - name: Install runtime-environments dependencies
+        run: pnpm install
 
       - name: Build runtime test (if applicable)
         working-directory: tests/runtime-environments/${{ matrix.runtime }}
