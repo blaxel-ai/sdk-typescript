@@ -48,6 +48,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -67,11 +70,14 @@ jobs:
         if: matrix.runtime == 'browser'
         run: npx playwright install chromium
 
+      - name: Enable runtime-environments in workspace
+        run: sed -i "s/# - 'tests\/runtime-environments/- 'tests\/runtime-environments/" pnpm-workspace.yaml
+
       - name: Install dependencies
         working-directory: tests/runtime-environments/${{ matrix.runtime }}
         run: |
           if [ "${{ matrix.runtime }}" != "deno" ]; then
-            npm install
+            pnpm install
           fi
 
       - name: Build (if applicable)
@@ -81,7 +87,7 @@ jobs:
              [ "${{ matrix.runtime }}" != "nodejs-javascript-esm" ] && \
              [ "${{ matrix.runtime }}" != "deno" ] && \
              [ "${{ matrix.runtime }}" != "bun" ]; then
-            npm run build || true
+            pnpm run build || true
           fi
 
       - name: Run test
@@ -92,5 +98,5 @@ jobs:
           elif [ "${{ matrix.runtime }}" == "bun" ]; then
             timeout 120s bun run test
           else
-            timeout 120s npm test
+            timeout 120s pnpm test
           fi
