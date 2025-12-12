@@ -168,6 +168,8 @@ export type ProcessResponse = {
     restartOnFailure?: boolean;
     startedAt: string;
     status: 'failed' | 'killed' | 'stopped' | 'running' | 'completed';
+    stderr: string;
+    stdout: string;
     workingDir: string;
 };
 

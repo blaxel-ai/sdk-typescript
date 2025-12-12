@@ -253,7 +253,7 @@ async function testProcessRestartOnFailure(sandbox: SandboxInstance) {
   console.assert(response.status === "failed", `Process should eventually fail, got status: ${response.status}`);
   console.assert(response.restartOnFailure === true, "restartOnFailure should be true");
   console.assert(response.maxRestarts === 5, "maxRestarts should be 5");
-  console.assert(response.restartCount > 0, `Process should have restarted at least once, got: ${response.restartCount}`);
+  console.assert(response.restartCount! > 0, `Process should have restarted at least once, got: ${response.restartCount}`);
 
   if (response.restartCount !== 5) {
     throw new Error(`Process should have failed 5 times, got: ${response.restartCount}`);
