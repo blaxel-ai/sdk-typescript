@@ -27,38 +27,43 @@ async function testBrowser() {
     detached: false
   });
 
-  let serverReady = false;
-
-  // Wait for server to be ready
+  // Log server output for debugging in CI
   vite.stdout.on('data', (data) => {
-    const output = data.toString();
-    if (output.includes('Local:') || output.includes('localhost:3000')) {
-      serverReady = true;
-    }
+    console.log('[vite stdout]', data.toString().trim());
   });
 
   vite.stderr.on('data', (data) => {
-    const output = data.toString();
-    if (output.includes('Local:') || output.includes('localhost:3000')) {
-      serverReady = true;
-    }
+    console.log('[vite stderr]', data.toString().trim());
   });
 
+  // Poll the server URL to check if it's ready
+  async function isServerReady() {
+    try {
+      const response = await fetch('http://localhost:3000');
+      return response.ok || response.status === 200;
+    } catch {
+      return false;
+    }
+  }
+
   // Wait for server to start (max 30 seconds)
+  let serverReady = false;
   let attempts = 0;
   while (!serverReady && attempts < 60) {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    attempts++;
+    serverReady = await isServerReady();
+    if (!serverReady) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      attempts++;
+    }
   }
 
   if (!serverReady) {
-    console.error("❌ Vite preview failed to start");
+    console.error("❌ Vite preview failed to start after 30 seconds");
     vite.kill();
     process.exit(1);
   }
 
-  // Wait a bit more for full startup
-  await new Promise(resolve => setTimeout(resolve, 2000));
+  console.log(`✅ Server ready after ${attempts * 500}ms`);
 
   // Test with headless browser
   let testResult = false;

@@ -539,7 +539,7 @@ export const getProcess = <ThrowOnError extends boolean = false>(options?: Optio
 
 /**
  * Execute a command
- * Execute a command and return process information
+ * Execute a command and return process information. If Accept header is text/event-stream, streams logs in SSE format and returns the process response as a final event.
  */
 export const postProcess = <ThrowOnError extends boolean = false>(options: Options<PostProcessData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<PostProcessResponse, PostProcessError, ThrowOnError>({
