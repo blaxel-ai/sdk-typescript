@@ -1,0 +1,66 @@
+name: TS SDK Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["develop", "main"]
+    tags:
+      - "*"
+
+env:
+  DEPLOY_ENV: ${{ github.ref_type == 'tag' && 'production' || (github.ref_name == 'main' && 'staging' || 'development') }}
+
+jobs:
+  npm-publish:
+    name: Upload to NPM
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_type == 'tag' && 'production' || (github.ref_name == 'main' && 'staging' || 'development') }}
+    steps:
+      - uses: actions/checkout@v4
+        name: Checkout
+        with:
+          fetch-tags: true
+          fetch-depth: 0
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 23
+          registry-url: "https://registry.npmjs.org"
+      - name: Set version
+        run: |
+          if [ "$DEPLOY_ENV" == "production" ]; then
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#v}"
+            echo "Setting version to $VERSION"
+            pnpm set-version $VERSION
+          else
+            VERSION=$(git describe --tags --abbrev=0)
+            VERSION="${VERSION#v}"
+            IFS='.' read -r major minor patch <<< "$VERSION"
+            patch=$((patch + 1))
+            VERSION="${major}.${minor}.${patch}"
+
+            if [ "$DEPLOY_ENV" == "staging" ]; then
+              echo "Setting staging version to $VERSION-preview.${{ github.run_number }}"
+              pnpm set-version $VERSION-preview.${{ github.run_number }}
+            else
+              echo "Setting dev version to $VERSION-dev.${{ github.run_number }}"
+              pnpm set-version $VERSION-dev.${{ github.run_number }}
+            fi
+          fi
+      - name: Publish to NPM
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+        run: |
+          pnpm install
+          if [ "$DEPLOY_ENV" == "production" ]; then
+            pnpm publish-prod
+          elif [ "$DEPLOY_ENV" == "staging" ]; then
+            pnpm publish-preview
+          else
+            pnpm publish-dev
+          fi

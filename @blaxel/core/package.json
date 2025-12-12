@@ -8,13 +8,13 @@
 	"scripts": {
 		"lint": "eslint src/",
 		"dev": "tsc --watch",
-		"build": "npm run build:generate-version && npm run build:cjs && npm run build:esm && npm run build:fix-esm && npm run build:esm-package && npm run build:browser",
-		"build:generate-version": "node generate-version.js",
+		"build": "npm run build:cjs && npm run build:esm && npm run build:fix-esm && npm run build:esm-package && npm run build:replace-imports && npm run build:browser",
 		"build:cjs": "NODE_OPTIONS='--max-old-space-size=8192' tsc -p tsconfig.cjs.json",
 		"build:esm": "NODE_OPTIONS='--max-old-space-size=8192' tsc -p tsconfig.esm.json",
 		"build:fix-esm": "node fix-esm-imports.js",
 		"build:esm-package": "echo '{\"type\":\"module\"}' > dist/esm/package.json",
 		"build:browser": "node fix-browser-imports.js",
+		"build:replace-imports": "node -e \"const fs=require('fs'),{execSync}=require('child_process'),pkg=require('./package.json');let commit='unknown';try{commit=execSync('git rev-parse HEAD',{encoding:'utf8'}).trim()}catch(e){console.log('⚠️  Could not get commit:',e.message)}const sentryDsn=process.env.SENTRY_DSN||'';const paths=['dist/cjs/common/settings.js','dist/esm/common/settings.js','dist/cjs-browser/common/settings.js','dist/esm-browser/common/settings.js'];paths.forEach(p=>{if(fs.existsSync(p)){let c=fs.readFileSync(p,'utf8');c=c.replace(/__BUILD_VERSION__/g,pkg.version);c=c.replace(/__BUILD_COMMIT__/g,commit);c=c.replace(/__BUILD_SENTRY_DSN__/g,sentryDsn);fs.writeFileSync(p,c);console.log('✅ Injected build info in',p,'(v'+pkg.version+', commit:'+commit.substring(0,7)+')');}});\"",
 		"test": "vitest --run",
 		"test:watch": "vitest --watch"
 	},
@@ -86,6 +86,5 @@
 		"typescript-eslint": "^8.31.1",
 		"vite": "^5.2.0",
 		"vitest": "^1.5.0"
-	},
-	"commit": "af8978409f72d59a9d6d6caac2d8ea79642b623e"
+	}
 }

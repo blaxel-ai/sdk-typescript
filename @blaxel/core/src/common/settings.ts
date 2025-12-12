@@ -1,12 +1,52 @@
+import yaml from 'yaml';
 import { Credentials } from "../authentication/credentials.js";
 import { authentication } from "../authentication/index.js";
 import { env } from "../common/env.js";
-import { PACKAGE_COMMIT, PACKAGE_VERSION } from "./version.js";
+import { fs, os, path } from "../common/node.js";
 
 export type Config = {
   proxy?: string;
   apikey?: string;
   workspace?: string;
+}
+
+// Build info - these placeholders are replaced at build time by build:replace-imports
+const BUILD_VERSION = "__BUILD_VERSION__";
+const BUILD_COMMIT = "__BUILD_COMMIT__";
+const BUILD_SENTRY_DSN = "__BUILD_SENTRY_DSN__";
+
+// Cache for config.yaml tracking value
+let configTrackingValue: boolean | null = null;
+let configTrackingLoaded = false;
+
+function getConfigTracking(): boolean | null {
+  if (configTrackingLoaded) {
+    return configTrackingValue;
+  }
+  configTrackingLoaded = true;
+
+  if (os === null || fs === null || path === null) {
+    return null;
+  }
+
+  try {
+    const homeDir = os.homedir();
+    const config = fs.readFileSync(
+      path.join(homeDir, ".blaxel/config.yaml"),
+      "utf8"
+    );
+    type ConfigWithTracking = {
+      tracking?: boolean;
+    };
+    const configJson = yaml.parse(config) as ConfigWithTracking;
+    if (typeof configJson.tracking === 'boolean') {
+      configTrackingValue = configJson.tracking;
+      return configTrackingValue;
+    }
+  } catch {
+    // If any error, return null
+  }
+  return null;
 }
 
 // Function to get OS and architecture
@@ -44,11 +84,9 @@ function getOsArch(): string {
   return "browser/unknown";
 }
 
-
 class Settings {
   credentials: Credentials;
   config: Config;
-  private _version: string | null = null;
 
   constructor() {
     this.credentials = authentication();
@@ -112,19 +150,24 @@ class Settings {
   }
 
   get version(): string {
-    if (this._version === null) {
-      this._version = PACKAGE_VERSION;
-    }
-    return this._version;
+    return BUILD_VERSION || "unknown";
+  }
+
+  get commit(): string {
+    const commit = BUILD_COMMIT || "unknown";
+    return commit.length > 7 ? commit.substring(0, 7) : commit;
+  }
+
+  get sentryDsn(): string {
+    return BUILD_SENTRY_DSN || "";
   }
 
   get headers(): Record<string, string> {
     const osArch = getOsArch();
-    const commitHash = PACKAGE_COMMIT.length > 7 ? PACKAGE_COMMIT.substring(0, 7) : PACKAGE_COMMIT;
     return {
       "x-blaxel-authorization": this.authorization,
       "x-blaxel-workspace": this.workspace || "",
-      "User-Agent": `blaxel/sdk/typescript/${this.version} (${osArch}) blaxel/${commitHash}`,
+      "User-Agent": `blaxel/sdk/typescript/${this.version} (${osArch}) blaxel/${this.commit}`,
     };
   }
 
@@ -157,6 +200,21 @@ class Settings {
 
   get loggerType() {
     return env.BL_LOGGER || "http";
+  }
+
+  get tracking(): boolean {
+    // Environment variable has highest priority
+    if (env.DO_NOT_TRACK !== undefined) {
+      // DO_NOT_TRACK has inverted semantics: true means tracking disabled
+      return env.DO_NOT_TRACK !== "true" && env.DO_NOT_TRACK !== "1";
+    }
+    // Then check config.yaml
+    const configValue = getConfigTracking();
+    if (configValue !== null) {
+      return configValue;
+    }
+    // Default to true if neither is set
+    return true;
   }
 
   async authenticate() {

@@ -91,6 +91,7 @@ builds.forEach(buildDir => {
     replaceNodeWithBrowser(buildDir);
 
     // Note: We don't need to fix imports since node.js now contains browser.js content
+    // sentry.ts now handles both Node.js and browser environments with fetch
     // All imports to node.js will get the browser-safe version
 
     // Copy package.json for ESM
