@@ -13,6 +13,7 @@ async function main() {
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24) // 1 day from now
     const session = await sandbox.sessions.create({ expiresAt })
     console.log(`created session name=${session.name} url=${session.url} token=${session.token} expiresAt=${session.expiresAt}`)
+    console.log(`URL=${session.url}?bl_preview_token=${session.token}`)
 
     const sandboxWithSession = await SandboxInstance.fromSession(session)
 

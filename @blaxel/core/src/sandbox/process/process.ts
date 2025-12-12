@@ -88,44 +88,37 @@ export class SandboxProcess extends SandboxAction {
     process: ProcessRequest | ProcessRequestWithLog,
   ): Promise<PostProcessResponse | ProcessResponseWithLog> {
     let onLog: ((log: string) => void) | undefined;
+    let onStdout: ((stdout: string) => void) | undefined;
+    let onStderr: ((stderr: string) => void) | undefined;
     if ('onLog' in process && process.onLog) {
       onLog = process.onLog;
       delete process.onLog;
+    }
+    if ('onStdout' in process && process.onStdout) {
+      onStdout = process.onStdout;
+      delete process.onStdout;
+    }
+    if ('onStderr' in process && process.onStderr) {
+      onStderr = process.onStderr;
+      delete process.onStderr;
     }
 
     // Store original wait_for_completion setting
     const shouldWaitForCompletion = process.waitForCompletion;
 
-    // Always start process without wait_for_completion to avoid server-side blocking
-    if (shouldWaitForCompletion && onLog) {
-      process.waitForCompletion = false;
-    }
-
-    const { response, data, error } = await postProcess({
-      body: process,
-      baseUrl: this.url,
-      client: this.client,
-    });
-    this.handleResponseError(response, data, error);
-
-    let result = data as PostProcessResponse;
-
-    // Handle wait_for_completion with parallel log streaming
-    if (shouldWaitForCompletion && onLog) {
-      const streamControl = this.streamLogs(result.pid, { onLog });
-      try {
-        // Wait for process completion
-        result = await this.wait(result.pid, { interval: 500, maxWait: 1000 * 60 * 60 });
-      } finally {
-        // Clean up log streaming
-        if (streamControl) {
-          streamControl.close();
-        }
-      }
+    // When waiting for completion with streaming callbacks, use streaming endpoint
+    if (shouldWaitForCompletion && (onLog || onStdout || onStderr)) {
+      return await this.execWithStreaming(process, { onLog, onStdout, onStderr });
     } else {
-      // For non-blocking execution, set up log streaming immediately if requested
-      if (onLog) {
-        const streamControl = this.streamLogs(result.pid, { onLog });
+      const { response, data, error } = await postProcess({
+        body: process,
+        baseUrl: this.url,
+        client: this.client,
+      });
+      this.handleResponseError(response, data, error);
+      const result = data as PostProcessResponse;
+      if (onLog || onStdout || onStderr) {
+        const streamControl = this.streamLogs(result.pid, { onLog, onStdout, onStderr });
         return {
           ...result,
           close() {
@@ -135,9 +128,141 @@ export class SandboxProcess extends SandboxAction {
           },
         }
       }
+      return result;
+    }
+  }
+
+  private async execWithStreaming(
+    processRequest: ProcessRequest,
+    options: {
+      onLog?: (log: string) => void;
+      onStdout?: (stdout: string) => void;
+      onStderr?: (stderr: string) => void;
+    }
+  ): Promise<ProcessResponseWithLog> {
+    const headers = this.sandbox.forceUrl ? this.sandbox.headers : settings.headers;
+    const controller = new AbortController();
+
+    const response = await fetch(`${this.url}/process`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+      },
+      body: JSON.stringify(processRequest),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to execute process: ${errorText}`);
     }
 
-    return { ...result, close: () => { } };
+    const contentType = response.headers.get('Content-Type') || '';
+    const isStreaming = contentType.includes('application/x-ndjson');
+
+    // Fallback: server doesn't support streaming, use legacy approach
+    if (!isStreaming) {
+      const data = await response.json() as PostProcessResponse;
+      // If process already completed (server waited), just return with logs
+      if (data.status === 'completed' || data.status === 'failed') {
+        // Emit any captured logs through callbacks
+        if (data.stdout) {
+          for (const line of data.stdout.split('\n').filter(l => l)) {
+            options.onStdout?.(line);
+          }
+        }
+        if (data.stderr) {
+          for (const line of data.stderr.split('\n').filter(l => l)) {
+            options.onStderr?.(line);
+          }
+        }
+        if (data.logs) {
+          for (const line of data.logs.split('\n').filter(l => l)) {
+            options.onLog?.(line);
+          }
+        }
+        return {
+          ...data,
+          close: () => {},
+        };
+      }
+      return {
+        ...data,
+        close: () => {},
+      };
+    }
+
+    // Streaming response handling
+    if (!response.body) {
+      throw new Error('No response body for streaming');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let result: PostProcessResponse | null = null;
+
+    while (true) {
+      const readResult = await reader.read();
+      if (readResult.done) break;
+
+      if (readResult.value && readResult.value instanceof Uint8Array) {
+        buffer += decoder.decode(readResult.value, { stream: true });
+      }
+
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop()!;
+
+      for (const line of lines) {
+        const parsed = JSON.parse(line) as { type: string, data: string };
+        switch (parsed.type) {
+          case 'stdout':
+            if (parsed.data) {
+              options.onStdout?.(parsed.data);
+              options.onLog?.(parsed.data);
+            }
+            break;
+          case 'stderr':
+            if (parsed.data) {
+              options.onStderr?.(parsed.data);
+              options.onLog?.(parsed.data);
+            }
+            break;
+          case 'result':
+            try {
+              result = JSON.parse(parsed.data) as PostProcessResponse;
+            } catch {
+              throw new Error(`Failed to parse result JSON: ${parsed.data}`);
+            }
+            break;
+          default:
+            break;
+        }
+      }
+    }
+
+    // Process any remaining buffer
+    if (buffer.trim()) {
+      if (buffer.startsWith('result:')) {
+        const jsonStr = buffer.slice(7);
+        try {
+          result = JSON.parse(jsonStr) as PostProcessResponse;
+        } catch {
+          throw new Error(`Failed to parse result JSON: ${jsonStr}`);
+        }
+      }
+    }
+
+    if (!result) {
+      throw new Error('No result received from streaming response');
+    }
+
+    return {
+      ...result,
+      close: () => controller.abort(),
+    };
   }
 
   async wait(identifier: string, { maxWait = 60000, interval = 1000 }: { maxWait?: number, interval?: number } = {}): Promise<GetProcessByIdentifierResponse> {
