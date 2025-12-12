@@ -160,7 +160,7 @@ export class SandboxProcess extends SandboxAction {
     }
 
     const contentType = response.headers.get('Content-Type') || '';
-    const isStreaming = contentType.includes('text/plain') || contentType.includes('text/event-stream');
+    const isStreaming = contentType.includes('application/x-ndjson');
 
     // Fallback: server doesn't support streaming, use legacy approach
     if (!isStreaming) {
@@ -216,25 +216,29 @@ export class SandboxProcess extends SandboxAction {
       buffer = lines.pop()!;
 
       for (const line of lines) {
-        if (!line || line.startsWith('[keepalive]')) {
-          continue;
-        }
-
-        if (line.startsWith('stdout:')) {
-          const content = line.slice(7);
-          options.onStdout?.(content);
-          options.onLog?.(content);
-        } else if (line.startsWith('stderr:')) {
-          const content = line.slice(7);
-          options.onStderr?.(content);
-          options.onLog?.(content);
-        } else if (line.startsWith('result:')) {
-          const jsonStr = line.slice(7);
-          try {
-            result = JSON.parse(jsonStr) as PostProcessResponse;
-          } catch {
-            throw new Error(`Failed to parse result JSON: ${jsonStr}`);
-          }
+        const parsed = JSON.parse(line) as { type: string, data: string };
+        switch (parsed.type) {
+          case 'stdout':
+            if (parsed.data) {
+              options.onStdout?.(parsed.data);
+              options.onLog?.(parsed.data);
+            }
+            break;
+          case 'stderr':
+            if (parsed.data) {
+              options.onStderr?.(parsed.data);
+              options.onLog?.(parsed.data);
+            }
+            break;
+          case 'result':
+            try {
+              result = JSON.parse(parsed.data) as PostProcessResponse;
+            } catch {
+              throw new Error(`Failed to parse result JSON: ${parsed.data}`);
+            }
+            break;
+          default:
+            break;
         }
       }
     }
