@@ -12,6 +12,8 @@ interface HealthCheckResult {
   success: boolean;
   httpStatus?: number;
   error?: string;
+  responseHeaders?: Record<string, string>;
+  responseBody?: string;
 }
 
 async function runHealthCheck(): Promise<HealthCheckResult> {
@@ -23,7 +25,7 @@ async function runHealthCheck(): Promise<HealthCheckResult> {
     const sandboxStartTime = Date.now();
     const sandbox = await SandboxInstance.create({
       name: randomSandboxName,
-      image: "ttyd:latest",
+      image: "blaxel/base-image:latest",
       memory: 4096,
       region: BL_REGION,
     });
@@ -52,6 +54,20 @@ async function runHealthCheck(): Promise<HealthCheckResult> {
     if (healthResponse.status >= 400) {
       let errorMessage = `HTTP ${healthResponse.status} - ${healthResponse.statusText}`;
 
+      // Capture response headers
+      const responseHeaders: Record<string, string> = {};
+      healthResponse.headers.forEach((value, key) => {
+        responseHeaders[key] = value;
+      });
+
+      // Capture raw response body
+      let responseBody = '';
+      try {
+        responseBody = await healthResponse.text();
+      } catch (e) {
+        responseBody = '<failed to read response body>';
+      }
+
       // Clean up before returning error
       await SandboxInstance.delete(randomSandboxName).catch(() => {});
 
@@ -64,6 +80,8 @@ async function runHealthCheck(): Promise<HealthCheckResult> {
         success: false,
         httpStatus: healthResponse.status,
         error: errorMessage,
+        responseHeaders,
+        responseBody,
       };
     }
 
@@ -152,6 +170,12 @@ async function main() {
       } else {
         console.log(`  [${checkNum}] ✗ ${result.sandboxName}`);
         console.log(`      Error: ${result.error}${result.httpStatus ? ` (HTTP ${result.httpStatus})` : ''}`);
+        if (result.responseHeaders) {
+          console.log(`      Response Headers:`, JSON.stringify(result.responseHeaders, null, 2));
+        }
+        if (result.responseBody) {
+          console.log(`      Response Body:`, result.responseBody);
+        }
       }
     });
   }
