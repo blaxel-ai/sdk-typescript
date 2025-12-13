@@ -131,6 +131,53 @@ async function main() {
     await SandboxInstance.delete(sandbox.metadata?.name!);
     console.log("✅ Deleted envs dict sandbox");
 
+    // Test 10: Race condition test for createIfNotExists
+    console.log("\nTest 10: Race condition test for createIfNotExists (5 concurrent calls)...");
+    const raceSandboxName = "sandbox-race-condition-test";
+    const concurrentCalls = 5;
+
+    // Start 20 concurrent createIfNotExists calls with the same configuration
+    const promises = Array.from({ length: concurrentCalls }, (_, i) =>
+      SandboxInstance.createIfNotExists({ name: raceSandboxName })
+        .then(sb => ({ index: i, sandbox: sb, error: null }))
+        .catch(err => ({ index: i, sandbox: null, error: err }))
+    );
+
+    console.log(`   Starting ${concurrentCalls} concurrent createIfNotExists calls...`);
+    const results = await Promise.all(promises);
+
+    // Analyze results
+    const successes = results.filter(r => r.sandbox !== null);
+    const failures = results.filter(r => r.error !== null);
+
+    console.log(`   Successes: ${successes.length}, Failures: ${failures.length}`);
+
+    if (failures.length > 0) {
+      console.log("   Failures:");
+      for (const failure of failures) {
+        console.log(`     - Call ${failure.index}: ${failure.error}`);
+      }
+    }
+
+    // All successful calls should return the same sandbox name
+    const uniqueNames = new Set(successes.map(r => r.sandbox?.metadata?.name));
+    console.log(`   Unique sandbox names returned: ${uniqueNames.size}`);
+    console.log(`   Sandbox names: ${Array.from(uniqueNames).join(', ')}`);
+
+    if (uniqueNames.size !== 1) {
+      throw new Error(`Race condition detected! Expected 1 unique sandbox name, got ${uniqueNames.size}`);
+    }
+
+    if (successes.length !== concurrentCalls) {
+      throw new Error(`Expected all ${concurrentCalls} calls to succeed, but only ${successes.length} succeeded`);
+    }
+
+    console.log(`✅ All ${concurrentCalls} concurrent calls returned the same sandbox: ${Array.from(uniqueNames)[0]}`);
+
+    // Cleanup
+    await SandboxInstance.delete(raceSandboxName);
+    console.log("✅ Deleted race condition test sandbox");
+
     console.log("\n🎉 All sandbox creation tests passed!");
   } catch (e) {
     console.error("❌ There was an error => ", e);
