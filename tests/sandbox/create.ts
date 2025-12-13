@@ -165,10 +165,12 @@ async function main() {
     console.log(`   Sandbox names: ${Array.from(uniqueNames).join(', ')}`);
 
     if (uniqueNames.size !== 1) {
+      await SandboxInstance.delete(raceSandboxName);
       throw new Error(`Race condition detected! Expected 1 unique sandbox name, got ${uniqueNames.size}`);
     }
 
     if (successes.length !== concurrentCalls) {
+      await SandboxInstance.delete(raceSandboxName);
       throw new Error(`Expected all ${concurrentCalls} calls to succeed, but only ${successes.length} succeeded`);
     }
 
