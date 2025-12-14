@@ -26,7 +26,6 @@ async function testWatch(sandbox: SandboxInstance) {
     }, {
       withContent: true
     });
-    await new Promise((resolve) => setTimeout(resolve, 1000));
     await fs.write(testFile, "content");
 
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -34,13 +33,12 @@ async function testWatch(sandbox: SandboxInstance) {
 
     await new Promise((resolve) => setTimeout(resolve, 100));
     await fs.rm(testFile)
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     handle.close();
 
     // Clean up after test
     await fs.rm(testDir, true);
-
 
     if (!events.includes("CREATE") || !events.includes("WRITE") || !events.includes("REMOVE")) {
       throw new Error("Watch callback not consistent with expected events: " + events.join(", "));
@@ -91,9 +89,8 @@ async function testWatchWithSubfolder(sandbox: SandboxInstance) {
 }
 
 async function main() {
-  const sandboxName = "sandbox-test-watch-folder"
+  const sandbox = await SandboxInstance.create()
   try {
-    const sandbox = await createOrGetSandbox({sandboxName})
     await testWatch(sandbox)
     await testWatchWithIgnore(sandbox)
     await testWatchWithSubfolder(sandbox)
@@ -101,7 +98,7 @@ async function main() {
     console.error("There was an error => ", e);
   } finally {
     console.log("Deleting sandbox");
-    await SandboxInstance.delete(sandboxName)
+    await SandboxInstance.delete(sandbox.metadata!.name!)
   }
 }
 
