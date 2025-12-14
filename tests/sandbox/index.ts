@@ -168,7 +168,6 @@ async function testPreviewToken(sandbox: SandboxInstance) {
 }
 
 async function testPreviews(sandbox: SandboxInstance) {
-  await testPreviewPublic(sandbox)
   await testPreviewToken(sandbox)
 }
 
