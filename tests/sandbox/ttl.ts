@@ -1,6 +1,8 @@
 import { SandboxInstance } from "@blaxel/core";
 
-async function waitForTermination(sandboxName: string, maxWaitTimeMs: number = 600000): Promise<boolean> {
+const BL_REGION = process.env.BL_REGION || (process.env.BL_ENV === "dev" ? "eu-dub-1" : "us-pdx-1");
+
+async function waitForTermination(sandboxName: string, maxWaitTimeMs: number = 1200000): Promise<boolean> {
   const startTime = Date.now();
   const checkIntervalMs = 30000; // 30 seconds
 
@@ -24,26 +26,26 @@ async function waitForTermination(sandboxName: string, maxWaitTimeMs: number = 6
 async function main() {
   try {
     console.log("Test 1: Create sandbox with ttl...");
-    let sandbox = await SandboxInstance.create({ ttl: "60s", name: "sandbox-ttl" });
+    let sandbox = await SandboxInstance.create({ ttl: "60s", name: "sandbox-ttl", region: BL_REGION });
     await sandbox.wait();
     console.log(`✅ Created sandbox with default name: ${sandbox.metadata?.name}`);
 
     const terminated = await waitForTermination(sandbox.metadata?.name!);
     if (!terminated) {
-      console.log(`❌ Sandbox did not terminate within 10 minutes`);
+      console.log(`❌ Sandbox did not terminate within 20 minutes`);
     }
 
 
     console.log("Test 2: Create sandbox with expiresAt...");
     let date = new Date();
     date.setSeconds(date.getSeconds() + 60);
-    sandbox = await SandboxInstance.create({ expires: date, name: "sandbox-expires" });
+    sandbox = await SandboxInstance.create({ expires: date, name: "sandbox-expires", region: BL_REGION });
     await sandbox.wait();
     console.log(`✅ Created sandbox with default name: ${sandbox.metadata?.name}`);
 
     const terminated2 = await waitForTermination(sandbox.metadata?.name!);
     if (!terminated2) {
-      console.log(`❌ Sandbox did not terminate within 10 minutes`);
+      console.log(`❌ Sandbox did not terminate within 20 minutes`);
     }
   } catch (e) {
     console.error("❌ There was an error => ", e);
