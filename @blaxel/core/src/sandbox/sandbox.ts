@@ -158,6 +158,10 @@ export class SandboxInstance {
     return data;
   }
 
+  async delete() {
+    return await SandboxInstance.delete(this.metadata?.name!);
+  }
+
   static async updateMetadata(sandboxName: string, metadata: SandboxUpdateMetadata) {
     const sandbox = await SandboxInstance.get(sandboxName);
     const body = { ...sandbox.sandbox, metadata: { ...sandbox.metadata, ...metadata } } as SandboxModel
