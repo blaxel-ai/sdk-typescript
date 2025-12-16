@@ -114,6 +114,10 @@ export class VolumeInstance {
     return data;
   }
 
+  async delete() {
+    return await VolumeInstance.delete(this.metadata?.name ?? "");
+  }
+
   static async createIfNotExists(config: VolumeCreateConfiguration | Volume) {
     try {
       return await VolumeInstance.create(config);
