@@ -6,13 +6,16 @@ describe('Sandbox Lifecycle and Expiration', () => {
   const createdSandboxes: string[] = []
 
   afterAll(async () => {
-    for (const name of createdSandboxes) {
-      try {
-        await SandboxInstance.delete(name)
-      } catch {
-        // Ignore
-      }
-    }
+    // Clean up all sandboxes in parallel
+    await Promise.all(
+      createdSandboxes.map(async (name) => {
+        try {
+          await SandboxInstance.delete(name)
+        } catch {
+          // Ignore
+        }
+      })
+    )
     await cleanupAll()
   })
 

@@ -1,19 +1,21 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { SandboxInstance, SandboxCreateConfiguration } from "@blaxel/core"
-import { uniqueName, cleanupAll, defaultImage, defaultRegion, sleep } from './helpers'
+import { uniqueName, cleanupAll, defaultImage, defaultRegion, waitForSandboxDeletion } from './helpers'
 
 describe('Sandbox CRUD Operations', () => {
   const createdSandboxes: string[] = []
 
   afterAll(async () => {
-    // Clean up all sandboxes created during tests
-    for (const name of createdSandboxes) {
-      try {
-        await SandboxInstance.delete(name)
-      } catch {
-        // Ignore cleanup errors
-      }
-    }
+    // Clean up all sandboxes in parallel
+    await Promise.all(
+      createdSandboxes.map(async (name) => {
+        try {
+          await SandboxInstance.delete(name)
+        } catch {
+          // Ignore cleanup errors
+        }
+      })
+    )
     await cleanupAll()
   })
 
@@ -200,16 +202,9 @@ describe('Sandbox CRUD Operations', () => {
 
       await SandboxInstance.delete(name)
 
-      // Wait a bit for deletion to propagate
-      await sleep(2000)
-
-      // Should either throw or return DELETED/TERMINATED status
-      try {
-        const status = await SandboxInstance.get(name)
-        expect(["DELETED", "TERMINATED"]).toContain(status.status)
-      } catch {
-        // Expected - sandbox no longer exists
-      }
+      // Wait for deletion to fully complete
+      const deleted = await waitForSandboxDeletion(name)
+      expect(deleted).toBe(true)
     })
 
     it('can delete using instance method', async () => {
@@ -218,14 +213,9 @@ describe('Sandbox CRUD Operations', () => {
 
       await sandbox.delete()
 
-      await sleep(2000)
-
-      try {
-        const status = await SandboxInstance.get(name)
-        expect(["DELETED", "TERMINATED"]).toContain(status.status)
-      } catch {
-        // Expected
-      }
+      // Wait for deletion to fully complete
+      const deleted = await waitForSandboxDeletion(name)
+      expect(deleted).toBe(true)
     })
   })
 

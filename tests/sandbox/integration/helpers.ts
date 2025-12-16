@@ -52,36 +52,31 @@ export async function createTrackedVolume(name?: string, size: number = 1024): P
 }
 
 /**
- * Clean up all tracked resources
+ * Clean up all tracked resources in parallel
  */
 export async function cleanupAll(): Promise<void> {
-  const errors: Error[] = []
-
-  // Clean up sandboxes
-  for (const name of trackedSandboxes) {
+  // Clean up sandboxes in parallel
+  const sandboxCleanups = trackedSandboxes.map(async (name) => {
     try {
       await SandboxInstance.delete(name)
-    } catch (e) {
+      await waitForSandboxDeletion(name)
+    } catch {
       // Ignore errors during cleanup
-      errors.push(e as Error)
     }
-  }
+  })
+  await Promise.all(sandboxCleanups)
   trackedSandboxes.length = 0
 
-  // Clean up volumes
-  for (const name of trackedVolumes) {
+  // Clean up volumes in parallel (after sandboxes are deleted)
+  const volumeCleanups = trackedVolumes.map(async (name) => {
     try {
       await VolumeInstance.delete(name)
-    } catch (e) {
+    } catch {
       // Ignore errors during cleanup
-      errors.push(e as Error)
     }
-  }
+  })
+  await Promise.all(volumeCleanups)
   trackedVolumes.length = 0
-
-  if (errors.length > 0) {
-    console.warn(`Cleanup completed with ${errors.length} errors (ignored)`)
-  }
 }
 
 /**
@@ -96,23 +91,32 @@ export async function deleteSandboxSafe(name: string): Promise<void> {
 }
 
 /**
- * Wait for a sandbox to be deleted
+ * Waits for a sandbox deletion to fully complete by polling until the sandbox no longer exists
+ * @param sandboxName The name of the sandbox to wait for deletion
+ * @param maxAttempts Maximum number of attempts to wait (default: 30 seconds)
+ * @returns Promise<boolean> - true if deletion completed, false if timeout
  */
-export async function waitForDeletion(name: string, maxAttempts: number = 30): Promise<boolean> {
-  for (let i = 0; i < maxAttempts; i++) {
+export async function waitForSandboxDeletion(sandboxName: string, maxAttempts: number = 30): Promise<boolean> {
+  let attempts = 0
+
+  while (attempts < maxAttempts) {
     try {
-      const status = await SandboxInstance.get(name)
-      if (status.status === "DELETED" || status.status === "TERMINATED") {
-        return true
-      }
+      await SandboxInstance.get(sandboxName)
+      // If we get here, sandbox still exists, wait and try again
       await sleep(1000)
-    } catch {
-      // Sandbox no longer exists
+      attempts++
+    } catch (error) {
+      // If getSandbox throws an error, the sandbox no longer exists
       return true
     }
   }
+
+  console.warn(`Timeout waiting for ${sandboxName} deletion to complete`)
   return false
 }
+
+// Alias for backwards compatibility
+export const waitForDeletion = waitForSandboxDeletion
 
 /**
  * Sleep helper

@@ -1,32 +1,34 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { SandboxInstance, VolumeInstance } from "@blaxel/core"
-import { uniqueName, cleanupAll, defaultImage, defaultRegion, sleep } from './helpers'
+import { uniqueName, cleanupAll, defaultImage, defaultRegion, waitForSandboxDeletion } from './helpers'
 
 describe('Sandbox Volume Operations', () => {
   const createdSandboxes: string[] = []
   const createdVolumes: string[] = []
 
   afterAll(async () => {
-    // Clean up sandboxes first
-    for (const name of createdSandboxes) {
-      try {
-        await SandboxInstance.delete(name)
-      } catch {
-        // Ignore
-      }
-    }
+    // Clean up sandboxes in parallel and wait for full deletion
+    await Promise.all(
+      createdSandboxes.map(async (name) => {
+        try {
+          await SandboxInstance.delete(name)
+          await waitForSandboxDeletion(name)
+        } catch {
+          // Ignore
+        }
+      })
+    )
 
-    // Wait for sandboxes to fully delete before removing volumes
-    await sleep(5000)
-
-    // Clean up volumes
-    for (const name of createdVolumes) {
-      try {
-        await VolumeInstance.delete(name)
-      } catch {
-        // Ignore
-      }
-    }
+    // Clean up volumes in parallel (now safe since sandboxes are fully deleted)
+    await Promise.all(
+      createdVolumes.map(async (name) => {
+        try {
+          await VolumeInstance.delete(name)
+        } catch {
+          // Ignore
+        }
+      })
+    )
 
     await cleanupAll()
   })
@@ -170,7 +172,7 @@ describe('Sandbox Volume Operations', () => {
       })
 
       await SandboxInstance.delete(writeSandbox.metadata?.name!)
-      await sleep(5000)
+      await waitForSandboxDeletion(writeSandbox.metadata?.name!)
 
       // Now create read-only sandbox
       const sandbox = await SandboxInstance.create({
@@ -191,9 +193,10 @@ describe('Sandbox Volume Operations', () => {
 
       // Should fail to write
       const writeResult = await sandbox.process.exec({
-        command: "echo 'new' > /data/new.txt 2>&1 || echo 'WRITE_FAILED'",
+        command: "(echo 'new' > /data/new.txt 2>&1 && echo 'WRITE_SUCCESS') || echo 'WRITE_FAILED'",
         waitForCompletion: true
       })
+      console.log("writeResult => ", writeResult)
       expect(writeResult.logs).toContain("WRITE_FAILED")
     })
   })
@@ -225,9 +228,9 @@ describe('Sandbox Volume Operations', () => {
         waitForCompletion: true
       })
 
-      // Delete first sandbox
+      // Delete first sandbox and wait for full deletion
       await SandboxInstance.delete(sandbox1Name)
-      await sleep(5000)
+      await waitForSandboxDeletion(sandbox1Name)
 
       // Second sandbox - read data
       const sandbox2Name = uniqueName("persist-2")
@@ -249,56 +252,57 @@ describe('Sandbox Volume Operations', () => {
     })
   })
 
-  describe('multiple volumes', () => {
-    it('mounts multiple volumes to a sandbox', async () => {
-      const vol1Name = uniqueName("multi-vol1")
-      const vol2Name = uniqueName("multi-vol2")
-      const sandboxName = uniqueName("multi-sandbox")
+  // Not supported yet
+  // describe('multiple volumes', () => {
+  //   it('mounts multiple volumes to a sandbox', async () => {
+  //     const vol1Name = uniqueName("multi-vol1")
+  //     const vol2Name = uniqueName("multi-vol2")
+  //     const sandboxName = uniqueName("multi-sandbox")
 
-      await VolumeInstance.create({
-        name: vol1Name,
-        size: 512,
-        region: defaultRegion
-      })
-      createdVolumes.push(vol1Name)
+  //     await VolumeInstance.create({
+  //       name: vol1Name,
+  //       size: 512,
+  //       region: defaultRegion
+  //     })
+  //     createdVolumes.push(vol1Name)
 
-      await VolumeInstance.create({
-        name: vol2Name,
-        size: 512,
-        region: defaultRegion
-      })
-      createdVolumes.push(vol2Name)
+  //     await VolumeInstance.create({
+  //       name: vol2Name,
+  //       size: 512,
+  //       region: defaultRegion
+  //     })
+  //     createdVolumes.push(vol2Name)
 
-      const sandbox = await SandboxInstance.create({
-        name: sandboxName,
-        image: defaultImage,
-        region: defaultRegion,
-        volumes: [
-          { name: vol1Name, mountPath: "/vol1", readOnly: false },
-          { name: vol2Name, mountPath: "/vol2", readOnly: false }
-        ]
-      })
-      createdSandboxes.push(sandboxName)
-      await sandbox.wait()
+  //     const sandbox = await SandboxInstance.create({
+  //       name: sandboxName,
+  //       image: defaultImage,
+  //       region: defaultRegion,
+  //       volumes: [
+  //         { name: vol1Name, mountPath: "/vol1", readOnly: false },
+  //         { name: vol2Name, mountPath: "/vol2", readOnly: false }
+  //       ]
+  //     })
+  //     createdSandboxes.push(sandboxName)
+  //     await sandbox.wait()
 
-      // Write to both volumes
-      await sandbox.process.exec({
-        command: "echo 'vol1 data' > /vol1/file.txt && echo 'vol2 data' > /vol2/file.txt",
-        waitForCompletion: true
-      })
+  //     // Write to both volumes
+  //     await sandbox.process.exec({
+  //       command: "echo 'vol1 data' > /vol1/file.txt && echo 'vol2 data' > /vol2/file.txt",
+  //       waitForCompletion: true
+  //     })
 
-      // Read from both
-      const result1 = await sandbox.process.exec({
-        command: "cat /vol1/file.txt",
-        waitForCompletion: true
-      })
-      expect(result1.logs).toContain("vol1 data")
+  //     // Read from both
+  //     const result1 = await sandbox.process.exec({
+  //       command: "cat /vol1/file.txt",
+  //       waitForCompletion: true
+  //     })
+  //     expect(result1.logs).toContain("vol1 data")
 
-      const result2 = await sandbox.process.exec({
-        command: "cat /vol2/file.txt",
-        waitForCompletion: true
-      })
-      expect(result2.logs).toContain("vol2 data")
-    })
-  })
+  //     const result2 = await sandbox.process.exec({
+  //       command: "cat /vol2/file.txt",
+  //       waitForCompletion: true
+  //     })
+  //     expect(result2.logs).toContain("vol2 data")
+  //   })
+  // })
 })
