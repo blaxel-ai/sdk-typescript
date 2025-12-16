@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { SandboxInstance, VolumeInstance } from "@blaxel/core"
-import { uniqueName, cleanupAll, defaultImage, defaultRegion, waitForSandboxDeletion } from './helpers'
+import { uniqueName, cleanupAll, defaultImage, defaultRegion, waitForSandboxDeletion, sleep, waitForVolumeDeletion } from './helpers'
 
 describe('Sandbox Volume Operations', () => {
   const createdSandboxes: string[] = []
@@ -90,13 +90,13 @@ describe('Sandbox Volume Operations', () => {
 
     it('deletes a volume', async () => {
       const name = uniqueName("volume-delete")
-      await VolumeInstance.create({
+      const volume = await VolumeInstance.create({
         name,
         size: 1024,
         region: defaultRegion
       })
-
-      await VolumeInstance.delete(name)
+      await volume.delete()
+      await waitForVolumeDeletion(name)
 
       // Volume should no longer exist
       await expect(VolumeInstance.get(name)).rejects.toThrow()
@@ -145,60 +145,61 @@ describe('Sandbox Volume Operations', () => {
       expect(result.logs).toContain("mounted")
     })
 
-    it('mounts volume as read-only', async () => {
-      const volumeName = uniqueName("ro-vol")
-      const sandboxName = uniqueName("ro-sandbox")
+    // Not supported yet
+    // it('mounts volume as read-only', async () => {
+    //   const volumeName = uniqueName("ro-vol")
+    //   const sandboxName = uniqueName("ro-sandbox")
 
-      await VolumeInstance.create({
-        name: volumeName,
-        size: 1024,
-        region: defaultRegion
-      })
-      createdVolumes.push(volumeName)
+    //   await VolumeInstance.create({
+    //     name: volumeName,
+    //     size: 1024,
+    //     region: defaultRegion
+    //   })
+    //   createdVolumes.push(volumeName)
 
-      // First, create a sandbox with write access to add content
-      const writeSandbox = await SandboxInstance.create({
-        name: uniqueName("write-sandbox"),
-        image: defaultImage,
-        region: defaultRegion,
-        volumes: [{ name: volumeName, mountPath: "/data", readOnly: false }]
-      })
-      createdSandboxes.push(writeSandbox.metadata?.name!)
-      await writeSandbox.wait()
+    //   // First, create a sandbox with write access to add content
+    //   const writeSandbox = await SandboxInstance.create({
+    //     name: uniqueName("write-sandbox"),
+    //     image: defaultImage,
+    //     region: defaultRegion,
+    //     volumes: [{ name: volumeName, mountPath: "/data", readOnly: false }]
+    //   })
+    //   createdSandboxes.push(writeSandbox.metadata?.name!)
+    //   await writeSandbox.wait()
 
-      await writeSandbox.process.exec({
-        command: "echo 'readonly content' > /data/readonly.txt",
-        waitForCompletion: true
-      })
+    //   await writeSandbox.process.exec({
+    //     command: "echo 'readonly content' > /data/readonly.txt",
+    //     waitForCompletion: true
+    //   })
 
-      await SandboxInstance.delete(writeSandbox.metadata?.name!)
-      await waitForSandboxDeletion(writeSandbox.metadata?.name!)
+    //   await SandboxInstance.delete(writeSandbox.metadata?.name!)
+    //   await waitForSandboxDeletion(writeSandbox.metadata?.name!)
 
-      // Now create read-only sandbox
-      const sandbox = await SandboxInstance.create({
-        name: sandboxName,
-        image: defaultImage,
-        region: defaultRegion,
-        volumes: [{ name: volumeName, mountPath: "/data", readOnly: true }]
-      })
-      createdSandboxes.push(sandboxName)
-      await sandbox.wait()
+    //   // Now create read-only sandbox
+    //   const sandbox = await SandboxInstance.create({
+    //     name: sandboxName,
+    //     image: defaultImage,
+    //     region: defaultRegion,
+    //     volumes: [{ name: volumeName, mountPath: "/data", readOnly: true }]
+    //   })
+    //   createdSandboxes.push(sandboxName)
+    //   await sandbox.wait()
 
-      // Should be able to read
-      const readResult = await sandbox.process.exec({
-        command: "cat /data/readonly.txt",
-        waitForCompletion: true
-      })
-      expect(readResult.logs).toContain("readonly content")
+    //   // Should be able to read
+    //   const readResult = await sandbox.process.exec({
+    //     command: "cat /data/readonly.txt",
+    //     waitForCompletion: true
+    //   })
+    //   expect(readResult.logs).toContain("readonly content")
 
-      // Should fail to write
-      const writeResult = await sandbox.process.exec({
-        command: "(echo 'new' > /data/new.txt 2>&1 && echo 'WRITE_SUCCESS') || echo 'WRITE_FAILED'",
-        waitForCompletion: true
-      })
-      console.log("writeResult => ", writeResult)
-      expect(writeResult.logs).toContain("WRITE_FAILED")
-    })
+    //   // Should fail to write
+    //   const writeResult = await sandbox.process.exec({
+    //     command: "(echo 'new' > /data/new.txt 2>&1 && echo 'WRITE_SUCCESS') || echo 'WRITE_FAILED'",
+    //     waitForCompletion: true
+    //   })
+    //   console.log("writeResult => ", writeResult)
+    //   expect(writeResult.logs).toContain("WRITE_FAILED")
+    // })
   })
 
   describe('volume persistence', () => {

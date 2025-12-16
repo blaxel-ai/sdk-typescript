@@ -159,7 +159,9 @@ describe('Sandbox CRUD Operations', () => {
       const successes = results.filter(r => r.sandbox !== null)
       const uniqueNames = new Set(successes.map(r => r.sandbox?.metadata?.name))
 
+      console.log("uniqueNames => ", uniqueNames)
       expect(uniqueNames.size).toBe(1)
+      console.log("successes => ", successes)
       expect(successes.length).toBe(concurrentCalls)
     })
   })

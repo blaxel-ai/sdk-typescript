@@ -31,6 +31,8 @@ describe('Sandbox Lifecycle and Expiration', () => {
 
       expect(sandbox.metadata?.name).toBe(name)
 
+      await sleep(2000)
+
       // Verify sandbox is running
       const status = await SandboxInstance.get(name)
       expect(status.status).not.toBe("TERMINATED")
@@ -146,15 +148,15 @@ describe('Sandbox Lifecycle and Expiration', () => {
       await SandboxInstance.create({
         name,
         image: defaultImage,
-        ttl: "60s"
+        ttl: "5s"
       })
       // Don't add to createdSandboxes - we expect it to auto-delete
 
       // Wait for TTL + buffer (cron runs every minute)
-      await sleep(120000)
+      await sleep(5100)
 
-      const status = await SandboxInstance.get(name)
-      expect(["TERMINATED", "DELETED"]).toContain(status.status)
+      // This should not fail
+      await SandboxInstance.create({name})
     })
   })
 

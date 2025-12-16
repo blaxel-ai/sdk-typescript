@@ -9,6 +9,7 @@ export default defineConfig({
     reporters: ['verbose'],
     env: {
       // Tests will use environment variables from shell
+      BL_ENV: "dev"
     }
   },
 })

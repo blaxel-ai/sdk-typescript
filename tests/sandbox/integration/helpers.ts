@@ -115,8 +115,30 @@ export async function waitForSandboxDeletion(sandboxName: string, maxAttempts: n
   return false
 }
 
-// Alias for backwards compatibility
-export const waitForDeletion = waitForSandboxDeletion
+/**
+ * Waits for a sandbox deletion to fully complete by polling until the sandbox no longer exists
+ * @param volumeName The name of the volume to wait for deletion
+ * @param maxAttempts Maximum number of attempts to wait (default: 30 seconds)
+ * @returns Promise<boolean> - true if deletion completed, false if timeout
+ */
+export async function waitForVolumeDeletion(volumeName: string, maxAttempts: number = 30): Promise<boolean> {
+  let attempts = 0
+
+  while (attempts < maxAttempts) {
+    try {
+      await VolumeInstance.get(volumeName)
+      // If we get here, sandbox still exists, wait and try again
+      await sleep(1000)
+      attempts++
+    } catch (error) {
+      // If getVolume throws an error, the volume no longer exists
+      return true
+    }
+  }
+
+  console.warn(`Timeout waiting for ${volumeName} deletion to complete`)
+  return false
+}
 
 /**
  * Sleep helper

@@ -121,46 +121,42 @@ describe('Sandbox Process Operations', () => {
 
     it('receives stdout via onStdout callback', async () => {
       const stdoutLogs: string[] = []
+      const allLogs: string[] = []
+      const errorLogs: string[] = []
 
       await sandbox.process.exec({
         name: "stdout-test",
-        command: "echo 'stdout here'",
+        command: "for i in $(seq 1 5); do sleep 0.1; echo tick $i; sleep 0.05; done && echo 'stderr here' >&2",
         waitForCompletion: false
       })
 
       const stream = sandbox.process.streamLogs("stdout-test", {
+        onLog: (log) => {
+          allLogs.push(log)
+        },
         onStdout: (log) => {
           stdoutLogs.push(log)
+        },
+        onStderr: (log) => {
+          errorLogs.push(log)
         }
       })
 
       await sandbox.process.wait("stdout-test")
-      await sleep(1000)
       stream.close()
 
-      expect(stdoutLogs.join(' ')).toContain('stdout here')
-    })
-
-    it('receives stderr via onStderr callback', async () => {
-      const stderrLogs: string[] = []
-
-      await sandbox.process.exec({
-        name: "stderr-test",
-        command: "echo 'stderr here' >&2",
-        waitForCompletion: false
-      })
-
-      const stream = sandbox.process.streamLogs("stderr-test", {
-        onStderr: (log) => {
-          stderrLogs.push(log)
-        }
-      })
-
-      await sandbox.process.wait("stderr-test")
-      await sleep(1000)
-      stream.close()
-
-      expect(stderrLogs.join(' ')).toContain('stderr here')
+      expect(stdoutLogs.join(' ')).toContain('tick 1')
+      expect(stdoutLogs.join(' ')).toContain('tick 2')
+      expect(stdoutLogs.join(' ')).toContain('tick 3')
+      expect(stdoutLogs.join(' ')).toContain('tick 4')
+      expect(stdoutLogs.join(' ')).toContain('tick 5')
+      expect(errorLogs.join(' ')).toContain('stderr here')
+      expect(allLogs.join(' ')).toContain('tick 1')
+      expect(allLogs.join(' ')).toContain('tick 2')
+      expect(allLogs.join(' ')).toContain('tick 3')
+      expect(allLogs.join(' ')).toContain('tick 4')
+      expect(allLogs.join(' ')).toContain('tick 5')
+      expect(allLogs.join(' ')).toContain('stderr here')
     })
   })
 
@@ -317,14 +313,7 @@ describe('Sandbox Process Operations', () => {
         waitForCompletion: false
       })
 
-      const startTime = Date.now()
-      await sandbox.process.wait("timeout-test", { maxWait: 2000 })
-      const elapsed = Date.now() - startTime
-
-      expect(elapsed).toBeLessThan(5000)
-
-      // Clean up
-      await sandbox.process.kill("timeout-test")
+      await expect(sandbox.process.wait("timeout-test", { maxWait: 2000 })).rejects.toThrow("Process did not finish in time")
     })
   })
 

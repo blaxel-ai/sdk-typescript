@@ -11,13 +11,15 @@ describe('Sandbox Preview Operations', () => {
     sandbox = await SandboxInstance.create({
       name: sandboxName,
       image: "blaxel/nextjs:latest",
-      memory: 4096
+      memory: 4096,
+      ports: [
+        { target: 3000 }
+      ]
     })
-    await sandbox.wait()
 
     // Start the dev server
     await sandbox.process.exec({
-      command: "npm run dev",
+      command: "npm run dev -- --port 3000",
       workingDir: "/blaxel/app",
       waitForPorts: [3000]
     })
@@ -178,7 +180,7 @@ describe('Sandbox Preview Operations', () => {
         }
       })
 
-      const response = await fetch(`${preview.spec?.url}/health`)
+      const response = await fetch(`${preview.spec?.url}`)
       expect(response.status).toBe(200)
 
       await sandbox.previews.delete("access-public")
@@ -195,7 +197,7 @@ describe('Sandbox Preview Operations', () => {
         }
       })
 
-      const response = await fetch(`${preview.spec?.url}/health`)
+      const response = await fetch(preview.spec?.url!)
       expect(response.status).toBe(401)
 
       await sandbox.previews.delete("token-required")
@@ -218,7 +220,7 @@ describe('Sandbox Preview Operations', () => {
 
       // Access with token
       const response = await fetch(
-        `${preview.spec?.url}/health?bl_preview_token=${token.value}`
+        `${preview.spec?.url}?bl_preview_token=${token.value}`
       )
       expect(response.status).toBe(200)
 
