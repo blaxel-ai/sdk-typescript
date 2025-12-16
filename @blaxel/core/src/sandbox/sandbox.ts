@@ -63,7 +63,8 @@ export class SandboxInstance {
       'envs' in sandbox ||
       'volumes' in sandbox ||
       'lifecycle' in sandbox ||
-      'snapshotEnabled' in sandbox
+      'snapshotEnabled' in sandbox ||
+      'labels' in sandbox
     ) {
       if (!sandbox) sandbox = {} as SandboxCreateConfiguration
       if (!sandbox.name) sandbox.name = defaultName
@@ -80,7 +81,7 @@ export class SandboxInstance {
       const snapshotEnabled = sandbox.snapshotEnabled;
 
       sandbox = {
-        metadata: { name: sandbox.name },
+        metadata: { name: sandbox.name, labels: sandbox.labels },
         spec: {
           region: region,
           runtime: {

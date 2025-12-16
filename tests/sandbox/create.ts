@@ -1,4 +1,5 @@
 import { SandboxCreateConfiguration, SandboxInstance } from "@blaxel/core";
+import assert from "assert";
 
 async function main() {
   try {
@@ -19,8 +20,9 @@ async function main() {
     console.log("✅ Deleted spec sandbox");
 
     console.log("\nTest 3: Create sandbox with name...");
-    sandbox = await SandboxInstance.create({ name: "sandbox-with-name" });
-    console.log(`✅ Created sandbox with name: ${sandbox.metadata?.name}`);
+    sandbox = await SandboxInstance.create({ name: "sandbox-with-name", labels: { "test": "test" } });
+    console.log(`✅ Created sandbox with name: ${sandbox.metadata?.name}, labels: ${JSON.stringify(sandbox.metadata?.labels)}`);
+    assert.strictEqual(sandbox.metadata?.labels?.["test"], "test");
     console.log(await sandbox.fs.ls('/blaxel/'));
     await SandboxInstance.delete(sandbox.metadata?.name!);
     console.log("✅ Deleted named sandbox");
