@@ -16,7 +16,18 @@
     "test": "turbo test",
     "test:watch": "turbo test:watch",
     "test:ui": "turbo test:ui",
-    "test:runtime-environments": "./tests/runtime-environments/test-all.sh"
+    "test:runtime-environments": "./tests/runtime-environments/test-all.sh",
+    "test:sandbox": "cd tests/sandbox && npx vitest run",
+    "test:sandbox:watch": "cd tests/sandbox && npx vitest --watch",
+    "test:sandbox:crud": "cd tests/sandbox && npx vitest run sandbox-crud",
+    "test:sandbox:fs": "cd tests/sandbox && npx vitest run filesystem",
+    "test:sandbox:process": "cd tests/sandbox && npx vitest run process",
+    "test:sandbox:previews": "cd tests/sandbox && npx vitest run previews",
+    "test:sandbox:lifecycle": "cd tests/sandbox && npx vitest run lifecycle",
+    "test:sandbox:volumes": "cd tests/sandbox && npx vitest run volumes",
+    "test:sandbox:sessions": "cd tests/sandbox && npx vitest run sessions",
+    "test:sandbox:codegen": "cd tests/sandbox && npx vitest run codegen",
+    "test:sandbox:interpreter": "cd tests/sandbox && npx vitest run interpreter"
   },
   "dependencies": {
     "@blaxel/core": "workspace:*",
@@ -49,6 +60,7 @@
     "llamaindex": "^0.12.0",
     "turbo": "^2.5.3",
     "uuid": "^11.1.0",
+    "vitest": "^2.1.0",
     "zod": "^3.24.3"
   }
 }
