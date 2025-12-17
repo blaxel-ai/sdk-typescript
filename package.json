@@ -27,7 +27,14 @@
     "test:sandbox:volumes": "cd tests/sandbox && npx vitest run volumes",
     "test:sandbox:sessions": "cd tests/sandbox && npx vitest run sessions",
     "test:sandbox:codegen": "cd tests/sandbox && npx vitest run codegen",
-    "test:sandbox:interpreter": "cd tests/sandbox && npx vitest run interpreter"
+    "test:sandbox:interpreter": "cd tests/sandbox && npx vitest run interpreter",
+    "bench:sandbox": "cd tests/sandbox && npx vitest bench --run",
+    "bench:sandbox:find": "cd tests/sandbox && npx vitest bench --run find",
+    "bench:sandbox:grep": "cd tests/sandbox && npx vitest bench --run grep",
+    "bench:sandbox:process": "cd tests/sandbox && npx vitest bench --run process-vs-native",
+    "bench:sandbox:create": "cd tests/sandbox && npx vitest bench --run sandbox-create",
+    "bench:sandbox:npm": "cd tests/sandbox && npx vitest bench --run npm-install",
+    "bench:sandbox:mass": "cd tests/sandbox && npx vitest bench --run mass-create"
   },
   "dependencies": {
     "@blaxel/core": "workspace:*",

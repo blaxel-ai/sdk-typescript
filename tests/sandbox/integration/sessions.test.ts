@@ -125,7 +125,7 @@ describe('Sandbox Session Operations', () => {
       })
 
       await sandboxFromSession.process.wait("stream-session")
-      await sleep(1000)
+      await sleep(100)
       stream.close()
 
       expect(logs.length).toBeGreaterThan(0)
@@ -143,10 +143,10 @@ describe('Sandbox Session Operations', () => {
       const handle = sandboxFromSession.fs.watch("/", (event) => {
         changeDetected = true
       })
-
+      await sleep(100)
       await sandboxFromSession.fs.write("/session-test.txt", "content")
 
-      await sleep(2000)
+      await sleep(200)
       handle.close()
 
       expect(changeDetected).toBe(true)

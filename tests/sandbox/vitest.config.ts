@@ -10,6 +10,10 @@ export default defineConfig({
     env: {
       // Tests will use environment variables from shell
       // BL_ENV: "dev"
-    }
+    },
+    benchmark: {
+      include: ['benchmarks/**/*.bench.ts'],
+      reporters: ['default'],
+    },
   },
 })

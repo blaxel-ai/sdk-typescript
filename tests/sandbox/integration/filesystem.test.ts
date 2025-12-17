@@ -242,11 +242,12 @@ describe('Sandbox Filesystem Operations', () => {
         }
       })
 
+      await sleep(200)
       // Trigger a file change
       await sandbox.fs.write(`${dir}/watched-file.txt`, "new content")
 
       // Wait for callback
-      await sleep(2000)
+      await sleep(100)
       handle.close()
 
       expect(changeDetected).toBe(true)
@@ -266,10 +267,10 @@ describe('Sandbox Filesystem Operations', () => {
         },
         { withContent: true }
       )
-
+      await sleep(200)
       await sandbox.fs.write(`${dir}/content-file.txt`, "the content")
 
-      await sleep(2000)
+      await sleep(100)
       handle.close()
 
       expect(receivedContent).toBe("the content")
