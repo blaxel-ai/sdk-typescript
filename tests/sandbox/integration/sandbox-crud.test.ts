@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { SandboxInstance, SandboxCreateConfiguration } from "@blaxel/core"
-import { uniqueName, cleanupAll, defaultImage, defaultRegion, waitForSandboxDeletion } from './helpers'
+import { uniqueName, defaultImage, defaultRegion, waitForSandboxDeletion } from './helpers'
 
 describe('Sandbox CRUD Operations', () => {
   const createdSandboxes: string[] = []
@@ -16,7 +16,6 @@ describe('Sandbox CRUD Operations', () => {
         }
       })
     )
-    await cleanupAll()
   })
 
   describe('create', () => {
@@ -253,7 +252,6 @@ describe('Sandbox CRUD Operations', () => {
       const sandbox = await SandboxInstance.create({ name })
       createdSandboxes.push(name)
 
-      await sandbox.wait()
 
       // After wait, sandbox should be ready and we can run commands
       const result = await sandbox.process.exec({

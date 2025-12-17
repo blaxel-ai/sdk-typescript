@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { SandboxInstance, VolumeInstance } from "@blaxel/core"
-import { uniqueName, cleanupAll, defaultImage, defaultRegion, waitForSandboxDeletion, sleep, waitForVolumeDeletion } from './helpers'
+import { uniqueName, defaultImage, defaultRegion, waitForSandboxDeletion, sleep, waitForVolumeDeletion } from './helpers'
 
 describe('Sandbox Volume Operations', () => {
   const createdSandboxes: string[] = []
@@ -30,7 +30,6 @@ describe('Sandbox Volume Operations', () => {
       })
     )
 
-    await cleanupAll()
   })
 
   describe('VolumeInstance CRUD', () => {
@@ -129,7 +128,6 @@ describe('Sandbox Volume Operations', () => {
         ]
       })
       createdSandboxes.push(sandboxName)
-      await sandbox.wait()
 
       // Verify mount by writing a file
       await sandbox.process.exec({
@@ -183,7 +181,6 @@ describe('Sandbox Volume Operations', () => {
     //     volumes: [{ name: volumeName, mountPath: "/data", readOnly: true }]
     //   })
     //   createdSandboxes.push(sandboxName)
-    //   await sandbox.wait()
 
     //   // Should be able to read
     //   const readResult = await sandbox.process.exec({
@@ -284,7 +281,6 @@ describe('Sandbox Volume Operations', () => {
   //       ]
   //     })
   //     createdSandboxes.push(sandboxName)
-  //     await sandbox.wait()
 
   //     // Write to both volumes
   //     await sandbox.process.exec({

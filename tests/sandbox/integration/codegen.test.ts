@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { SandboxInstance } from "@blaxel/core"
-import { uniqueName, cleanupAll, defaultImage } from './helpers'
+import { uniqueName, defaultImage } from './helpers'
 
 describe('Sandbox Codegen Operations', () => {
   // These tests require RELACE_API_KEY or MORPH_API_KEY environment variables
@@ -19,7 +19,6 @@ describe('Sandbox Codegen Operations', () => {
           { name: "RELACE_API_KEY", value: process.env.RELACE_API_KEY! }
         ]
       })
-      await sandbox.wait()
     })
 
     afterAll(async () => {
@@ -88,7 +87,6 @@ describe('Sandbox Codegen Operations', () => {
           { name: "MORPH_API_KEY", value: process.env.MORPH_API_KEY! }
         ]
       })
-      await sandbox.wait()
     })
 
     afterAll(async () => {

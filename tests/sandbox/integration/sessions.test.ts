@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { SandboxInstance } from "@blaxel/core"
-import { uniqueName, cleanupAll, defaultImage, sleep } from './helpers'
+import { uniqueName, defaultImage, sleep } from './helpers'
 
 describe('Sandbox Session Operations', () => {
   let sandbox: SandboxInstance
@@ -12,7 +12,6 @@ describe('Sandbox Session Operations', () => {
       image: defaultImage,
       memory: 2048
     })
-    await sandbox.wait()
   })
 
   afterAll(async () => {
@@ -21,7 +20,6 @@ describe('Sandbox Session Operations', () => {
     } catch {
       // Ignore
     }
-    await cleanupAll()
   })
 
   describe('create', () => {
