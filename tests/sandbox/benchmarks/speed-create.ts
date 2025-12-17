@@ -16,7 +16,6 @@ async function main() {
     })
     console.log(`Sandbox create time: ${Date.now() - start}ms`)
     const startWait = Date.now()
-    await sandbox.wait()
     console.log(`Sandbox wait time: ${Date.now() - startWait}ms`)
     console.log(`Sandbox create time after watch: ${Date.now() - start}ms`)
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { SandboxInstance } from "@blaxel/core"
-import { uniqueName, cleanupAll, defaultImage, sleep } from './helpers'
+import { uniqueName, defaultImage, sleep } from './helpers'
 
 describe('Sandbox Process Operations', () => {
   let sandbox: SandboxInstance
@@ -12,7 +12,6 @@ describe('Sandbox Process Operations', () => {
       image: defaultImage,
       memory: 2048
     })
-    await sandbox.wait()
   })
 
   afterAll(async () => {
@@ -21,7 +20,6 @@ describe('Sandbox Process Operations', () => {
     } catch {
       // Ignore
     }
-    await cleanupAll()
   })
 
   describe('exec', () => {
@@ -364,5 +362,64 @@ describe('Sandbox Process Operations', () => {
       expect(result.restartCount).toBeGreaterThan(0)
       expect(result.restartCount).toBeLessThanOrEqual(3)
     })
+  })
+})
+
+describe('Sandbox Process waitForPorts', () => {
+  let sandbox: SandboxInstance
+  const sandboxName = uniqueName("waitforports")
+
+  beforeAll(async () => {
+    sandbox = await SandboxInstance.create({
+      name: sandboxName,
+      image: "blaxel/node:latest",
+      memory: 2048,
+      ports: [
+        { target: 3000, protocol: "HTTP" }
+      ]
+    })
+  })
+
+  afterAll(async () => {
+    try {
+      // await sandbox.delete()
+    } catch {
+      // Ignore
+    }
+  })
+
+  it('waits for port to be ready before returning', async () => {
+    const preview = await sandbox.previews.createIfNotExists({
+      metadata: {
+        name: "waitforports-preview"
+      },
+      spec: {
+        port: 3000,
+        public: true
+      }
+    })
+
+    const previewUrl = preview.spec?.url
+    expect(previewUrl).toBeDefined()
+
+    const nodeServerCommand = `sleep 2 && node -e "
+const http = require('http');
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('OK');
+});
+server.listen(3000);
+"`
+
+    await sandbox.process.exec({
+      name: "node-server",
+      command: nodeServerCommand,
+      waitForPorts: [3000]
+    })
+
+    const response = await fetch(previewUrl!)
+    expect(response.status).toBe(200)
+    const body = await response.text()
+    expect(body).toBe("OK")
   })
 })

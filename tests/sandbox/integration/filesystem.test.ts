@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { SandboxInstance } from "@blaxel/core"
-import { uniqueName, cleanupAll, defaultImage, sleep } from './helpers'
+import { uniqueName, defaultImage, sleep } from './helpers'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import { stat, readFile } from 'fs/promises'
@@ -19,7 +19,6 @@ describe('Sandbox Filesystem Operations', () => {
       image: defaultImage,
       memory: 2048
     })
-    await sandbox.wait()
   })
 
   afterAll(async () => {
@@ -28,7 +27,6 @@ describe('Sandbox Filesystem Operations', () => {
     } catch {
       // Ignore
     }
-    await cleanupAll()
   })
 
   describe('write and read', () => {

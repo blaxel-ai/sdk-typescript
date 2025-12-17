@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { CodeInterpreter } from "@blaxel/core"
-import { uniqueName, cleanupAll } from './helpers'
+import { uniqueName } from './helpers'
 
 describe('CodeInterpreter Operations', () => {
   let interpreter: CodeInterpreter
@@ -20,7 +20,6 @@ describe('CodeInterpreter Operations', () => {
         // Ignore cleanup errors
       }
     }
-    await cleanupAll()
   })
 
   describe('create', () => {

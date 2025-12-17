@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll } from 'vitest'
 import { SandboxInstance } from "@blaxel/core"
-import { uniqueName, cleanupAll, defaultImage, sleep } from './helpers'
+import { uniqueName, defaultImage, sleep } from './helpers'
 
 describe('Sandbox Lifecycle and Expiration', () => {
   const createdSandboxes: string[] = []
@@ -16,7 +16,6 @@ describe('Sandbox Lifecycle and Expiration', () => {
         }
       })
     )
-    await cleanupAll()
   })
 
   describe('TTL (time-to-live)', () => {
