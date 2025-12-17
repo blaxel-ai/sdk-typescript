@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
-    include: ['integration/**/*.test.ts'],
+    include: ['tests/sandbox/integration/**/*.test.ts'],
     testTimeout: 300000, // 5 minutes - sandbox operations can be slow
     hookTimeout: 120000, // 2 minutes for setup/teardown
     globals: true,
@@ -12,7 +12,7 @@ export default defineConfig({
       // BL_ENV: "dev"
     },
     benchmark: {
-      include: ['benchmarks/**/*.bench.ts'],
+      include: ['tests/sandbox/benchmarks/**/*.bench.ts'],
       reporters: ['default'],
     },
   },

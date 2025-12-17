@@ -382,7 +382,7 @@ describe('Sandbox Process waitForPorts', () => {
 
   afterAll(async () => {
     try {
-      // await sandbox.delete()
+      await sandbox.delete()
     } catch {
       // Ignore
     }
