@@ -1,26 +1,14 @@
 import { SandboxInstance } from "@blaxel/core";
-import { bench, describe, afterAll } from "vitest";
+import { bench, describe } from "vitest";
 
 // ============ CONFIGURATION ============
 const BASE_SANDBOX_NAME = "bench-create";
 // =======================================
 
-const createdSandboxes: string[] = [];
+// Store the last created sandbox name for cleanup in teardown
+let lastCreatedSandbox: string | null = null;
 
 describe("sandbox creation benchmark", () => {
-  afterAll(async () => {
-    console.log(`\n🗑️  Cleaning up ${createdSandboxes.length} sandboxes...`);
-    const deletePromises = createdSandboxes.map(async (name) => {
-      try {
-        await SandboxInstance.delete(name);
-      } catch {
-        // Ignore cleanup errors
-      }
-    });
-    await Promise.allSettled(deletePromises);
-    console.log(`✓ Cleanup complete`);
-  });
-
   bench(
     "create sandbox",
     async () => {
@@ -30,9 +18,23 @@ describe("sandbox creation benchmark", () => {
         image: "blaxel/base-image:latest",
         memory: 4096,
       });
-      createdSandboxes.push(sandboxName);
+      lastCreatedSandbox = sandboxName;
     },
-    { iterations: 5, warmupIterations: 1, time: 0 }
+    {
+      iterations: 10,
+      warmupIterations: 0,
+      time: 0,
+      teardown: async () => {
+        if (lastCreatedSandbox) {
+          try {
+            await SandboxInstance.delete(lastCreatedSandbox);
+          } catch {
+            // Ignore cleanup errors
+          }
+          lastCreatedSandbox = null;
+        }
+      },
+    }
   );
 
   bench(
@@ -44,8 +46,22 @@ describe("sandbox creation benchmark", () => {
         image: "blaxel/base-image:latest",
         memory: 4096,
       });
-      createdSandboxes.push(sandboxName);
+      lastCreatedSandbox = sandboxName;
     },
-    { iterations: 5, warmupIterations: 1, time: 0 }
+    {
+      iterations: 10,
+      warmupIterations: 0,
+      time: 0,
+      teardown: async () => {
+        if (lastCreatedSandbox) {
+          try {
+            await SandboxInstance.delete(lastCreatedSandbox);
+          } catch {
+            // Ignore cleanup errors
+          }
+          lastCreatedSandbox = null;
+        }
+      },
+    }
   );
 });
