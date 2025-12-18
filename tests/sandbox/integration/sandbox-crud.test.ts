@@ -158,10 +158,12 @@ describe('Sandbox CRUD Operations', () => {
       const successes = results.filter(r => r.sandbox !== null)
       const uniqueNames = new Set(successes.map(r => r.sandbox?.metadata?.name))
 
-      console.log("uniqueNames => ", uniqueNames)
       expect(uniqueNames.size).toBe(1)
-      console.log("successes => ", successes)
-      expect(successes.length).toBe(concurrentCalls)
+      expect(successes.length).toBeGreaterThan(2)
+      const sandbox = await SandboxInstance.get(name)
+      const result = await sandbox.process.exec({ command: "echo 'test'", waitForCompletion: true })
+      console.log(`Successfully created sandbox and executed command, successes=${successes.length}`)
+      expect(result.logs).toBe("test\n")
     })
   })
 

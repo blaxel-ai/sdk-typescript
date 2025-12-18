@@ -124,7 +124,7 @@ describe('Sandbox Process Operations', () => {
 
       await sandbox.process.exec({
         name: "stdout-test",
-        command: "for i in $(seq 1 5); do sleep 0.1; echo tick $i; sleep 0.05; done && echo 'stderr here' >&2",
+        command: "for i in $(seq 1 5); do sleep 0.2; echo tick $i; sleep 0.2; done && echo 'stderr here' >&2",
         waitForCompletion: false
       })
 
@@ -382,7 +382,7 @@ describe('Sandbox Process waitForPorts', () => {
 
   afterAll(async () => {
     try {
-      // await sandbox.delete()
+      await sandbox.delete()
     } catch {
       // Ignore
     }
