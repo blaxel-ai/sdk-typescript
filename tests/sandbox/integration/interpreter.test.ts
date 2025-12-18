@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { CodeInterpreter } from "@blaxel/core"
-import { uniqueName } from './helpers'
+import { uniqueName, defaultLabels } from './helpers'
 
 describe('CodeInterpreter Operations', () => {
   let interpreter: CodeInterpreter
@@ -8,7 +8,8 @@ describe('CodeInterpreter Operations', () => {
 
   beforeAll(async () => {
     interpreter = await CodeInterpreter.create({
-      name: interpreterName
+      name: interpreterName,
+      labels: defaultLabels,
     })
   }, 180000) // 3 minute timeout for interpreter creation
 

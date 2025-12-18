@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { SandboxInstance, VolumeInstance } from "@blaxel/core"
-import { uniqueName, defaultImage, defaultRegion, waitForSandboxDeletion, sleep, waitForVolumeDeletion } from './helpers'
+import { uniqueName, defaultImage, defaultLabels, defaultRegion, waitForSandboxDeletion, sleep, waitForVolumeDeletion } from './helpers'
 
 describe('Sandbox Volume Operations', () => {
   const createdSandboxes: string[] = []
@@ -29,7 +29,6 @@ describe('Sandbox Volume Operations', () => {
         }
       })
     )
-
   })
 
   describe('VolumeInstance CRUD', () => {
@@ -38,7 +37,8 @@ describe('Sandbox Volume Operations', () => {
       const volume = await VolumeInstance.create({
         name,
         size: 1024, // 1GB
-        region: defaultRegion
+        region: defaultRegion,
+        labels: defaultLabels,
       })
       createdVolumes.push(name)
 
@@ -51,7 +51,8 @@ describe('Sandbox Volume Operations', () => {
         name,
         displayName: "My Test Volume",
         size: 1024,
-        region: defaultRegion
+        region: defaultRegion,
+        labels: defaultLabels,
       })
       createdVolumes.push(name)
 
@@ -63,7 +64,8 @@ describe('Sandbox Volume Operations', () => {
       await VolumeInstance.create({
         name,
         size: 1024,
-        region: defaultRegion
+        region: defaultRegion,
+        labels: defaultLabels,
       })
       createdVolumes.push(name)
 
@@ -76,7 +78,8 @@ describe('Sandbox Volume Operations', () => {
       await VolumeInstance.create({
         name,
         size: 1024,
-        region: defaultRegion
+        region: defaultRegion,
+        labels: defaultLabels,
       })
       createdVolumes.push(name)
 
@@ -92,7 +95,8 @@ describe('Sandbox Volume Operations', () => {
       const volume = await VolumeInstance.create({
         name,
         size: 1024,
-        region: defaultRegion
+        region: defaultRegion,
+        labels: defaultLabels,
       })
       await volume.delete()
       await waitForVolumeDeletion(name)
@@ -110,7 +114,8 @@ describe('Sandbox Volume Operations', () => {
       await VolumeInstance.create({
         name: volumeName,
         size: 1024,
-        region: defaultRegion
+        region: defaultRegion,
+        labels: defaultLabels,
       })
       createdVolumes.push(volumeName)
 
@@ -125,7 +130,8 @@ describe('Sandbox Volume Operations', () => {
             mountPath: "/data",
             readOnly: false
           }
-        ]
+        ],
+        labels: defaultLabels,
       })
       createdSandboxes.push(sandboxName)
 
@@ -207,7 +213,8 @@ describe('Sandbox Volume Operations', () => {
       await VolumeInstance.create({
         name: volumeName,
         size: 1024,
-        region: defaultRegion
+        region: defaultRegion,
+        labels: defaultLabels,
       })
       createdVolumes.push(volumeName)
 
@@ -217,7 +224,8 @@ describe('Sandbox Volume Operations', () => {
         name: sandbox1Name,
         image: defaultImage,
         region: defaultRegion,
-        volumes: [{ name: volumeName, mountPath: "/persistent", readOnly: false }]
+        volumes: [{ name: volumeName, mountPath: "/persistent", readOnly: false }],
+        labels: defaultLabels,
       })
       await sandbox1.wait()
 
@@ -236,7 +244,8 @@ describe('Sandbox Volume Operations', () => {
         name: sandbox2Name,
         image: defaultImage,
         region: defaultRegion,
-        volumes: [{ name: volumeName, mountPath: "/data", readOnly: false }]
+        volumes: [{ name: volumeName, mountPath: "/data", readOnly: false }],
+        labels: defaultLabels,
       })
       createdSandboxes.push(sandbox2Name)
       await sandbox2.wait()

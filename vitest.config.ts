@@ -7,6 +7,8 @@ export default defineConfig({
     hookTimeout: 120000, // 2 minutes for setup/teardown
     globals: true,
     reporters: ['verbose'],
+    globalSetup: [],
+    globalTeardown: ['tests/sandbox/integration/globalTeardown.ts'],
     env: {
       // Tests will use environment variables from shell
       // BL_ENV: "dev"

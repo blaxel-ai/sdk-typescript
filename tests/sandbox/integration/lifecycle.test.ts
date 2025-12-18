@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll } from 'vitest'
 import { SandboxInstance } from "@blaxel/core"
-import { uniqueName, defaultImage, sleep } from './helpers'
+import { uniqueName, defaultImage, defaultLabels, sleep } from './helpers'
 
 describe('Sandbox Lifecycle and Expiration', () => {
   const createdSandboxes: string[] = []
@@ -24,7 +24,8 @@ describe('Sandbox Lifecycle and Expiration', () => {
       const sandbox = await SandboxInstance.create({
         name,
         image: defaultImage,
-        ttl: "5m"
+        ttl: "5m",
+        labels: defaultLabels,
       })
       createdSandboxes.push(name)
 
@@ -44,7 +45,8 @@ describe('Sandbox Lifecycle and Expiration', () => {
       const sandbox = await SandboxInstance.create({
         name,
         image: defaultImage,
-        expires: expiresAt
+        expires: expiresAt,
+        labels: defaultLabels,
       })
       createdSandboxes.push(name)
 
@@ -62,7 +64,8 @@ describe('Sandbox Lifecycle and Expiration', () => {
           expirationPolicies: [
             { type: "ttl-max-age", value: "10m", action: "delete" }
           ]
-        }
+        },
+        labels: defaultLabels,
       })
       createdSandboxes.push(name)
 
@@ -80,7 +83,8 @@ describe('Sandbox Lifecycle and Expiration', () => {
           expirationPolicies: [
             { type: "date", value: expirationDate.toISOString(), action: "delete" }
           ]
-        }
+        },
+        labels: defaultLabels,
       })
       createdSandboxes.push(name)
 
@@ -96,7 +100,8 @@ describe('Sandbox Lifecycle and Expiration', () => {
           expirationPolicies: [
             { type: "ttl-idle", value: "5m", action: "delete" }
           ]
-        }
+        },
+        labels: defaultLabels,
       })
       createdSandboxes.push(name)
 
@@ -113,7 +118,8 @@ describe('Sandbox Lifecycle and Expiration', () => {
             { type: "ttl-idle", value: "5m", action: "delete" },
             { type: "ttl-max-age", value: "30m", action: "delete" }
           ]
-        }
+        },
+        labels: defaultLabels,
       })
       createdSandboxes.push(name)
 
@@ -132,7 +138,8 @@ describe('Sandbox Lifecycle and Expiration', () => {
             expirationPolicies: [
               { type: "ttl-max-age", value: duration, action: "delete" }
             ]
-          }
+          },
+          labels: defaultLabels,
         })
         createdSandboxes.push(name)
 
@@ -147,7 +154,8 @@ describe('Sandbox Lifecycle and Expiration', () => {
       await SandboxInstance.create({
         name,
         image: defaultImage,
-        ttl: "1s"
+        ttl: "1s",
+        labels: defaultLabels,
       })
       // Don't add to createdSandboxes - we expect it to auto-delete
 
@@ -155,7 +163,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       await sleep(1100)
 
       // This should not fail
-      const sbx = await SandboxInstance.create({name})
+      const sbx = await SandboxInstance.create({name, labels: defaultLabels})
       expect(sbx.metadata?.name).toBe(name)
       createdSandboxes.push(name)
     })
@@ -167,7 +175,8 @@ describe('Sandbox Lifecycle and Expiration', () => {
       const sandbox = await SandboxInstance.create({
         name,
         image: defaultImage,
-        snapshotEnabled: true
+        snapshotEnabled: true,
+        labels: defaultLabels,
       })
       createdSandboxes.push(name)
 
@@ -179,7 +188,8 @@ describe('Sandbox Lifecycle and Expiration', () => {
       const sandbox = await SandboxInstance.create({
         name,
         image: defaultImage,
-        snapshotEnabled: false
+        snapshotEnabled: false,
+        labels: defaultLabels,
       })
       createdSandboxes.push(name)
 

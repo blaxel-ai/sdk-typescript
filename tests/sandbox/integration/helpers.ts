@@ -9,6 +9,14 @@ export const defaultRegion = env === "dev" ? "eu-dub-1" : "us-pdx-1"
 export const defaultImage = "blaxel/base-image:latest"
 
 /**
+ * Default labels to identify test sandboxes in the UI
+ */
+export const defaultLabels = {
+  env: "integration-test",
+  "created-by": "vitest",
+}
+
+/**
  * Generate a unique sandbox name for testing
  */
 export function uniqueName(prefix: string = "test"): string {

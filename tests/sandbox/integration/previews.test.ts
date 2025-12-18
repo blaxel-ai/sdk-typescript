@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { SandboxInstance, settings } from "@blaxel/core"
-import { uniqueName, sleep } from './helpers'
+import { uniqueName, defaultLabels, sleep } from './helpers'
 
 describe('Sandbox Preview Operations', () => {
   let sandbox: SandboxInstance
@@ -14,7 +14,8 @@ describe('Sandbox Preview Operations', () => {
       memory: 4096,
       ports: [
         { target: 3000 }
-      ]
+      ],
+      labels: defaultLabels,
     })
 
     // Start the dev server

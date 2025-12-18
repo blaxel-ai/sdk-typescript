@@ -43,7 +43,7 @@ export class CodeInterpreter extends SandboxInstance {
       lifecycle: CodeInterpreter.DEFAULT_LIFECYCLE,
     };
 
-    const allowedCopyKeys = new Set(["name", "envs", "memory", "region", "headers"]);
+    const allowedCopyKeys = new Set(["name", "envs", "memory", "region", "headers", "labels"]);
 
     if (sandbox && typeof sandbox === "object") {
       if (Array.isArray(sandbox)) {
@@ -53,6 +53,9 @@ export class CodeInterpreter extends SandboxInstance {
         const sandboxObj = sandbox as Sandbox;
         if (sandboxObj.metadata.name) {
           payload["name"] = sandboxObj.metadata.name;
+        }
+        if (sandboxObj.metadata.labels) {
+          payload["labels"] = sandboxObj.metadata.labels;
         }
         if (sandboxObj.spec?.runtime) {
           if (sandboxObj.spec.runtime.envs) {
