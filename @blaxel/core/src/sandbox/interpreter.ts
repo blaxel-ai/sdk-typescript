@@ -51,7 +51,7 @@ export class CodeInterpreter extends SandboxInstance {
       } else if ("metadata" in sandbox || "spec" in sandbox) {
         // It's a Sandbox object
         const sandboxObj = sandbox as Sandbox;
-        if (sandboxObj.metadata?.name) {
+        if (sandboxObj.metadata.name) {
           payload["name"] = sandboxObj.metadata.name;
         }
         if (sandboxObj.spec?.runtime) {

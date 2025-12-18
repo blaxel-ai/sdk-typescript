@@ -7,7 +7,7 @@ export class SandboxSessions {
   constructor(private sandbox: Sandbox) {}
 
   get sandboxName() {
-    return this.sandbox.metadata?.name ?? "";
+    return this.sandbox.metadata.name;
   }
 
   async create(options: SessionCreateOptions = {}): Promise<SessionWithToken> {
@@ -71,10 +71,10 @@ export class SandboxSessions {
       throwOnError: true,
     });
     if (data === null) return [];
-    return await Promise.all(data.filter((preview) => preview.metadata?.name?.includes("session-")).map(async (preview) => {
-      const token = await this.getToken(preview.metadata?.name ?? "");
+    return await Promise.all(data.filter((preview) => preview.metadata.name?.includes("session-")).map(async (preview) => {
+      const token = await this.getToken(preview.metadata.name);
       return {
-        name: preview.metadata?.name ?? "",
+        name: preview.metadata.name,
         url: preview.spec?.url ?? "",
         token: token?.spec?.token ?? "",
         expiresAt: token?.spec?.expiresAt ?? new Date(),

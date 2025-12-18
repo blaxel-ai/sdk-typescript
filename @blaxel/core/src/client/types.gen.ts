@@ -35,27 +35,103 @@ export type Acl = TimeFields & {
 };
 
 /**
+ * ACL
+ */
+export type AclWritable = TimeFields & {
+    /**
+     * ACL id
+     */
+    id?: string;
+    /**
+     * Resource ID
+     */
+    resource_id?: string;
+    /**
+     * Resource type
+     */
+    resource_type?: string;
+    /**
+     * Role
+     */
+    role?: string;
+    /**
+     * Subject ID
+     */
+    subject_id?: string;
+    /**
+     * Subject type
+     */
+    subject_type?: string;
+    /**
+     * Workspace name
+     */
+    workspace?: string;
+};
+
+/**
  * Agent
  */
 export type Agent = {
     events?: CoreEvents;
-    metadata?: Metadata;
-    spec?: AgentSpec;
-    /**
-     * Agent status
-     */
-    status?: string;
+    metadata: Metadata;
+    spec: AgentSpec;
+    status?: Status;
 };
 
 /**
- * Agent specification
+ * Agent
  */
-export type AgentSpec = CoreSpec & {
+export type AgentWritable = {
+    events?: CoreEvents;
+    metadata: MetadataWritable;
+    spec: AgentSpec;
+    status?: Status;
+};
+
+/**
+ * Runtime configuration for Agent
+ */
+export type AgentRuntime = {
     /**
-     * Description, small description computed from the prompt
+     * The env variables to set in the agent. Should be a list of Kubernetes EnvVar types
      */
-    description?: string;
+    envs?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * The generation of the agent
+     */
+    generation?: 'mk2' | 'mk3';
+    /**
+     * The Docker image for the agent
+     */
+    image?: string;
+    /**
+     * The maximum number of replicas for the agent.
+     */
+    maxScale?: number;
+    /**
+     * The memory for the agent in MB
+     */
+    memory?: number;
+    /**
+     * The minimum number of replicas for the agent. Can be 0 or 1 (in which case the agent is always running in at least one location).
+     */
+    minScale?: number;
+};
+
+/**
+ * Agent specification for API
+ */
+export type AgentSpec = {
+    /**
+     * Enable or disable the resource
+     */
+    enabled?: boolean;
+    policies?: PoliciesList;
     repository?: Repository;
+    revision?: RevisionConfiguration;
+    runtime?: AgentRuntime;
     triggers?: Triggers;
 };
 
@@ -63,6 +139,36 @@ export type AgentSpec = CoreSpec & {
  * Long-lived API key for accessing Blaxel
  */
 export type ApiKey = TimeFields & OwnerFields & {
+    /**
+     * Api key
+     */
+    apiKey?: string;
+    /**
+     * Duration until expiration (in seconds)
+     */
+    expires_in?: string;
+    /**
+     * Api key id, to retrieve it from the API
+     */
+    id?: string;
+    /**
+     * Name for the API key
+     */
+    name?: string;
+    /**
+     * User subject identifier
+     */
+    sub?: string;
+    /**
+     * Subject type
+     */
+    sub_type?: string;
+};
+
+/**
+ * Long-lived API key for accessing Blaxel
+ */
+export type ApiKeyWritable = TimeFields & OwnerFields & {
     /**
      * Api key
      */
@@ -180,31 +286,6 @@ export type CoreEvent = {
 export type CoreEvents = Array<CoreEvent>;
 
 /**
- * Core specification
- */
-export type CoreSpec = {
-    /**
-     * Optional configurations for the object
-     */
-    configurations?: {
-        key?: SpecConfiguration;
-    };
-    /**
-     * Enable or disable the resource
-     */
-    enabled?: boolean;
-    flavors?: Flavors;
-    integrationConnections?: IntegrationConnectionsList;
-    policies?: PoliciesList;
-    revision?: RevisionConfiguration;
-    runtime?: Runtime;
-    /**
-     * Sandbox mode
-     */
-    sandbox?: boolean;
-};
-
-/**
  * Configuration
  */
 export type Country = {
@@ -247,31 +328,14 @@ export type CreateJobExecutionRequest = {
 };
 
 /**
- * Response for creating a job execution
+ * Custom domain for preview deployments
+ * The custom domain represents a base domain (e.g., example.com) that will be used
+ * to serve preview deployments. Each preview will be accessible at a subdomain:
+ * <preview-id>.preview.<base-domain> (e.g., abc123.preview.example.com)
  */
-export type CreateJobExecutionResponse = {
-    /**
-     * Execution ID
-     */
-    executionId?: string;
-    /**
-     * Unique message ID
-     */
-    id?: string;
-    /**
-     * Job ID
-     */
-    jobId?: string;
-    /**
-     * Array of task parameters for parallel execution
-     */
-    tasks?: Array<{
-        [key: string]: unknown;
-    }>;
-    /**
-     * Workspace ID
-     */
-    workspaceId?: string;
+export type CustomDomain = {
+    metadata: CustomDomainMetadata;
+    spec: CustomDomainSpec;
 };
 
 /**
@@ -280,15 +344,34 @@ export type CreateJobExecutionResponse = {
  * to serve preview deployments. Each preview will be accessible at a subdomain:
  * <preview-id>.preview.<base-domain> (e.g., abc123.preview.example.com)
  */
-export type CustomDomain = {
-    metadata?: CustomDomainMetadata;
-    spec?: CustomDomainSpec;
+export type CustomDomainWritable = {
+    metadata: CustomDomainMetadataWritable;
+    spec: CustomDomainSpec;
 };
 
 /**
  * Custom domain metadata
  */
 export type CustomDomainMetadata = TimeFields & OwnerFields & {
+    /**
+     * Display name for the custom domain
+     */
+    displayName?: string;
+    labels?: MetadataLabels;
+    /**
+     * Domain name (e.g., "example.com")
+     */
+    name?: string;
+    /**
+     * Workspace name
+     */
+    workspace?: string;
+};
+
+/**
+ * Custom domain metadata
+ */
+export type CustomDomainMetadataWritable = TimeFields & OwnerFields & {
     /**
      * Display name for the custom domain
      */
@@ -323,7 +406,7 @@ export type CustomDomainSpec = {
     /**
      * Current status of the domain (pending, verified, failed)
      */
-    status?: string;
+    status?: 'pending' | 'verified' | 'failed';
     /**
      * Map of TXT record names to values for domain verification
      */
@@ -343,7 +426,9 @@ export type Entrypoint = {
     /**
      * Args of the entrypoint
      */
-    args?: Array<unknown>;
+    args?: Array<{
+        [key: string]: unknown;
+    }>;
     /**
      * Command of the entrypoint
      */
@@ -352,12 +437,14 @@ export type Entrypoint = {
      * Env of the entrypoint
      */
     env?: {
-        [key: string]: unknown;
+        [key: string]: string;
     };
     /**
      * Super Gateway args of the entrypoint
      */
-    superGatewayArgs?: Array<unknown>;
+    superGatewayArgs?: Array<{
+        [key: string]: unknown;
+    }>;
 };
 
 /**
@@ -371,7 +458,7 @@ export type ExpirationPolicy = {
     /**
      * Type of expiration policy
      */
-    type?: string;
+    type?: 'ttl-idle' | 'ttl-max-age' | 'date';
     /**
      * Duration value (e.g., '1h', '24h', '7d')
      */
@@ -389,7 +476,7 @@ export type Flavor = {
     /**
      * Flavor type (e.g. cpu, gpu)
      */
-    type?: string;
+    type?: 'cpu' | 'gpu';
 };
 
 /**
@@ -407,12 +494,7 @@ export type Form = {
     config?: {
         [key: string]: unknown;
     };
-    /**
-     * OAuth of the artifact
-     */
-    oauth?: {
-        [key: string]: unknown;
-    };
+    oauth?: OAuth;
     /**
      * Secrets of the artifact
      */
@@ -426,22 +508,69 @@ export type Form = {
  */
 export type _Function = {
     events?: CoreEvents;
-    metadata?: Metadata;
-    spec?: FunctionSpec;
-    /**
-     * Function status
-     */
-    status?: string;
+    metadata: Metadata;
+    spec: FunctionSpec;
+    status?: Status;
 };
 
 /**
- * Function specification
+ * Function
  */
-export type FunctionSpec = CoreSpec & {
+export type FunctionWritable = {
+    events?: CoreEvents;
+    metadata: MetadataWritable;
+    spec: FunctionSpec;
+    status?: Status;
+};
+
+/**
+ * Runtime configuration for Function
+ */
+export type FunctionRuntime = {
     /**
-     * Function description, very important for the agent function to work with an LLM
+     * The env variables to set in the function. Should be a list of Kubernetes EnvVar types
      */
-    description?: string;
+    envs?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * The generation of the function
+     */
+    generation?: 'mk2' | 'mk3';
+    /**
+     * The Docker image for the function
+     */
+    image?: string;
+    /**
+     * The maximum number of replicas for the function.
+     */
+    maxScale?: number;
+    /**
+     * The memory for the function in MB
+     */
+    memory?: number;
+    /**
+     * The minimum number of replicas for the function. Can be 0 or 1 (in which case the function is always running in at least one location).
+     */
+    minScale?: number;
+};
+
+/**
+ * Function specification for API
+ */
+export type FunctionSpec = {
+    /**
+     * Enable or disable the resource
+     */
+    enabled?: boolean;
+    integrationConnections?: IntegrationConnectionsList;
+    policies?: PoliciesList;
+    revision?: RevisionConfiguration;
+    runtime?: FunctionRuntime;
+    /**
+     * Transport compatibility for the MCP, can be "websocket" or "http-stream"
+     */
+    transport?: 'websocket' | 'http-stream';
     triggers?: Triggers;
 };
 
@@ -486,8 +615,8 @@ export type HistogramStats = {
 };
 
 export type Image = {
-    metadata?: ImageMetadata;
-    spec?: ImageSpec;
+    metadata: ImageMetadata;
+    spec: ImageSpec;
 };
 
 export type ImageMetadata = {
@@ -582,8 +711,16 @@ export type Integration = {
  * Integration Connection
  */
 export type IntegrationConnection = {
-    metadata?: Metadata;
-    spec?: IntegrationConnectionSpec;
+    metadata: Metadata;
+    spec: IntegrationConnectionSpec;
+};
+
+/**
+ * Integration Connection
+ */
+export type IntegrationConnectionWritable = {
+    metadata: MetadataWritable;
+    spec: IntegrationConnectionSpec;
 };
 
 /**
@@ -625,7 +762,9 @@ export type IntegrationEndpoint = {
     /**
      * Integration endpoint ignore models
      */
-    ignoreModels?: Array<unknown>;
+    ignoreModels?: Array<{
+        [key: string]: unknown;
+    }>;
     /**
      * Integration endpoint method
      */
@@ -633,7 +772,9 @@ export type IntegrationEndpoint = {
     /**
      * Integration endpoint models
      */
-    models?: Array<unknown>;
+    models?: Array<{
+        [key: string]: unknown;
+    }>;
     /**
      * Integration endpoint stream key
      */
@@ -672,60 +813,6 @@ export type IntegrationEndpoints = {
  */
 export type IntegrationHeaders = {
     [key: string]: string;
-};
-
-/**
- * Model obtained from an external authentication provider, such as HuggingFace, OpenAI, etc...
- */
-export type IntegrationModel = {
-    /**
-     * Provider model author
-     */
-    author?: string;
-    /**
-     * Provider model created at
-     */
-    created_at?: string;
-    /**
-     * Provider model downloads
-     */
-    downloads?: number;
-    /**
-     * Model endpoint URL
-     */
-    endpoint?: string;
-    /**
-     * Provider model ID
-     */
-    id?: string;
-    /**
-     * Provider model library name
-     */
-    library_name?: string;
-    /**
-     * Provider model likes
-     */
-    likes?: number;
-    /**
-     * Is the model private
-     */
-    model_private?: string;
-    /**
-     * Provider model name
-     */
-    name?: string;
-    /**
-     * Provider model pipeline tag
-     */
-    pipeline_tag?: string;
-    /**
-     * Provider model tags
-     */
-    tags?: Array<string>;
-    /**
-     * Provider model trending score
-     */
-    trending_score?: number;
 };
 
 /**
@@ -788,44 +875,33 @@ export type IntegrationRepository = {
  */
 export type Job = {
     events?: CoreEvents;
-    metadata?: Metadata;
-    spec?: JobSpec;
-    /**
-     * Job status
-     */
-    status?: string;
+    metadata: Metadata;
+    spec: JobSpec;
+    status?: Status;
+};
+
+/**
+ * Job
+ */
+export type JobWritable = {
+    events?: CoreEvents;
+    metadata: MetadataWritable;
+    spec: JobSpec;
+    status?: Status;
 };
 
 /**
  * Job execution
  */
 export type JobExecution = {
-    metadata?: JobExecutionMetadata;
-    spec?: JobExecutionSpec;
+    metadata: JobExecutionMetadata;
+    spec: JobExecutionSpec;
     stats?: JobExecutionStats;
     status?: JobExecutionStatus;
     /**
      * List of execution tasks
      */
     tasks?: Array<JobExecutionTask>;
-};
-
-/**
- * Configuration for a job execution
- */
-export type JobExecutionConfig = {
-    /**
-     * The maximum number of concurrent tasks for an execution
-     */
-    maxConcurrentTasks?: number;
-    /**
-     * The maximum number of retries for the job execution
-     */
-    maxRetries?: number;
-    /**
-     * The timeout for the job execution in seconds
-     */
-    timeout?: number;
 };
 
 /**
@@ -925,7 +1001,7 @@ export type JobExecutionStats = {
 /**
  * Job execution status
  */
-export type JobExecutionStatus = string;
+export type JobExecutionStatus = 'queued' | 'pending' | 'running' | 'cancelling' | 'cancelled' | 'failed' | 'succeeded' | 'timeout';
 
 /**
  * Job execution task
@@ -1017,62 +1093,60 @@ export type JobExecutionTaskSpec = {
 /**
  * Job execution task status
  */
-export type JobExecutionTaskStatus = string;
+export type JobExecutionTaskStatus = 'unspecified' | 'pending' | 'reconciling' | 'failed' | 'succeeded' | 'running' | 'cancelled';
 
 /**
- * Metrics for job
+ * Runtime configuration for Job
  */
-export type JobMetrics = {
+export type JobRuntime = {
     /**
-     * Billable time
+     * The env variables to set in the job. Should be a list of Kubernetes EnvVar types
      */
-    billableTime?: Array<JobsChartValue>;
-    /**
-     * CPU usage
-     */
-    cpuUsage?: Array<JobsChartValue>;
-    /**
-     * Executions chart
-     */
-    executionsChart?: Array<JobsSuccessFailedChart>;
-    /**
-     * Executions running
-     */
-    executionsRunning?: Array<JobsChartValue>;
-    /**
-     * Total executions
-     */
-    executionsTotal?: {
+    envs?: Array<{
         [key: string]: unknown;
-    };
+    }>;
     /**
-     * RAM usage
+     * The generation of the job
      */
-    ramUsage?: Array<JobsChartValue>;
+    generation?: 'mk2' | 'mk3';
     /**
-     * Tasks chart
+     * The Docker image for the job
      */
-    tasksChart?: Array<JobsSuccessFailedChart>;
+    image?: string;
     /**
-     * Tasks running
+     * The maximum number of concurrent task for an execution
      */
-    tasksRunning?: Array<JobsChartValue>;
+    maxConcurrentTasks?: number;
     /**
-     * Total tasks
+     * The maximum number of retries for the job
      */
-    tasksTotal?: {
-        [key: string]: unknown;
-    };
+    maxRetries?: number;
+    /**
+     * The memory for the job in MB
+     */
+    memory?: number;
+    ports?: Ports;
+    /**
+     * The timeout for the job in seconds
+     */
+    timeout?: number;
 };
 
 /**
- * Job specification
+ * Job specification for API
  */
-export type JobSpec = CoreSpec & {
+export type JobSpec = {
+    /**
+     * Enable or disable the resource
+     */
+    enabled?: boolean;
+    policies?: PoliciesList;
     /**
      * Region where the job should be created (e.g. us-was-1, eu-lon-1)
      */
     region?: string;
+    revision?: RevisionConfiguration;
+    runtime?: JobRuntime;
     triggers?: Triggers;
 };
 
@@ -1088,20 +1162,6 @@ export type JobsChartValue = {
      * Metric value
      */
     value?: number;
-};
-
-/**
- * Jobs chart
- */
-export type JobsNetworkChart = {
-    /**
-     * Received
-     */
-    received?: Array<JobsChartValue>;
-    /**
-     * Sent
-     */
-    sent?: Array<JobsChartValue>;
 };
 
 /**
@@ -1210,49 +1270,15 @@ export type LocationResponse = {
 };
 
 /**
- * Response for logs
- */
-export type LogsResponse = {
-    /**
-     * Data
-     */
-    data?: Array<unknown>;
-};
-
-/**
- * Response data for logs
- */
-export type LogsResponseData = {
-    /**
-     * Body of the log
-     */
-    body?: string;
-    /**
-     * Log attributes
-     */
-    logAttributes?: Array<unknown>;
-    /**
-     * Severity number of the log
-     */
-    severityNumber?: number;
-    /**
-     * Timestamp of the log
-     */
-    timestamp?: string;
-    /**
-     * Trace ID of the log
-     */
-    traceId?: string;
-};
-
-/**
  * Definition of an MCP from the MCP Hub
  */
 export type McpDefinition = TimeFields & {
     /**
      * Categories of the artifact
      */
-    categories?: Array<unknown>;
+    categories?: Array<{
+        [key: string]: unknown;
+    }>;
     /**
      * If the artifact is coming soon
      */
@@ -1269,18 +1295,8 @@ export type McpDefinition = TimeFields & {
      * If the artifact is enterprise
      */
     enterprise?: boolean;
-    /**
-     * Entrypoint of the artifact
-     */
-    entrypoint?: {
-        [key: string]: unknown;
-    };
-    /**
-     * Form of the artifact
-     */
-    form?: {
-        [key: string]: unknown;
-    };
+    entrypoint?: Entrypoint;
+    form?: Form;
     /**
      * If the artifact is hidden
      */
@@ -1320,17 +1336,69 @@ export type McpDefinition = TimeFields & {
 };
 
 /**
- * Memory allocation by service name
+ * Definition of an MCP from the MCP Hub
  */
-export type MemoryAllocationByName = {
+export type McpDefinitionWritable = TimeFields & {
     /**
-     * Memory allocation value
+     * Categories of the artifact
      */
-    allocation?: number;
+    categories?: Array<{
+        [key: string]: unknown;
+    }>;
     /**
-     * Name
+     * If the artifact is coming soon
+     */
+    coming_soon?: boolean;
+    /**
+     * Description of the artifact
+     */
+    description?: string;
+    /**
+     * Display name of the artifact
+     */
+    displayName?: string;
+    /**
+     * If the artifact is enterprise
+     */
+    enterprise?: boolean;
+    entrypoint?: Entrypoint;
+    form?: Form;
+    /**
+     * If the artifact is hidden
+     */
+    hidden?: boolean;
+    /**
+     * Hidden secrets of the artifact
+     */
+    hiddenSecrets?: Array<string>;
+    /**
+     * Icon of the artifact
+     */
+    icon?: string;
+    /**
+     * Image of the artifact
+     */
+    image?: string;
+    /**
+     * Integration of the artifact
+     */
+    integration?: string;
+    /**
+     * Long description of the artifact
+     */
+    longDescription?: string;
+    /**
+     * Name of the artifact
      */
     name?: string;
+    /**
+     * Transport compatibility for the MCP, can be "websocket" or "http-stream"
+     */
+    transport?: string;
+    /**
+     * URL of the artifact
+     */
+    url?: string;
 };
 
 /**
@@ -1355,19 +1423,34 @@ export type Metadata = TimeFields & OwnerFields & {
     /**
      * Model name
      */
-    name?: string;
+    name: string;
     /**
      * Plan
      */
-    plan?: unknown;
+    readonly plan?: string;
     /**
      * URL
      */
-    url?: string;
+    readonly url?: string;
     /**
      * Workspace name
      */
-    workspace?: string;
+    readonly workspace?: string;
+};
+
+/**
+ * Metadata
+ */
+export type MetadataWritable = TimeFields & OwnerFields & {
+    /**
+     * Model display name
+     */
+    displayName?: string;
+    labels?: MetadataLabels;
+    /**
+     * Model name
+     */
+    name: string;
 };
 
 /**
@@ -1396,83 +1479,64 @@ export type Metric = {
 };
 
 /**
- * Metrics for resources
+ * Logical object representing a model
  */
-export type Metrics = {
-    /**
-     * Metrics for agents
-     */
-    agents?: unknown;
-    /**
-     * Metrics for functions
-     */
-    functions?: unknown;
-    inferenceErrorGlobal?: ArrayMetric;
-    /**
-     * Historical requests for all resources globally
-     */
-    inferenceGlobal?: Array<unknown>;
-    /**
-     * Historical requests for all resources globally
-     */
-    items?: Array<RequestTotalResponseData>;
-    /**
-     * Metrics for jobs
-     */
-    jobs?: unknown;
-    /**
-     * Metric value
-     */
-    lastNRequests?: Array<LastNRequestsMetric>;
-    /**
-     * Metrics for models
-     */
-    models?: {
-        [key: string]: unknown;
-    };
-    /**
-     * Number of requests for all resources globally
-     */
-    requestTotal?: number;
-    /**
-     * Number of requests for all resources globally per code
-     */
-    requestTotalPerCode?: {
-        [key: string]: unknown;
-    };
-    /**
-     * Number of requests per second for all resources globally
-     */
-    rps?: number;
-    /**
-     * Number of requests per second for all resources globally per code
-     */
-    rpsPerCode?: {
-        [key: string]: unknown;
-    };
-    /**
-     * Metrics for sandboxes
-     */
-    sandboxes?: unknown;
+export type Model = {
+    events?: CoreEvents;
+    metadata: Metadata;
+    spec: ModelSpec;
+    status?: Status;
 };
 
 /**
  * Logical object representing a model
  */
-export type Model = {
+export type ModelWritable = {
     events?: CoreEvents;
-    metadata?: Metadata;
-    spec?: ModelSpec;
-    /**
-     * Model status
-     */
-    status?: string;
+    metadata: MetadataWritable;
+    spec: ModelSpec;
+    status?: Status;
 };
 
 /**
- * Model specification
+ * Runtime configuration for Model
  */
-export type ModelSpec = CoreSpec & unknown;
+export type ModelRuntime = {
+    /**
+     * Endpoint Name of the model. In case of hf_private_endpoint, it is the endpoint name. In case of hf_public_endpoint, it is not used.
+     */
+    endpointName?: string;
+    /**
+     * The slug name of the origin model at HuggingFace.
+     */
+    model?: string;
+    /**
+     * The organization of the model
+     */
+    organization?: string;
+    /**
+     * The type of origin for the deployment
+     */
+    type?: 'hf_private_endpoint' | 'hf_public_endpoint' | 'huggingface' | 'public_model' | 'mcp' | 'openai' | 'anthropic' | 'gemini' | 'mistral' | 'deepseek' | 'cohere' | 'cerebras' | 'xai' | 'vertexai' | 'azure-openai-service' | 'azure-ai-inference' | 'azure-marketplace' | 'groq';
+};
+
+/**
+ * Model specification for API
+ */
+export type ModelSpec = {
+    /**
+     * Enable or disable the resource
+     */
+    enabled?: boolean;
+    flavors?: Flavors;
+    integrationConnections?: IntegrationConnectionsList;
+    policies?: PoliciesList;
+    runtime?: ModelRuntime;
+    /**
+     * Sandbox mode
+     */
+    sandbox?: boolean;
+};
 
 /**
  * OAuth of the artifact
@@ -1481,7 +1545,9 @@ export type OAuth = {
     /**
      * Scope of the OAuth
      */
-    scope?: Array<unknown>;
+    scope?: Array<{
+        [key: string]: unknown;
+    }>;
     /**
      * Type of the OAuth
      */
@@ -1495,17 +1561,39 @@ export type OwnerFields = {
     /**
      * The user or service account who created the resource
      */
-    createdBy?: string;
+    readonly createdBy?: string;
     /**
      * The user or service account who updated the resource
      */
-    updatedBy?: string;
+    readonly updatedBy?: string;
 };
 
 /**
  * Pending invitation in workspace
  */
 export type PendingInvitation = TimeFields & OwnerFields & {
+    /**
+     * User email
+     */
+    email?: string;
+    /**
+     * User sub
+     */
+    invitedBy?: string;
+    /**
+     * ACL role
+     */
+    role?: string;
+    /**
+     * Workspace name
+     */
+    workspace?: string;
+};
+
+/**
+ * Pending invitation in workspace
+ */
+export type PendingInvitationWritable = TimeFields & OwnerFields & {
     /**
      * User email
      */
@@ -1533,6 +1621,17 @@ export type PendingInvitationAccept = {
      */
     email?: string;
     workspace?: Workspace;
+};
+
+/**
+ * Pending invitation accept
+ */
+export type PendingInvitationAcceptWritable = {
+    /**
+     * User email
+     */
+    email?: string;
+    workspace?: WorkspaceWritable;
 };
 
 /**
@@ -1599,21 +1698,18 @@ export type PendingInvitationWorkspaceDetails = {
     /**
      * List of user emails in the workspace
      */
-    emails?: Array<unknown>;
+    emails?: Array<{
+        [key: string]: unknown;
+    }>;
     /**
      * Number of users in the workspace
      */
     user_number?: number;
 };
 
-/**
- * Pod template specification
- */
-export type PodTemplateSpec = {
-    [key: string]: unknown;
-};
-
 export type Policies = Array<Policy>;
+
+export type PoliciesWritable = Array<PolicyWritable>;
 
 export type PoliciesList = Array<string>;
 
@@ -1621,8 +1717,16 @@ export type PoliciesList = Array<string>;
  * Rule that controls how a deployment is made and served (e.g. location restrictions)
  */
 export type Policy = {
-    metadata?: Metadata;
-    spec?: PolicySpec;
+    metadata: Metadata;
+    spec: PolicySpec;
+};
+
+/**
+ * Rule that controls how a deployment is made and served (e.g. location restrictions)
+ */
+export type PolicyWritable = {
+    metadata: MetadataWritable;
+    spec: PolicySpec;
 };
 
 /**
@@ -1636,7 +1740,7 @@ export type PolicyLocation = {
     /**
      * Policy location type
      */
-    type?: string;
+    type?: 'location' | 'country' | 'continent';
 };
 
 /**
@@ -1677,7 +1781,7 @@ export type PolicyMaxTokens = {
 /**
  * PolicyResourceType is a type of resource, e.g. model, function, etc.
  */
-export type PolicyResourceType = string;
+export type PolicyResourceType = 'model' | 'function' | 'agent' | 'sandbox';
 
 /**
  * PolicyResourceTypes is a local type that wraps a slice of PolicyResourceType
@@ -1699,7 +1803,7 @@ export type PolicySpec = {
     /**
      * Policy type, can be location or flavor
      */
-    type?: string;
+    type?: 'location' | 'flavor' | 'maxToken';
 };
 
 /**
@@ -1713,7 +1817,7 @@ export type Port = {
     /**
      * The protocol of the port
      */
-    protocol?: string;
+    protocol?: 'HTTP' | 'TCP' | 'UDP';
     /**
      * The target port of the port
      */
@@ -1729,8 +1833,16 @@ export type Ports = Array<Port>;
  * Preview of a Resource
  */
 export type Preview = {
-    metadata?: PreviewMetadata;
-    spec?: PreviewSpec;
+    metadata: PreviewMetadata;
+    spec: PreviewSpec;
+};
+
+/**
+ * Preview of a Resource
+ */
+export type PreviewWritable = {
+    metadata: PreviewMetadataWritable;
+    spec: PreviewSpec;
 };
 
 /**
@@ -1744,7 +1856,33 @@ export type PreviewMetadata = TimeFields & OwnerFields & {
     /**
      * Preview name
      */
-    name?: string;
+    name: string;
+    /**
+     * Resource name
+     */
+    resourceName?: string;
+    /**
+     * Resource type
+     */
+    resourceType?: string;
+    /**
+     * Workspace name
+     */
+    workspace?: string;
+};
+
+/**
+ * PreviewMetadata
+ */
+export type PreviewMetadataWritable = TimeFields & OwnerFields & {
+    /**
+     * Model display name
+     */
+    displayName?: string;
+    /**
+     * Preview name
+     */
+    name: string;
     /**
      * Resource name
      */
@@ -1813,8 +1951,8 @@ export type PreviewSpec = {
  * Token for a Preview
  */
 export type PreviewToken = {
-    metadata?: PreviewTokenMetadata;
-    spec?: PreviewTokenSpec;
+    metadata: PreviewTokenMetadata;
+    spec: PreviewTokenSpec;
 };
 
 /**
@@ -1824,7 +1962,7 @@ export type PreviewTokenMetadata = {
     /**
      * Token name
      */
-    name?: string;
+    name: string;
     /**
      * Preview name
      */
@@ -1989,36 +2127,6 @@ export type RequestTotalByOriginMetric = {
 };
 
 /**
- * Metrics for request total
- */
-export type RequestTotalMetric = {
-    /**
-     * Historical requests for all resources globally
-     */
-    items?: Array<RequestTotalResponseData>;
-    /**
-     * Number of requests for all resources globally
-     */
-    requestTotal?: number;
-    /**
-     * Number of requests for all resources globally per code
-     */
-    requestTotalPerCode?: {
-        [key: string]: unknown;
-    };
-    /**
-     * Number of requests per second for all resources globally
-     */
-    rps?: number;
-    /**
-     * Number of requests for all resources globally
-     */
-    rpsPerCode?: {
-        [key: string]: unknown;
-    };
-};
-
-/**
  * Request total response data
  */
 export type RequestTotalResponseData = {
@@ -2042,211 +2150,6 @@ export type RequestTotalResponseData = {
      * Workspace
      */
     workspace?: string;
-};
-
-/**
- * Resource
- */
-export type Resource = {
-    /**
-     * Region of the resource
-     */
-    infrastructureGeneration?: string;
-    /**
-     * Name of the resource
-     */
-    name?: string;
-    /**
-     * Type of the resource
-     */
-    type?: string;
-    /**
-     * Workspace of the resource
-     */
-    workspace?: string;
-    /**
-     * Workspace ID of the resource
-     */
-    workspaceId?: string;
-};
-
-/**
- * Log for a resource deployment (eg. model deployment, function deployment)
- */
-export type ResourceLog = {
-    /**
-     * Content of the log
-     */
-    message?: string;
-    /**
-     * Severity of the log
-     */
-    severity?: number;
-    /**
-     * The timestamp of the log
-     */
-    timestamp?: string;
-    /**
-     * Trace ID of the log
-     */
-    trace_id?: string;
-};
-
-/**
- * Chart for a resource log
- */
-export type ResourceLogChart = {
-    /**
-     * Count of the log
-     */
-    count?: number;
-    /**
-     * Debug count of the log
-     */
-    debug?: number;
-    /**
-     * Error count of the log
-     */
-    error?: number;
-    /**
-     * Fatal count of the log
-     */
-    fatal?: number;
-    /**
-     * Info count of the log
-     */
-    info?: number;
-    /**
-     * Timestamp of the log
-     */
-    timestamp?: string;
-    /**
-     * Trace count of the log
-     */
-    trace?: number;
-    /**
-     * Unknown count of the log
-     */
-    unknown?: number;
-    /**
-     * Warning count of the log
-     */
-    warning?: number;
-};
-
-/**
- * Response for a resource log
- */
-export type ResourceLogResponse = {
-    /**
-     * Chart
-     */
-    chart?: Array<unknown>;
-    /**
-     * Logs
-     */
-    logs?: Array<unknown>;
-    /**
-     * Total count of logs
-     */
-    totalCount?: number;
-};
-
-/**
- * Metrics for a single resource deployment (eg. model deployment, function deployment)
- */
-export type ResourceMetrics = {
-    billableTime?: BillableTimeMetric;
-    inferenceErrorsGlobal?: ArrayMetric;
-    inferenceGlobal?: ArrayMetric;
-    /**
-     * Historical requests (in last 24 hours) for the model deployment globally
-     */
-    lastNRequests?: Array<LastNRequestsMetric>;
-    latency?: LatencyMetric;
-    latencyPrevious?: LatencyMetric;
-    memoryAllocation?: MemoryAllocationMetric;
-    modelTtft?: LatencyMetric;
-    modelTtftOverTime?: TimeToFirstTokenOverTimeMetrics;
-    requestDurationOverTime?: RequestDurationOverTimeMetrics;
-    /**
-     * Number of requests for the resource globally
-     */
-    requestTotal?: number;
-    requestTotalByOrigin?: RequestTotalByOriginMetric;
-    requestTotalByOriginPrevious?: RequestTotalByOriginMetric;
-    /**
-     * Number of requests for the resource globally per code
-     */
-    requestTotalPerCode?: {
-        [key: string]: unknown;
-    };
-    /**
-     * Number of requests for the resource globally per code for the previous period
-     */
-    requestTotalPerCodePrevious?: {
-        [key: string]: unknown;
-    };
-    /**
-     * Number of requests for the resource globally for the previous period
-     */
-    requestTotalPrevious?: number;
-    /**
-     * Number of requests per second for the resource globally
-     */
-    rps?: number;
-    /**
-     * Number of requests per second for the resource globally per code
-     */
-    rpsPerCode?: {
-        [key: string]: unknown;
-    };
-    /**
-     * Number of requests per second for the resource globally per code for the previous period
-     */
-    rpsPerCodePrevious?: {
-        [key: string]: unknown;
-    };
-    /**
-     * Number of requests per second for the resource globally for the previous period
-     */
-    rpsPrevious?: number;
-    /**
-     * CPU usage over time for sandboxes
-     */
-    sandboxesCpuUsage?: Array<JobsChartValue>;
-    /**
-     * RAM usage over time for sandboxes with memory, value, and percent metrics
-     */
-    sandboxesRamUsage?: Array<SandboxMetrics>;
-    tokenRate?: TokenRateMetrics;
-    tokenTotal?: TokenTotalMetric;
-};
-
-/**
- * Log for a resource deployment (eg. model deployment, function deployment)
- */
-export type ResourceTrace = {
-    /**
-     * Duration in nanoseconds
-     */
-    duration?: number;
-    /**
-     * Has error
-     */
-    hasError?: boolean;
-    /**
-     * The timestamp of the log
-     */
-    startTime?: string;
-    /**
-     * Status code
-     */
-    statusCode?: number;
-    /**
-     * Trace ID of the log
-     */
-    traceID?: string;
 };
 
 /**
@@ -2314,105 +2217,6 @@ export type RevisionMetadata = {
 };
 
 /**
- * Set of configurations for a deployment
- */
-export type Runtime = {
-    /**
-     * The arguments to pass to the deployment runtime
-     */
-    args?: Array<unknown>;
-    /**
-     * The command to run the deployment
-     */
-    command?: Array<unknown>;
-    /**
-     * The configuration for the deployment
-     */
-    configuration?: {
-        [key: string]: unknown;
-    };
-    /**
-     * The CPU for the deployment in cores, only available for private cluster
-     */
-    cpu?: number;
-    /**
-     * Endpoint Name of the model. In case of hf_private_endpoint, it is the endpoint name. In case of hf_public_endpoint, it is not used.
-     */
-    endpointName?: string;
-    /**
-     * The env variables to set in the deployment. Should be a list of Kubernetes EnvVar types
-     */
-    envs?: Array<unknown>;
-    /**
-     * The expiration date for the deployment in ISO 8601 format - 2024-12-31T23:59:59Z
-     */
-    expires?: string;
-    /**
-     * The generation of the deployment
-     */
-    generation?: string;
-    /**
-     * The Docker image for the deployment
-     */
-    image?: string;
-    /**
-     * The maximum number of concurrent task for an execution
-     */
-    maxConcurrentTasks?: number;
-    /**
-     * The maximum number of retries for the deployment
-     */
-    maxRetries?: number;
-    /**
-     * The minimum number of replicas for the deployment. Can be 0 or 1 (in which case the deployment is always running in at least one location).
-     */
-    maxScale?: number;
-    /**
-     * The memory for the deployment in MB
-     */
-    memory?: number;
-    /**
-     * The port to serve the metrics on
-     */
-    metricPort?: number;
-    /**
-     * The maximum number of replicas for the deployment.
-     */
-    minScale?: number;
-    /**
-     * The slug name of the origin model at HuggingFace.
-     */
-    model?: string;
-    /**
-     * The organization of the model
-     */
-    organization?: string;
-    ports?: Ports;
-    /**
-     * The readiness probe. Should be a Kubernetes Probe type
-     */
-    startupProbe?: {
-        [key: string]: unknown;
-    };
-    /**
-     * The timeout for the deployment in seconds
-     */
-    timeout?: number;
-    /**
-     * The transport for the deployment, used by MCPs: "websocket" or "http-stream"
-     */
-    transport?: string;
-    /**
-     * The TTL for the deployment in seconds - 30m, 24h, 7d
-     */
-    ttl?: string;
-    /**
-     * The type of origin for the deployment (hf_private_endpoint, hf_public_endpoint)
-     */
-    type?: string;
-};
-
-/**
  * Micro VM for running agentic tasks
  */
 export type Sandbox = {
@@ -2420,17 +2224,20 @@ export type Sandbox = {
     /**
      * Last time the sandbox was used (read-only, managed by the system)
      */
-    lastUsedAt?: string;
-    metadata?: Metadata;
-    spec?: SandboxSpec;
-    /**
-     * Sandbox status
-     */
-    status?: string;
-    /**
-     * TTL timestamp for automatic deletion (optional, nil means no auto-deletion)
-     */
-    ttl?: number;
+    readonly lastUsedAt?: string;
+    metadata: Metadata;
+    spec: SandboxSpec;
+    status?: Status;
+};
+
+/**
+ * Micro VM for running agentic tasks
+ */
+export type SandboxWritable = {
+    events?: CoreEvents;
+    metadata: MetadataWritable;
+    spec: SandboxSpec;
+    status?: Status;
 };
 
 /**
@@ -2440,7 +2247,9 @@ export type SandboxDefinition = {
     /**
      * Categories of the defintion
      */
-    categories?: Array<unknown>;
+    categories?: Array<{
+        [key: string]: unknown;
+    }>;
     /**
      * If the definition is coming soon
      */
@@ -2525,129 +2334,55 @@ export type SandboxMetrics = {
 };
 
 /**
- * Sandbox specification
+ * Runtime configuration for Sandbox
  */
-export type SandboxSpec = CoreSpec & {
+export type SandboxRuntime = {
+    /**
+     * The env variables to set in the sandbox. Should be a list of Kubernetes EnvVar types
+     */
+    envs?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * The expiration date for the sandbox in ISO 8601 format - 2024-12-31T23:59:59Z
+     */
+    expires?: string;
+    /**
+     * The Docker image for the sandbox
+     */
+    image?: string;
+    /**
+     * The memory for the sandbox in MB
+     */
+    memory?: number;
+    ports?: Ports;
+    /**
+     * The TTL for the sandbox in seconds - 30m, 24h, 7d
+     */
+    ttl?: string;
+};
+
+/**
+ * Sandbox specification for API
+ */
+export type SandboxSpec = {
+    /**
+     * Enable or disable the resource
+     */
+    enabled?: boolean;
     lifecycle?: SandboxLifecycle;
     /**
      * Region where the sandbox should be created (e.g. us-pdx-1, eu-lon-1)
      */
     region?: string;
+    runtime?: SandboxRuntime;
     volumes?: VolumeAttachments;
 };
 
 /**
- * Name of a Sandbox definition
+ * Status of a resource
  */
-export type SandboxStoreDefinitionName = unknown;
-
-/**
- * Configuration for a serverless deployment
- */
-export type ServerlessConfig = {
-    /**
-     * The configuration for the deployment
-     */
-    configuration?: {
-        [key: string]: unknown;
-    };
-    /**
-     * The maximum number of retries for the deployment
-     */
-    maxRetries?: number;
-    /**
-     * The minimum number of replicas for the deployment. Can be 0 or 1 (in which case the deployment is always running in at least one location).
-     */
-    maxScale?: number;
-    /**
-     * The maximum number of replicas for the deployment.
-     */
-    minScale?: number;
-    /**
-     * The timeout for the deployment in seconds
-     */
-    timeout?: number;
-};
-
-/**
- * Configuration, this is a key value storage. In your object you can retrieve the value with config[key]
- */
-export type SpecConfiguration = {
-    /**
-     * ACconfiguration secret
-     */
-    secret?: boolean;
-    /**
-     * Configuration value
-     */
-    value?: string;
-};
-
-/**
- * Response when starting a Sandbox
- */
-export type StartSandbox = {
-    /**
-     * Human readable message about the start operation
-     */
-    message?: string;
-    metadata?: Metadata;
-    /**
-     * Status of the Sandbox start operation
-     */
-    status?: string;
-};
-
-/**
- * Response when stopping a Sandbox
- */
-export type StopSandbox = {
-    /**
-     * Human readable message about the stop operation
-     */
-    message?: string;
-    metadata?: Metadata;
-    /**
-     * Status of the Sandbox stop operation
-     */
-    status?: string;
-};
-
-/**
- * Store agent
- */
-export type StoreAgent = TimeFields & OwnerFields & {
-    /**
-     * Store agent configuration
-     */
-    configuration?: Array<StoreConfiguration>;
-    /**
-     * Store agent description
-     */
-    description?: string;
-    /**
-     * Store agent display name
-     */
-    displayName?: string;
-    /**
-     * Store agent image
-     */
-    image?: string;
-    /**
-     * Store agent labels
-     */
-    labels?: {
-        [key: string]: unknown;
-    };
-    /**
-     * Store agent name
-     */
-    name?: string;
-    /**
-     * Store agent prompt, this is to define what the agent does
-     */
-    prompt?: string;
-};
+export type Status = 'DELETING' | 'TERMINATED' | 'FAILED' | 'DEACTIVATED' | 'DEACTIVATING' | 'UPLOADING' | 'BUILDING' | 'DEPLOYING' | 'DEPLOYED';
 
 /**
  * Store configuration for resources (eg: agent, function, etc)
@@ -2793,11 +2528,11 @@ export type TimeFields = {
     /**
      * The date and time when the resource was created
      */
-    createdAt?: string;
+    readonly createdAt?: string;
     /**
      * The date and time when the resource was updated
      */
-    updatedAt?: string;
+    readonly updatedAt?: string;
 };
 
 /**
@@ -2889,13 +2624,6 @@ export type TokenTotalMetric = {
 };
 
 /**
- * Trace IDs response
- */
-export type TraceIdsResponse = {
-    [key: string]: unknown;
-};
-
-/**
  * Trigger configuration
  */
 export type Trigger = {
@@ -2911,7 +2639,7 @@ export type Trigger = {
     /**
      * The type of trigger, can be http or http-async
      */
-    type?: string;
+    type?: 'http' | 'http-async' | 'cron';
 };
 
 /**
@@ -2969,8 +2697,26 @@ export type Triggers = Array<Trigger>;
  */
 export type Volume = {
     events?: CoreEvents;
-    metadata?: Metadata;
-    spec?: VolumeSpec;
+    metadata: Metadata;
+    spec: VolumeSpec;
+    state?: VolumeState;
+    /**
+     * Volume status computed from events
+     */
+    status?: string;
+    /**
+     * Timestamp when the volume was marked for termination
+     */
+    terminatedAt?: string;
+};
+
+/**
+ * Volume resource for persistent storage
+ */
+export type VolumeWritable = {
+    events?: CoreEvents;
+    metadata: MetadataWritable;
+    spec: VolumeSpec;
     state?: VolumeState;
     /**
      * Volume status computed from events
@@ -3038,8 +2784,21 @@ export type VolumeState = {
  * Volume template for creating pre-configured volumes
  */
 export type VolumeTemplate = {
-    metadata?: Metadata;
-    spec?: VolumeTemplateSpec;
+    metadata: Metadata;
+    spec: VolumeTemplateSpec;
+    state?: VolumeTemplateState;
+    /**
+     * List of versions for this template
+     */
+    versions?: Array<VolumeTemplateVersion>;
+};
+
+/**
+ * Volume template for creating pre-configured volumes
+ */
+export type VolumeTemplateWritable = {
+    metadata: MetadataWritable;
+    spec: VolumeTemplateSpec;
     state?: VolumeTemplateState;
     /**
      * List of versions for this template
@@ -3076,7 +2835,7 @@ export type VolumeTemplateState = {
     /**
      * Status of the volume template (created, ready, error)
      */
-    status?: string;
+    status?: 'created' | 'ready' | 'error';
     /**
      * Total number of versions for this template
      */
@@ -3106,7 +2865,7 @@ export type VolumeTemplateVersion = {
     /**
      * Status of the version (CREATED, READY, FAILED)
      */
-    status?: string;
+    status?: 'CREATED' | 'READY' | 'FAILED';
     /**
      * Template name this version belongs to
      */
@@ -3117,46 +2876,6 @@ export type VolumeTemplateVersion = {
     versionId?: string;
     /**
      * Workspace name
-     */
-    workspace?: string;
-};
-
-/**
- * WebSocket connection details
- */
-export type WebsocketChannel = TimeFields & {
-    /**
-     * Unique connection ID
-     */
-    connection_id?: string;
-    /**
-     * Source region the connection belongs to
-     */
-    sourceRegion?: string;
-    /**
-     * Workspace the connection belongs to
-     */
-    workspace?: string;
-};
-
-/**
- * WebSocket connection details
- */
-export type WebsocketMessage = TimeFields & {
-    /**
-     * Unique message ID
-     */
-    id?: string;
-    /**
-     * Message
-     */
-    message?: string;
-    /**
-     * TTL timestamp for automatic deletion
-     */
-    ttl?: number;
-    /**
-     * Workspace the connection belongs to
      */
     workspace?: string;
 };
@@ -3177,12 +2896,7 @@ export type Workspace = TimeFields & OwnerFields & {
      * Autogenerated unique workspace id
      */
     id?: string;
-    /**
-     * Workspace labels
-     */
-    labels?: {
-        [key: string]: unknown;
-    };
+    labels?: MetadataLabels;
     /**
      * Workspace name
      */
@@ -3195,7 +2909,43 @@ export type Workspace = TimeFields & OwnerFields & {
     /**
      * Workspace status (created, account_binded, account_configured, workspace_configured, ready, error)
      */
-    status?: string;
+    status?: 'created' | 'account_binded' | 'account_configured' | 'workspace_configured' | 'ready' | 'error';
+    /**
+     * Reason for current status (only set for error status)
+     */
+    statusReason?: string;
+};
+
+/**
+ * Workspace
+ */
+export type WorkspaceWritable = TimeFields & OwnerFields & {
+    /**
+     * Workspace account id
+     */
+    accountId?: string;
+    /**
+     * Workspace display name
+     */
+    displayName?: string;
+    /**
+     * Autogenerated unique workspace id
+     */
+    id?: string;
+    labels?: MetadataLabels;
+    /**
+     * Workspace name
+     */
+    name?: string;
+    /**
+     * Workspace write region
+     */
+    region?: string;
+    runtime?: WorkspaceRuntime;
+    /**
+     * Workspace status (created, account_binded, account_configured, workspace_configured, ready, error)
+     */
+    status?: 'created' | 'account_binded' | 'account_configured' | 'workspace_configured' | 'ready' | 'error';
     /**
      * Reason for current status (only set for error status)
      */
@@ -3263,7 +3013,7 @@ export type ListAgentsResponses = {
 export type ListAgentsResponse = ListAgentsResponses[keyof ListAgentsResponses];
 
 export type CreateAgentData = {
-    body: Agent;
+    body: AgentWritable;
     path?: never;
     query?: never;
     url: '/agents';
@@ -3326,7 +3076,7 @@ export type GetAgentResponses = {
 export type GetAgentResponse = GetAgentResponses[keyof GetAgentResponses];
 
 export type UpdateAgentData = {
-    body: Agent;
+    body: AgentWritable;
     path: {
         /**
          * Name of the agent
@@ -3400,7 +3150,7 @@ export type ListCustomDomainsResponses = {
 export type ListCustomDomainsResponse = ListCustomDomainsResponses[keyof ListCustomDomainsResponses];
 
 export type CreateCustomDomainData = {
-    body: CustomDomain;
+    body: CustomDomainWritable;
     path?: never;
     query?: never;
     url: '/customdomains';
@@ -3458,7 +3208,7 @@ export type GetCustomDomainResponses = {
 export type GetCustomDomainResponse = GetCustomDomainResponses[keyof GetCustomDomainResponses];
 
 export type UpdateCustomDomainData = {
-    body: CustomDomain;
+    body: CustomDomainWritable;
     path: {
         /**
          * Name of the custom domain
@@ -3516,7 +3266,7 @@ export type ListFunctionsResponses = {
 export type ListFunctionsResponse = ListFunctionsResponses[keyof ListFunctionsResponses];
 
 export type CreateFunctionData = {
-    body: _Function;
+    body: FunctionWritable;
     path?: never;
     query?: never;
     url: '/functions';
@@ -3579,7 +3329,7 @@ export type GetFunctionResponses = {
 export type GetFunctionResponse = GetFunctionResponses[keyof GetFunctionResponses];
 
 export type UpdateFunctionData = {
-    body: _Function;
+    body: FunctionWritable;
     path: {
         /**
          * Name of the function
@@ -3800,7 +3550,7 @@ export type ListIntegrationConnectionsResponses = {
 export type ListIntegrationConnectionsResponse = ListIntegrationConnectionsResponses[keyof ListIntegrationConnectionsResponses];
 
 export type CreateIntegrationConnectionData = {
-    body: IntegrationConnection;
+    body: IntegrationConnectionWritable;
     path?: never;
     query?: never;
     url: '/integrations/connections';
@@ -3858,7 +3608,7 @@ export type GetIntegrationConnectionResponses = {
 export type GetIntegrationConnectionResponse = GetIntegrationConnectionResponses[keyof GetIntegrationConnectionResponses];
 
 export type UpdateIntegrationConnectionData = {
-    body: IntegrationConnection;
+    body: IntegrationConnectionWritable;
     path: {
         /**
          * Name of the integrationconnection
@@ -3956,7 +3706,7 @@ export type ListJobsResponses = {
 export type ListJobsResponse = ListJobsResponses[keyof ListJobsResponses];
 
 export type CreateJobData = {
-    body: Job;
+    body: JobWritable;
     path?: never;
     query?: never;
     url: '/jobs';
@@ -4013,13 +3763,13 @@ export type GetJobResponses = {
     /**
      * successful operation
      */
-    200: Model;
+    200: Job;
 };
 
 export type GetJobResponse = GetJobResponses[keyof GetJobResponses];
 
 export type UpdateJobData = {
-    body: Job;
+    body: JobWritable;
     path: {
         /**
          * Name of the job
@@ -4110,7 +3860,7 @@ export type CreateJobExecutionResponses = {
     200: JobExecution;
 };
 
-export type CreateJobExecutionResponse2 = CreateJobExecutionResponses[keyof CreateJobExecutionResponses];
+export type CreateJobExecutionResponse = CreateJobExecutionResponses[keyof CreateJobExecutionResponses];
 
 export type DeleteJobExecutionData = {
     body?: never;
@@ -4262,7 +4012,7 @@ export type ListModelsResponses = {
 export type ListModelsResponse = ListModelsResponses[keyof ListModelsResponses];
 
 export type CreateModelData = {
-    body: Model;
+    body: ModelWritable;
     path?: never;
     query?: never;
     url: '/models';
@@ -4320,7 +4070,7 @@ export type GetModelResponses = {
 export type GetModelResponse = GetModelResponses[keyof GetModelResponses];
 
 export type UpdateModelData = {
-    body: Model;
+    body: ModelWritable;
     path: {
         /**
          * Name of the model
@@ -4378,7 +4128,7 @@ export type ListPoliciesResponses = {
 export type ListPoliciesResponse = ListPoliciesResponses[keyof ListPoliciesResponses];
 
 export type CreatePolicyData = {
-    body: Policy;
+    body: PolicyWritable;
     path?: never;
     query?: never;
     url: '/policies';
@@ -4436,7 +4186,7 @@ export type GetPolicyResponses = {
 export type GetPolicyResponse = GetPolicyResponses[keyof GetPolicyResponses];
 
 export type UpdatePolicyData = {
-    body: Policy;
+    body: PolicyWritable;
     path: {
         /**
          * Name of the policy
@@ -4482,7 +4232,12 @@ export type ListAllPendingInvitationsResponse = ListAllPendingInvitationsRespons
 export type ListPublicIpsData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Filter by region name (only returns mk3 region data)
+         */
+        region?: string;
+    };
     url: '/publicIps';
 };
 
@@ -4528,7 +4283,7 @@ export type ListSandboxesResponses = {
 export type ListSandboxesResponse = ListSandboxesResponses[keyof ListSandboxesResponses];
 
 export type CreateSandboxData = {
-    body: Sandbox;
+    body: SandboxWritable;
     path?: never;
     query?: never;
     url: '/sandboxes';
@@ -4591,7 +4346,7 @@ export type GetSandboxResponses = {
 export type GetSandboxResponse = GetSandboxResponses[keyof GetSandboxResponses];
 
 export type UpdateSandboxData = {
-    body: Sandbox;
+    body: SandboxWritable;
     path: {
         /**
          * Name of the Sandbox
@@ -4633,7 +4388,7 @@ export type ListSandboxPreviewsResponses = {
 export type ListSandboxPreviewsResponse = ListSandboxPreviewsResponses[keyof ListSandboxPreviewsResponses];
 
 export type CreateSandboxPreviewData = {
-    body: Preview;
+    body: PreviewWritable;
     path: {
         /**
          * Name of the Sandbox
@@ -4704,7 +4459,7 @@ export type GetSandboxPreviewResponses = {
 export type GetSandboxPreviewResponse = GetSandboxPreviewResponses[keyof GetSandboxPreviewResponses];
 
 export type UpdateSandboxPreviewData = {
-    body: Preview;
+    body: PreviewWritable;
     path: {
         /**
          * Name of the Sandbox
@@ -4811,62 +4566,6 @@ export type DeleteSandboxPreviewTokenResponses = {
 };
 
 export type DeleteSandboxPreviewTokenResponse = DeleteSandboxPreviewTokenResponses[keyof DeleteSandboxPreviewTokenResponses];
-
-export type StartSandboxData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the Sandbox
-         */
-        sandboxName: string;
-    };
-    query?: never;
-    url: '/sandboxes/{sandboxName}/start';
-};
-
-export type StartSandboxErrors = {
-    /**
-     * Sandbox is already running
-     */
-    409: unknown;
-};
-
-export type StartSandboxResponses = {
-    /**
-     * successful operation
-     */
-    200: StartSandbox;
-};
-
-export type StartSandboxResponse = StartSandboxResponses[keyof StartSandboxResponses];
-
-export type StopSandboxData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the Sandbox
-         */
-        sandboxName: string;
-    };
-    query?: never;
-    url: '/sandboxes/{sandboxName}/stop';
-};
-
-export type StopSandboxErrors = {
-    /**
-     * Sandbox is not running
-     */
-    409: unknown;
-};
-
-export type StopSandboxResponses = {
-    /**
-     * successful operation
-     */
-    200: StopSandbox;
-};
-
-export type StopSandboxResponse = StopSandboxResponses[keyof StopSandboxResponses];
 
 export type GetWorkspaceServiceAccountsData = {
     body?: never;
@@ -5287,7 +4986,7 @@ export type ListVolumeTemplatesResponses = {
 export type ListVolumeTemplatesResponse = ListVolumeTemplatesResponses[keyof ListVolumeTemplatesResponses];
 
 export type CreateVolumeTemplateData = {
-    body: VolumeTemplate;
+    body: VolumeTemplateWritable;
     path?: never;
     query?: {
         /**
@@ -5354,7 +5053,7 @@ export type GetVolumeTemplateResponses = {
 export type GetVolumeTemplateResponse = GetVolumeTemplateResponses[keyof GetVolumeTemplateResponses];
 
 export type UpdateVolumeTemplateData = {
-    body: VolumeTemplate;
+    body: VolumeTemplateWritable;
     path: {
         /**
          * Name of the volume template
@@ -5439,7 +5138,7 @@ export type ListVolumesResponses = {
 export type ListVolumesResponse = ListVolumesResponses[keyof ListVolumesResponses];
 
 export type CreateVolumeData = {
-    body: Volume;
+    body: VolumeWritable;
     path?: never;
     query?: never;
     url: '/volumes';
@@ -5513,7 +5212,7 @@ export type ListWorkspacesResponses = {
 export type ListWorkspacesResponse = ListWorkspacesResponses[keyof ListWorkspacesResponses];
 
 export type CreateWorkspaceData = {
-    body: Workspace;
+    body: WorkspaceWritable;
     path?: never;
     query?: never;
     url: '/workspaces';
@@ -5571,7 +5270,7 @@ export type GetWorkspaceResponses = {
 export type GetWorkspaceResponse = GetWorkspaceResponses[keyof GetWorkspaceResponses];
 
 export type UpdateWorkspaceData = {
-    body: Workspace;
+    body: WorkspaceWritable;
     path: {
         /**
          * name of the workspace

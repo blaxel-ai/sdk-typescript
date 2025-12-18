@@ -26,11 +26,11 @@ export class VolumeInstance {
   }
 
   get name() {
-    return this.volume.metadata?.name;
+    return this.volume.metadata.name;
   }
 
   get displayName() {
-    return this.volume.metadata?.displayName;
+    return this.volume.metadata.displayName;
   }
 
   get size() {
@@ -52,19 +52,16 @@ export class VolumeInstance {
       // It's already a Volume object
       volume = config;
     } else {
-      // It's a VolumeCreateConfiguration
-      const volumeConfig = config as VolumeCreateConfiguration;
-
       volume = {
         metadata: {
-          name: volumeConfig.name || defaultName,
-          displayName: volumeConfig.displayName || volumeConfig.name || defaultName,
-          labels: volumeConfig.labels
+          name: config.name || defaultName,
+          displayName: config.displayName || config.name || defaultName,
+          labels: config.labels
         },
         spec: {
-          size: volumeConfig.size || defaultSize,
-          region: volumeConfig.region,
-          template: volumeConfig.template
+          size: config.size || defaultSize,
+          region: config.region,
+          template: config.template
         }
       };
     }
@@ -117,7 +114,7 @@ export class VolumeInstance {
   }
 
   async delete() {
-    return await VolumeInstance.delete(this.metadata?.name ?? "");
+    return await VolumeInstance.delete(this.metadata.name);
   }
 
   static async createIfNotExists(config: VolumeCreateConfiguration | Volume) {
@@ -125,7 +122,7 @@ export class VolumeInstance {
       return await VolumeInstance.create(config);
     } catch (e) {
       if (typeof e === "object" && e !== null && "code" in e && (e.code === 409 || e.code === 'VOLUME_ALREADY_EXISTS')) {
-        const name = 'name' in config ? config.name : (config as Volume).metadata?.name;
+        const name = 'name' in config ? config.name : (config as Volume).metadata.name;
         if (!name) {
           throw new Error("Volume name is required");
         }

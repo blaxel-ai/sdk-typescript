@@ -267,10 +267,10 @@ describe('Sandbox Filesystem Operations', () => {
         },
         { withContent: true }
       )
-      await sleep(200)
+      await sleep(1000)
       await sandbox.fs.write(`${dir}/content-file.txt`, "the content")
 
-      await sleep(100)
+      await sleep(1000)
       handle.close()
 
       expect(receivedContent).toBe("the content")

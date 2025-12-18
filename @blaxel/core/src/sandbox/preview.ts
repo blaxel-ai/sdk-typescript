@@ -20,11 +20,11 @@ export class SandboxPreviewTokens {
   constructor(private preview: Preview) {}
 
   get previewName() {
-    return this.preview.metadata?.name ?? "";
+    return this.preview.metadata.name;
   }
 
   get resourceName() {
-    return this.preview.metadata?.resourceName ?? "";
+    return this.preview.metadata.resourceName ?? "";
   }
 
   async create(expiresAt: Date) {
@@ -34,6 +34,9 @@ export class SandboxPreviewTokens {
         previewName: this.previewName,
       },
       body: {
+        metadata: {
+          name: "token-" + Date.now(),
+        },
         spec: {
           expiresAt: expiresAt.toISOString(),
         },
@@ -75,7 +78,7 @@ export class SandboxPreview {
   }
 
   get name() {
-    return this.preview.metadata?.name ?? "";
+    return this.preview.metadata.name;
   }
 
   get metadata() {
@@ -91,7 +94,7 @@ export class SandboxPreviews {
   constructor(private sandbox: Sandbox) {}
 
   get sandboxName() {
-    return this.sandbox.metadata?.name ?? "";
+    return this.sandbox.metadata.name;
   }
 
   async list() {
@@ -118,7 +121,7 @@ export class SandboxPreviews {
 
   async createIfNotExists(preview: Preview) {
     try {
-      const previewInstance = await this.get(preview.metadata?.name ?? "");
+      const previewInstance = await this.get(preview.metadata.name);
       return previewInstance;
     } catch (e) {
       if (typeof e === "object" && e !== null && "code" in e && e.code === 404) {

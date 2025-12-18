@@ -36,7 +36,6 @@ export const getToolMetadata = async (
       },
       spec: {
         runtime: {
-          type: "mcp",
         },
       },
     };

@@ -64,7 +64,7 @@ export function normalizePorts(ports?: (Port | Record<string, any>)[]): Port[] |
         const normalizedPort: Port = {
           name: typeof port.name === 'string' ? port.name : undefined,
           target: typeof port.target === 'number' ? port.target : undefined,
-          protocol: typeof port.protocol === 'string' ? port.protocol : "HTTP"
+          protocol: typeof port.protocol === 'string' ? port.protocol as "HTTP" | "TCP" | "UDP" : "HTTP"
         };
         portObjects.push(normalizedPort);
       } else {
