@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { env, logger } from "@blaxel/core"
+import "@blaxel/core"
 import { blModel, blTools } from "@blaxel/langgraph"
 import { HumanMessage } from "@langchain/core/messages"
 import { tool } from "@langchain/core/tools"
@@ -34,10 +34,14 @@ describe('Fastify + LangChain E2E', () => {
         }
       )
 
+      const model = await blModel("sandbox-openai")
+      const remoteTools = await blTools(["blaxel-search"])
       const response = await createReactAgent({
-        llm: await blModel("sandbox-openai"),
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        llm: model as any,
         prompt: prompt,
-        tools: [...(await blTools(["blaxel-search"])), weatherTool],
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        tools: [...remoteTools, weatherTool] as any,
       }).invoke({
         messages: [new HumanMessage(request.body.inputs)],
       })

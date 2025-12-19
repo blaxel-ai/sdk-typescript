@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
-import { SandboxInstance, settings } from "@blaxel/core"
-import { uniqueName, defaultLabels, sleep } from './helpers'
+import { SandboxInstance } from "@blaxel/core"
+import { uniqueName, defaultLabels } from './helpers.js'
 
 describe('Sandbox Preview Operations', () => {
   let sandbox: SandboxInstance
@@ -44,9 +44,9 @@ describe('Sandbox Preview Operations', () => {
         }
       })
 
-      expect(preview.metadata?.name).toBe("public-preview")
-      expect(preview.spec?.url).toBeDefined()
-      expect(preview.spec?.url).toContain("preview")
+      expect(preview.metadata.name).toBe("public-preview")
+      expect(preview.spec.url).toBeDefined()
+      expect(preview.spec.url).toContain("preview")
 
       await sandbox.previews.delete("public-preview")
     })
@@ -60,8 +60,8 @@ describe('Sandbox Preview Operations', () => {
         }
       })
 
-      expect(preview.metadata?.name).toBe("private-preview")
-      expect(preview.spec?.url).toBeDefined()
+      expect(preview.metadata.name).toBe("private-preview")
+      expect(preview.spec.url).toBeDefined()
 
       await sandbox.previews.delete("private-preview")
     })
@@ -76,7 +76,7 @@ describe('Sandbox Preview Operations', () => {
         }
       })
 
-      expect(preview.spec?.url).toContain("my-custom-prefix")
+      expect(preview.spec.url).toContain("my-custom-prefix")
 
       await sandbox.previews.delete("prefix-preview")
     })
@@ -92,7 +92,7 @@ describe('Sandbox Preview Operations', () => {
         }
       })
 
-      expect(preview.metadata?.name).toBe("cine-preview")
+      expect(preview.metadata.name).toBe("cine-preview")
 
       await sandbox.previews.delete("cine-preview")
     })
@@ -110,7 +110,7 @@ describe('Sandbox Preview Operations', () => {
         spec: { port: 3000, public: true }
       })
 
-      expect(second.metadata?.name).toBe("existing-preview")
+      expect(second.metadata.name).toBe("existing-preview")
 
       await sandbox.previews.delete("existing-preview")
     })
@@ -126,7 +126,7 @@ describe('Sandbox Preview Operations', () => {
       const preview = await sandbox.previews.get("get-preview")
 
       expect(preview.name).toBe("get-preview")
-      expect(preview.spec?.url).toBeDefined()
+      expect(preview.spec.url).toBeDefined()
 
       await sandbox.previews.delete("get-preview")
     })
@@ -180,7 +180,7 @@ describe('Sandbox Preview Operations', () => {
         }
       })
 
-      const response = await fetch(`${preview.spec?.url}`)
+      const response = await fetch(`${preview.spec.url}`)
       expect(response.status).toBe(200)
 
       await sandbox.previews.delete("access-public")
@@ -197,7 +197,7 @@ describe('Sandbox Preview Operations', () => {
         }
       })
 
-      const response = await fetch(preview.spec?.url!)
+      const response = await fetch(preview.spec.url ?? '')
       expect(response.status).toBe(401)
 
       await sandbox.previews.delete("token-required")
@@ -220,7 +220,7 @@ describe('Sandbox Preview Operations', () => {
 
       // Access with token
       const response = await fetch(
-        `${preview.spec?.url}?bl_preview_token=${token.value}`
+        `${preview.spec.url}?bl_preview_token=${token.value}`
       )
       expect(response.status).toBe(200)
 
@@ -277,7 +277,7 @@ describe('Sandbox Preview Operations', () => {
         }
       })
 
-      const response = await fetch(preview.spec?.url!, {
+      const response = await fetch(preview.spec.url ?? '', {
         method: "OPTIONS",
         headers: {
           "Origin": "https://example.com",

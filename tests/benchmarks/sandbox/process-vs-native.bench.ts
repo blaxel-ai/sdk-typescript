@@ -1,6 +1,6 @@
 import { SandboxInstance } from "@blaxel/core"
 import { bench, describe } from "vitest"
-import { defaultImage, defaultLabels, uniqueName } from "./helpers"
+import { defaultImage, defaultLabels, uniqueName } from "./helpers.js"
 
 // ============ CONFIGURATION ============
 const REPO_URL = "https://github.com/relace-ai/vite-template.git"
@@ -21,7 +21,7 @@ async function ensureSetup() {
     labels: defaultLabels,
     memory: 4096,
   })
-  console.log(`✓ Connected to sandbox: ${sandbox.metadata?.name || "unknown"}`)
+  console.log(`✓ Connected to sandbox: ${sandbox.metadata.name || "unknown"}`)
 
   // Setup test environment
   console.log("📦 Setting up test environment...")

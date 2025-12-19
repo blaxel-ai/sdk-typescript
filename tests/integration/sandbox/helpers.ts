@@ -39,7 +39,7 @@ export async function waitForSandboxDeletion(sandboxName: string, maxAttempts: n
       // If we get here, sandbox still exists, wait and try again
       await sleep(1000)
       attempts++
-    } catch (error) {
+    } catch {
       // If getSandbox throws an error, the sandbox no longer exists
       return true
     }
@@ -64,7 +64,7 @@ export async function waitForVolumeDeletion(volumeName: string, maxAttempts: num
       // If we get here, volume still exists, wait and try again
       await sleep(1000)
       attempts++
-    } catch (error) {
+    } catch {
       // If getVolume throws an error, the volume no longer exists
       return true
     }

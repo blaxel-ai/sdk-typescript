@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { SandboxInstance } from "@blaxel/core"
-import { uniqueName, defaultImage, defaultLabels, sleep } from './helpers'
+import { uniqueName, defaultImage, defaultLabels, sleep } from './helpers.js'
 
 describe('Sandbox Session Operations', () => {
   let sandbox: SandboxInstance
@@ -141,7 +141,7 @@ describe('Sandbox Session Operations', () => {
       const sandboxFromSession = await SandboxInstance.fromSession(session)
 
       let changeDetected = false
-      const handle = sandboxFromSession.fs.watch("/", (event) => {
+      const handle = sandboxFromSession.fs.watch("/", () => {
         changeDetected = true
       })
       await sleep(100)

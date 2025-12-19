@@ -6,7 +6,8 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "lint": "pnpm -r lint",
+    "lint": "pnpm -r lint && pnpm lint:tests",
+    "lint:tests": "tsc -p tests/tsconfig.json && eslint tests/",
     "build": "pnpm -r build",
     "set-version": "pnpm -r exec -- pnpm version",
     "publish-dev": "pnpm build && pnpm -r publish --tag dev --access public --no-git-checks",
@@ -55,6 +56,8 @@
     "fastify": "^5.3.2",
     "langchain": "^1.0.6",
     "llamaindex": "^0.12.0",
+    "@eslint/js": "^9.26.0",
+    "typescript-eslint": "^8.31.1",
     "turbo": "^2.5.3",
     "uuid": "^11.1.0",
     "vitest": "^2.1.0",

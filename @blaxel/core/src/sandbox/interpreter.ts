@@ -57,7 +57,7 @@ export class CodeInterpreter extends SandboxInstance {
         if (sandboxObj.metadata.labels) {
           payload["labels"] = sandboxObj.metadata.labels;
         }
-        if (sandboxObj.spec?.runtime) {
+        if (sandboxObj.spec.runtime) {
           if (sandboxObj.spec.runtime.envs) {
             payload["envs"] = sandboxObj.spec.runtime.envs;
           }
@@ -65,7 +65,7 @@ export class CodeInterpreter extends SandboxInstance {
             payload["memory"] = sandboxObj.spec.runtime.memory;
           }
         }
-        if (sandboxObj.spec?.region) {
+        if (sandboxObj.spec.region) {
           payload["region"] = sandboxObj.spec.region;
         }
       } else if ("name" in sandbox || "image" in sandbox || "memory" in sandbox) {

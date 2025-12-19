@@ -60,7 +60,7 @@ describe('MCP Tools Integration', () => {
       expect(tools.web_search_exa).toBeDefined()
 
       // @ts-expect-error - tool execute typing
-      const result = await tools.web_search_exa.execute({
+      const result: unknown = await tools.web_search_exa.execute({
         query: "What is the capital of France?",
       })
 
@@ -82,7 +82,7 @@ describe('MCP Tools Integration', () => {
       expect(tools.web_search_exa).toBeDefined()
 
       // @ts-expect-error - tool execute typing
-      const result = await tools.web_search_exa.execute({
+      const result: unknown = await tools.web_search_exa.execute({
         query: "What is the capital of France?",
       })
 
@@ -121,14 +121,10 @@ describe('MCP Tools Integration', () => {
       try {
         const tools = await langgraphTools(["trello-mk2", "blaxel-search", "sandboxes/base"])
 
-        let hasTrello = false
         let hasWebSearch = false
-        let hasSandbox = false
 
         for (const tool of tools) {
-          if (tool.name === "get_cards_by_list_id") hasTrello = true
           if (tool.name === "web_search_exa") hasWebSearch = true
-          if (tool.name === "fsGetWorkingDirectory") hasSandbox = true
         }
 
         // At least web search should be available

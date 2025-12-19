@@ -7,8 +7,8 @@ export default async function globalTeardown() {
     const sandboxes = await SandboxInstance.list()
     const benchSandboxes = sandboxes.filter(
       (s) =>
-        s.metadata?.labels?.env === "benchmark" &&
-        s.metadata?.labels?.language === "typescript"
+        s.metadata.labels?.env === "benchmark" &&
+        s.metadata.labels?.language === "typescript"
     )
 
     if (benchSandboxes.length === 0) {
@@ -19,7 +19,7 @@ export default async function globalTeardown() {
     console.log(`   Found ${benchSandboxes.length} benchmark sandbox(es) to clean up`)
 
     const deletePromises = benchSandboxes.map(async (s) => {
-      const name = s.metadata?.name
+      const name = s.metadata.name
       if (name) {
         try {
           await SandboxInstance.delete(name)

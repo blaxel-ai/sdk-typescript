@@ -1,6 +1,6 @@
 import { SandboxInstance } from "@blaxel/core"
 import { bench, describe } from "vitest"
-import { defaultImage, defaultLabels, uniqueName } from "./helpers"
+import { defaultImage, defaultLabels, uniqueName } from "./helpers.js"
 
 describe("sandbox creation benchmark", () => {
   bench(

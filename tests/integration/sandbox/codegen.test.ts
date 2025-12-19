@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { SandboxInstance } from "@blaxel/core"
-import { uniqueName, defaultImage, defaultLabels } from './helpers'
+import { uniqueName, defaultImage, defaultLabels } from './helpers.js'
 
 describe('Sandbox Codegen Operations', () => {
   // These tests require RELACE_API_KEY or MORPH_API_KEY environment variables

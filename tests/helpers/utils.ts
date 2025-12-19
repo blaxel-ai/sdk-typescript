@@ -4,18 +4,18 @@ import * as fs from "fs";
 import path from "path";
 import { v4 as uuidv4 } from 'uuid';
 
-const env = process.env.BL_ENV || "prod"
 
 export const sep = '--------------------------------'
 
 export const info = (msg: string) => console.log(`[INFO] ${msg}`)
 
-export async function localSandbox(sandboxName: string) {
+export function localSandbox(sandboxName: string) {
   info(`Using local sandbox ${sandboxName}`)
   const sandbox = new SandboxInstance({
     metadata: {
       name: sandboxName
     },
+    spec: {},
     forceUrl: "http://localhost:8080"
   })
   return sandbox
@@ -27,8 +27,8 @@ export async function createOrGetSandbox(config: SandboxCreateConfiguration = {}
   const region = config.region || process.env.BL_ENV === "dev" ? "eu-dub-1" : "us-pdx-1"
   const image = config.image || "blaxel/nextjs:latest"
   const memory = config.memory || 4096
-  const envs = config.envs || []
-  const ports = config.ports || []
+  const envs = config.envs ?? []
+  const ports = config.ports ?? []
   if (ports.length === 0) {
     ports.push({
       name: "expo-web",
@@ -42,19 +42,13 @@ export async function createOrGetSandbox(config: SandboxCreateConfiguration = {}
     })
   }
   const sandboxModel = {
-    metadata: {
-      name: sandboxName,
-      labels: config.labels
-    },
-    spec: {
-      region,
-      runtime: {
-        image,
-        memory,
-        ports,
-        envs
-      }
-    }
+    name: sandboxName,
+    image,
+    memory,
+    ports,
+    envs,
+    labels: config.labels,
+    region,
   }
   const sandbox = await SandboxInstance.createIfNotExists(sandboxModel)
   return sandbox
@@ -68,7 +62,7 @@ export async function runCommand(sandbox: SandboxInstance, {name = undefined, co
     waitForCompletion,
     workingDir,
   })
-  const processName = name || process.name!
+  const processName = name || process.name
   if (!waitForCompletion) {
     const stream = sandbox.process.streamLogs(processName, {
       onLog(log) {
@@ -160,8 +154,8 @@ export async function checkUsage(sandbox: SandboxInstance) {
     command: 'free -m',
     workingDir: '/home/user'
   })
-  const memoryLogs = await sandbox.process.logs(memory.pid!, 'all')
-  const diskSpaceLogs = await sandbox.process.logs(diskSpace.pid!, 'all')
+  const memoryLogs = await sandbox.process.logs(memory.pid, 'all')
+  const diskSpaceLogs = await sandbox.process.logs(diskSpace.pid, 'all')
   console.log(`🧠 Memory:\n${memoryLogs}`)
   console.log(`💾 Disk Space:\n${diskSpaceLogs}`)
 }

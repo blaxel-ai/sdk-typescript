@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { SandboxInstance } from "@blaxel/core"
-import { uniqueName, defaultImage, defaultLabels, sleep } from './helpers'
+import { uniqueName, defaultImage, defaultLabels, sleep } from './helpers.js'
 
 describe('Sandbox Process Operations', () => {
   let sandbox: SandboxInstance
@@ -103,7 +103,7 @@ describe('Sandbox Process Operations', () => {
     it('receives logs via callback', async () => {
       const logs: string[] = []
 
-      const result = await sandbox.process.exec({
+      await sandbox.process.exec({
         command: "echo 'line1' && echo 'line2' && echo 'line3'",
         waitForCompletion: true,
         onLog: (log) => {
@@ -401,7 +401,7 @@ describe('Sandbox Process waitForPorts', () => {
       }
     })
 
-    const previewUrl = preview.spec?.url
+    const previewUrl = preview.spec.url
     expect(previewUrl).toBeDefined()
 
     const nodeServerCommand = `sleep 2 && node -e "

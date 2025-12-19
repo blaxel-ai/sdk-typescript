@@ -33,7 +33,7 @@ describe('Fastify + LlamaIndex E2E', () => {
               parameters: z.object({
                 city: z.string(),
               }),
-              execute: async (input) => {
+              execute: (input) => {
                 logger.debug("TOOLCALLING: local weather", input)
                 return `The weather in ${input.city} is sunny`
               },
@@ -46,7 +46,9 @@ describe('Fastify + LlamaIndex E2E', () => {
           message: request.body.inputs,
         })
 
-        return reply.status(200).send(response.message.content.toString())
+        const content = response.message.content
+        const contentStr = typeof content === 'string' ? content : JSON.stringify(content)
+        return reply.status(200).send(contentStr)
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error)
         console.error('LlamaIndex E2E error:', errorMessage)

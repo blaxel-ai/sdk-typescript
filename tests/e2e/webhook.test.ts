@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { verifyWebhookFromRequest } from '@blaxel/core'
-import express, { Request, Response } from 'express'
-import { createServer, Server } from 'http'
+import { createServer, IncomingMessage, ServerResponse, Server } from 'http'
 
 /**
  * Webhook Verification Tests
@@ -15,17 +14,29 @@ describe('Webhook Verification', () => {
   let baseUrl: string
 
   it('verifyWebhookFromRequest rejects invalid signatures', async () => {
-    const app = express()
-    app.use(express.text({ type: 'application/json' }))
-
     let verificationResult: boolean | null = null
 
-    app.post('/webhook', (req: Request, res: Response) => {
-      verificationResult = verifyWebhookFromRequest(req, 'test-secret')
-      res.json({ verified: verificationResult })
+    server = createServer((req: IncomingMessage, res: ServerResponse) => {
+      if (req.method === 'POST' && req.url === '/webhook') {
+        let body = ''
+        req.on('data', (chunk: Buffer) => {
+          body += chunk.toString()
+        })
+        req.on('end', () => {
+          // Create a request-like object for verification
+          const reqForVerification = {
+            body,
+            headers: req.headers as Record<string, string | string[] | undefined>
+          }
+          verificationResult = verifyWebhookFromRequest(reqForVerification, 'test-secret')
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ verified: verificationResult }))
+        })
+      } else {
+        res.writeHead(404)
+        res.end()
+      }
     })
-
-    server = createServer(app)
 
     await new Promise<void>((resolve) => {
       server.listen(0, '127.0.0.1', () => {
@@ -45,8 +56,7 @@ describe('Webhook Verification', () => {
     })
 
     expect(response.status).toBe(200)
-    const result = await response.json()
-
+    const result = await response.json() as { verified: boolean }
     // Without signature headers, verification should fail
     expect(result.verified).toBe(false)
 
@@ -55,4 +65,3 @@ describe('Webhook Verification', () => {
     })
   })
 })
-

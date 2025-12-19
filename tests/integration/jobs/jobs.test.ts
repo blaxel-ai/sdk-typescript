@@ -16,9 +16,9 @@ describe('Jobs API Integration', () => {
       const job = blJob(TEST_JOB_NAME)
 
       expect(job).toBeDefined()
-      expect(job.createExecution).toBeDefined()
-      expect(job.getExecution).toBeDefined()
-      expect(job.listExecutions).toBeDefined()
+      expect(typeof job.createExecution).toBe('function')
+      expect(typeof job.getExecution).toBe('function')
+      expect(typeof job.listExecutions).toBe('function')
     })
   })
 

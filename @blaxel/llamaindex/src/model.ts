@@ -27,7 +27,7 @@ class BlaxelLLM implements ToolCallLLM<object, ToolCallLLMMessageOptions> {
     this.model = model;
     this.modelData = modelData;
     this.options = options;
-    this.type = modelData?.spec?.runtime?.type || "openai";
+    this.type = modelData?.spec.runtime?.type || "openai";
   }
 
   get supportToolCall(): boolean {
@@ -60,7 +60,7 @@ class BlaxelLLM implements ToolCallLLM<object, ToolCallLLMMessageOptions> {
       } catch {
         // If metadata access fails (e.g., Gemini), use default metadata
         this._metadata = {
-          model: this.modelData?.spec?.runtime?.model || this.model,
+          model: this.modelData?.spec.runtime?.model || this.model,
           temperature: this.options?.temperature as number | undefined ?? 0,
           topP: this.options?.topP as number | undefined ?? 1,
           maxTokens: this.options?.maxTokens as number | undefined ?? undefined,
@@ -114,7 +114,7 @@ class BlaxelLLM implements ToolCallLLM<object, ToolCallLLMMessageOptions> {
 
     if (this.type === "mistral") {
       return openai({
-        model: this.modelData?.spec?.runtime?.model,
+        model: this.modelData?.spec.runtime?.model,
         apiKey: currentToken,
         baseURL: `${url}/v1`,
         additionalSessionOptions: {
@@ -131,7 +131,7 @@ class BlaxelLLM implements ToolCallLLM<object, ToolCallLLMMessageOptions> {
       // Get fresh headers right before creating the session
       const anthropicHeaders = { ...settings.headers };
       const llm = anthropic({
-        model: this.modelData?.spec?.runtime?.model,
+        model: this.modelData?.spec.runtime?.model,
         session: new AnthropicSession({
           baseURL: url,
           defaultHeaders: anthropicHeaders,
@@ -205,7 +205,7 @@ class BlaxelLLM implements ToolCallLLM<object, ToolCallLLMMessageOptions> {
 
     if (this.type === "cohere") {
       const llm = openai({
-        model: this.modelData?.spec?.runtime?.model,
+        model: this.modelData?.spec.runtime?.model,
         apiKey: currentToken,
         baseURL: `${url}/compatibility/v1`, // OpenAI compatibility endpoint
         additionalSessionOptions: {
@@ -223,7 +223,7 @@ class BlaxelLLM implements ToolCallLLM<object, ToolCallLLMMessageOptions> {
       process.env.GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || "THIS_IS_A_DUMMY_KEY_FOR_LLAMAINDEX";
       const llm = new Gemini({
         apiKey: settings.token,
-        model: this.modelData?.spec?.runtime?.model as GEMINI_MODEL,
+        model: this.modelData?.spec.runtime?.model as GEMINI_MODEL,
         httpOptions: {
           baseUrl: url,
           headers: settings.headers,
@@ -234,7 +234,7 @@ class BlaxelLLM implements ToolCallLLM<object, ToolCallLLMMessageOptions> {
     }
 
     return openai({
-      model: this.modelData?.spec?.runtime?.model,
+      model: this.modelData?.spec.runtime?.model,
       apiKey: currentToken,
       baseURL: `${url}/v1`,
       additionalSessionOptions: {

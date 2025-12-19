@@ -35,7 +35,7 @@ describe('Mastra Integration', () => {
       expect(tools.web_search_exa).toBeDefined()
 
       // @ts-expect-error - tool execute typing
-      const result = await tools.web_search_exa.execute({
+      const result: unknown = await tools.web_search_exa.execute({
         query: "What is the capital of France?",
       })
 

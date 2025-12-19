@@ -4,9 +4,9 @@ import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  // 1. Global ignores
+  // 1. Global ignores - only lint tests folder
   {
-    ignores: ["dist", "tmp", "eslint.config.mjs"],
+    ignores: ["**/*", "!tests/**", "tests/runtime/**", "tests/runtime-environments/**", "**/node_modules/**"],
   },
 
   // 2. Basic ESLint recommendations
@@ -36,7 +36,7 @@ export default tseslint.config(
     // If necessary, specify files: ["**/*.{js,mjs,cjs,ts,tsx}"]
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
-      "no-console": ["warn", { allow: ["warn", "error"] }],
+      "no-console": "off",
       "@typescript-eslint/ban-ts-comment": [
         "error",
         {

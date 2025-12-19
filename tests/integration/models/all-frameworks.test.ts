@@ -20,7 +20,7 @@ describe('All Frameworks - Model Compatibility', () => {
   describe.each(models)('Model: %s', (modelName) => {
     it('works with LangGraph', async () => {
       const model = await blModelLangGraph(modelName)
-      const result = await model.invoke("Hello, world!")
+      const result = await model.invoke("Hello, world!") as { content: string }
 
       expect(result).toBeDefined()
       expect(result.content).toBeDefined()

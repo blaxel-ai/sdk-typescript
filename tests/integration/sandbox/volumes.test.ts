@@ -1,6 +1,6 @@
-import { describe, it, expect, afterAll, beforeAll } from 'vitest'
+import { describe, it, expect, afterAll } from 'vitest'
 import { SandboxInstance, VolumeInstance } from "@blaxel/core"
-import { uniqueName, defaultImage, defaultLabels, defaultRegion, waitForSandboxDeletion, sleep, waitForVolumeDeletion } from './helpers'
+import { uniqueName, defaultImage, defaultLabels, defaultRegion, waitForSandboxDeletion, waitForVolumeDeletion } from './helpers.js'
 
 describe('Sandbox Volume Operations', () => {
   const createdSandboxes: string[] = []
@@ -168,7 +168,7 @@ describe('Sandbox Volume Operations', () => {
     //     region: defaultRegion,
     //     volumes: [{ name: volumeName, mountPath: "/data", readOnly: false }]
     //   })
-    //   createdSandboxes.push(writeSandbox.metadata?.name!)
+    //   createdSandboxes.push(writeSandbox.metadata.name!)
     //   await writeSandbox.wait()
 
     //   await writeSandbox.process.exec({
@@ -176,8 +176,8 @@ describe('Sandbox Volume Operations', () => {
     //     waitForCompletion: true
     //   })
 
-    //   await SandboxInstance.delete(writeSandbox.metadata?.name!)
-    //   await waitForSandboxDeletion(writeSandbox.metadata?.name!)
+    //   await SandboxInstance.delete(writeSandbox.metadata.name!)
+    //   await waitForSandboxDeletion(writeSandbox.metadata.name!)
 
     //   // Now create read-only sandbox
     //   const sandbox = await SandboxInstance.create({

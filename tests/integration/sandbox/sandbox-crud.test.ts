@@ -1,6 +1,6 @@
-import { describe, it, expect, afterAll, beforeAll } from 'vitest'
+import { describe, it, expect, afterAll } from 'vitest'
 import { SandboxInstance, SandboxCreateConfiguration } from "@blaxel/core"
-import { uniqueName, defaultImage, defaultLabels, defaultRegion, waitForSandboxDeletion } from './helpers'
+import { uniqueName, defaultImage, defaultLabels, defaultRegion, waitForSandboxDeletion } from './helpers.js'
 
 describe('Sandbox CRUD Operations', () => {
   const createdSandboxes: string[] = []
@@ -21,10 +21,10 @@ describe('Sandbox CRUD Operations', () => {
   describe('create', () => {
     it('creates a sandbox with default settings', async () => {
       const sandbox = await SandboxInstance.create({ labels: defaultLabels })
-      createdSandboxes.push(sandbox.metadata?.name!)
+      if (sandbox.metadata.name) createdSandboxes.push(sandbox.metadata.name)
 
-      expect(sandbox.metadata?.name).toBeDefined()
-      expect(sandbox.metadata?.name).toMatch(/^sandbox-/)
+      expect(sandbox.metadata.name).toBeDefined()
+      expect(sandbox.metadata.name).toMatch(/^sandbox-/)
     })
 
     it('creates a sandbox with custom name', async () => {
@@ -32,7 +32,7 @@ describe('Sandbox CRUD Operations', () => {
       const sandbox = await SandboxInstance.create({ name, labels: defaultLabels })
       createdSandboxes.push(name)
 
-      expect(sandbox.metadata?.name).toBe(name)
+      expect(sandbox.metadata.name).toBe(name)
     })
 
     it('creates a sandbox with specific image', async () => {
@@ -44,12 +44,12 @@ describe('Sandbox CRUD Operations', () => {
       })
       createdSandboxes.push(name)
 
-      expect(sandbox.metadata?.name).toBe(name)
+      expect(sandbox.metadata.name).toBe(name)
     })
 
     it('creates a sandbox with memory configuration', async () => {
       const name = uniqueName("memory-test")
-      const sandbox = await SandboxInstance.create({
+      await SandboxInstance.create({
         name,
         image: defaultImage,
         memory: 2048,
@@ -58,19 +58,19 @@ describe('Sandbox CRUD Operations', () => {
       createdSandboxes.push(name)
 
       const retrieved = await SandboxInstance.get(name)
-      expect(retrieved.spec?.runtime?.memory).toBe(2048)
+      expect(retrieved.spec.runtime?.memory).toBe(2048)
     })
 
     it('creates a sandbox with labels', async () => {
       const name = uniqueName("labels-test")
-      const sandbox = await SandboxInstance.create({
+      const labelsSandbox = await SandboxInstance.create({
         name,
         labels: { ...defaultLabels, "env": "test", "purpose": "integration" }
       })
       createdSandboxes.push(name)
 
-      expect(sandbox.metadata?.labels?.["env"]).toBe("test")
-      expect(sandbox.metadata?.labels?.["purpose"]).toBe("integration")
+      expect(labelsSandbox.metadata.labels?.["env"]).toBe("test")
+      expect(labelsSandbox.metadata.labels?.["purpose"]).toBe("integration")
     })
 
     it('creates a sandbox with ports', async () => {
@@ -86,16 +86,16 @@ describe('Sandbox CRUD Operations', () => {
         labels: defaultLabels,
       }
 
-      const sandbox = await SandboxInstance.create(config)
+      await SandboxInstance.create(config)
       createdSandboxes.push(name)
 
       const retrieved = await SandboxInstance.get(name)
-      expect(retrieved.spec?.runtime?.ports?.length).toBe(2)
+      expect(retrieved.spec.runtime?.ports?.length).toBe(2)
     })
 
     it('creates a sandbox with environment variables', async () => {
       const name = uniqueName("envs-test")
-      const sandbox = await SandboxInstance.create({
+      await SandboxInstance.create({
         name,
         image: defaultImage,
         envs: [
@@ -107,12 +107,12 @@ describe('Sandbox CRUD Operations', () => {
       createdSandboxes.push(name)
 
       const retrieved = await SandboxInstance.get(name)
-      expect(retrieved.spec?.runtime?.envs?.length).toBe(2)
+      expect(retrieved.spec.runtime?.envs?.length).toBe(2)
     })
 
     it('creates a sandbox with region', async () => {
       const name = uniqueName("region-test")
-      const sandbox = await SandboxInstance.create({
+      await SandboxInstance.create({
         name,
         image: defaultImage,
         region: defaultRegion,
@@ -121,7 +121,7 @@ describe('Sandbox CRUD Operations', () => {
       createdSandboxes.push(name)
 
       const retrieved = await SandboxInstance.get(name)
-      expect(retrieved.spec?.region).toBe(defaultRegion)
+      expect(retrieved.spec.region).toBe(defaultRegion)
     })
   })
 
@@ -131,7 +131,7 @@ describe('Sandbox CRUD Operations', () => {
       const sandbox = await SandboxInstance.createIfNotExists({ name, labels: defaultLabels })
       createdSandboxes.push(name)
 
-      expect(sandbox.metadata?.name).toBe(name)
+      expect(sandbox.metadata.name).toBe(name)
     })
 
     it('returns existing sandbox if it already exists', async () => {
@@ -144,7 +144,7 @@ describe('Sandbox CRUD Operations', () => {
       // createIfNotExists should return the same sandbox
       const second = await SandboxInstance.createIfNotExists({ name, labels: defaultLabels })
 
-      expect(second.metadata?.name).toBe(first.metadata?.name)
+      expect(second.metadata.name).toBe(first.metadata.name)
     })
 
     it('handles concurrent createIfNotExists calls', async () => {
@@ -154,14 +154,14 @@ describe('Sandbox CRUD Operations', () => {
       const promises = Array.from({ length: concurrentCalls }, () =>
         SandboxInstance.createIfNotExists({ name, labels: defaultLabels })
           .then(sb => ({ sandbox: sb, error: null }))
-          .catch(err => ({ sandbox: null, error: err }))
+          .catch((err: Error) => ({ sandbox: null, error: err }))
       )
 
       const results = await Promise.all(promises)
       createdSandboxes.push(name)
 
       const successes = results.filter(r => r.sandbox !== null)
-      const uniqueNames = new Set(successes.map(r => r.sandbox?.metadata?.name))
+      const uniqueNames = new Set(successes.map(r => r.sandbox?.metadata.name))
 
       expect(uniqueNames.size).toBe(1)
       expect(successes.length).toBeGreaterThan(2)
@@ -179,7 +179,7 @@ describe('Sandbox CRUD Operations', () => {
       createdSandboxes.push(name)
 
       const retrieved = await SandboxInstance.get(name)
-      expect(retrieved.metadata?.name).toBe(name)
+      expect(retrieved.metadata.name).toBe(name)
     })
 
     it('throws error for non-existent sandbox', async () => {
@@ -198,7 +198,7 @@ describe('Sandbox CRUD Operations', () => {
       const sandboxes = await SandboxInstance.list()
       expect(Array.isArray(sandboxes)).toBe(true)
 
-      const found = sandboxes.find(s => s.metadata?.name === name)
+      const found = sandboxes.find(s => s.metadata.name === name)
       expect(found).toBeDefined()
     })
   })
@@ -237,7 +237,7 @@ describe('Sandbox CRUD Operations', () => {
         labels: { ...defaultLabels, updated: "true" }
       })
 
-      expect(updated.metadata?.labels?.["updated"]).toBe("true")
+      expect(updated.metadata.labels?.["updated"]).toBe("true")
     })
 
     it('updates sandbox displayName', async () => {
@@ -249,7 +249,7 @@ describe('Sandbox CRUD Operations', () => {
         displayName: "My Test Sandbox"
       })
 
-      expect(updated.metadata?.displayName).toBe("My Test Sandbox")
+      expect(updated.metadata.displayName).toBe("My Test Sandbox")
     })
   })
 

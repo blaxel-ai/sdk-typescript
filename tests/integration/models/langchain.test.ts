@@ -15,7 +15,7 @@ describe('LangGraph Integration', () => {
   describe('blModel', () => {
     it.each(testModels)('can invoke model %s', async (modelName) => {
       const model = await blModel(modelName)
-      const result = await model.invoke("Say hello in one word")
+      const result = await model.invoke("Say hello in one word") as { content: string }
 
       expect(result).toBeDefined()
       expect(result.content).toBeDefined()
@@ -44,8 +44,10 @@ describe('LangGraph Integration', () => {
       expect(remoteTools.length).toBeGreaterThan(0)
 
       const agent = createReactAgent({
-        llm: model,
-        tools: [...remoteTools, weatherTool],
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        llm: model as any,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        tools: [...remoteTools, weatherTool] as any,
         prompt: prompt,
       })
 

@@ -4,15 +4,15 @@ export class SandboxPreviewToken {
   constructor(private previewToken: PreviewToken) {}
 
   get value() {
-    return this.previewToken.spec?.token ?? "";
+    return this.previewToken.spec.token ?? "";
   }
 
   get expiresAt() {
-    return this.previewToken.spec?.expiresAt ?? new Date();
+    return this.previewToken.spec.expiresAt ?? new Date();
   }
 
   get expired() {
-    return this.previewToken.spec?.expired ?? false;
+    return this.previewToken.spec.expired ?? false;
   }
 }
 

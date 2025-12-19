@@ -1,6 +1,6 @@
 import { SandboxInstance, VolumeInstance } from "@blaxel/core"
 import { bench, describe } from "vitest"
-import { defaultLabels, uniqueName } from "./helpers"
+import { defaultLabels, uniqueName } from "./helpers.js"
 
 // ============ CONFIGURATION ============
 const MEMORY = 8192
@@ -166,7 +166,7 @@ const sandboxConfigs: Record<string, SandboxConfig> = {}
 
 describe("package manager install benchmarks", () => {
   for (const pm of packageManagers) {
-    const volumeKey = getSandboxKey(pm, true)
+    getSandboxKey(pm, true)
     const noVolumeKey = getSandboxKey(pm, false)
 
     // Volume does not work great currently testing all of those
@@ -218,8 +218,7 @@ describe("package manager install benchmarks", () => {
           name: `${pm}-install-bench-${Date.now()}`,
           command: `cd ${workingDir} && ${getInstallCommand(pm)}`,
           waitForCompletion: true,
-          onLog: (log) => {
-          },
+          onLog: () => {},
         })
 
         if (installProcess.exitCode !== 0) {

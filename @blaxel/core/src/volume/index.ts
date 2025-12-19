@@ -34,11 +34,11 @@ export class VolumeInstance {
   }
 
   get size() {
-    return this.volume.spec?.size;
+    return this.volume.spec.size;
   }
 
   get region() {
-    return this.volume.spec?.region;
+    return this.volume.spec.region;
   }
 
   static async create(config: VolumeCreateConfiguration | Volume) {

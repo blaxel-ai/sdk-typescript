@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll } from 'vitest'
 import { SandboxInstance } from "@blaxel/core"
-import { uniqueName, defaultImage, defaultLabels, sleep } from './helpers'
+import { uniqueName, defaultImage, defaultLabels, sleep } from './helpers.js'
 
 describe('Sandbox Lifecycle and Expiration', () => {
   const createdSandboxes: string[] = []
@@ -29,7 +29,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       })
       createdSandboxes.push(name)
 
-      expect(sandbox.metadata?.name).toBe(name)
+      expect(sandbox.metadata.name).toBe(name)
 
       await sleep(100)
 
@@ -50,7 +50,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       })
       createdSandboxes.push(name)
 
-      expect(sandbox.metadata?.name).toBe(name)
+      expect(sandbox.metadata.name).toBe(name)
     })
   })
 
@@ -69,7 +69,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       })
       createdSandboxes.push(name)
 
-      expect(sandbox.metadata?.name).toBe(name)
+      expect(sandbox.metadata.name).toBe(name)
     })
 
     it('creates sandbox with date expiration policy', async () => {
@@ -88,7 +88,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       })
       createdSandboxes.push(name)
 
-      expect(sandbox.metadata?.name).toBe(name)
+      expect(sandbox.metadata.name).toBe(name)
     })
 
     it('creates sandbox with ttl-idle policy', async () => {
@@ -105,7 +105,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       })
       createdSandboxes.push(name)
 
-      expect(sandbox.metadata?.name).toBe(name)
+      expect(sandbox.metadata.name).toBe(name)
     })
 
     it('creates sandbox with multiple policies', async () => {
@@ -123,7 +123,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       })
       createdSandboxes.push(name)
 
-      expect(sandbox.metadata?.name).toBe(name)
+      expect(sandbox.metadata.name).toBe(name)
     })
 
     it('supports various duration formats', async () => {
@@ -143,7 +143,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
         })
         createdSandboxes.push(name)
 
-        expect(sandbox.metadata?.name).toBe(name)
+        expect(sandbox.metadata.name).toBe(name)
       }
     })
   })
@@ -164,7 +164,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
 
       // This should not fail
       const sbx = await SandboxInstance.create({name, labels: defaultLabels})
-      expect(sbx.metadata?.name).toBe(name)
+      expect(sbx.metadata.name).toBe(name)
       createdSandboxes.push(name)
     })
   })
@@ -180,7 +180,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       })
       createdSandboxes.push(name)
 
-      expect(sandbox.metadata?.name).toBe(name)
+      expect(sandbox.metadata.name).toBe(name)
     })
 
     it('creates sandbox with snapshots disabled', async () => {
@@ -193,7 +193,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       })
       createdSandboxes.push(name)
 
-      expect(sandbox.metadata?.name).toBe(name)
+      expect(sandbox.metadata.name).toBe(name)
     })
   })
 })

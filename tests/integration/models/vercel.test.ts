@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { blModel, blTools } from "@blaxel/vercel"
-import { generateText, streamText, tool } from "ai"
-import { z } from "zod"
+import { generateText, streamText } from "ai"
 
 const prompt = `You are a helpful assistant that can answer questions and help with tasks.`
 
@@ -52,8 +51,8 @@ describe('Vercel AI Integration', () => {
         model,
         prompt: "Search for information about Paris",
         system: prompt,
-        tools,
-        maxSteps: 3,
+        tools: tools as any,
+        maxRetries: 3,
       })
 
       expect(result).toBeDefined()
@@ -74,7 +73,7 @@ describe('Vercel AI Integration', () => {
       expect(tools.web_search_exa).toBeDefined()
 
       // @ts-expect-error - tool execute typing
-      const result = await tools.web_search_exa.execute({
+      const result: unknown = await tools.web_search_exa.execute({
         query: "What is the capital of France?",
       })
 

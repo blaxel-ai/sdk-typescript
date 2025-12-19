@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { CodeInterpreter } from "@blaxel/core"
-import { uniqueName, defaultLabels } from './helpers'
+import { uniqueName, defaultLabels } from './helpers.js'
 
 describe('CodeInterpreter Operations', () => {
   let interpreter: CodeInterpreter
@@ -14,7 +14,7 @@ describe('CodeInterpreter Operations', () => {
   }, 180000) // 3 minute timeout for interpreter creation
 
   afterAll(async () => {
-    if (interpreter?.metadata?.name) {
+    if (interpreter?.metadata.name) {
       try {
         await CodeInterpreter.delete(interpreter.metadata.name)
       } catch {
@@ -25,7 +25,7 @@ describe('CodeInterpreter Operations', () => {
 
   describe('create', () => {
     it('creates a code interpreter', () => {
-      expect(interpreter.metadata?.name).toBeDefined()
+      expect(interpreter.metadata.name).toBeDefined()
     })
   })
 
@@ -139,9 +139,9 @@ describe('CodeInterpreter Operations', () => {
 
   describe('static methods', () => {
     it('gets an existing interpreter', async () => {
-      const retrieved = await CodeInterpreter.get(interpreter.metadata!.name!)
+      const retrieved = await CodeInterpreter.get(interpreter.metadata.name ?? '')
 
-      expect(retrieved.metadata?.name).toBe(interpreter.metadata?.name)
+      expect(retrieved.metadata.name).toBe(interpreter.metadata.name)
     })
   })
 })

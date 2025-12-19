@@ -1,6 +1,6 @@
 import { SandboxInstance } from "@blaxel/core"
 import { bench, describe } from "vitest"
-import { defaultImage, defaultLabels, uniqueName } from "./helpers"
+import { defaultImage, defaultLabels, uniqueName } from "./helpers.js"
 
 // ============ CONFIGURATION ============
 const REPO_URL = "https://github.com/relace-ai/vite-template.git"

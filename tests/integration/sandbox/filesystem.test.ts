@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { SandboxInstance } from "@blaxel/core"
-import { uniqueName, defaultImage, defaultLabels, sleep } from './helpers'
+import { uniqueName, defaultImage, defaultLabels, sleep } from './helpers.js'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import { stat, readFile } from 'fs/promises'
