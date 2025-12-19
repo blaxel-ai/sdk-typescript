@@ -13,12 +13,18 @@
     "publish-preview": "pnpm build && pnpm -r publish --tag preview --access public --no-git-checks",
     "publish-prod": "pnpm build && pnpm -r publish --tag latest --access public --no-git-checks",
     "dev": "turbo dev",
-    "test": "turbo test",
-    "test:watch": "turbo test:watch",
-    "test:ui": "turbo test:ui",
+    "test": "vitest run",
+    "test:watch": "vitest --watch",
+    "test:ui": "vitest --ui",
+    "test:integration": "vitest run tests/integration",
+    "test:integration:sandbox": "vitest run tests/integration/sandbox",
+    "test:integration:models": "vitest run tests/integration/models",
+    "test:integration:tools": "vitest run tests/integration/tools",
+    "test:integration:jobs": "vitest run tests/integration/jobs",
+    "test:e2e": "vitest run tests/e2e --config vitest.e2e.config.ts",
     "test:runtime-environments": "./tests/runtime-environments/test-all.sh",
-    "integration:sandbox": "vitest run",
-    "bench:sandbox": "vitest bench --run"
+    "bench": "node --experimental-strip-types tests/benchmarks/bench-with-cleanup.ts",
+    "bench:sandbox": "node --experimental-strip-types tests/benchmarks/bench-with-cleanup.ts tests/benchmarks/sandbox"
   },
   "dependencies": {
     "@blaxel/core": "workspace:*",
