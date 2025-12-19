@@ -1,7 +1,9 @@
-import { authenticate, SandboxInstance, settings } from "@blaxel/core";
+import { authenticate, settings } from "@blaxel/core";
+import http2 from "http2";
 
 const BL_ENV = process.env.BL_ENV || "prod";
 const BL_REGION = process.env.BL_REGION || (BL_ENV === "dev" ? "eu-dub-1" : "us-pdx-1");
+const API_BASE_URL = BL_ENV === "prod" ? "https://api.blaxel.ai/v0" : "https://api.blaxel.dev/v0";
 
 interface HealthCheckResult {
   sandboxName: string;
@@ -16,33 +18,161 @@ interface HealthCheckResult {
   responseBody?: string;
 }
 
+// Create HTTP/2 session pool
+const http2Sessions = new Map<string, http2.ClientHttp2Session>();
+
+function getHttp2Session(url: string): http2.ClientHttp2Session {
+  const urlObj = new URL(url);
+  const origin = `${urlObj.protocol}//${urlObj.host}`;
+
+  let session = http2Sessions.get(origin);
+  if (!session || session.destroyed || session.closed) {
+    session = http2.connect(origin);
+    http2Sessions.set(origin, session);
+
+    session.on('error', (err) => {
+      console.error(`HTTP/2 session error for ${origin}:`, err);
+      http2Sessions.delete(origin);
+    });
+  }
+
+  return session;
+}
+
+async function http2Request(url: string, options: {
+  method: string;
+  headers: Record<string, string>;
+  body?: string;
+}): Promise<{ status: number; headers: Record<string, string>; body: string }> {
+  return new Promise((resolve, reject) => {
+    const urlObj = new URL(url);
+    const session = getHttp2Session(url);
+
+    const headers = {
+      ':method': options.method,
+      ':path': urlObj.pathname + urlObj.search,
+      ...options.headers,
+    };
+
+    const req = session.request(headers);
+
+    let responseData = '';
+    let responseHeaders: Record<string, string> = {};
+    let statusCode = 0;
+
+    req.on('response', (headers) => {
+      statusCode = Number(headers[':status']);
+      Object.entries(headers).forEach(([key, value]) => {
+        if (!key.startsWith(':')) {
+          responseHeaders[key] = String(value);
+        }
+      });
+    });
+
+    req.on('data', (chunk) => {
+      responseData += chunk.toString();
+    });
+
+    req.on('end', () => {
+      resolve({
+        status: statusCode,
+        headers: responseHeaders,
+        body: responseData,
+      });
+    });
+
+    req.on('error', (err) => {
+      reject(err);
+    });
+
+    if (options.body) {
+      req.write(options.body);
+    }
+
+    req.end();
+  });
+}
+
+async function createSandbox(sandboxName: string): Promise<{ url: string; creationTime: number }> {
+  const startTime = Date.now();
+
+  const body = JSON.stringify({
+    metadata: {
+      name: sandboxName,
+    },
+    spec: {
+      runtime: {
+        image: "blaxel/base-image:latest",
+        ports: [
+          {
+            name: "sandbox-api",
+            target: 8080,
+            protocol: "HTTP"
+          }
+        ],
+        generation: "mk3",
+        memory: 4096,
+      },
+      region: BL_REGION,
+    }
+  });
+
+  const response = await http2Request(`${API_BASE_URL}/sandboxes?workspace=${settings.workspace}`, {
+    method: 'POST',
+    headers: {
+      'accept': 'application/json',
+      'content-type': 'application/json',
+      'x-blaxel-authorization': settings.authorization,
+      'x-blaxel-workspace': settings.workspace,
+      'user-agent': settings.headers['User-Agent'],
+    },
+    body,
+  });
+
+  const creationTime = Date.now() - startTime;
+
+  if (response.status >= 400) {
+    throw new Error(`Failed to create sandbox: HTTP ${response.status} - ${response.body}`);
+  }
+
+  const data = JSON.parse(response.body);
+  const sandboxUrl = data.metadata?.url;
+
+  if (!sandboxUrl) {
+    throw new Error('No sandbox URL in response');
+  }
+
+  return { url: sandboxUrl, creationTime };
+}
+
+async function deleteSandbox(sandboxName: string): Promise<void> {
+  await http2Request(`${API_BASE_URL}/sandboxes/${sandboxName}?workspace=${settings.workspace}`, {
+    method: 'DELETE',
+    headers: {
+      'accept': 'application/json',
+      'x-blaxel-authorization': settings.authorization,
+      'x-blaxel-workspace': settings.workspace,
+      'user-agent': settings.headers['User-Agent'],
+    },
+  });
+}
+
 async function runHealthCheck(): Promise<HealthCheckResult> {
   const startTime = Date.now();
   const randomSandboxName = `sandbox-health-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
   try {
-    // Create sandbox
-    const sandboxStartTime = Date.now();
-    const sandbox = await SandboxInstance.create({
-      name: randomSandboxName,
-      image: "blaxel/base-image:latest",
-      memory: 4096,
-      region: BL_REGION,
-    });
-    const sandboxCreationTime = Date.now() - sandboxStartTime;
+    // Create sandbox using HTTP/2
+    const { url: sandboxHost, creationTime: sandboxCreationTime } = await createSandbox(randomSandboxName);
 
-    // Immediately call the health endpoint (already available in base image)
+    // Immediately call the health endpoint
     const healthCheckStartTime = Date.now();
 
-    // Get the sandbox host for direct HTTP call
-    const sandboxHost = sandbox.metadata?.url;
-
-    // Make the health check request
-    // console.log(`curl ${sandboxHost}/health -H "Authorization: ${settings.authorization}"`);
-    const healthResponse = await fetch(`${sandboxHost}/health`, {
-      method: "GET",
+    const healthResponse = await http2Request(`${sandboxHost}/health`, {
+      method: 'GET',
       headers: {
-        "Authorization": settings.authorization,
+        'authorization': settings.authorization,
+        'user-agent': settings.headers['User-Agent'],
       },
     });
 
@@ -52,24 +182,10 @@ async function runHealthCheck(): Promise<HealthCheckResult> {
 
     // Check the status code - catch all 400+ errors
     if (healthResponse.status >= 400) {
-      let errorMessage = `HTTP ${healthResponse.status} - ${healthResponse.statusText}`;
-
-      // Capture response headers
-      const responseHeaders: Record<string, string> = {};
-      healthResponse.headers.forEach((value, key) => {
-        responseHeaders[key] = value;
-      });
-
-      // Capture raw response body
-      let responseBody = '';
-      try {
-        responseBody = await healthResponse.text();
-      } catch (e) {
-        responseBody = '<failed to read response body>';
-      }
+      const errorMessage = `HTTP ${healthResponse.status}`;
 
       // Clean up before returning error
-      await SandboxInstance.delete(randomSandboxName).catch(() => {});
+      await deleteSandbox(randomSandboxName).catch(() => {});
 
       return {
         sandboxName: randomSandboxName,
@@ -80,18 +196,18 @@ async function runHealthCheck(): Promise<HealthCheckResult> {
         success: false,
         httpStatus: healthResponse.status,
         error: errorMessage,
-        responseHeaders,
-        responseBody,
+        responseHeaders: healthResponse.headers,
+        responseBody: healthResponse.body,
       };
     }
 
     // Try to parse the JSON response
     let healthData;
     try {
-      healthData = await healthResponse.json();
+      healthData = JSON.parse(healthResponse.body);
     } catch (parseError) {
       // Clean up before returning error
-      await SandboxInstance.delete(randomSandboxName).catch(() => {});
+      await deleteSandbox(randomSandboxName).catch(() => {});
 
       return {
         sandboxName: randomSandboxName,
@@ -106,7 +222,7 @@ async function runHealthCheck(): Promise<HealthCheckResult> {
     }
 
     // Clean up
-    await SandboxInstance.delete(randomSandboxName).catch(() => {
+    await deleteSandbox(randomSandboxName).catch(() => {
       // Ignore cleanup errors
     });
 
@@ -119,11 +235,31 @@ async function runHealthCheck(): Promise<HealthCheckResult> {
       success: true,
       httpStatus: healthResponse.status,
     };
-  } catch (error) {
+  } catch (error: any) {
     // Try to clean up on error
     try {
-      await SandboxInstance.delete(randomSandboxName).catch(() => {});
+      await deleteSandbox(randomSandboxName).catch(() => {});
     } catch {}
+
+    // Better error serialization
+    let errorMessage: string;
+    if (error instanceof Error) {
+      errorMessage = `${error.name}: ${error.message}`;
+    } else if (typeof error === 'object' && error !== null) {
+      const errorInfo: any = {
+        message: error.message,
+        code: error.code,
+        status: error.status,
+      };
+      Object.keys(errorInfo).forEach(key => {
+        if (errorInfo[key] === undefined || errorInfo[key] === null) {
+          delete errorInfo[key];
+        }
+      });
+      errorMessage = JSON.stringify(errorInfo, null, 2);
+    } else {
+      errorMessage = String(error);
+    }
 
     return {
       sandboxName: randomSandboxName,
@@ -132,7 +268,8 @@ async function runHealthCheck(): Promise<HealthCheckResult> {
       availabilityGap: 0,
       totalTime: Date.now() - startTime,
       success: false,
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage,
+      httpStatus: error?.status || error?.statusCode,
     };
   }
 }
@@ -146,6 +283,7 @@ async function main() {
   console.log(`Running ${numChecks} health check(s) with parallelism of ${parallelism}`);
   console.log(`Environment: ${BL_ENV}`);
   console.log(`Region: ${BL_REGION}`);
+  console.log(`Using: Native HTTP/2 (node:http2)`);
   console.log("---");
 
   const results: HealthCheckResult[] = [];
@@ -180,6 +318,11 @@ async function main() {
       }
     });
   }
+
+  // Clean up HTTP/2 sessions
+  http2Sessions.forEach((session) => {
+    session.close();
+  });
 
   // Summary statistics
   console.log("\n=== SUMMARY ===");
@@ -243,6 +386,10 @@ async function main() {
 main()
   .catch((err) => {
     console.error("Fatal error:", err);
+    // Clean up HTTP/2 sessions on error
+    http2Sessions.forEach((session) => {
+      session.close();
+    });
     process.exit(1);
   })
   .then(() => {
