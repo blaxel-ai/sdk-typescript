@@ -48,6 +48,7 @@ export type SandboxCreateConfiguration = {
   region?: string;
   lifecycle?: SandboxLifecycle;
   snapshotEnabled?: boolean;
+  labels?: Record<string, string>;
 }
 
 export function normalizePorts(ports?: (Port | Record<string, any>)[]): Port[] | undefined {
@@ -135,6 +136,8 @@ export function normalizeVolumes(volumes?: (VolumeBinding | VolumeAttachment)[])
 
 export type ProcessRequestWithLog = ProcessRequest & {
   onLog?: (log: string) => void;
+  onStdout?: (stdout: string) => void;
+  onStderr?: (stderr: string) => void;
 }
 
 export type ProcessResponseWithLog = PostProcessResponse & {

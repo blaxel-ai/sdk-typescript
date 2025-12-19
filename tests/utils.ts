@@ -1,7 +1,8 @@
-import { SandboxInstance } from "@blaxel/core";
+import { SandboxCreateConfiguration, SandboxInstance } from "@blaxel/core";
 import AdmZip from "adm-zip";
 import * as fs from "fs";
 import path from "path";
+import { v4 as uuidv4 } from 'uuid';
 
 const env = process.env.BL_ENV || "prod"
 
@@ -21,17 +22,14 @@ export async function localSandbox(sandboxName: string) {
 }
 
 
-export async function createOrGetSandbox({sandboxName, image = `blaxel/nextjs:latest`, ports = [], memory = 4096, envs = [], region}: {sandboxName: string, image?: string, ports?: { name: string, target: number, protocol: string, envs?: { name: string, value: string }[] }[], memory?: number, envs?: { name: string, value: string }[], region?: string}) {
-  if (!region) {
-    region = process.env.BL_ENV === "dev" ? "eu-dub-1" : "us-pdx-1";
-  }
-  // return localSandbox(sandboxName)
+export async function createOrGetSandbox(config: SandboxCreateConfiguration = {}) {
+  const sandboxName = config.name || `test-${uuidv4().replace(/-/g, '').substring(0, 8)}`
+  const region = config.region || process.env.BL_ENV === "dev" ? "eu-dub-1" : "us-pdx-1"
+  const image = config.image || "blaxel/nextjs:latest"
+  const memory = config.memory || 4096
+  const envs = config.envs || []
+  const ports = config.ports || []
   if (ports.length === 0) {
-    ports.push({
-      name: "sandbox-api",
-      target: 8080,
-      protocol: "HTTP",
-    })
     ports.push({
       name: "expo-web",
       target: 8081,
@@ -45,7 +43,8 @@ export async function createOrGetSandbox({sandboxName, image = `blaxel/nextjs:la
   }
   const sandboxModel = {
     metadata: {
-      name: sandboxName
+      name: sandboxName,
+      labels: config.labels
     },
     spec: {
       region,

@@ -4,6 +4,7 @@ import { createVolume, deleteVolume, getVolume, listVolumes, Volume } from "../c
 export interface VolumeCreateConfiguration {
   name?: string;
   displayName?: string;
+  labels?: Record<string, string>;
   size?: number; // Size in MB
   region?: string; // AWS region
   template?: string; // Template
@@ -57,7 +58,8 @@ export class VolumeInstance {
       volume = {
         metadata: {
           name: volumeConfig.name || defaultName,
-          displayName: volumeConfig.displayName || volumeConfig.name || defaultName
+          displayName: volumeConfig.displayName || volumeConfig.name || defaultName,
+          labels: volumeConfig.labels
         },
         spec: {
           size: volumeConfig.size || defaultSize,
@@ -112,6 +114,10 @@ export class VolumeInstance {
       throwOnError: true,
     });
     return data;
+  }
+
+  async delete() {
+    return await VolumeInstance.delete(this.metadata?.name ?? "");
   }
 
   static async createIfNotExists(config: VolumeCreateConfiguration | Volume) {
