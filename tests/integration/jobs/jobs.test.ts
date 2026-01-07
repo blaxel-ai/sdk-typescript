@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { blJob } from "@blaxel/core"
+import { describe, it, expect, beforeAll } from 'vitest'
+import { blJob, getJob, settings } from "@blaxel/core"
 
 /**
  * Jobs API Integration Tests
@@ -10,9 +10,32 @@ import { blJob } from "@blaxel/core"
 
 const TEST_JOB_NAME = "mk3"
 
+async function checkJobExists(jobName: string): Promise<boolean> {
+  try {
+    const { data } = await getJob({
+      path: { jobId: jobName },
+      headers: settings.headers,
+      throwOnError: false,
+    })
+    return !!data
+  } catch {
+    return false
+  }
+}
+
 describe('Jobs API Integration', () => {
+  let jobExists = false
+
+  beforeAll(async () => {
+    jobExists = await checkJobExists(TEST_JOB_NAME)
+    if (!jobExists) {
+      console.warn(`[SKIP] Job "${TEST_JOB_NAME}" does not exist. Skipping Jobs API Integration tests.`)
+    }
+  })
   describe('blJob', () => {
-    it('can create a job reference', () => {
+    it('can create a job reference', ({ skip }) => {
+      if (!jobExists) return skip()
+
       const job = blJob(TEST_JOB_NAME)
 
       expect(job).toBeDefined()
@@ -23,13 +46,15 @@ describe('Jobs API Integration', () => {
   })
 
   describe('Job Executions', () => {
-    it('can create an execution', async () => {
+    it('can create an execution', async ({ skip }) => {
+      if (!jobExists) return skip()
+
       const job = blJob(TEST_JOB_NAME)
 
       const executionId = await job.createExecution({
         tasks: [
-          { duration: 10 },
-          { duration: 10 },
+          { name: "Richard" },
+          { name: "John" },
         ],
       })
 
@@ -37,11 +62,13 @@ describe('Jobs API Integration', () => {
       expect(typeof executionId).toBe('string')
     })
 
-    it('can get execution details', async () => {
+    it('can get execution details', async ({ skip }) => {
+      if (!jobExists) return skip()
+
       const job = blJob(TEST_JOB_NAME)
 
       const executionId = await job.createExecution({
-        tasks: [{ duration: 5 }],
+        tasks: [{ name: "Richard" }],
       })
 
       const execution = await job.getExecution(executionId)
@@ -51,11 +78,13 @@ describe('Jobs API Integration', () => {
       expect(execution.metadata).toBeDefined()
     })
 
-    it('can get execution status', async () => {
+    it('can get execution status', async ({ skip }) => {
+      if (!jobExists) return skip()
+
       const job = blJob(TEST_JOB_NAME)
 
       const executionId = await job.createExecution({
-        tasks: [{ duration: 5 }],
+        tasks: [{ name: "Richard" }, { name: "John" }],
       })
 
       const status = await job.getExecutionStatus(executionId)
@@ -64,12 +93,14 @@ describe('Jobs API Integration', () => {
       expect(typeof status).toBe('string')
     })
 
-    it('can list executions', async () => {
+    it('can list executions', async ({ skip }) => {
+      if (!jobExists) return skip()
+
       const job = blJob(TEST_JOB_NAME)
 
       // Create an execution first
       await job.createExecution({
-        tasks: [{ duration: 5 }],
+        tasks: [{ name: "Richard" }, { name: "John" }],
       })
 
       const executions = await job.listExecutions()
@@ -79,11 +110,13 @@ describe('Jobs API Integration', () => {
       expect(executions.length).toBeGreaterThan(0)
     })
 
-    it('can wait for execution to complete', async () => {
+    it('can wait for execution to complete', async ({ skip }) => {
+      if (!jobExists) return skip()
+
       const job = blJob(TEST_JOB_NAME)
 
       const executionId = await job.createExecution({
-        tasks: [{ duration: 5 }],
+        tasks: [{ name: "Richard" }, { name: "John" }],
       })
 
       const completedExecution = await job.waitForExecution(executionId, {
@@ -97,10 +130,12 @@ describe('Jobs API Integration', () => {
   })
 
   describe('Job run (convenience method)', () => {
-    it('can run job and wait for completion', async () => {
+    it('can run job and wait for completion', async ({ skip }) => {
+      if (!jobExists) return skip()
+
       const job = blJob(TEST_JOB_NAME)
 
-      const result = await job.run([{ duration: 5 }])
+      const result = await job.run([{ name: "Richard" }, { name: "John" }])
 
       expect(result).toBeDefined()
     })

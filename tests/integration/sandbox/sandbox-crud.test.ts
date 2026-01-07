@@ -52,13 +52,13 @@ describe('Sandbox CRUD Operations', () => {
       await SandboxInstance.create({
         name,
         image: defaultImage,
-        memory: 2048,
+        memory: 8192,
         labels: defaultLabels,
       })
       createdSandboxes.push(name)
 
       const retrieved = await SandboxInstance.get(name)
-      expect(retrieved.spec.runtime?.memory).toBe(2048)
+      expect(retrieved.spec.runtime?.memory).toBe(8192)
     })
 
     it('creates a sandbox with labels', async () => {

@@ -56,7 +56,7 @@ describe('Sandbox Volume Operations', () => {
       })
       createdVolumes.push(name)
 
-      expect(volume.name).toBe(name)
+      expect(volume.metadata.displayName).toBe("My Test Volume")
     })
 
     it('gets a volume', async () => {
