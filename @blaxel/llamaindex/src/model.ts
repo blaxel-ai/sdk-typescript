@@ -8,7 +8,7 @@ import { openai } from "@llamaindex/openai";
 // Type for model metadata
 interface ModelData {
   spec: {
-    runtime: {
+    runtime?: {
       type?: string;
       model?: string;
     };
@@ -27,7 +27,7 @@ class BlaxelLLM implements ToolCallLLM<object, ToolCallLLMMessageOptions> {
     this.model = model;
     this.modelData = modelData;
     this.options = options;
-    this.type = modelData?.spec.runtime.type || "openai";
+    this.type = modelData?.spec.runtime?.type || "openai";
   }
 
   get supportToolCall(): boolean {
