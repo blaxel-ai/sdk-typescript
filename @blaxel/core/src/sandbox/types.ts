@@ -60,10 +60,13 @@ export function normalizePorts(ports?: (Port | Record<string, any>)[]): Port[] |
   for (const port of ports) {
     if (typeof port === 'object' && port !== null) {
       if ('name' in port || 'target' in port || 'protocol' in port) {
+        if (typeof port.target !== 'number') {
+          throw new Error(`Port target must be a number: ${JSON.stringify(port)}`);
+        }
         // It's a Port-like object, ensure protocol defaults to HTTP
         const normalizedPort: Port = {
           name: typeof port.name === 'string' ? port.name : undefined,
-          target: typeof port.target === 'number' ? port.target : undefined,
+          target: port.target,
           protocol: typeof port.protocol === 'string' ? port.protocol as "HTTP" | "TCP" | "UDP" : "HTTP"
         };
         portObjects.push(normalizedPort);
