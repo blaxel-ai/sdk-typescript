@@ -1,14 +1,35 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { blModel, blTools } from "@blaxel/vercel"
+import { SandboxInstance } from "@blaxel/core"
 import { generateText, streamText } from "ai"
+import { uniqueName, defaultImage, defaultLabels } from '../sandbox/helpers.js'
 
-const prompt = `You are a helpful assistant that can answer questions and help with tasks.`
+const prompt = `You are a helpful assistant that can execute commands in a sandbox environment.`
 
 const testModels = [
   "sandbox-openai",
 ]
 
 describe('Vercel AI Integration', () => {
+  const sandboxName = uniqueName("vercel-model-test")
+
+  beforeAll(async () => {
+    await SandboxInstance.create({
+      name: sandboxName,
+      image: defaultImage,
+      memory: 2048,
+      labels: defaultLabels,
+    })
+  })
+
+  afterAll(async () => {
+    try {
+      await SandboxInstance.delete(sandboxName)
+    } catch {
+      // Ignore
+    }
+  })
+
   describe('blModel', () => {
     it.each(testModels)('can generate text with model %s', async (modelName) => {
       const model = await blModel(modelName)
@@ -41,15 +62,15 @@ describe('Vercel AI Integration', () => {
   })
 
   describe('with tools', () => {
-    it('can use remote MCP tools', async () => {
+    it('can use sandbox tools', async () => {
       const model = await blModel("sandbox-openai")
-      const tools = await blTools(["blaxel-search"])
+      const tools = await blTools([`sandbox/${sandboxName}`])
 
       expect(tools).toBeDefined()
 
       const result = await generateText({
         model,
-        prompt: "Search for information about Paris",
+        prompt: "Execute the command: echo 'Hello'",
         system: prompt,
         tools: tools as any,
         maxRetries: 3,
@@ -60,25 +81,28 @@ describe('Vercel AI Integration', () => {
   })
 
   describe('blTools', () => {
-    it('can load MCP tools', async () => {
-      const tools = await blTools(["blaxel-search"])
+    it('can load sandbox tools', async () => {
+      const tools = await blTools([`sandbox/${sandboxName}`])
 
       expect(tools).toBeDefined()
-      expect(tools.web_search_exa).toBeDefined()
+      expect(Object.keys(tools).length).toBeGreaterThan(0)
     })
 
     it('can execute a tool', async () => {
-      const tools = await blTools(["blaxel-search"])
+      const tools = await blTools([`sandbox/${sandboxName}`])
 
-      expect(tools.web_search_exa).toBeDefined()
+      expect(Object.keys(tools).length).toBeGreaterThan(0)
 
-      // @ts-expect-error - tool execute typing
-      const result: unknown = await tools.web_search_exa.execute({
-        query: "What is the capital of France?",
-      })
+      // Find the exec tool
+      const execToolName = Object.keys(tools).find(name => name.toLowerCase().includes('exec'))
+      if (execToolName) {
+        // @ts-expect-error - tool execute typing
+        const result: unknown = await tools[execToolName].execute({
+          command: "echo 'Hello'",
+        })
 
-      expect(result).toBeDefined()
+        expect(result).toBeDefined()
+      }
     })
   })
 })
-

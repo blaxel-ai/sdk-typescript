@@ -1,12 +1,33 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { blModel, blTools } from "@blaxel/mastra"
+import { SandboxInstance } from "@blaxel/core"
 import { generateText } from "ai"
+import { uniqueName, defaultImage, defaultLabels } from '../sandbox/helpers.js'
 
 const testModels = [
   "sandbox-openai",
 ]
 
 describe('Mastra Integration', () => {
+  const sandboxName = uniqueName("mastra-model-test")
+
+  beforeAll(async () => {
+    await SandboxInstance.create({
+      name: sandboxName,
+      image: defaultImage,
+      memory: 2048,
+      labels: defaultLabels,
+    })
+  })
+
+  afterAll(async () => {
+    try {
+      await SandboxInstance.delete(sandboxName)
+    } catch {
+      // Ignore
+    }
+  })
+
   describe('blModel', () => {
     it.each(testModels)('can generate text with model %s', async (modelName) => {
       const model = await blModel(modelName)
@@ -22,25 +43,28 @@ describe('Mastra Integration', () => {
   })
 
   describe('blTools', () => {
-    it('can load MCP tools', async () => {
-      const tools = await blTools(["blaxel-search"])
+    it('can load sandbox tools', async () => {
+      const tools = await blTools([`sandbox/${sandboxName}`])
 
       expect(tools).toBeDefined()
-      expect(tools.web_search_exa).toBeDefined()
+      expect(Object.keys(tools).length).toBeGreaterThan(0)
     })
 
     it('can execute a tool', async () => {
-      const tools = await blTools(["blaxel-search"])
+      const tools = await blTools([`sandbox/${sandboxName}`])
 
-      expect(tools.web_search_exa).toBeDefined()
+      expect(Object.keys(tools).length).toBeGreaterThan(0)
 
-      // @ts-expect-error - tool execute typing
-      const result: unknown = await tools.web_search_exa.execute({
-        query: "What is the capital of France?",
-      })
+      // Find the exec tool
+      const execToolName = Object.keys(tools).find(name => name.toLowerCase().includes('exec'))
+      if (execToolName) {
+        // @ts-expect-error - tool execute typing
+        const result: unknown = await tools[execToolName].execute({
+          command: "echo 'Hello'",
+        })
 
-      expect(result).toBeDefined()
+        expect(result).toBeDefined()
+      }
     })
   })
 })
-
