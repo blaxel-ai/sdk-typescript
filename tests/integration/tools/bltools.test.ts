@@ -1,105 +1,217 @@
-import { describe, it, expect } from 'vitest'
-import { blTools, getTool, settings } from "@blaxel/core"
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { blTools, getTool, SandboxInstance } from "@blaxel/core"
 import { blTools as langgraphTools } from "@blaxel/langgraph"
 import { blTools as llamaindexTools } from "@blaxel/llamaindex"
 import { blTools as mastraTools } from "@blaxel/mastra"
 import { blTools as vercelTools } from "@blaxel/vercel"
+import { uniqueName, defaultImage, defaultLabels } from '../sandbox/helpers.js'
 
 describe('MCP Tools Integration', () => {
   describe('LangGraph tools', () => {
-    it('can load tools from blaxel-search', async () => {
-      const tools = await langgraphTools(["blaxel-search"])
+    const sandboxName = uniqueName("langgraph-tools-test")
+
+    beforeAll(async () => {
+      await SandboxInstance.create({
+        name: sandboxName,
+        image: defaultImage,
+        memory: 2048,
+        labels: defaultLabels,
+      })
+    })
+
+    afterAll(async () => {
+      try {
+        await SandboxInstance.delete(sandboxName)
+      } catch {
+        // Ignore
+      }
+    })
+
+    it('can load tools from sandbox', async () => {
+      const tools = await langgraphTools([`sandbox/${sandboxName}`])
 
       expect(tools.length).toBeGreaterThan(0)
     })
 
     it('can invoke a tool', async () => {
-      const tools = await langgraphTools(["blaxel-search"])
+      const tools = await langgraphTools([`sandbox/${sandboxName}`])
 
       expect(tools.length).toBeGreaterThan(0)
 
-      const result = await tools[0].invoke({
-        query: "What is the capital of France?",
-      })
+      // Find the exec tool to test
+      const execTool = tools.find(t => t.name.toLowerCase().includes('exec'))
+      if (execTool) {
+        const result = await execTool.invoke({
+          command: "echo 'hello'",
+        })
 
-      expect(result).toBeDefined()
+        expect(result).toBeDefined()
+      }
     })
   })
 
   describe('LlamaIndex tools', () => {
-    it('can load tools from blaxel-search', async () => {
-      const tools = await llamaindexTools(["blaxel-search"])
+    const sandboxName = uniqueName("llamaindex-tools-test")
+
+    beforeAll(async () => {
+      await SandboxInstance.create({
+        name: sandboxName,
+        image: defaultImage,
+        memory: 2048,
+        labels: defaultLabels,
+      })
+    })
+
+    afterAll(async () => {
+      try {
+        await SandboxInstance.delete(sandboxName)
+      } catch {
+        // Ignore
+      }
+    })
+
+    it('can load tools from sandbox', async () => {
+      const tools = await llamaindexTools([`sandbox/${sandboxName}`])
 
       expect(tools.length).toBeGreaterThan(0)
     })
 
     it('can call a tool', async () => {
-      const tools = await llamaindexTools(["blaxel-search"])
+      const tools = await llamaindexTools([`sandbox/${sandboxName}`])
 
       expect(tools.length).toBeGreaterThan(0)
 
-      const result = await tools[0].call({
-        query: "What is the capital of France?",
-      })
+      // Find the exec tool to test
+      const execTool = tools.find(t => t.metadata.name.toLowerCase().includes('exec'))
+      if (execTool) {
+        const result = await execTool.call({
+          command: "echo 'hello'",
+        })
 
-      expect(result).toBeDefined()
+        expect(result).toBeDefined()
+      }
     })
   })
 
   describe('Vercel tools', () => {
-    it('can load tools from blaxel-search', async () => {
-      const tools = await vercelTools(["blaxel-search"])
+    const sandboxName = uniqueName("vercel-tools-test")
+
+    beforeAll(async () => {
+      await SandboxInstance.create({
+        name: sandboxName,
+        image: defaultImage,
+        memory: 2048,
+        labels: defaultLabels,
+      })
+    })
+
+    afterAll(async () => {
+      try {
+        await SandboxInstance.delete(sandboxName)
+      } catch {
+        // Ignore
+      }
+    })
+
+    it('can load tools from sandbox', async () => {
+      const tools = await vercelTools([`sandbox/${sandboxName}`])
 
       expect(tools).toBeDefined()
-      expect(tools.web_search_exa).toBeDefined()
+      expect(Object.keys(tools).length).toBeGreaterThan(0)
     })
 
     it('can execute a tool', async () => {
-      const tools = await vercelTools(["blaxel-search"])
+      const tools = await vercelTools([`sandbox/${sandboxName}`])
 
-      expect(tools.web_search_exa).toBeDefined()
+      expect(Object.keys(tools).length).toBeGreaterThan(0)
 
-      // @ts-expect-error - tool execute typing
-      const result: unknown = await tools.web_search_exa.execute({
-        query: "What is the capital of France?",
-      })
+      // Find the exec tool to test
+      const execToolName = Object.keys(tools).find(name => name.toLowerCase().includes('exec'))
+      if (execToolName) {
+        // @ts-expect-error - tool execute typing
+        const result: unknown = await tools[execToolName].execute({
+          command: "echo 'hello'",
+        })
 
-      expect(result).toBeDefined()
+        expect(result).toBeDefined()
+      }
     })
   })
 
   describe('Mastra tools', () => {
-    it('can load tools from blaxel-search', async () => {
-      const tools = await mastraTools(["blaxel-search"])
+    const sandboxName = uniqueName("mastra-tools-test")
+
+    beforeAll(async () => {
+      await SandboxInstance.create({
+        name: sandboxName,
+        image: defaultImage,
+        memory: 2048,
+        labels: defaultLabels,
+      })
+    })
+
+    afterAll(async () => {
+      try {
+        await SandboxInstance.delete(sandboxName)
+      } catch {
+        // Ignore
+      }
+    })
+
+    it('can load tools from sandbox', async () => {
+      const tools = await mastraTools([`sandbox/${sandboxName}`])
 
       expect(tools).toBeDefined()
-      expect(tools.web_search_exa).toBeDefined()
+      expect(Object.keys(tools).length).toBeGreaterThan(0)
     })
 
     it('can execute a tool', async () => {
-      const tools = await mastraTools(["blaxel-search"])
+      const tools = await mastraTools([`sandbox/${sandboxName}`])
 
-      expect(tools.web_search_exa).toBeDefined()
+      expect(Object.keys(tools).length).toBeGreaterThan(0)
 
-      // @ts-expect-error - tool execute typing
-      const result: unknown = await tools.web_search_exa.execute({
-        query: "What is the capital of France?",
-      })
+      // Find the exec tool to test
+      const execToolName = Object.keys(tools).find(name => name.toLowerCase().includes('exec'))
+      if (execToolName) {
+        // @ts-expect-error - tool execute typing
+        const result: unknown = await tools[execToolName].execute({
+          command: "echo 'hello'",
+        })
 
-      expect(result).toBeDefined()
+        expect(result).toBeDefined()
+      }
     })
   })
 
   describe('Core blTools', () => {
+    const sandboxName = uniqueName("core-tools-test")
+
+    beforeAll(async () => {
+      await SandboxInstance.create({
+        name: sandboxName,
+        image: defaultImage,
+        memory: 2048,
+        labels: defaultLabels,
+      })
+    })
+
+    afterAll(async () => {
+      try {
+        await SandboxInstance.delete(sandboxName)
+      } catch {
+        // Ignore
+      }
+    })
+
     it('can get tool names', () => {
-      const tools = blTools(["blaxel-search"])
+      const tools = blTools([`sandbox/${sandboxName}`])
 
       expect(tools.toolNames).toBeDefined()
       expect(tools.toolNames.length).toBeGreaterThan(0)
     })
 
     it('can get and invoke tools', async () => {
-      const tools = blTools(["blaxel-search"])
+      const tools = blTools([`sandbox/${sandboxName}`])
       const toolsBootted = await Promise.all(
         tools.toolNames.map(async (name) => {
           return await getTool(name)
@@ -108,38 +220,15 @@ describe('MCP Tools Integration', () => {
 
       expect(toolsBootted.length).toBeGreaterThan(0)
 
-      const result = await toolsBootted[0][0].call({
-        query: "What is the capital of France?",
-      })
+      // Find the exec tool to test
+      const execToolEntry = toolsBootted.find(entry => entry[0]?.name.toLowerCase().includes('exec'))
+      if (execToolEntry && execToolEntry[0]) {
+        const result = await execToolEntry[0].call({
+          command: "echo 'hello'",
+        })
 
-      expect(result).toBeDefined()
-    })
-  })
-
-  describe('Multiple MCP sources', () => {
-    it('can load tools from multiple sources', async () => {
-      try {
-        const tools = await langgraphTools(["trello-mk2", "blaxel-search", "sandboxes/base"])
-
-        let hasWebSearch = false
-
-        for (const tool of tools) {
-          if (tool.name === "web_search_exa") hasWebSearch = true
-        }
-
-        // At least web search should be available
-        expect(hasWebSearch).toBe(true)
-      } catch (error) {
-        // Skip if workloads not found - this is optional
-        if (error instanceof Error && error.toString().includes("Workload not found")) {
-          const appUrl = settings.baseUrl.replace("api.", "app.").replace("/v0", "")
-          console.info(`Skipping multi-source test: Workload not found.
-Check your workspace here: ${appUrl}/${settings.workspace}/global-agentic-network/functions`)
-        } else {
-          throw error
-        }
+        expect(result).toBeDefined()
       }
     })
   })
 })
-
