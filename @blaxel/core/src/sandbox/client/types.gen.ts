@@ -201,12 +201,6 @@ export type TreeRequest = {
     };
 };
 
-export type WelcomeResponse = {
-    description?: string;
-    documentation?: string;
-    message?: string;
-};
-
 export type FilesystemMultipartUpload = {
     initiatedAt?: string;
     parts?: {
@@ -223,102 +217,6 @@ export type FilesystemUploadedPart = {
     size?: number;
     uploadedAt?: string;
 };
-
-export type DeleteData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/';
-};
-
-export type DeleteResponses = {
-    /**
-     * OK
-     */
-    200: WelcomeResponse;
-};
-
-export type DeleteResponse = DeleteResponses[keyof DeleteResponses];
-
-export type GetData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/';
-};
-
-export type GetResponses = {
-    /**
-     * OK
-     */
-    200: WelcomeResponse;
-};
-
-export type GetResponse = GetResponses[keyof GetResponses];
-
-export type OptionsData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/';
-};
-
-export type OptionsResponses = {
-    /**
-     * OK
-     */
-    200: WelcomeResponse;
-};
-
-export type OptionsResponse = OptionsResponses[keyof OptionsResponses];
-
-export type PatchData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/';
-};
-
-export type PatchResponses = {
-    /**
-     * OK
-     */
-    200: WelcomeResponse;
-};
-
-export type PatchResponse = PatchResponses[keyof PatchResponses];
-
-export type PostData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/';
-};
-
-export type PostResponses = {
-    /**
-     * OK
-     */
-    200: WelcomeResponse;
-};
-
-export type PostResponse = PostResponses[keyof PostResponses];
-
-export type PutData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/';
-};
-
-export type PutResponses = {
-    /**
-     * OK
-     */
-    200: WelcomeResponse;
-};
-
-export type PutResponse = PutResponses[keyof PutResponses];
 
 export type PutCodegenFastapplyByPathData = {
     /**

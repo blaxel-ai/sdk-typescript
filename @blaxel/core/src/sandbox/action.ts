@@ -27,7 +27,7 @@ export class SandboxAction {
   constructor(protected sandbox: SandboxConfiguration) {}
 
   get name() {
-    return this.sandbox.metadata?.name ?? "";
+    return this.sandbox.metadata.name;
   }
 
   get fallbackUrl() {
@@ -38,7 +38,7 @@ export class SandboxAction {
   }
 
   get externalUrl() {
-    return this.sandbox.metadata?.url ?? `${settings.runUrl}/${settings.workspace}/sandboxes/${this.name}`;
+    return this.sandbox.metadata.url ?? `${settings.runUrl}/${settings.workspace}/sandboxes/${this.name}`;
   }
 
   get internalUrl() {

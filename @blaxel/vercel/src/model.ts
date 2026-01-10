@@ -18,8 +18,8 @@ export const blModel = async (
     throw new Error(`Model ${model} not found`);
   }
   await authenticate();
-  const type = modelData?.spec?.runtime?.type || "openai";
-  const modelId = modelData?.spec?.runtime?.model || "gpt-4o";
+  const type = modelData?.spec.runtime?.type || "openai";
+  const modelId = modelData?.spec.runtime?.model || "gpt-4o";
 
   // Custom fetch function that refreshes authentication on each request
   const authenticatedFetch = async (input: string | URL | Request, init?: RequestInit) => {

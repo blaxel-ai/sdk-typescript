@@ -62,12 +62,12 @@ export const blModel = async (
     throw new Error(`Model ${model} not found`);
   }
   await authenticate();
-  const type = modelData?.spec?.runtime?.type || "openai";
+  const type = modelData.spec.runtime?.type || "openai";
   try {
     if (type === "gemini") {
       return new AuthenticatedChatGoogleGenerativeAI({
         apiKey: settings.token,
-        model: modelData?.spec?.runtime?.model as string,
+        model: modelData.spec.runtime?.model as string,
         baseUrl: url,
         customHeaders: settings.headers,
         ...options,
@@ -75,7 +75,7 @@ export const blModel = async (
     } else if (type === "mistral") {
       return new ChatOpenAI({
         apiKey: "replaced",
-        model: modelData?.spec?.runtime?.model,
+        model: modelData.spec.runtime?.model,
         configuration: {
           baseURL: `${url}/v1`,
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
@@ -91,7 +91,7 @@ export const blModel = async (
       // @ts-ignore Error in langgraph
       return new ChatCohere({
         apiKey: "replaced",
-        model: modelData?.spec?.runtime?.model,
+        model: modelData.spec.runtime?.model,
         client: new CohereClient({
           token: "replaced",
           environment: url,
@@ -103,7 +103,7 @@ export const blModel = async (
       // @ts-ignore Error in langgraph
       return new ChatDeepSeek({
         apiKey: "replaced",
-        model: modelData?.spec?.runtime?.model,
+        model: modelData.spec.runtime?.model,
         configuration: {
           baseURL: `${url}/v1`,
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
@@ -115,7 +115,7 @@ export const blModel = async (
       // @ts-ignore Error in langgraph
       return new ChatAnthropic({
         anthropicApiUrl: url,
-        model: modelData?.spec?.runtime?.model,
+        model: modelData.spec.runtime?.model,
         apiKey: "replaced",
         clientOptions: {
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
@@ -132,14 +132,14 @@ export const blModel = async (
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           fetch: authenticatedFetch(),
         },
-        model: modelData?.spec?.runtime?.model,
+        model: modelData.spec.runtime?.model,
         ...options,
       });
     } else if (type === "cerebras") {
       // We don't use ChatCerebras because there is a problem with apiKey headers
       return new ChatOpenAI({
         apiKey: "replaced",
-        model: modelData?.spec?.runtime?.model,
+        model: modelData.spec.runtime?.model,
         configuration: {
           baseURL: `${url}/v1`,
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
@@ -150,7 +150,7 @@ export const blModel = async (
     }
     return new ChatOpenAI({
       apiKey: "replaced",
-      model: modelData?.spec?.runtime?.model,
+      model: modelData.spec.runtime?.model,
       configuration: {
         baseURL: `${url}/v1`,
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment

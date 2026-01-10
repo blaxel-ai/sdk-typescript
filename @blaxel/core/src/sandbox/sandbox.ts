@@ -117,7 +117,6 @@ export class SandboxInstance {
 
     sandbox.spec.runtime.image = sandbox.spec.runtime.image || defaultImage;
     sandbox.spec.runtime.memory = sandbox.spec.runtime.memory || defaultMemory;
-    sandbox.spec.runtime.generation = sandbox.spec.runtime.generation || "mk3";
 
     const { data } = await createSandbox({
       body: sandbox,
@@ -159,7 +158,7 @@ export class SandboxInstance {
   }
 
   async delete() {
-    return await SandboxInstance.delete(this.metadata?.name!);
+    return await SandboxInstance.delete(this.metadata.name!);
   }
 
   static async updateMetadata(sandboxName: string, metadata: SandboxUpdateMetadata) {
@@ -179,7 +178,7 @@ export class SandboxInstance {
       return await SandboxInstance.create(sandbox);
     } catch (e) {
       if (typeof e === "object" && e !== null && "code" in e && (e.code === 409 || e.code === 'SANDBOX_ALREADY_EXISTS')) {
-        const name = 'name' in sandbox ? sandbox.name : (sandbox as SandboxModel).metadata?.name
+        const name = 'name' in sandbox ? sandbox.name : (sandbox as SandboxModel).metadata.name
         if (!name) {
           throw new Error("Sandbox name is required");
         }
@@ -206,6 +205,7 @@ export class SandboxInstance {
     const sandboxName = session.name.includes("-") ? session.name.split("-")[0] : session.name;
     const sandbox: SandboxConfiguration = {
       metadata: { name: sandboxName },
+      spec: {},
       forceUrl: session.url,
       headers: { "X-Blaxel-Preview-Token": session.token },
       params: { bl_preview_token: session.token }
