@@ -277,6 +277,34 @@ export type CreateJobExecutionRequest = {
 };
 
 /**
+ * Response returned when a job execution is successfully created. Contains identifiers and the tasks that will be executed.
+ */
+export type CreateJobExecutionResponse = {
+    /**
+     * Unique identifier for the created execution. Use this ID to track execution status, retrieve logs, or cancel the execution.
+     */
+    executionId?: string;
+    /**
+     * Unique identifier for this request, used for idempotency and tracking. Auto-generated if not provided in the request.
+     */
+    id?: string;
+    /**
+     * Name of the job that this execution belongs to
+     */
+    jobId?: string;
+    /**
+     * Array of task configurations that will be executed in parallel according to the job's concurrency settings. Each task can have custom parameters.
+     */
+    tasks?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Name of the workspace where the job execution was created
+     */
+    workspaceId?: string;
+};
+
+/**
  * Custom domain for preview deployments
  * The custom domain represents a base domain (e.g., example.com) that will be used
  * to serve preview deployments. Each preview will be accessible at a subdomain:
@@ -4213,10 +4241,10 @@ export type CreateJobExecutionResponses = {
     /**
      * successful operation
      */
-    200: JobExecution;
+    200: CreateJobExecutionResponse;
 };
 
-export type CreateJobExecutionResponse = CreateJobExecutionResponses[keyof CreateJobExecutionResponses];
+export type CreateJobExecutionResponse2 = CreateJobExecutionResponses[keyof CreateJobExecutionResponses];
 
 export type DeleteJobExecutionData = {
     body?: never;

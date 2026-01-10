@@ -32,6 +32,7 @@ describe('Jobs API Integration', () => {
       console.warn(`[SKIP] Job "${TEST_JOB_NAME}" does not exist. Skipping Jobs API Integration tests.`)
     }
   })
+
   describe('blJob', () => {
     it('can create a job reference', ({ skip }) => {
       if (!jobExists) return skip()
@@ -46,11 +47,12 @@ describe('Jobs API Integration', () => {
   })
 
   describe('Job Executions', () => {
-    it('can create an execution', async ({ skip }) => {
+    it('can create, get, and list execution', async ({ skip }) => {
       if (!jobExists) return skip()
 
       const job = blJob(TEST_JOB_NAME)
 
+      // Create execution
       const executionId = await job.createExecution({
         tasks: [
           { name: "Richard" },
@@ -60,49 +62,21 @@ describe('Jobs API Integration', () => {
 
       expect(executionId).toBeDefined()
       expect(typeof executionId).toBe('string')
-    })
 
-    it('can get execution details', async ({ skip }) => {
-      if (!jobExists) return skip()
-
-      const job = blJob(TEST_JOB_NAME)
-
-      const executionId = await job.createExecution({
-        tasks: [{ name: "Richard" }],
-      })
-
+      // Get execution details
       const execution = await job.getExecution(executionId)
 
       expect(execution).toBeDefined()
       expect(execution.status).toBeDefined()
       expect(execution.metadata).toBeDefined()
-    })
 
-    it('can get execution status', async ({ skip }) => {
-      if (!jobExists) return skip()
-
-      const job = blJob(TEST_JOB_NAME)
-
-      const executionId = await job.createExecution({
-        tasks: [{ name: "Richard" }, { name: "John" }],
-      })
-
+      // Get execution status
       const status = await job.getExecutionStatus(executionId)
 
       expect(status).toBeDefined()
       expect(typeof status).toBe('string')
-    })
 
-    it('can list executions', async ({ skip }) => {
-      if (!jobExists) return skip()
-
-      const job = blJob(TEST_JOB_NAME)
-
-      // Create an execution first
-      await job.createExecution({
-        tasks: [{ name: "Richard" }, { name: "John" }],
-      })
-
+      // List executions (should include the one we just created)
       const executions = await job.listExecutions()
 
       expect(executions).toBeDefined()
@@ -127,9 +101,7 @@ describe('Jobs API Integration', () => {
       expect(completedExecution).toBeDefined()
       expect(['completed', 'succeeded', 'failed', 'cancelled']).toContain(completedExecution.status)
     })
-  })
 
-  describe('Job run (convenience method)', () => {
     it('can run job and wait for completion', async ({ skip }) => {
       if (!jobExists) return skip()
 
@@ -141,4 +113,3 @@ describe('Jobs API Integration', () => {
     })
   })
 })
-
