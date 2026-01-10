@@ -29,7 +29,7 @@ describe('LlamaIndex Integration', () => {
 
   describe('blModel', () => {
     it.each(testModels)('can chat with model %s', async (modelName) => {
-      const model = await blModel(modelName)
+      const model = await blModel(modelName, {temperature: 1})
       const result = await model.chat({
         messages: [{ role: "user", content: "Say hello in one word" }]
       })

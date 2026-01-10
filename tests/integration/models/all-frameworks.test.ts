@@ -27,7 +27,7 @@ describe('All Frameworks - Model Compatibility', () => {
     })
 
     it('works with LlamaIndex', async () => {
-      const model = await blModelLlamaIndex(modelName)
+      const model = await blModelLlamaIndex(modelName, {temperature: 1})
       const result = await model.chat({
         messages: [{ role: "user", content: "Hello, world!" }]
       })
