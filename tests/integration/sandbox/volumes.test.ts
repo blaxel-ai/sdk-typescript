@@ -1,6 +1,6 @@
-import { describe, it, expect, afterAll } from 'vitest'
 import { SandboxInstance, VolumeInstance } from "@blaxel/core"
-import { uniqueName, defaultImage, defaultLabels, defaultRegion, waitForSandboxDeletion, waitForVolumeDeletion } from './helpers.js'
+import { afterAll, describe, expect, it } from 'vitest'
+import { defaultImage, defaultLabels, defaultRegion, uniqueName, waitForSandboxDeletion, waitForVolumeDeletion } from './helpers.js'
 
 describe('Sandbox Volume Operations', () => {
   const createdSandboxes: string[] = []
@@ -43,6 +43,57 @@ describe('Sandbox Volume Operations', () => {
       createdVolumes.push(name)
 
       expect(volume.name).toBe(name)
+    })
+
+    it('returns 409 when trying to create duplicate sandbox with volume', async () => {
+      const volumeName = uniqueName("volume-409")
+      const sandboxName = uniqueName("sandbox-409")
+
+      // Create a volume
+      await VolumeInstance.create({
+        name: volumeName,
+        size: 1024,
+        region: defaultRegion,
+        labels: defaultLabels,
+      })
+      createdVolumes.push(volumeName)
+
+      // Create a sandbox with the volume attached
+      const sandbox1 = await SandboxInstance.create({
+        name: sandboxName,
+        image: defaultImage,
+        memory: 2048,
+        region: defaultRegion,
+        volumes: [
+          {
+            name: volumeName,
+            mountPath: "/data",
+            readOnly: false
+          }
+        ],
+        labels: defaultLabels,
+      })
+      createdSandboxes.push(sandboxName)
+
+      expect(sandbox1.metadata.name).toBe(sandboxName)
+
+      // Try to create the same sandbox again - should throw 409 error
+      await expect(
+        SandboxInstance.create({
+          name: sandboxName,
+          image: defaultImage,
+          memory: 2048,
+          region: defaultRegion,
+          volumes: [
+            {
+              name: volumeName,
+              mountPath: "/data",
+              readOnly: false
+            }
+          ],
+          labels: defaultLabels,
+        })
+      ).rejects.toMatchObject({ code: 'SANDBOX_ALREADY_EXISTS' })
     })
 
     it('creates a volume with display name', async () => {
