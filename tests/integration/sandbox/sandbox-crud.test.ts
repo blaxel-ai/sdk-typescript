@@ -1,6 +1,6 @@
-import { describe, it, expect, afterAll } from 'vitest'
-import { SandboxInstance, SandboxCreateConfiguration } from "@blaxel/core"
-import { uniqueName, defaultImage, defaultLabels, defaultRegion, waitForSandboxDeletion } from './helpers.js'
+import { SandboxCreateConfiguration, SandboxInstance } from "@blaxel/core"
+import { afterAll, describe, expect, it } from 'vitest'
+import { defaultImage, defaultLabels, defaultRegion, uniqueName, waitForSandboxDeletion } from './helpers.js'
 
 describe('Sandbox CRUD Operations', () => {
   const createdSandboxes: string[] = []
@@ -123,6 +123,36 @@ describe('Sandbox CRUD Operations', () => {
       const retrieved = await SandboxInstance.get(name)
       expect(retrieved.spec.region).toBe(defaultRegion)
     })
+
+    it('handles concurrent create calls with same name', async () => {
+      const name = uniqueName("concurrent-create")
+      const concurrentCalls = 5
+
+      const promises = Array.from({ length: concurrentCalls }, () =>
+        SandboxInstance.create({ name, labels: defaultLabels })
+          .then(sb => ({ sandbox: sb, error: null }))
+          .catch((err: Error) => ({ sandbox: null, error: err }))
+      )
+
+      const results = await Promise.all(promises)
+      createdSandboxes.push(name)
+
+      // At least one should succeed
+      const successes = results.filter(r => r.sandbox !== null)
+      const errors = results.filter(r => r.error !== null)
+
+      expect(successes.length).toBeGreaterThanOrEqual(1)
+      expect(errors.length).toBeGreaterThanOrEqual(0)
+
+      // All successful creates should have the same name
+      successes.forEach(result => {
+        expect(result.sandbox?.metadata.name).toBe(name)
+      })
+
+      // Verify the sandbox exists and is functional
+      const sandbox = await SandboxInstance.get(name)
+      expect(sandbox.metadata.name).toBe(name)
+    })
   })
 
   describe('createIfNotExists', () => {
@@ -169,6 +199,29 @@ describe('Sandbox CRUD Operations', () => {
       const result = await sandbox.process.exec({ command: "echo 'test'", waitForCompletion: true })
       console.log(`Successfully created sandbox and executed command, successes=${successes.length}`)
       expect(result.logs).toBe("test\n")
+    })
+
+    it('handles concurrent createIfNotExists calls on existing sandbox', async () => {
+      const name = uniqueName("cine-existing-concurrent")
+
+      // First, create the sandbox
+      const originalSandbox = await SandboxInstance.create({ name, labels: defaultLabels })
+      createdSandboxes.push(name)
+
+      // Then send 5 concurrent createIfNotExists calls
+      const concurrentCalls = 5
+      const promises = Array.from({ length: concurrentCalls }, () =>
+        SandboxInstance.createIfNotExists({ name, labels: defaultLabels })
+      )
+
+      const results = await Promise.all(promises)
+
+      // All calls should succeed and return the same sandbox
+      expect(results.length).toBe(concurrentCalls)
+      results.forEach(result => {
+        expect(result.metadata.name).toBe(name)
+        expect(result.metadata.name).toBe(originalSandbox.metadata.name)
+      })
     })
   })
 
