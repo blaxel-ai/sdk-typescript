@@ -1,6 +1,6 @@
-import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { SandboxInstance } from "@blaxel/core"
-import { uniqueName, defaultLabels } from './helpers.js'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { defaultLabels, defaultRegion, uniqueName } from './helpers.js'
 
 describe('Sandbox Preview Operations', () => {
   let sandbox: SandboxInstance
@@ -12,6 +12,7 @@ describe('Sandbox Preview Operations', () => {
       name: sandboxName,
       image: "blaxel/nextjs:latest",
       memory: 4096,
+      region: defaultRegion,
       ports: [
         { target: 3000 }
       ],
@@ -288,6 +289,121 @@ describe('Sandbox Preview Operations', () => {
       expect(response.headers.get("access-control-allow-origin")).toBe("*")
 
       await sandbox.previews.delete("cors-test")
+    })
+  })
+
+  describe('advanced scenarios', () => {
+    it('creates preview with custom server and token authentication', async () => {
+      const name = uniqueName("preview-custom-server")
+
+      const customSandbox = await SandboxInstance.create({
+        name,
+        image: "blaxel/node:latest",
+        memory: 4096,
+        region: defaultRegion,
+        ports: [{ target: 3000, protocol: "HTTP" }],
+        labels: defaultLabels,
+      })
+
+      try {
+        // Create preview
+        const preview = await customSandbox.previews.create({
+          metadata: {
+            name: "custom-server-preview"
+          },
+          spec: {
+            port: 3000,
+            public: false,
+            responseHeaders: {
+              "Access-Control-Allow-Origin": "*",
+              "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+              "Access-Control-Allow-Headers": "Content-Type, Authorization",
+            }
+          }
+        })
+
+        expect(preview.metadata?.name).toBe("custom-server-preview")
+        expect(preview.spec?.port).toBe(3000)
+        expect(preview.spec?.url).toBeDefined()
+
+        // Create token
+        const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24) // 24 hours
+        const token = await preview.tokens.create(expiresAt)
+
+        expect(token.value).toBeDefined()
+        expect(token.value).toMatch(/^[a-zA-Z0-9_-]+$/)
+
+        // Write a simple server file
+        await customSandbox.fs.write("/tmp/server.js", `const http = require('http');
+
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('hello world');
+});
+
+server.listen(3000, '0.0.0.0', () => {
+  console.log('Server running on port 3000');
+});
+`)
+
+        // Start server
+        await customSandbox.process.exec({
+          name: "hello-server",
+          command: "node /tmp/server.js",
+          waitForPorts: [3000],
+        })
+
+        // Verify preview URL is accessible with token
+        const previewUrl = preview.spec?.url
+        expect(previewUrl).toBeDefined()
+
+        const urlWithToken = `${previewUrl}?bl_preview_token=${token.value}`
+        expect(urlWithToken).toContain(token.value)
+
+        // Test that token expiration is set correctly
+        expect(token.expiresAt).toBeDefined()
+        const expectedExpiry = expiresAt.getTime()
+        const actualExpiry = new Date(token.expiresAt!).getTime()
+        const diff = Math.abs(actualExpiry - expectedExpiry)
+        expect(diff).toBeLessThan(10000) // 10s tolerance
+      } finally {
+        await SandboxInstance.delete(name).catch(() => {})
+      }
+    }, { timeout: 120000 })
+
+    it('creates multiple previews on different ports', async () => {
+      const name = uniqueName("preview-multi-port")
+
+      const customSandbox = await SandboxInstance.create({
+        name,
+        image: "blaxel/node:latest",
+        memory: 4096,
+        region: defaultRegion,
+        ports: [
+          { target: 3000, protocol: "HTTP" },
+          { target: 4000, protocol: "HTTP" },
+        ],
+        labels: defaultLabels,
+      })
+
+      try {
+        // Create two previews
+        const preview1 = await customSandbox.previews.create({
+          metadata: { name: "preview-3000" },
+          spec: { port: 3000, public: false }
+        })
+
+        const preview2 = await customSandbox.previews.create({
+          metadata: { name: "preview-4000" },
+          spec: { port: 4000, public: false }
+        })
+
+        expect(preview1.spec?.port).toBe(3000)
+        expect(preview2.spec?.port).toBe(4000)
+        expect(preview1.spec?.url).not.toBe(preview2.spec?.url)
+      } finally {
+        await SandboxInstance.delete(name).catch(() => {})
+      }
     })
   })
 })
