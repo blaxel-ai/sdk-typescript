@@ -1,15 +1,14 @@
 import { Client as ModelContextProtocolClient } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { env } from "../common/env.js";
 import { getForcedUrl, getGlobalUniqueHash } from "../common/internal.js";
 import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
-import { authenticate } from "../index.js";
+import { authenticate, SandboxInstance } from "../index.js";
 import { BlaxelMcpClientTransport } from "../mcp/client.js";
 import { startSpan } from "../telemetry/telemetry.js";
 import { Tool } from "./types.js";
-import { schemaToZodSchema } from "./zodSchema.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { FunctionSchema } from "./zodSchema.js";
+import { FunctionSchema, schemaToZodSchema } from "./zodSchema.js";
 
 const McpToolCache = new Map<string, McpTool>();
 
@@ -91,6 +90,18 @@ export class McpTool {
     this.stopCloseTimer();
     this.startPromise = this.startPromise || (async () => {
       await authenticate();
+      // Sandbox using run v2 API
+      if (this.pluralType == "sandboxes") {
+        const sandbox = await SandboxInstance.get(this.name);
+        const url = sandbox.metadata.url + "/mcp";
+        this.transport = new StreamableHTTPClientTransport(new URL(url), {
+          requestInit: { headers: settings.headers },
+        });
+        await this.client.connect(this.transport);
+        logger.debug(`MCP:${this.name}:Connected to sandbox`);
+        return;
+      }
+
       try {
         logger.debug(`MCP:${this.name}:Connecting::${this.url.toString()}`);
         this.transport = await this.getTransport();
