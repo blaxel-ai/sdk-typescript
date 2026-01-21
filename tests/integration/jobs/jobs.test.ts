@@ -102,14 +102,88 @@ describe('Jobs API Integration', () => {
       expect(['completed', 'succeeded', 'failed', 'cancelled']).toContain(completedExecution.status)
     })
 
-    it('can run job and wait for completion', async ({ skip }) => {
+    it('can run job without overrides', async ({ skip }) => {
       if (!jobExists) return skip()
 
       const job = blJob(TEST_JOB_NAME)
 
-      const result = await job.run([{ name: "Richard" }, { name: "John" }])
+      const executionId = await job.run([{ name: "Richard" }, { name: "John" }])
 
-      expect(result).toBeDefined()
+      expect(executionId).toBeDefined()
+      expect(typeof executionId).toBe('string')
+
+      // Verify execution was created
+      const execution = await job.getExecution(executionId)
+      expect(execution).toBeDefined()
+      expect(execution.status).toBeDefined()
+    })
+
+    it('can run job with memory override', async ({ skip }) => {
+      if (!jobExists) return skip()
+
+      const job = blJob(TEST_JOB_NAME)
+
+      const executionId = await job.run(
+        [{ name: "MemoryTest" }],
+        { memory: 2048 }
+      )
+
+      expect(executionId).toBeDefined()
+      expect(typeof executionId).toBe('string')
+
+      // Verify execution was created
+      const execution = await job.getExecution(executionId)
+      expect(execution).toBeDefined()
+      expect(execution.status).toBeDefined()
+    })
+
+    it('can run job with env overrides', async ({ skip }) => {
+      if (!jobExists) return skip()
+
+      const job = blJob(TEST_JOB_NAME)
+
+      const executionId = await job.run(
+        [{ name: "EnvTest" }],
+        {
+          env: {
+            CUSTOM_VAR: "test_value",
+            DEBUG_MODE: "true",
+          },
+        }
+      )
+
+      expect(executionId).toBeDefined()
+      expect(typeof executionId).toBe('string')
+
+      // Verify execution was created
+      const execution = await job.getExecution(executionId)
+      expect(execution).toBeDefined()
+      expect(execution.status).toBeDefined()
+    })
+
+    it('can run job with both memory and env overrides', async ({ skip }) => {
+      if (!jobExists) return skip()
+
+      const job = blJob(TEST_JOB_NAME)
+
+      const executionId = await job.run(
+        [{ name: "CombinedTest" }],
+        {
+          memory: 1024,
+          env: {
+            TEST_ENV: "production",
+            LOG_LEVEL: "info",
+          },
+        }
+      )
+
+      expect(executionId).toBeDefined()
+      expect(typeof executionId).toBe('string')
+
+      // Verify execution was created
+      const execution = await job.getExecution(executionId)
+      expect(execution).toBeDefined()
+      expect(execution.status).toBeDefined()
     })
 
     it('can create execution with memory override', async ({ skip }) => {

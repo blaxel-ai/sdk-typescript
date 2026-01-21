@@ -249,6 +249,34 @@ export type Country = {
 };
 
 /**
+ * Response returned when a job execution is successfully created. Contains identifiers and the tasks that will be executed.
+ */
+export type CreateJobExecutionOutput = {
+    /**
+     * Unique identifier for the created execution. Use this ID to track execution status, retrieve logs, or cancel the execution.
+     */
+    executionId?: string;
+    /**
+     * Unique identifier for this request, used for idempotency and tracking. Auto-generated if not provided in the request.
+     */
+    id?: string;
+    /**
+     * Name of the job that this execution belongs to
+     */
+    jobId?: string;
+    /**
+     * Array of task configurations that will be executed in parallel according to the job's concurrency settings. Each task can have custom parameters.
+     */
+    tasks?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Name of the workspace where the job execution was created
+     */
+    workspaceId?: string;
+};
+
+/**
  * Request to create a job execution
  */
 export type CreateJobExecutionRequest = {
@@ -282,34 +310,6 @@ export type CreateJobExecutionRequest = {
     }>;
     /**
      * Workspace ID
-     */
-    workspaceId?: string;
-};
-
-/**
- * Response returned when a job execution is successfully created. Contains identifiers and the tasks that will be executed.
- */
-export type CreateJobExecutionResponse = {
-    /**
-     * Unique identifier for the created execution. Use this ID to track execution status, retrieve logs, or cancel the execution.
-     */
-    executionId?: string;
-    /**
-     * Unique identifier for this request, used for idempotency and tracking. Auto-generated if not provided in the request.
-     */
-    id?: string;
-    /**
-     * Name of the job that this execution belongs to
-     */
-    jobId?: string;
-    /**
-     * Array of task configurations that will be executed in parallel according to the job's concurrency settings. Each task can have custom parameters.
-     */
-    tasks?: Array<{
-        [key: string]: unknown;
-    }>;
-    /**
-     * Name of the workspace where the job execution was created
      */
     workspaceId?: string;
 };
@@ -1069,6 +1069,16 @@ export type JobExecutionMetadataWritable = {
  */
 export type JobExecutionSpec = {
     /**
+     * Environment variable overrides (if provided for this execution, values are masked with ***)
+     */
+    envOverride?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Memory override in megabytes (if provided for this execution)
+     */
+    memoryOverride?: number;
+    /**
      * Number of parallel tasks
      */
     parallelism?: number;
@@ -1086,6 +1096,16 @@ export type JobExecutionSpec = {
  * Job execution specification
  */
 export type JobExecutionSpecWritable = {
+    /**
+     * Environment variable overrides (if provided for this execution, values are masked with ***)
+     */
+    envOverride?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Memory override in megabytes (if provided for this execution)
+     */
+    memoryOverride?: number;
     /**
      * Number of parallel tasks
      */
@@ -4239,10 +4259,10 @@ export type CreateJobExecutionResponses = {
     /**
      * successful operation
      */
-    200: CreateJobExecutionResponse;
+    200: CreateJobExecutionOutput;
 };
 
-export type CreateJobExecutionResponse2 = CreateJobExecutionResponses[keyof CreateJobExecutionResponses];
+export type CreateJobExecutionResponse = CreateJobExecutionResponses[keyof CreateJobExecutionResponses];
 
 export type DeleteJobExecutionData = {
     body?: never;
