@@ -87,7 +87,7 @@ describe('Sandbox Preview Operations', () => {
         sandbox.previews.create({
           metadata: { name: "invalid-port-preview" },
           spec: {
-            port: 8080, // This port is not configured on the sandbox
+            port: 15500, // This port is not configured on the sandbox
             public: true
           }
         })
