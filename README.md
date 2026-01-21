@@ -1,12 +1,8 @@
 # Blaxel TypeScript SDK
 
-<p align="center">
-  <img src="https://blaxel.ai/logo.png" alt="Blaxel"/>
-</p>
-
 [Blaxel](https://blaxel.ai) is a perpetual sandbox platform that achieves near instant latency by keeping infinite secure sandboxes on automatic standby, while co-hosting your agent logic to cut network overhead.
 
-This repository contains the TypeScript SDK to create and manage resources on Blaxel.
+This repository contains Blaxel's TypeScript SDK, which lets you create and manage sandboxes and other resources on Blaxel.
 
 ## Installation
 
@@ -19,9 +15,12 @@ pnpm add @blaxel/core
 
 # yarn
 yarn add @blaxel/core
+
+# bun
+bun add @blaxel/core
 ```
 
-### Optional package
+### Optional packages
 
 Blaxel provides additional packages for framework-specific integrations and telemetry:
 
@@ -31,27 +30,16 @@ Blaxel provides additional packages for framework-specific integrations and tele
 - [@blaxel/langgraph](@blaxel/langgraph/README.md) - LangGraph integration
 - [@blaxel/mastra](@blaxel/mastra/README.md) - Mastra integration
 
-## Usage
-
-
-### Telemetry
-
-Enable automatic telemetry by importing at your entry point:
-
-```typescript
-import "@blaxel/telemetry";
-```
-
 ## Authentication
 
 The SDK authenticates with your Blaxel workspace using these sources (in priority order):
 
-1. Automatic when logged in with the Blaxel CLI
+1. Blaxel CLI, when logged in
 2. Environment variables in `.env` file (`BL_WORKSPACE`, `BL_API_KEY`)
 3. System environment variables
 4. Blaxel configuration file (`~/.blaxel/config.yaml`)
 
-When developing locally, the recommended method is to just log in to your workspace with Blaxel CLI.
+When developing locally, the recommended method is to just log in to your workspace with the Blaxel CLI:
 
 ```bash
 bl login YOUR-WORKSPACE
@@ -117,7 +105,7 @@ const preview = await sandbox.previews.createIfNotExists({
   }
 });
 
-console.log(preview.spec.url); // https://xyz.preview.bl.run
+console.log(preview.spec?.url); // https://xyz.preview.bl.run
 ```
 
 Previews can also be private, with or without a custom prefix. When you create a private preview URL, a [token](https://docs.blaxel.ai/Sandboxes/Preview-url#private-preview-urls) is required to access the URL, passed as a request parameter or request header.
@@ -157,6 +145,7 @@ const sandbox = await SandboxInstance.get("my-sandbox");
 
 // Execute a command
 const process = await sandbox.process.exec({
+  name: "build-process",
   command: "npm run build",
   workingDir: "/app",
   waitForCompletion: true,
@@ -164,12 +153,14 @@ const process = await sandbox.process.exec({
 });
 
 // Kill a running process
-await sandbox.process.kill("process-name");
+await sandbox.process.kill("build-process");
 ```
 
 Restart a process if it fails, up to a maximum number of restart attempts:
 
 ```typescript
+// ...
+
 // Run with auto-restart on failure
 process = await sandbox.process.exec({
   name: "web-server",
@@ -185,6 +176,7 @@ Manage files and directories within your sandbox:
 
 ```typescript
 import { SandboxInstance } from "@blaxel/core";
+import * as fs from "fs";
 
 // Get existing sandbox
 const sandbox = await SandboxInstance.get("my-sandbox");
@@ -205,7 +197,7 @@ await sandbox.fs.mkdir("/app/uploads");
 const { subdirectories, files } = await sandbox.fs.ls("/app");
 
 // Search for text within files
-const results = await sandbox.fs.grep("pattern", "/app", {
+const matches = await sandbox.fs.grep("pattern", "/app", {
   caseSensitive: true,
   contextLines: 2,
   maxResults: 5,
@@ -214,7 +206,7 @@ const results = await sandbox.fs.grep("pattern", "/app", {
 });
 
 // Find files and directories matching specified patterns:
-const files = await sandbox.fs.find("/app", {
+const results = await sandbox.fs.find("/app", {
   type: "file",
   patterns: ["*.md", "*.html"],
   maxResults: 1000
@@ -313,6 +305,32 @@ export default async function agent(input: string, stream: Stream): Promise<void
 }
 ```
 
+#### Hosted models
+
+Blaxel acts as a unified gateway for model APIs, centralizing access credentials, tracing and telemetry. You can integrate with any model API provider, or deploy your own custom model. When a model is deployed on Blaxel, a global API endpoint is also created to call it.
+
+```typescript
+import { blModel } from "@blaxel/core";
+
+// With Vercel AI SDK
+import { blModel } from "@blaxel/vercel";
+const model = await blModel("gpt-4o-mini");
+
+// With LangChain
+import { blModel } from "@blaxel/langgraph";
+const model = await blModel("claude-3-5-sonnet");
+
+// With LlamaIndex
+import { blModel } from "@blaxel/llamaindex";
+const model = await blModel("gpt-4o");
+
+// With Mastra
+import { blModel } from "@blaxel/mastra";
+const model = await blModel("gpt-4o-mini");
+```
+
+### Hosted MCP servers
+
 ### Batch jobs
 
 Blaxel lets you support agentic workflows by offloading asynchronous batch processing tasks to its scalable infrastructure, where they can run in parallel. Jobs can run multiple times within a single execution and accept optional input parameters.
@@ -357,50 +375,21 @@ const executions = await job.listExecutions();
 await job.deleteExecution(executionId);
 ```
 
-### Models
+### Telemetry
 
-Blaxel acts as a unified gateway for model APIs, centralizing access credentials, tracing and telemetry. You can integrate with any model API provider, or deploy your own custom model. When a model is deployed on Blaxel, a global API endpoint is also created to call it.
+Enable automatic telemetry:
 
 ```typescript
-import { blModel } from "@blaxel/core";
-
-// With Vercel AI SDK
-import { blModel } from "@blaxel/vercel";
-const model = await blModel("gpt-4o-mini");
-
-// With LangChain
-import { blModel } from "@blaxel/langgraph";
-const model = await blModel("claude-3-5-sonnet");
-
-// With LlamaIndex
-import { blModel } from "@blaxel/llamaindex";
-const model = await blModel("gpt-4o");
-
-// With Mastra
-import { blModel } from "@blaxel/mastra";
-const model = await blModel("gpt-4o-mini");
+import "@blaxel/telemetry";
 ```
-
 
 ## Requirements
 
-- **Node.js:** v18 or later
-- **Blaxel CLI:** Install with:
-
-  ```bash
-  curl -fsSL https://raw.githubusercontent.com/blaxel-ai/toolkit/main/install.sh \
-    | BINDIR=/usr/local/bin sudo -E sh
-  ```
-
-- **Workspace Login:**
-
-  ```bash
-  bl login YOUR-WORKSPACE
-  ```
+- Node.js v18 or later
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please feel free to [submit a pull request](https://github.com/blaxel-ai/sdk-typescript/pulls).
 
 ## License
 
