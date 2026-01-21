@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeAll } from 'vitest'
 import { blJob, getJob, settings } from "@blaxel/core"
+import { beforeAll, describe, expect, it } from 'vitest'
 
 /**
  * Jobs API Integration Tests
@@ -110,6 +110,73 @@ describe('Jobs API Integration', () => {
       const result = await job.run([{ name: "Richard" }, { name: "John" }])
 
       expect(result).toBeDefined()
+    })
+
+    it('can create execution with memory override', async ({ skip }) => {
+      if (!jobExists) return skip()
+
+      const job = blJob(TEST_JOB_NAME)
+
+      // Create execution with memory override (2048 MB = 2 GB)
+      const executionId = await job.createExecution({
+        tasks: [{ name: "Richard" }],
+        memory: 2048,
+      })
+
+      expect(executionId).toBeDefined()
+      expect(typeof executionId).toBe('string')
+
+      // Verify execution was created
+      const execution = await job.getExecution(executionId)
+      expect(execution).toBeDefined()
+      expect(execution.status).toBeDefined()
+    })
+
+    it('can create execution with env overrides', async ({ skip }) => {
+      if (!jobExists) return skip()
+
+      const job = blJob(TEST_JOB_NAME)
+
+      // Create execution with environment variable overrides
+      const executionId = await job.createExecution({
+        tasks: [{ name: "John" }],
+        env: {
+          CUSTOM_ENV: "OVERRIDE_VALUE",
+          ANOTHER_ENV: "TEST_VALUE",
+        },
+      })
+
+      expect(executionId).toBeDefined()
+      expect(typeof executionId).toBe('string')
+
+      // Verify execution was created
+      const execution = await job.getExecution(executionId)
+      expect(execution).toBeDefined()
+      expect(execution.status).toBeDefined()
+    })
+
+    it('can create execution with both memory and env overrides', async ({ skip }) => {
+      if (!jobExists) return skip()
+
+      const job = blJob(TEST_JOB_NAME)
+
+      // Create execution with both memory and environment overrides
+      const executionId = await job.createExecution({
+        tasks: [{ name: "Combined" }],
+        memory: 1024,
+        env: {
+          TEST_MODE: "true",
+          LOG_LEVEL: "debug",
+        },
+      })
+
+      expect(executionId).toBeDefined()
+      expect(typeof executionId).toBe('string')
+
+      // Verify execution was created
+      const execution = await job.getExecution(executionId)
+      expect(execution).toBeDefined()
+      expect(execution.status).toBeDefined()
     })
   })
 })

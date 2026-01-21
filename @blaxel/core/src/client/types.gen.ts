@@ -253,6 +253,12 @@ export type Country = {
  */
 export type CreateJobExecutionRequest = {
     /**
+     * Environment variable overrides (optional, will merge with job's environment variables)
+     */
+    env?: {
+        [key: string]: unknown;
+    };
+    /**
      * Execution ID (optional, will be generated if not provided)
      */
     executionId?: string;
@@ -264,6 +270,10 @@ export type CreateJobExecutionRequest = {
      * Job ID
      */
     jobId?: string;
+    /**
+     * Memory override in megabytes (optional, must be lower than or equal to job's configured memory)
+     */
+    memory?: number;
     /**
      * Array of task parameters for parallel execution
      */
@@ -588,6 +598,10 @@ export type FunctionRuntime = {
      * Minimum instances to keep warm. Set to 1+ to eliminate cold starts, 0 for scale-to-zero.
      */
     minScale?: number;
+    /**
+     * Transport compatibility for the MCP, can be "websocket" or "http-stream"
+     */
+    transport?: 'websocket' | 'http-stream';
 };
 
 /**
@@ -602,10 +616,6 @@ export type FunctionSpec = {
     policies?: PoliciesList;
     revision?: RevisionConfiguration;
     runtime?: FunctionRuntime;
-    /**
-     * Transport compatibility for the MCP, can be "websocket" or "http-stream"
-     */
-    transport?: 'websocket' | 'http-stream';
     triggers?: Triggers;
 };
 
@@ -621,10 +631,6 @@ export type FunctionSpecWritable = {
     policies?: PoliciesList;
     revision?: RevisionConfiguration;
     runtime?: FunctionRuntime;
-    /**
-     * Transport compatibility for the MCP, can be "websocket" or "http-stream"
-     */
-    transport?: 'websocket' | 'http-stream';
     triggers?: TriggersWritable;
 };
 
@@ -1891,7 +1897,7 @@ export type Port = {
     /**
      * The protocol of the port
      */
-    protocol?: 'HTTP' | 'TCP' | 'UDP';
+    protocol?: 'HTTP' | 'TCP' | 'UDP' | 'TLS';
     /**
      * The target port of the port
      */
@@ -2708,11 +2714,11 @@ export type Volume = {
     /**
      * Volume status computed from events
      */
-    status?: string;
+    readonly status?: string;
     /**
      * Timestamp when the volume was marked for termination
      */
-    terminatedAt?: string;
+    readonly terminatedAt?: string;
 };
 
 /**
@@ -2723,14 +2729,6 @@ export type VolumeWritable = {
     metadata: MetadataWritable;
     spec: VolumeSpecWritable;
     state?: VolumeStateWritable;
-    /**
-     * Volume status computed from events
-     */
-    status?: string;
-    /**
-     * Timestamp when the volume was marked for termination
-     */
-    terminatedAt?: string;
 };
 
 /**
@@ -4699,29 +4697,6 @@ export type UpdatePolicyResponses = {
 
 export type UpdatePolicyResponse = UpdatePolicyResponses[keyof UpdatePolicyResponses];
 
-export type ListAllPendingInvitationsData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/profile/invitations';
-};
-
-export type ListAllPendingInvitationsErrors = {
-    /**
-     * no pending invitations
-     */
-    404: unknown;
-};
-
-export type ListAllPendingInvitationsResponses = {
-    /**
-     * successful operation
-     */
-    200: Array<PendingInvitationRender>;
-};
-
-export type ListAllPendingInvitationsResponse = ListAllPendingInvitationsResponses[keyof ListAllPendingInvitationsResponses];
-
 export type ListPublicIpsData = {
     body?: never;
     path?: never;
@@ -4795,7 +4770,12 @@ export type ListSandboxesResponse = ListSandboxesResponses[keyof ListSandboxesRe
 export type CreateSandboxData = {
     body: SandboxWritable;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * If true, return existing sandbox instead of 409 error when sandbox exists and is not in FAILED/TERMINATED/TERMINATING state
+         */
+        createIfNotExist?: boolean;
+    };
     url: '/sandboxes';
 };
 
@@ -5884,6 +5864,27 @@ export type GetVolumeResponses = {
 };
 
 export type GetVolumeResponse = GetVolumeResponses[keyof GetVolumeResponses];
+
+export type UpdateVolumeData = {
+    body: VolumeWritable;
+    path: {
+        /**
+         * Name of the volume
+         */
+        volumeName: string;
+    };
+    query?: never;
+    url: '/volumes/{volumeName}';
+};
+
+export type UpdateVolumeResponses = {
+    /**
+     * successful operation
+     */
+    200: Volume;
+};
+
+export type UpdateVolumeResponse = UpdateVolumeResponses[keyof UpdateVolumeResponses];
 
 export type ListWorkspacesData = {
     body?: never;
