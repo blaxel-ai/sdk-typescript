@@ -340,19 +340,19 @@ The SDK includes a helper function that retrieves and returns tool definitions f
 ```typescript
 // With Vercel AI SDK
 import { blTools } from "@blaxel/vercel";
-const tools = blTools(['blaxel-search'])
+const tools = await blTools(['blaxel-search'])
 
 // With Mastra
 import { blTools } from "@blaxel/mastra";
-const tools = blTools(['blaxel-search'])
+const tools = await blTools(['blaxel-search'])
 
 // With LlamaIndex
 import { blTools } from "@blaxel/llamaindex";
-const tools = blTools(['blaxel-search'])
+const tools = await blTools(['blaxel-search'])
 
 // With LangChain
 import { blTools } from "@blaxel/langgraph";
-const tools = blTools(['blaxel-search'])
+const tools = await blTools(['blaxel-search'])
 ```
 
 ### Batch jobs
