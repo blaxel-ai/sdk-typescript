@@ -374,7 +374,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
         ],
         labels: defaultLabels,
       })
-      // createdSandboxes.push(name)
+      createdSandboxes.push(name)
 
       expect(sandbox.metadata.name).toBe(name)
 
