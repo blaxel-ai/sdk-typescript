@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll } from 'vitest'
-import { SandboxInstance } from "@blaxel/core"
-import { uniqueName, defaultImage, defaultLabels, sleep } from './helpers.js'
+import { SandboxInstance, updateSandbox, Sandbox } from "@blaxel/core"
+import { uniqueName, defaultImage, defaultLabels, sleep, waitForSandboxDeployed } from './helpers.js'
 
 describe('Sandbox Lifecycle and Expiration', () => {
   const createdSandboxes: string[] = []
@@ -194,6 +194,238 @@ describe('Sandbox Lifecycle and Expiration', () => {
       createdSandboxes.push(name)
 
       expect(sandbox.metadata.name).toBe(name)
+    })
+  })
+
+  describe('updateTTL preserves sandbox state', () => {
+    it('updateTTL does not recreate sandbox - files are preserved', async () => {
+      const name = uniqueName("update-ttl")
+      const testFilePath = "/tmp/ttl-test-file.txt"
+      const testContent = `unique-content-${Date.now()}`
+
+      // Create sandbox with initial TTL
+      const sandbox = await SandboxInstance.create({
+        name,
+        image: defaultImage,
+        ttl: "10m",
+        labels: defaultLabels,
+      })
+      createdSandboxes.push(name)
+
+      expect(sandbox.metadata.name).toBe(name)
+
+      // Write a file to the sandbox
+      await sandbox.fs.write(testFilePath, testContent)
+
+      // Verify file was written
+      const contentBefore = await sandbox.fs.read(testFilePath)
+      expect(contentBefore).toBe(testContent)
+
+      // Update TTL to a new value
+      await SandboxInstance.updateTTL(name, "30m")
+
+      // Wait for sandbox to be deployed after update
+      await waitForSandboxDeployed(name)
+      const updatedSandbox = await SandboxInstance.get(name)
+
+      // Verify sandbox still exists and has same name
+      expect(updatedSandbox.metadata.name).toBe(name)
+
+      // CRITICAL: Verify the file still exists with same content
+      // If the sandbox was recreated, this file would not exist
+      const contentAfter = await updatedSandbox.fs.read(testFilePath)
+      expect(contentAfter).toBe(testContent)
+    })
+
+    it('updateTTL multiple times preserves files', async () => {
+      const name = uniqueName("multi-ttl")
+      const testFilePath = "/tmp/multi-ttl-test.txt"
+      const testContent = `multi-update-content-${Date.now()}`
+
+      // Create sandbox
+      const sandbox = await SandboxInstance.create({
+        name,
+        image: defaultImage,
+        ttl: "5m",
+        labels: defaultLabels,
+      })
+      createdSandboxes.push(name)
+
+      // Write a file
+      await sandbox.fs.write(testFilePath, testContent)
+
+      // Update TTL multiple times
+      await SandboxInstance.updateTTL(name, "10m")
+      await waitForSandboxDeployed(name)
+
+      await SandboxInstance.updateTTL(name, "15m")
+      await waitForSandboxDeployed(name)
+
+      await SandboxInstance.updateTTL(name, "20m")
+      await waitForSandboxDeployed(name)
+      const finalSandbox = await SandboxInstance.get(name)
+
+      // File should still be there
+      const content = await finalSandbox.fs.read(testFilePath)
+      expect(content).toBe(testContent)
+    })
+  })
+
+  describe('updateLifecycle preserves sandbox state', () => {
+    it('updateLifecycle does not recreate sandbox - files are preserved', async () => {
+      const name = uniqueName("update-lifecycle")
+      const testFilePath = "/tmp/lifecycle-test-file.txt"
+      const testContent = `lifecycle-content-${Date.now()}`
+
+      // Create sandbox with initial lifecycle policy
+      const sandbox = await SandboxInstance.create({
+        name,
+        image: defaultImage,
+        lifecycle: {
+          expirationPolicies: [
+            { type: "ttl-max-age", value: "10m", action: "delete" }
+          ]
+        },
+        labels: defaultLabels,
+      })
+      createdSandboxes.push(name)
+
+      expect(sandbox.metadata.name).toBe(name)
+
+      // Write a file to the sandbox
+      await sandbox.fs.write(testFilePath, testContent)
+
+      // Verify file was written
+      const contentBefore = await sandbox.fs.read(testFilePath)
+      expect(contentBefore).toBe(testContent)
+
+      // Update lifecycle to a new policy
+      await SandboxInstance.updateLifecycle(name, {
+        expirationPolicies: [
+          { type: "ttl-max-age", value: "30m", action: "delete" }
+        ]
+      })
+
+      // Wait for sandbox to be deployed after update
+      await waitForSandboxDeployed(name)
+      const updatedSandbox = await SandboxInstance.get(name)
+
+      // Verify sandbox still exists and has same name
+      expect(updatedSandbox.metadata.name).toBe(name)
+
+      // CRITICAL: Verify the file still exists with same content
+      // If the sandbox was recreated, this file would not exist
+      const contentAfter = await updatedSandbox.fs.read(testFilePath)
+      expect(contentAfter).toBe(testContent)
+    })
+
+    it('updateLifecycle with different policy types preserves files', async () => {
+      const name = uniqueName("lifecycle-change")
+      const testFilePath = "/tmp/lifecycle-change-test.txt"
+      const testContent = `policy-change-content-${Date.now()}`
+
+      // Create sandbox with ttl-idle policy
+      const sandbox = await SandboxInstance.create({
+        name,
+        image: defaultImage,
+        lifecycle: {
+          expirationPolicies: [
+            { type: "ttl-idle", value: "5m", action: "delete" }
+          ]
+        },
+        labels: defaultLabels,
+      })
+      createdSandboxes.push(name)
+
+      // Write a file
+      await sandbox.fs.write(testFilePath, testContent)
+
+      // Change to a different policy type
+      await SandboxInstance.updateLifecycle(name, {
+        expirationPolicies: [
+          { type: "ttl-max-age", value: "20m", action: "delete" },
+          { type: "ttl-idle", value: "10m", action: "delete" }
+        ]
+      })
+
+      // Wait for sandbox to be deployed after update
+      await new Promise(resolve => setTimeout(resolve, 200))
+      await waitForSandboxDeployed(name)
+      const updatedSandbox = await SandboxInstance.get(name)
+
+      // File should still be there
+      const content = await updatedSandbox.fs.read(testFilePath)
+      expect(content).toBe(testContent)
+    })
+  })
+
+  describe('updateSandbox with envs triggers reboot and clears ephemeral state', () => {
+    it('updating environment variables reboots sandbox and clears files', async () => {
+      const name = uniqueName("update-envs")
+      const testFilePath = "/tmp/envs-test-file.txt"
+      const testContent = `envs-content-${Date.now()}`
+
+      // Create sandbox with initial environment variables
+      const sandbox = await SandboxInstance.create({
+        name,
+        image: defaultImage,
+        envs: [
+          { name: "TEST_VAR", value: "initial_value" }
+        ],
+        labels: defaultLabels,
+      })
+      // createdSandboxes.push(name)
+
+      expect(sandbox.metadata.name).toBe(name)
+
+      // Write a file to the sandbox
+      await sandbox.fs.write(testFilePath, testContent)
+
+      // Verify file was written
+      const contentBefore = await sandbox.fs.read(testFilePath)
+      expect(contentBefore).toBe(testContent)
+
+      // Update environment variables using updateSandbox directly
+      const currentSandbox = await SandboxInstance.get(name)
+      const body: Sandbox = {
+        ...currentSandbox.spec,
+        metadata: currentSandbox.metadata,
+        spec: {
+          ...currentSandbox.spec,
+          runtime: {
+            ...currentSandbox.spec.runtime,
+            envs: [
+              { name: "TEST_VAR", value: "updated_value" },
+              { name: "NEW_VAR", value: "new_value" }
+            ]
+          }
+        }
+      }
+
+      await updateSandbox({
+        path: { sandboxName: name },
+        body,
+        throwOnError: true,
+      })
+
+      // Wait for sandbox to be deployed after reboot
+      await new Promise(resolve => setTimeout(resolve, 200))
+      await waitForSandboxDeployed(name)
+      const updatedSandbox = await SandboxInstance.get(name)
+
+      // Verify sandbox still exists and has same name
+      expect(updatedSandbox.metadata.name).toBe(name)
+
+      // CRITICAL: Verify the file does NOT exist anymore
+      // Updating envs triggers a reboot which clears ephemeral files
+      await expect(updatedSandbox.fs.read(testFilePath)).rejects.toThrow()
+
+      // Verify env vars are updated by checking them via process exec
+      const result = await updatedSandbox.process.exec({
+        command: "echo $TEST_VAR $NEW_VAR",
+        waitForCompletion: true
+      })
+      expect(result.stdout?.trim()).toBe("updated_value new_value")
     })
   })
 })

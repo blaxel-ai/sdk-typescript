@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { createSandbox, deleteSandbox, getSandbox, listSandboxes, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
+import { createSandbox, deleteSandbox, getSandbox, listSandboxes, SandboxLifecycle, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
 import { SandboxCodegen } from "./codegen/index.js";
 import { SandboxFileSystem } from "./filesystem/index.js";
@@ -164,6 +164,30 @@ export class SandboxInstance {
   static async updateMetadata(sandboxName: string, metadata: SandboxUpdateMetadata) {
     const sandbox = await SandboxInstance.get(sandboxName);
     const body = { ...sandbox.sandbox, metadata: { ...sandbox.metadata, ...metadata } } as SandboxModel
+    const { data } = await updateSandbox({
+      path: { sandboxName },
+      body,
+      throwOnError: true,
+    });
+    const instance = new SandboxInstance(data);
+    return instance;
+  }
+
+  static async updateTTL(sandboxName: string, ttl: string) {
+    const sandbox = await SandboxInstance.get(sandboxName);
+    const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, runtime: { ...sandbox.spec.runtime, ttl } } } as SandboxModel
+    const { data } = await updateSandbox({
+      path: { sandboxName },
+      body,
+      throwOnError: true,
+    });
+    const instance = new SandboxInstance(data);
+    return instance;
+  }
+
+  static async updateLifecycle(sandboxName: string, lifecycle: SandboxLifecycle) {
+    const sandbox = await SandboxInstance.get(sandboxName);
+    const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, lifecycle } } as SandboxModel
     const { data } = await updateSandbox({
       path: { sandboxName },
       body,
