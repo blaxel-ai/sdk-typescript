@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { defaultLabels, defaultRegion, sleep, uniqueName, waitForSandboxDeletion } from './helpers.js'
 
 describe('Delete-Recreate Race Condition Tests', () => {
-  it('handles rapid delete-recreate cycles without conflicts', async () => {
+  it('handles rapid delete-recreate cycles without conflicts', { timeout: 300000 }, async () => {
     const sandboxName = uniqueName("race-single")
     const iterations = 5
 
@@ -29,9 +29,9 @@ describe('Delete-Recreate Race Condition Tests', () => {
       // Small race window before recreating
       await sleep(100)
     }
-  }, { timeout: 300000 }) // 5 minutes
+  })
 
-  it('handles parallel delete-recreate operations', async () => {
+  it('handles parallel delete-recreate operations', { timeout: 600000 }, async () => {
     const numWorkers = 3
     const iterationsPerWorker = 3
     const sandboxNames = Array.from({ length: numWorkers }, (_, i) =>
@@ -64,9 +64,9 @@ describe('Delete-Recreate Race Condition Tests', () => {
     })
 
     await Promise.all(workers)
-  }, { timeout: 600000 }) // 10 minutes
+  })
 
-  it('detects if sandbox gets stuck in DELETING state', async () => {
+  it('detects if sandbox gets stuck in DELETING state', { timeout: 120000 }, async () => {
     const sandboxName = uniqueName("race-deleting-check")
 
     // Create sandbox
@@ -105,6 +105,6 @@ describe('Delete-Recreate Race Condition Tests', () => {
 
     // Clean up
     await waitForSandboxDeletion(sandboxName, 60)
-  }, { timeout: 120000 })
+  })
 })
 

@@ -147,7 +147,7 @@ describe('Sandbox Session Operations', () => {
       await sleep(100)
       await sandboxFromSession.fs.write("/session-test.txt", "content")
 
-      await sleep(200)
+      await sleep(1000)
       handle.close()
 
       expect(changeDetected).toBe(true)

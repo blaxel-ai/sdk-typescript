@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { createVolume, deleteVolume, getVolume, listVolumes, Volume } from "../client/index.js";
+import { createVolume, deleteVolume, getVolume, listVolumes, updateVolume, Volume, VolumeWritable } from "../client/index.js";
 
 export interface VolumeCreateConfiguration {
   name?: string;
@@ -115,6 +115,63 @@ export class VolumeInstance {
 
   async delete() {
     return await VolumeInstance.delete(this.metadata.name);
+  }
+
+  static async update(volumeName: string, updates: VolumeCreateConfiguration | Volume): Promise<VolumeInstance> {
+    const volume = await VolumeInstance.get(volumeName);
+    let newUpdate: VolumeWritable
+    if ('spec' in updates && 'metadata' in updates) {
+      newUpdate = {
+        metadata: updates.metadata,
+        spec: updates.spec,
+      }
+    } else {
+      newUpdate = {
+        metadata: {
+          name: volume.metadata.name,
+          displayName: updates.displayName,
+          labels: updates.labels,
+        },
+        spec: {
+          size: updates.size,
+          region: updates.region,
+          template: updates.template,
+        },
+      }
+
+    }
+    const body = {
+      metadata: {
+        ...volume.metadata,
+        ...newUpdate.metadata,
+      },
+      spec: {
+        ...volume.spec,
+        ...newUpdate.spec,
+      },
+    };
+    const { data, response } = await updateVolume({
+      path: { volumeName },
+      body,
+      throwOnError: true,
+    });
+    if (response.status !== 200) {
+      throw new Error(`Failed to update volume: ${response.statusText}`);
+    }
+    const newVolume: Volume = {
+      metadata: data.metadata,
+      spec: data.spec,
+      events: data.events,
+      state: data.state,
+      status: data.status,
+      terminatedAt: data.terminatedAt,
+    }
+    return new VolumeInstance(newVolume);
+  }
+
+  async update(updates: VolumeWritable): Promise<VolumeInstance> {
+    const updated = await VolumeInstance.update(this.metadata.name, updates);
+    return updated;
   }
 
   static async createIfNotExists(config: VolumeCreateConfiguration | Volume) {
