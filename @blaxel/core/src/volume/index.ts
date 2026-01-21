@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { createVolume, deleteVolume, getVolume, listVolumes, updateVolume, Volume, VolumeWritable } from "../client/index.js";
+import { createVolume, deleteVolume, getVolume, listVolumes, updateVolume, Volume } from "../client/index.js";
 
 export interface VolumeCreateConfiguration {
   name?: string;
@@ -119,45 +119,47 @@ export class VolumeInstance {
 
   static async update(volumeName: string, updates: VolumeCreateConfiguration | Volume): Promise<VolumeInstance> {
     const volume = await VolumeInstance.get(volumeName);
-    let newUpdate: VolumeWritable
+
+    let metadataUpdates: Record<string, unknown> = {};
+    let specUpdates: Record<string, unknown> = {};
+
     if ('spec' in updates && 'metadata' in updates) {
-      newUpdate = {
-        metadata: updates.metadata,
-        spec: updates.spec,
+      // It's a Volume object - only include defined fields
+      if (updates.metadata) {
+        if (updates.metadata.displayName !== undefined) metadataUpdates.displayName = updates.metadata.displayName;
+        if (updates.metadata.labels !== undefined) metadataUpdates.labels = updates.metadata.labels;
+      }
+      if (updates.spec) {
+        if (updates.spec.size !== undefined) specUpdates.size = updates.spec.size;
+        if (updates.spec.region !== undefined) specUpdates.region = updates.spec.region;
+        if (updates.spec.template !== undefined) specUpdates.template = updates.spec.template;
       }
     } else {
-      newUpdate = {
-        metadata: {
-          name: volume.metadata.name,
-          displayName: updates.displayName,
-          labels: updates.labels,
-        },
-        spec: {
-          size: updates.size,
-          region: updates.region,
-          template: updates.template,
-        },
-      }
-
+      // It's a VolumeCreateConfiguration - only include defined fields
+      if (updates.displayName !== undefined) metadataUpdates.displayName = updates.displayName;
+      if (updates.labels !== undefined) metadataUpdates.labels = updates.labels;
+      if (updates.size !== undefined) specUpdates.size = updates.size;
+      if (updates.region !== undefined) specUpdates.region = updates.region;
+      if (updates.template !== undefined) specUpdates.template = updates.template;
     }
+
     const body = {
       metadata: {
         ...volume.metadata,
-        ...newUpdate.metadata,
+        ...metadataUpdates,
       },
       spec: {
         ...volume.spec,
-        ...newUpdate.spec,
+        ...specUpdates,
       },
     };
-    const { data, response } = await updateVolume({
+
+    const { data } = await updateVolume({
       path: { volumeName },
       body,
       throwOnError: true,
     });
-    if (response.status !== 200) {
-      throw new Error(`Failed to update volume: ${response.statusText}`);
-    }
+
     const newVolume: Volume = {
       metadata: data.metadata,
       spec: data.spec,
@@ -169,7 +171,7 @@ export class VolumeInstance {
     return new VolumeInstance(newVolume);
   }
 
-  async update(updates: VolumeWritable): Promise<VolumeInstance> {
+  async update(updates: VolumeCreateConfiguration | Volume): Promise<VolumeInstance> {
     const updated = await VolumeInstance.update(this.metadata.name, updates);
     return updated;
   }
