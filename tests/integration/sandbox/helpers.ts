@@ -25,6 +25,28 @@ export function uniqueName(prefix: string = "test"): string {
 }
 
 /**
+ * Waits for a sandbox to be deployed by polling until status is DEPLOYED
+ * @param sandboxName The name of the sandbox to wait for
+ * @param maxAttempts Maximum number of attempts to wait (default: 30 seconds)
+ * @returns Promise<boolean> - true if deployed, false if timeout
+ */
+export async function waitForSandboxDeployed(sandboxName: string, maxAttempts: number = 30): Promise<boolean> {
+  let attempts = 0
+
+  while (attempts < maxAttempts) {
+    const sandbox = await SandboxInstance.get(sandboxName)
+    if (sandbox.status === "DEPLOYED") {
+      return true
+    }
+    await sleep(1000)
+    attempts++
+  }
+
+  console.warn(`Timeout waiting for ${sandboxName} to be deployed`)
+  return false
+}
+
+/**
  * Waits for a sandbox deletion to fully complete by polling until the sandbox no longer exists
  * @param sandboxName The name of the sandbox to wait for deletion
  * @param maxAttempts Maximum number of attempts to wait (default: 30 seconds)
