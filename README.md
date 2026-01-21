@@ -263,6 +263,7 @@ await volume.delete();
 Blaxel lets you host and deploy AI agents as serverless, auto-scalable endpoints, with full observability and tracing built-in.
 
 ```typescript
+// Example with Vercel AI SDK
 import { blModel, blTools } from '@blaxel/vercel';
 import { streamText, tool } from 'ai';
 import { z } from 'zod';
