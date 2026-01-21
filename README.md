@@ -20,16 +20,6 @@ yarn add @blaxel/core
 bun add @blaxel/core
 ```
 
-### Optional packages
-
-Blaxel provides additional packages for framework-specific integrations and telemetry:
-
-- [`@blaxel/telemetry`](./@blaxel/telemetry/README.md) - OpenTelemetry instrumentation
-- [`@blaxel/vercel`](./@blaxel/vercel/README.md) - Vercel AI SDK integration
-- [`@blaxel/llamaindex`](./@blaxel/llamaindex/README.md) - LlamaIndex integration
-- [`@blaxel/langgraph`](./@blaxel/langgraph/README.md) - LangGraph integration
-- [`@blaxel/mastra`](./@blaxel/mastra/README.md) - Mastra integration
-
 ## Authentication
 
 The SDK authenticates with your Blaxel workspace using these sources (in priority order):
@@ -258,53 +248,59 @@ await VolumeInstance.delete("my-volume");
 await volume.delete();
 ```
 
-### Agents
+### Batch jobs
 
-Blaxel lets you host and deploy AI agents as serverless, auto-scalable endpoints, with full observability and tracing built-in.
+Blaxel lets you support agentic workflows by offloading asynchronous batch processing tasks to its scalable infrastructure, where they can run in parallel. Jobs can run multiple times within a single execution and accept optional input parameters.
 
 ```typescript
-// Example with Vercel AI SDK
-import { blModel, blTools } from '@blaxel/vercel';
-import { streamText, tool } from 'ai';
-import { z } from 'zod';
-interface Stream {
-  write: (data: string) => void;
-  end: () => void;
-}
+import { blJob } from "@blaxel/core";
 
-export default async function agent(input: string, stream: Stream): Promise<void> {
-  const response = streamText({
-    experimental_telemetry: { isEnabled: true },
-    // Load model API dynamically from Blaxel:
-    model: await blModel("gpt-4o-mini"),
-    tools: {
-      // Load tools dynamically from Blaxel:
-      ...await blTools(['blaxel-search']),
-      // And here's an example of a tool defined locally for Vercel AI:
-      "weather": tool({
-        description: "Get the weather in a specific city",
-        parameters: z.object({
-          city: z.string(),
-        }),
-        execute: async (args: { city: string }) => {
-          console.debug("TOOL CALLING: local weather", args);
-          return `The weather in ${args.city} is sunny`;
-        },
-      }),
-    },
-    system: "You are an agent that will give the weather when a city is provided, and also do a quick search about this city.",
-    messages: [
-      { role: 'user', content: input }
-    ],
-    maxSteps: 5,
+// Create and run a job execution
+const job = blJob("job-name");
+
+const executionId = await job.createExecution({
+  tasks: [
+    { name: "John" },
+    { name: "Jane" },
+    { name: "Bob" }
+  ]
+});
+
+// Get execution status
+// Returns: "pending" | "running" | "completed" | "failed"
+const status = await job.getExecutionStatus(executionId);
+
+// Get execution details
+const execution = await job.getExecution(executionId);
+console.log(execution.status, execution.metadata);
+
+// Wait for completion
+try {
+  const result = await job.waitForExecution(executionId, {
+    maxWait: 300000,  // 5 minutes (milliseconds)
+    interval: 2000,   // Poll every 2 seconds (milliseconds)
   });
-
-  for await (const delta of response.textStream) {
-    stream.write(delta);
-  }
-  stream.end();
+  console.log(`Completed: ${result.status}`);
+} catch (error) {
+  console.log(`Timeout: ${error.message}`);
 }
+
+// List all executions
+const executions = await job.listExecutions();
+
+// Delete an execution
+await job.deleteExecution(executionId);
 ```
+
+### Framework integrations
+
+Blaxel provides additional packages for framework-specific integrations and telemetry:
+
+- [`@blaxel/telemetry`](./@blaxel/telemetry/README.md) - OpenTelemetry instrumentation
+- [`@blaxel/vercel`](./@blaxel/vercel/README.md) - Vercel AI SDK integration
+- [`@blaxel/llamaindex`](./@blaxel/llamaindex/README.md) - LlamaIndex integration
+- [`@blaxel/langgraph`](./@blaxel/langgraph/README.md) - LangGraph integration
+- [`@blaxel/mastra`](./@blaxel/mastra/README.md) - Mastra integration
 
 #### Model use
 
@@ -354,50 +350,6 @@ const tools = await blTools(['blaxel-search'])
 // With LangChain
 import { blTools } from "@blaxel/langgraph";
 const tools = await blTools(['blaxel-search'])
-```
-
-### Batch jobs
-
-Blaxel lets you support agentic workflows by offloading asynchronous batch processing tasks to its scalable infrastructure, where they can run in parallel. Jobs can run multiple times within a single execution and accept optional input parameters.
-
-```typescript
-import { blJob } from "@blaxel/core";
-
-// Create and run a job execution
-const job = blJob("job-name");
-
-const executionId = await job.createExecution({
-  tasks: [
-    { name: "John" },
-    { name: "Jane" },
-    { name: "Bob" }
-  ]
-});
-
-// Get execution status
-// Returns: "pending" | "running" | "completed" | "failed"
-const status = await job.getExecutionStatus(executionId);
-
-// Get execution details
-const execution = await job.getExecution(executionId);
-console.log(execution.status, execution.metadata);
-
-// Wait for completion
-try {
-  const result = await job.waitForExecution(executionId, {
-    maxWait: 300000,  // 5 minutes (milliseconds)
-    interval: 2000,   // Poll every 2 seconds (milliseconds)
-  });
-  console.log(`Completed: ${result.status}`);
-} catch (error) {
-  console.log(`Timeout: ${error.message}`);
-}
-
-// List all executions
-const executions = await job.listExecutions();
-
-// Delete an execution
-await job.deleteExecution(executionId);
 ```
 
 ### Telemetry
