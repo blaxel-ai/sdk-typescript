@@ -305,9 +305,11 @@ export default async function agent(input: string, stream: Stream): Promise<void
 }
 ```
 
-#### Hosted models
+#### Model use
 
 Blaxel acts as a unified gateway for model APIs, centralizing access credentials, tracing and telemetry. You can integrate with any model API provider, or deploy your own custom model. When a model is deployed on Blaxel, a global API endpoint is also created to call it.
+
+The SDK includes a helper function that creates a reference to a model deployed on Blaxel and returns a framework-specific model client that routes API calls through Blaxel's unified gateway.
 
 ```typescript
 import { blModel } from "@blaxel/core";
@@ -329,7 +331,29 @@ import { blModel } from "@blaxel/mastra";
 const model = await blModel("gpt-4o-mini");
 ```
 
-### Hosted MCP servers
+#### MCP tool use
+
+Blaxel lets you deploy and host Model Context Protocol (MCP) servers, accessible at a global endpoint over streamable HTTP.
+
+The SDK includes a helper function that retrieves and returns tool definitions from a Blaxel-hosted MCP server in the format required by specific frameworks.
+
+```typescript
+// With Vercel AI SDK
+import { blTools } from "@blaxel/vercel";
+const tools = blTools(['blaxel-search'])
+
+// With Mastra
+import { blTools } from "@blaxel/mastra";
+const tools = blTools(['blaxel-search'])
+
+// With LlamaIndex
+import { blTools } from "@blaxel/llamaindex";
+const tools = blTools(['blaxel-search'])
+
+// With LangChain
+import { blTools } from "@blaxel/langchain";
+const tools = blTools(['blaxel-search'])
+```
 
 ### Batch jobs
 
@@ -377,7 +401,9 @@ await job.deleteExecution(executionId);
 
 ### Telemetry
 
-Enable automatic telemetry:
+Instrumentation happens automatically when workloads run on Blaxel.
+
+Enable automatic telemetry by importing the `@blaxel/telemetry` package:
 
 ```typescript
 import "@blaxel/telemetry";
