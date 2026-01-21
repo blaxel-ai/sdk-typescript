@@ -24,11 +24,11 @@ bun add @blaxel/core
 
 Blaxel provides additional packages for framework-specific integrations and telemetry:
 
-- `@blaxel/telemetry` - OpenTelemetry instrumentation
-- `@blaxel/vercel` - Vercel AI SDK integration
-- `@blaxel/llamaindex` - LlamaIndex integration
-- `@blaxel/langgraph` - LangGraph integration
-- `@blaxel/mastra` - Mastra integration
+- [`@blaxel/telemetry`](./@blaxel/telemetry/README.md) - OpenTelemetry instrumentation
+- [`@blaxel/vercel`](./@blaxel/vercel/README.md) - Vercel AI SDK integration
+- [`@blaxel/llamaindex`](./@blaxel/llamaindex/README.md) - LlamaIndex integration
+- [`@blaxel/langgraph`](./@blaxel/langgraph/README.md) - LangGraph integration
+- [`@blaxel/mastra`](./@blaxel/mastra/README.md) - Mastra integration
 
 ## Authentication
 
