@@ -81,6 +81,18 @@ describe('Sandbox Preview Operations', () => {
 
       await sandbox.previews.delete("prefix-preview")
     })
+
+    it('throws error when creating preview on non-existent port', async () => {
+      await expect(
+        sandbox.previews.create({
+          metadata: { name: "invalid-port-preview" },
+          spec: {
+            port: 15500, // This port is not configured on the sandbox
+            public: true
+          }
+        })
+      ).rejects.toThrow()
+    })
   })
 
   describe('createIfNotExists', () => {
@@ -293,7 +305,7 @@ describe('Sandbox Preview Operations', () => {
   })
 
   describe('advanced scenarios', () => {
-    it('creates preview with custom server and token authentication', async () => {
+    it('creates preview with custom server and token authentication', { timeout: 120000 }, async () => {
       const name = uniqueName("preview-custom-server")
 
       const customSandbox = await SandboxInstance.create({
@@ -363,13 +375,13 @@ server.listen(3000, '0.0.0.0', () => {
         // Test that token expiration is set correctly
         expect(token.expiresAt).toBeDefined()
         const expectedExpiry = expiresAt.getTime()
-        const actualExpiry = new Date(token.expiresAt!).getTime()
+        const actualExpiry = new Date(token.expiresAt).getTime()
         const diff = Math.abs(actualExpiry - expectedExpiry)
         expect(diff).toBeLessThan(10000) // 10s tolerance
       } finally {
         await SandboxInstance.delete(name).catch(() => {})
       }
-    }, { timeout: 120000 })
+    })
 
     it('creates multiple previews on different ports', async () => {
       const name = uniqueName("preview-multi-port")

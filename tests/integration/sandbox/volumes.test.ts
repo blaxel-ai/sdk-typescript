@@ -256,6 +256,123 @@ describe('Sandbox Volume Operations', () => {
     // })
   })
 
+  describe('volume resize', () => {
+    it('resizes volume and preserves data', { timeout: 300000 }, async () => {
+      const volumeName = uniqueName("resize-vol")
+      const sandbox1Name = uniqueName("resize-sandbox-1")
+      const sandbox2Name = uniqueName("resize-sandbox-2")
+
+      // Create a 512MB volume
+      await VolumeInstance.create({
+        name: volumeName,
+        size: 512,
+        region: defaultRegion,
+        labels: defaultLabels,
+      })
+      createdVolumes.push(volumeName)
+
+      // Create first sandbox with volume attached
+      const sandbox1 = await SandboxInstance.create({
+        name: sandbox1Name,
+        image: defaultImage,
+        memory: 4096,
+        region: defaultRegion,
+        volumes: [{ name: volumeName, mountPath: "/data", readOnly: false }],
+        labels: defaultLabels,
+      })
+
+      // Write ~400MB of data to the volume
+      await sandbox1.process.exec({
+        command: "dd if=/dev/urandom of=/data/large-file-1.bin bs=1M count=400",
+        waitForCompletion: true,
+      })
+
+      // Verify file was created
+      const checkResult1 = await sandbox1.process.exec({
+        command: "ls -lh /data/large-file-1.bin",
+        waitForCompletion: true,
+      })
+      expect(checkResult1.logs).toContain("large-file-1.bin")
+
+      // Delete first sandbox
+      await SandboxInstance.delete(sandbox1Name)
+      await waitForSandboxDeletion(sandbox1Name)
+
+      // Resize volume to 1GB
+      const updatedVolume = await VolumeInstance.update(volumeName, { size: 1024 })
+      expect(updatedVolume.size).toBe(1024)
+
+      // Create second sandbox with the resized volume
+      const sandbox2 = await SandboxInstance.create({
+        name: sandbox2Name,
+        image: defaultImage,
+        memory: 4096,
+        region: defaultRegion,
+        volumes: [{ name: volumeName, mountPath: "/data", readOnly: false }],
+        labels: defaultLabels,
+      })
+      createdSandboxes.push(sandbox2Name)
+
+      // Verify previous data still exists
+      const checkResult2 = await sandbox2.process.exec({
+        command: "ls -lh /data/large-file-1.bin",
+        waitForCompletion: true,
+      })
+      expect(checkResult2.logs).toContain("large-file-1.bin")
+
+      // Write another ~400MB file (would fail if volume wasn't resized)
+      const writeResult = await sandbox2.process.exec({
+        command: "dd if=/dev/urandom of=/data/large-file-2.bin bs=1M count=400 && echo 'WRITE_SUCCESS'",
+        waitForCompletion: true,
+      })
+      expect(writeResult.logs).toContain("WRITE_SUCCESS")
+
+      // Verify both files exist
+      const finalCheck = await sandbox2.process.exec({
+        command: "ls -lh /data/",
+        waitForCompletion: true,
+      })
+      expect(finalCheck.logs).toContain("large-file-1.bin")
+      expect(finalCheck.logs).toContain("large-file-2.bin")
+    })
+
+    it('fails when writing more data than volume capacity', { timeout: 120000 }, async () => {
+      const volumeName = uniqueName("overflow-vol")
+      const sandboxName = uniqueName("overflow-sandbox")
+
+      // Create a small 512MB volume
+      await VolumeInstance.create({
+        name: volumeName,
+        size: 512,
+        region: defaultRegion,
+        labels: defaultLabels,
+      })
+      createdVolumes.push(volumeName)
+
+      // Create sandbox with volume attached
+      const sandbox = await SandboxInstance.create({
+        name: sandboxName,
+        image: defaultImage,
+        memory: 4096,
+        region: defaultRegion,
+        volumes: [{ name: volumeName, mountPath: "/data", readOnly: false }],
+        labels: defaultLabels,
+      })
+      createdSandboxes.push(sandboxName)
+
+      // Try to write more data than the volume can hold (600MB > 512MB)
+      // dd will fail when disk is full, so we check for failure
+      const writeResult = await sandbox.process.exec({
+        command: "(dd if=/dev/urandom of=/data/too-large.bin bs=1M count=600 2>&1 && echo 'WRITE_SUCCESS') || echo 'WRITE_FAILED'",
+        waitForCompletion: true,
+      })
+
+      // The write should fail due to insufficient space
+      expect(writeResult.logs).toContain("WRITE_FAILED")
+      expect(writeResult.logs).toMatch(/No space left on device|WRITE_FAILED/)
+    })
+  })
+
   describe('volume persistence', () => {
     it('data persists across sandbox recreations', async () => {
       const volumeName = uniqueName("persist-vol")

@@ -24,10 +24,36 @@ export const blModel = async (
   // Custom fetch function that refreshes authentication on each request
   const authenticatedFetch = async (input: string | URL | Request, init?: RequestInit) => {
     await authenticate();
+
+    // Properly extract headers from init, handling Headers object, plain object, or array
+    let existingHeaders: Record<string, string> = {};
+    if (init?.headers) {
+      if (init.headers instanceof Headers) {
+        // Headers object - iterate to extract all headers
+        init.headers.forEach((value, key) => {
+          existingHeaders[key] = value;
+        });
+      } else if (Array.isArray(init.headers)) {
+        // Array of [key, value] pairs
+        for (const [key, value] of init.headers) {
+          existingHeaders[key] = value;
+        }
+      } else {
+        // Plain object
+        existingHeaders = { ...(init.headers as Record<string, string>) };
+      }
+    }
+
+    // Remove the SDK's authorization header since we use x-blaxel-authorization
+    // The SDK sets "Authorization: Bearer replaced" which would be rejected by the server
+    delete existingHeaders['authorization'];
+    delete existingHeaders['Authorization'];
+
     const headers = {
-      ...init?.headers,
+      ...existingHeaders,
       ...settings.headers,
     };
+
     return fetch(input, {
       ...init,
       headers,
@@ -39,8 +65,27 @@ export const blModel = async (
         apiKey: "replaced",
         fetch: async (_, options) => {
           await authenticate();
+          // Properly extract headers from options, handling Headers object
+          let existingHeaders: Record<string, string> = {};
+          if (options?.headers) {
+            if (options.headers instanceof Headers) {
+              options.headers.forEach((value, key) => {
+                existingHeaders[key] = value;
+              });
+            } else if (Array.isArray(options.headers)) {
+              for (const [key, value] of options.headers) {
+                existingHeaders[key] = value;
+              }
+            } else {
+              existingHeaders = { ...(options.headers as Record<string, string>) };
+            }
+          }
+          // Remove the SDK's authorization header since we use x-blaxel-authorization
+          delete existingHeaders['authorization'];
+          delete existingHeaders['Authorization'];
+
           const headers = {
-            ...options?.headers,
+            ...existingHeaders,
             ...settings.headers,
           };
           return fetch(`${url}/v1beta/models/${modelId}:generateContent`, {

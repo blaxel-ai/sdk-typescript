@@ -80,3 +80,32 @@ jobs:
           else
             timeout 120s pnpm test
           fi
+
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Only run if secrets are available (not on forks)
+    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push'
+    env:
+      BL_API_KEY: ${{ secrets.BL_API_KEY }}
+      BL_WORKSPACE: ${{ secrets.BL_WORKSPACE }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install and build SDK packages
+        run: |
+          pnpm install --no-frozen-lockfile
+          pnpm build
+
+      - name: Run integration tests
+        run: pnpm test:integration
