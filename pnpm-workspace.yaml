@@ -1,8 +1,0 @@
-packages:
-  - '@blaxel/core'
-  - '@blaxel/telemetry'
-  - '@blaxel/langgraph'
-  - '@blaxel/llamaindex'
-  - '@blaxel/vercel'
-  - '@blaxel/mastra'
-  # - 'tests/runtime-environments/**'

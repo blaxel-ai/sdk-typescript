@@ -1,7 +1,7 @@
 ARGS:= $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 
 install:
-	cd @blaxel/core && pnpm install
+	bun install
 
 sdk-sandbox:
 	@echo "Downloading sandbox definition from blaxel-ai/sandbox"
