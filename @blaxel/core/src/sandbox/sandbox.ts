@@ -173,7 +173,7 @@ export class SandboxInstance {
     return instance;
   }
 
-  static async updateTTL(sandboxName: string, ttl: string) {
+  static async updateTtl(sandboxName: string, ttl: string) {
     const sandbox = await SandboxInstance.get(sandboxName);
     const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, runtime: { ...sandbox.spec.runtime, ttl } } } as SandboxModel
     const { data } = await updateSandbox({

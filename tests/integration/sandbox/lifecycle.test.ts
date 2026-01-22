@@ -197,8 +197,8 @@ describe('Sandbox Lifecycle and Expiration', () => {
     })
   })
 
-  describe('updateTTL preserves sandbox state', () => {
-    it('updateTTL does not recreate sandbox - files are preserved', async () => {
+  describe('updateTtl preserves sandbox state', () => {
+    it('updateTtl does not recreate sandbox - files are preserved', async () => {
       const name = uniqueName("update-ttl")
       const testFilePath = "/tmp/ttl-test-file.txt"
       const testContent = `unique-content-${Date.now()}`
@@ -222,7 +222,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       expect(contentBefore).toBe(testContent)
 
       // Update TTL to a new value
-      await SandboxInstance.updateTTL(name, "30m")
+      await SandboxInstance.updateTtl(name, "30m")
 
       // Wait for sandbox to be deployed after update
       await waitForSandboxDeployed(name)
@@ -237,7 +237,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       expect(contentAfter).toBe(testContent)
     })
 
-    it('updateTTL multiple times preserves files', async () => {
+    it('updateTtl multiple times preserves files', async () => {
       const name = uniqueName("multi-ttl")
       const testFilePath = "/tmp/multi-ttl-test.txt"
       const testContent = `multi-update-content-${Date.now()}`
@@ -255,13 +255,13 @@ describe('Sandbox Lifecycle and Expiration', () => {
       await sandbox.fs.write(testFilePath, testContent)
 
       // Update TTL multiple times
-      await SandboxInstance.updateTTL(name, "10m")
+      await SandboxInstance.updateTtl(name, "10m")
       await waitForSandboxDeployed(name)
 
-      await SandboxInstance.updateTTL(name, "15m")
+      await SandboxInstance.updateTtl(name, "15m")
       await waitForSandboxDeployed(name)
 
-      await SandboxInstance.updateTTL(name, "20m")
+      await SandboxInstance.updateTtl(name, "20m")
       await waitForSandboxDeployed(name)
       const finalSandbox = await SandboxInstance.get(name)
 
