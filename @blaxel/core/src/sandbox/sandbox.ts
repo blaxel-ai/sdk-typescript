@@ -7,6 +7,7 @@ import { SandboxNetwork } from "./network/index.js";
 import { SandboxPreviews } from "./preview.js";
 import { SandboxProcess } from "./process/index.js";
 import { SandboxSessions } from "./session.js";
+import { SandboxSystem } from "./system.js";
 import { normalizeEnvs, normalizePorts, normalizeVolumes, SandboxConfiguration, SandboxCreateConfiguration, SandboxUpdateMetadata, SessionWithToken } from "./types.js";
 
 export class SandboxInstance {
@@ -16,6 +17,7 @@ export class SandboxInstance {
   previews: SandboxPreviews;
   sessions: SandboxSessions;
   codegen: SandboxCodegen;
+  system: SandboxSystem;
 
   constructor(private sandbox: SandboxConfiguration) {
     this.process = new SandboxProcess(sandbox);
@@ -24,6 +26,7 @@ export class SandboxInstance {
     this.previews = new SandboxPreviews(sandbox);
     this.sessions = new SandboxSessions(sandbox);
     this.codegen = new SandboxCodegen(sandbox);
+    this.system = new SandboxSystem(sandbox);
   }
 
   get metadata() {
