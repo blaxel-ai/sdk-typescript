@@ -98,11 +98,13 @@ describe('Sandbox System Operations', () => {
       console.log(`[TEST] Preview ready: ${previewReady} (took ${Date.now() - startTime}ms)`)
       expect(previewReady).toBe(true)
 
-      // Verify preview is accessible before restart
+      // Verify preview is accessible before restart and capture content
       console.log(`[TEST] Verifying preview is accessible before restart...`)
       const preRestartResponse = await fetch(previewUrl)
       console.log(`[TEST] Pre-restart preview status: ${preRestartResponse.status}`)
       expect(preRestartResponse.status).toBe(200)
+      const preRestartContent = await preRestartResponse.text()
+      console.log(`[TEST] Pre-restart preview content length: ${preRestartContent.length} bytes`)
 
       // Restart the sandbox system
       console.log(`[TEST] Calling sandbox.system.restart()...`)
@@ -139,7 +141,7 @@ describe('Sandbox System Operations', () => {
 
       // Wait a bit for everything to stabilize after restart
       console.log(`[TEST] Waiting 2s for stabilization...`)
-      await sleep(2000)
+      await sleep(5000)
 
       // Verify preview URL is still responsive after restart
       console.log(`[TEST] Verifying preview is still responsive after restart...`)
@@ -147,11 +149,16 @@ describe('Sandbox System Operations', () => {
       console.log(`[TEST] Post-restart preview status: ${postRestartResponse.status}`)
       expect(postRestartResponse.status).toBe(200)
 
-      // Verify we can still read content from the preview
-      const content = await postRestartResponse.text()
-      console.log(`[TEST] Post-restart preview content length: ${content.length} bytes`)
-      expect(content).toBeDefined()
-      expect(content.length).toBeGreaterThan(0)
+      // Verify we can still read content from the preview and compare sizes
+      const postRestartContent = await postRestartResponse.text()
+      console.log(`[TEST] Post-restart preview content length: ${postRestartContent.length} bytes`)
+      expect(postRestartContent).toBeDefined()
+      expect(postRestartContent.length).toBeGreaterThan(0)
+
+      // Verify the content size is similar before and after restart (allow delta of 200 bytes)
+      const sizeDelta = Math.abs(postRestartContent.length - preRestartContent.length)
+      console.log(`[TEST] Comparing content sizes - pre: ${preRestartContent.length}, post: ${postRestartContent.length}, delta: ${sizeDelta}`)
+      expect(sizeDelta).toBeLessThanOrEqual(200)
 
       console.log(`[TEST] Test completed successfully!`)
     })
