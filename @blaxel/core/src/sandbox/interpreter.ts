@@ -35,7 +35,7 @@ export class CodeInterpreter extends SandboxInstance {
 
   static async create(
     sandbox?: Sandbox | SandboxCreateConfiguration | Record<string, any> | null,
-    { safe = false }: { safe?: boolean } = {}
+    { safe = true }: { safe?: boolean } = {}
   ): Promise<CodeInterpreter> {
     const payload: Record<string, any> = {
       image: CodeInterpreter.DEFAULT_IMAGE,

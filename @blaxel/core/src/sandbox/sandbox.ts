@@ -48,7 +48,7 @@ export class SandboxInstance {
     return this;
   }
 
-  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = false }: { safe?: boolean } = {}) {
+  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = true }: { safe?: boolean } = {}) {
     const defaultName = `sandbox-${uuidv4().replace(/-/g, '').substring(0, 8)}`
     const defaultImage = `blaxel/base-image:latest`
     const defaultMemory = 4096
