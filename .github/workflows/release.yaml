@@ -57,10 +57,11 @@ jobs:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
           bun install
+          bun run build
           if [ "$DEPLOY_ENV" == "production" ]; then
-            bun run publish-prod
+            bun run publish --tag latest
           elif [ "$DEPLOY_ENV" == "staging" ]; then
-            bun run publish-preview
+            bun run publish --tag preview
           else
-            bun run publish-dev
+            bun run publish --tag dev
           fi
