@@ -21,8 +21,8 @@ jobs:
         with:
           fetch-tags: true
           fetch-depth: 0
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
@@ -34,7 +34,7 @@ jobs:
             VERSION="${{ github.ref_name }}"
             VERSION="${VERSION#v}"
             echo "Setting version to $VERSION"
-            pnpm set-version $VERSION
+            bun run set-version $VERSION
           else
             VERSION=$(git describe --tags --abbrev=0)
             VERSION="${VERSION#v}"
@@ -44,10 +44,10 @@ jobs:
 
             if [ "$DEPLOY_ENV" == "staging" ]; then
               echo "Setting staging version to $VERSION-preview.${{ github.run_number }}"
-              pnpm set-version $VERSION-preview.${{ github.run_number }}
+              bun run set-version $VERSION-preview.${{ github.run_number }}
             else
               echo "Setting dev version to $VERSION-dev.${{ github.run_number }}"
-              pnpm set-version $VERSION-dev.${{ github.run_number }}
+              bun run set-version $VERSION-dev.${{ github.run_number }}
             fi
           fi
       - name: Publish to NPM
@@ -56,11 +56,12 @@ jobs:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
-          pnpm install
+          bun install
+          bun run build
           if [ "$DEPLOY_ENV" == "production" ]; then
-            pnpm publish-prod
+            npm publish --workspaces --access public --tag latest
           elif [ "$DEPLOY_ENV" == "staging" ]; then
-            pnpm publish-preview
+            npm publish --workspaces --access public --tag preview
           else
-            pnpm publish-dev
+            npm publish --workspaces --access public --tag dev
           fi
