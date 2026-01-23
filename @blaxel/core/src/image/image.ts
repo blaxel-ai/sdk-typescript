@@ -1,7 +1,8 @@
-import { DockerfileParser } from "dockerfile-ast";
-import { Metadata, MetadataLabels, Runtime, Sandbox, SandboxSpec } from "../client/types.gen.js";
+import { DockerfileParser, Dockerfile } from "dockerfile-ast";
+import { Metadata, MetadataLabels, SandboxRuntime, Sandbox, SandboxSpec } from "../client/types.gen.js";
 import { crypto, fs, os, path } from "../common/node.js";
 import { settings } from "../common/settings.js";
+import archiver from "archiver";
 
 function ensureNodeEnvironment(): void {
   if (!fs || !os || !path || !crypto) {
@@ -49,7 +50,7 @@ function generateDockerfile(context: ImageBuildContext): string {
   const rawContent = lines.join("\n") + "\n";
 
   // Parse using dockerfile-ast to validate syntax
-  const dockerfile = DockerfileParser.parse(rawContent);
+  const dockerfile: Dockerfile = DockerfileParser.parse(rawContent);
 
   // Check for any parsing errors by validating instruction count matches
   const instructions = dockerfile.getInstructions();
@@ -435,9 +436,6 @@ export class ImageInstance {
   }
 
   private async _createZip(buildDir: string): Promise<Uint8Array> {
-    // Dynamic import for archiver
-    const archiver = (await import("archiver")).default;
-
     return new Promise((resolve, reject) => {
       const chunks: Uint8Array[] = [];
 
@@ -479,7 +477,7 @@ export class ImageInstance {
       labels,
     };
 
-    const runtime: Runtime = {
+    const runtime: SandboxRuntime = {
       memory,
     };
 
