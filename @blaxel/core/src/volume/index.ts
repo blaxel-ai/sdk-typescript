@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { createVolume, deleteVolume, getVolume, listVolumes, updateVolume, Volume } from "../client/index.js";
+import { settings } from "../common/settings.js";
 
 export interface VolumeCreateConfiguration {
   name?: string;
@@ -60,7 +61,7 @@ export class VolumeInstance {
         },
         spec: {
           size: config.size || defaultSize,
-          region: config.region,
+          region: config.region || settings.region,
           template: config.template
         }
       };
@@ -78,6 +79,9 @@ export class VolumeInstance {
     }
     if (!volume.spec.size) {
       volume.spec.size = defaultSize;
+    }
+    if (!volume.spec.region && settings.region) {
+      volume.spec.region = settings.region;
     }
 
     const { data } = await createVolume({
@@ -120,8 +124,8 @@ export class VolumeInstance {
   static async update(volumeName: string, updates: VolumeCreateConfiguration | Volume): Promise<VolumeInstance> {
     const volume = await VolumeInstance.get(volumeName);
 
-    let metadataUpdates: Record<string, unknown> = {};
-    let specUpdates: Record<string, unknown> = {};
+    const metadataUpdates: Record<string, unknown> = {};
+    const specUpdates: Record<string, unknown> = {};
 
     if ('spec' in updates && 'metadata' in updates) {
       // It's a Volume object - only include defined fields

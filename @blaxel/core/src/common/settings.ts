@@ -217,6 +217,10 @@ class Settings {
     return true;
   }
 
+  get region() {
+    return env.BL_REGION || undefined;
+  }
+
   async authenticate() {
     await this.credentials.authenticate();
   }
