@@ -27,17 +27,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-
-      - name: Setup Bun
-        if: matrix.runtime == 'bun'
-        uses: oven-sh/setup-bun@v2
 
       - name: Setup Deno
         if: matrix.runtime == 'deno'
@@ -51,14 +47,15 @@ jobs:
 
       - name: Install and build SDK packages
         run: |
-          pnpm install --no-frozen-lockfile
-          pnpm build
-
-      - name: Enable runtime-environments in workspace
-        run: sed -i "s/# - 'tests\/runtime-environments/- 'tests\/runtime-environments/" pnpm-workspace.yaml
+          bun install
+          bun run build
 
       - name: Install runtime-environments dependencies
-        run: pnpm install --no-frozen-lockfile
+        working-directory: tests/runtime-environments/${{ matrix.runtime }}
+        run: |
+          if [ "${{ matrix.runtime }}" != "deno" ]; then
+            bun install
+          fi
 
       - name: Build runtime test (if applicable)
         working-directory: tests/runtime-environments/${{ matrix.runtime }}
@@ -67,7 +64,7 @@ jobs:
              [ "${{ matrix.runtime }}" != "nodejs-javascript-esm" ] && \
              [ "${{ matrix.runtime }}" != "deno" ] && \
              [ "${{ matrix.runtime }}" != "bun" ]; then
-            pnpm run build
+            bun run build
           fi
 
       - name: Run test
@@ -78,7 +75,7 @@ jobs:
           elif [ "${{ matrix.runtime }}" == "bun" ]; then
             timeout 120s bun run test
           else
-            timeout 120s pnpm test
+            timeout 120s bun run test
           fi
 
   integration-test:
@@ -94,8 +91,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -104,8 +101,8 @@ jobs:
 
       - name: Install and build SDK packages
         run: |
-          pnpm install --no-frozen-lockfile
-          pnpm build
+          bun install
+          bun run build
 
       - name: Run integration tests
-        run: pnpm test:integration
+        run: bun run test:integration
