@@ -80,6 +80,11 @@ export class CodeInterpreter extends SandboxInstance {
       }
     }
 
+    // Auto-fill region with BL_REGION if not set
+    if (!payload["region"] && settings.region) {
+      payload["region"] = settings.region;
+    }
+
     const baseInstance = await SandboxInstance.create(payload, { safe });
     // Create config from the instance - preserve any forceUrl/headers if provided in input
     const config: SandboxConfiguration = {

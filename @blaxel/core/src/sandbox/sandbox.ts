@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { createSandbox, deleteSandbox, getSandbox, listSandboxes, SandboxLifecycle, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
+import { settings } from "../common/settings.js";
 import { SandboxCodegen } from "./codegen/index.js";
 import { SandboxFileSystem } from "./filesystem/index.js";
 import { SandboxNetwork } from "./network/index.js";
@@ -76,7 +77,7 @@ export class SandboxInstance {
       const volumes = normalizeVolumes(sandbox.volumes);
       const ttl = sandbox.ttl;
       const expires = sandbox.expires;
-      const region = sandbox.region;
+      const region = sandbox.region || settings.region;
       const lifecycle = sandbox.lifecycle;
       const snapshotEnabled = sandbox.snapshotEnabled;
 
@@ -173,7 +174,7 @@ export class SandboxInstance {
     return instance;
   }
 
-  static async updateTTL(sandboxName: string, ttl: string) {
+  static async updateTtl(sandboxName: string, ttl: string) {
     const sandbox = await SandboxInstance.get(sandboxName);
     const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, runtime: { ...sandbox.spec.runtime, ttl } } } as SandboxModel
     const { data } = await updateSandbox({

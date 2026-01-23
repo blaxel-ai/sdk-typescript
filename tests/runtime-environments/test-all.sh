@@ -123,7 +123,7 @@ test_environment() {
   # Install dependencies (skip for Deno which doesn't use package.json)
   if [[ "$env_name" != deno ]]; then
     echo "Installing dependencies..."
-    pnpm install --silent
+    bun install --silent
   fi
 
   # Test linting (skip for runtime tests to focus on compatibility)
@@ -157,7 +157,7 @@ test_environment() {
     fi
   else
     echo "Testing TypeScript compilation..."
-    if pnpm build > build.log 2>&1; then
+    if bun run build > build.log 2>&1; then
       echo -e "${GREEN}✅ TypeScript compilation: PASSED${NC}"
     else
       echo -e "${RED}❌ TypeScript compilation: FAILED${NC}"
@@ -172,7 +172,7 @@ test_environment() {
   echo "Testing runtime execution..."
   if [[ "$env_name" == cloudflare-workers ]]; then
     if command -v wrangler >/dev/null 2>&1; then
-      if timeout 60s pnpm test > test.log 2>&1; then
+      if timeout 60s bun run test > test.log 2>&1; then
         echo -e "${GREEN}✅ Runtime execution: PASSED${NC}"
         echo "Output:"
         cat test.log | grep -E "🧪|✅"
@@ -194,7 +194,7 @@ test_environment() {
       fi
     fi
   elif [[ "$env_name" == browser ]]; then
-    if timeout 120s pnpm test > test.log 2>&1; then
+    if timeout 120s bun run test > test.log 2>&1; then
       echo -e "${GREEN}✅ Runtime execution: PASSED${NC}"
       echo "Output:"
       cat test.log | grep -E "🧪|✅"
@@ -238,7 +238,7 @@ test_environment() {
       echo -e "${YELLOW}⚠️  Deno not installed - skipping runtime test${NC}"
     fi
   else
-    if timeout 10s pnpm test > test.log 2>&1; then
+    if timeout 10s bun run test > test.log 2>&1; then
       echo -e "${GREEN}✅ Runtime execution: PASSED${NC}"
       echo "Output:"
       cat test.log | grep -E "🧪|✅"
