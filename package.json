@@ -23,8 +23,8 @@
     "test:integration:jobs": "vitest run tests/integration/jobs",
     "test:e2e": "vitest run tests/e2e --config vitest.e2e.config.ts",
     "test:runtime-environments": "./tests/runtime-environments/test-all.sh",
-    "bench": "node --experimental-strip-types tests/benchmarks/bench-with-cleanup.ts",
-    "bench:sandbox": "node --experimental-strip-types tests/benchmarks/bench-with-cleanup.ts tests/benchmarks/sandbox"
+    "bench": "vitest bench --run",
+    "bench:sandbox": "vitest run bench tests/benchmarks/sandbox"
   },
   "dependencies": {
     "@blaxel/core": "workspace:*",
