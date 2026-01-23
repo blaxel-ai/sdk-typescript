@@ -8,7 +8,7 @@
   "scripts": {
     "lint": "bun --filter '*' lint && bun run lint:tests",
     "lint:tests": "tsc -p tests/tsconfig.json && eslint tests/",
-    "build": "bun --filter '*' build",
+    "build": "bun run --filter @blaxel/core build && bun run --filter '@blaxel/{telemetry,langgraph,llamaindex,vercel}' build && bun run --filter @blaxel/mastra build",
     "set-version": "npm version --workspaces --no-workspaces-update",
     "publish-dev": "bun run build && bun --filter '*' publish --tag dev --access public",
     "publish-preview": "bun run build && bun --filter '*' publish --tag preview --access public",

@@ -50,12 +50,14 @@ jobs:
           bun install
           bun run build
 
-      - name: Install runtime-environments dependencies
-        working-directory: tests/runtime-environments/${{ matrix.runtime }}
+      - name: Add runtime-environment to workspace and install dependencies
+        if: matrix.runtime != 'deno'
         run: |
-          if [ "${{ matrix.runtime }}" != "deno" ]; then
-            bun install
-          fi
+          # Add the runtime-environment directory to the workspaces array in package.json
+          jq '.workspaces += ["tests/runtime-environments/${{ matrix.runtime }}"]' package.json > package.json.tmp
+          mv package.json.tmp package.json
+          # Re-run bun install to resolve workspace dependencies for the runtime-environment
+          bun install
 
       - name: Build runtime test (if applicable)
         working-directory: tests/runtime-environments/${{ matrix.runtime }}
