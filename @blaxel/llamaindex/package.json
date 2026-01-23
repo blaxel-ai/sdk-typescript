@@ -1,6 +1,6 @@
 {
 	"name": "@blaxel/llamaindex",
-	"version": "0.2.4-dev4",
+	"version": "0.2.59",
 	"description": "Blaxel SDK for TypeScript",
 	"license": "MIT",
 	"author": "Blaxel, INC (https://blaxel.ai)",

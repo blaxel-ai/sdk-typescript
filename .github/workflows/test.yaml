@@ -1,0 +1,110 @@
+name: TS SDK build
+
+on:
+  pull_request:
+    branches:
+      - "main"
+
+jobs:
+  test-environment:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        runtime:
+          - nodejs-legacy
+          - nodejs-javascript-cjs
+          - nodejs-javascript-esm
+          - nodejs-nodenext
+          - nodejs-node16
+          - cloudflare-workers
+          - webpack
+          - browser
+          - bun
+          - deno
+          - vercel-nextjs
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Deno
+        if: matrix.runtime == 'deno'
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Install Playwright browsers
+        if: matrix.runtime == 'browser'
+        run: npx playwright install chromium
+
+      - name: Install and build SDK packages
+        run: |
+          bun install
+          bun run build
+
+      - name: Add runtime-environment to workspace and install dependencies
+        if: matrix.runtime != 'deno'
+        run: |
+          # Add the runtime-environment directory to the workspaces array in package.json
+          jq '.workspaces += ["tests/runtime-environments/${{ matrix.runtime }}"]' package.json > package.json.tmp
+          mv package.json.tmp package.json
+          # Re-run bun install to resolve workspace dependencies for the runtime-environment
+          bun install
+
+      - name: Build runtime test (if applicable)
+        working-directory: tests/runtime-environments/${{ matrix.runtime }}
+        run: |
+          if [ "${{ matrix.runtime }}" != "nodejs-javascript-cjs" ] && \
+             [ "${{ matrix.runtime }}" != "nodejs-javascript-esm" ] && \
+             [ "${{ matrix.runtime }}" != "deno" ] && \
+             [ "${{ matrix.runtime }}" != "bun" ]; then
+            bun run build
+          fi
+
+      - name: Run test
+        working-directory: tests/runtime-environments/${{ matrix.runtime }}
+        run: |
+          if [ "${{ matrix.runtime }}" == "deno" ]; then
+            timeout 120s deno task test
+          elif [ "${{ matrix.runtime }}" == "bun" ]; then
+            timeout 120s bun run test
+          else
+            timeout 120s bun run test
+          fi
+
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Only run if secrets are available (not on forks)
+    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push'
+    env:
+      BL_API_KEY: ${{ secrets.BL_API_KEY }}
+      BL_WORKSPACE: ${{ secrets.BL_WORKSPACE }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install and build SDK packages
+        run: |
+          bun install
+          bun run build
+
+      - name: Run integration tests
+        run: bun run test:integration

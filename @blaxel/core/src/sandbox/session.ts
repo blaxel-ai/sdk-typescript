@@ -7,7 +7,7 @@ export class SandboxSessions {
   constructor(private sandbox: Sandbox) {}
 
   get sandboxName() {
-    return this.sandbox.metadata?.name ?? "";
+    return this.sandbox.metadata.name;
   }
 
   async create(options: SessionCreateOptions = {}): Promise<SessionWithToken> {
@@ -36,7 +36,7 @@ export class SandboxSessions {
     const tokenObj = await preview.tokens.create(expiresAt);
     return {
       name: body.metadata.name,
-      url: preview.spec?.url ?? "",
+      url: preview.spec.url ?? "",
       token: tokenObj.value,
       expiresAt: typeof tokenObj.expiresAt === 'string' ? new Date(tokenObj.expiresAt) : tokenObj.expiresAt,
     };
@@ -71,13 +71,13 @@ export class SandboxSessions {
       throwOnError: true,
     });
     if (data === null) return [];
-    return await Promise.all(data.filter((preview) => preview.metadata?.name?.includes("session-")).map(async (preview) => {
-      const token = await this.getToken(preview.metadata?.name ?? "");
+    return await Promise.all(data.filter((preview) => preview.metadata.name?.includes("session-")).map(async (preview) => {
+      const token = await this.getToken(preview.metadata.name);
       return {
-        name: preview.metadata?.name ?? "",
-        url: preview.spec?.url ?? "",
-        token: token?.spec?.token ?? "",
-        expiresAt: token?.spec?.expiresAt ?? new Date(),
+        name: preview.metadata.name,
+        url: preview.spec.url ?? "",
+        token: token?.spec.token ?? "",
+        expiresAt: token?.spec.expiresAt ?? new Date(),
       };
     }));
   }
@@ -92,9 +92,9 @@ export class SandboxSessions {
     });
     const token = await this.getToken(name);
     return {
-      url: data.spec?.url ?? "",
-      token: token?.spec?.token ?? "",
-      expiresAt: token?.spec?.expiresAt ?? new Date(),
+      url: data.spec.url ?? "",
+      token: token?.spec.token ?? "",
+      expiresAt: token?.spec.expiresAt ?? new Date(),
     };
   }
 

@@ -1,7 +1,7 @@
 ARGS:= $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 
 install:
-	cd @blaxel/core && pnpm install
+	bun install
 
 sdk-sandbox:
 	@echo "Downloading sandbox definition from blaxel-ai/sandbox"
@@ -34,6 +34,13 @@ sdk-controlplane:
 	sed -i.bak 's/from '\''\.\/sdk\.gen'\''/from '\''\.\/sdk\.gen\.js'\''/g' @blaxel/core/src/client/index.ts
 	sed -i.bak 's/from '\''\.\/types\.gen'\''/from '\''\.\/types\.gen\.js'\''/g' @blaxel/core/src/client/index.ts
 	sed -i.bak 's/from '\''\.\/types\.gen'\''/from '\''\.\/types\.gen\.js'\''/g' @blaxel/core/src/client/sdk.gen.ts
+	perl -i -0777 -pe 's/(\{\s*scheme: .bearer.,\s*type: .http.\s*\}),\s*\{\s*scheme: .bearer.,\s*type: .http.\s*\}/$$1/g' @blaxel/core/src/client/sdk.gen.ts
+	sed -i.bak 's/\([A-Za-z_][A-Za-z0-9_]*\)Readable/\1/g' @blaxel/core/src/client/types.gen.ts
+	sed -i.bak 's/TimeFieldsWritable/TimeFields/g' @blaxel/core/src/client/types.gen.ts
+	sed -i.bak 's/OwnerFieldsWritable/OwnerFields/g' @blaxel/core/src/client/types.gen.ts
+	sed -i.bak 's/export type Function =/export type _Function =/g' @blaxel/core/src/client/types.gen.ts
+	sed -i.bak 's/: Function;/: _Function;/g' @blaxel/core/src/client/types.gen.ts
+	sed -i.bak 's/<Function>/<_Function>/g' @blaxel/core/src/client/types.gen.ts
 	rm -f @blaxel/core/src/client/index.ts.bak
 	rm -f @blaxel/core/src/client/sdk.gen.ts.bak
 	rm -f @blaxel/core/src/client/types.gen.ts.bak

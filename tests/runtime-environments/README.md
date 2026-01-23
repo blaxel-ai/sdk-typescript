@@ -60,7 +60,7 @@ This directory contains comprehensive tests to ensure the @blaxel SDK packages w
 ### Run All Tests
 ```bash
 # From the SDK root directory
-pnpm test:runtime-environments
+bun run test:runtime-environments
 
 # Or directly
 ./tests/runtime-environments/test-all.sh
@@ -69,17 +69,17 @@ pnpm test:runtime-environments
 ### Run Individual Environment Tests
 ```bash
 # Node.js environments
-cd tests/runtime-environments/nodejs-legacy && pnpm lint && pnpm build && pnpm test
-cd tests/runtime-environments/nodejs-nodenext && pnpm lint && pnpm build && pnpm test
+cd tests/runtime-environments/nodejs-legacy && bun run lint && bun run build && bun run test
+cd tests/runtime-environments/nodejs-nodenext && bun run lint && bun run build && bun run test
 
 # JavaScript environments
-cd tests/runtime-environments/nodejs-javascript-cjs && pnpm lint && pnpm test
-cd tests/runtime-environments/nodejs-javascript-esm && pnpm lint && pnpm test
+cd tests/runtime-environments/nodejs-javascript-cjs && bun run lint && bun run test
+cd tests/runtime-environments/nodejs-javascript-esm && bun run lint && bun run test
 
 # Alternative runtimes
-cd tests/runtime-environments/bun && pnpm lint && pnpm build && pnpm test
-cd tests/runtime-environments/cloudflare-workers && pnpm lint && pnpm build && pnpm test
-cd tests/runtime-environments/browser && pnpm lint && pnpm build && pnpm test
+cd tests/runtime-environments/bun && bun run lint && bun run build && bun run test
+cd tests/runtime-environments/cloudflare-workers && bun run lint && bun run build && bun run test
+cd tests/runtime-environments/browser && bun run lint && bun run build && bun run test
 ```
 
 ## What Each Test Validates

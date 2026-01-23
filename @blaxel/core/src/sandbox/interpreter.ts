@@ -1,4 +1,4 @@
-import { Sandbox, SandboxLifecycle, Port } from "../client/types.gen.js";
+import { Port, Sandbox, SandboxLifecycle } from "../client/types.gen.js";
 import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
 import { SandboxInstance } from "./sandbox.js";
@@ -35,7 +35,7 @@ export class CodeInterpreter extends SandboxInstance {
 
   static async create(
     sandbox?: Sandbox | SandboxCreateConfiguration | Record<string, any> | null,
-    { safe = true }: { safe?: boolean } = {}
+    { safe = false }: { safe?: boolean } = {}
   ): Promise<CodeInterpreter> {
     const payload: Record<string, any> = {
       image: CodeInterpreter.DEFAULT_IMAGE,
@@ -43,7 +43,7 @@ export class CodeInterpreter extends SandboxInstance {
       lifecycle: CodeInterpreter.DEFAULT_LIFECYCLE,
     };
 
-    const allowedCopyKeys = new Set(["name", "envs", "memory", "region", "headers"]);
+    const allowedCopyKeys = new Set(["name", "envs", "memory", "region", "headers", "labels"]);
 
     if (sandbox && typeof sandbox === "object") {
       if (Array.isArray(sandbox)) {
@@ -51,10 +51,13 @@ export class CodeInterpreter extends SandboxInstance {
       } else if ("metadata" in sandbox || "spec" in sandbox) {
         // It's a Sandbox object
         const sandboxObj = sandbox as Sandbox;
-        if (sandboxObj.metadata?.name) {
+        if (sandboxObj.metadata.name) {
           payload["name"] = sandboxObj.metadata.name;
         }
-        if (sandboxObj.spec?.runtime) {
+        if (sandboxObj.metadata.labels) {
+          payload["labels"] = sandboxObj.metadata.labels;
+        }
+        if (sandboxObj.spec.runtime) {
           if (sandboxObj.spec.runtime.envs) {
             payload["envs"] = sandboxObj.spec.runtime.envs;
           }
@@ -62,7 +65,7 @@ export class CodeInterpreter extends SandboxInstance {
             payload["memory"] = sandboxObj.spec.runtime.memory;
           }
         }
-        if (sandboxObj.spec?.region) {
+        if (sandboxObj.spec.region) {
           payload["region"] = sandboxObj.spec.region;
         }
       } else if ("name" in sandbox || "image" in sandbox || "memory" in sandbox) {
