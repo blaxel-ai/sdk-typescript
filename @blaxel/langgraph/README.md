@@ -2,7 +2,7 @@
 
 [Blaxel](https://blaxel.ai) is a perpetual sandbox platform that achieves near instant latency by keeping infinite secure sandboxes on automatic standby, while co-hosting your agent logic to cut network overhead.
 
-This package contains helper functions for Blaxel's TypeScript SDK, to let you retrieve model clients and MCP tool definitions in the format required by LangChain/LangGraph format
+This package contains helper functions for Blaxel's TypeScript SDK, to let you retrieve model clients and MCP tool definitions in the format required by LangChain/LangGraph.
 
 ## Example
 
