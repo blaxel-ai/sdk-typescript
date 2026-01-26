@@ -37,9 +37,6 @@ const stream = agent({
 # npm
 npm install @blaxel/llamaindex
 
-# pnpm
-pnpm add @blaxel/llamaindex
-
 # yarn
 yarn add @blaxel/llamaindex
 

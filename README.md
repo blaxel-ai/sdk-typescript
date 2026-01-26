@@ -10,9 +10,6 @@ This repository contains Blaxel's TypeScript SDK, which lets you create and mana
 # npm
 npm install @blaxel/core
 
-# pnpm
-pnpm add @blaxel/core
-
 # yarn
 yarn add @blaxel/core
 

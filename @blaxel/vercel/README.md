@@ -37,9 +37,6 @@ const stream = streamText({
 # npm
 npm install @blaxel/vercel
 
-# pnpm
-pnpm add @blaxel/vercel
-
 # yarn
 yarn add @blaxel/vercel
 

@@ -39,9 +39,6 @@ const stream = await createReactAgent({
 # npm
 npm install @blaxel/langgraph
 
-# pnpm
-pnpm add @blaxel/langgraph
-
 # yarn
 yarn add @blaxel/langgraph
 

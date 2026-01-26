@@ -42,9 +42,6 @@ const stream = await agent.stream([{ role: "user", content: process.argv[2] }]);
 # npm
 npm install @blaxel/mastra
 
-# pnpm
-pnpm add @blaxel/mastra
-
 # yarn
 yarn add @blaxel/mastra
 
