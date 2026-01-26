@@ -58,6 +58,7 @@ jobs:
         run: |
           bun install
           bun run build
+          node scripts/replace-workspace-versions.js
           if [ "$DEPLOY_ENV" == "production" ]; then
             npm publish --workspaces --access public --tag latest
           elif [ "$DEPLOY_ENV" == "staging" ]; then
