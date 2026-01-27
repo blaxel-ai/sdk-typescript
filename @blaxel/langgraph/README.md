@@ -76,7 +76,7 @@ This package includes a helper function that creates a reference to a model depl
 ```typescript
 // With LangChain
 import { blModel } from "@blaxel/langgraph";
-const model = await blModel("claude-3-5-sonnet");
+const model = await blModel("gpt-5-mini");
 ```
 
 ### MCP tool use
@@ -85,10 +85,23 @@ Blaxel lets you deploy and host Model Context Protocol (MCP) servers, accessible
 
 This package includes a helper function that retrieves and returns tool definitions from a Blaxel-hosted MCP server in the format required by specific frameworks.
 
+Here is an example of retrieving tool definitions from a Blaxel sandbox's MCP server in the format required by LangGraph:
+
 ```typescript
-// With LangChain
+import { SandboxInstance } from "@blaxel/core";
 import { blTools } from "@blaxel/langgraph";
-const tools = await blTools(['blaxel-search'])
+
+// Create a new sandbox
+const sandbox = await SandboxInstance.createIfNotExists({
+  name: "my-sandbox",
+  image: "blaxel/base-image:latest",
+  memory: 4096,
+  region: "us-pdx-1",
+  ttl: "24h"
+});
+
+// Get sandbox tools
+const tools = await blTools(['sandbox/my-sandbox'])
 ```
 
 ### Telemetry

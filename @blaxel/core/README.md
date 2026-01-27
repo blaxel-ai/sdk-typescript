@@ -310,19 +310,19 @@ import { blModel } from "@blaxel/core";
 
 // With Vercel AI SDK
 import { blModel } from "@blaxel/vercel";
-const model = await blModel("gpt-4o-mini");
+const model = await blModel("gpt-5-mini");
 
 // With LangChain
 import { blModel } from "@blaxel/langgraph";
-const model = await blModel("claude-3-5-sonnet");
+const model = await blModel("gpt-5-mini");
 
 // With LlamaIndex
 import { blModel } from "@blaxel/llamaindex";
-const model = await blModel("gpt-4o");
+const model = await blModel("gpt-5-mini");
 
 // With Mastra
 import { blModel } from "@blaxel/mastra";
-const model = await blModel("gpt-4o-mini");
+const model = await blModel("gpt-5-mini");
 ```
 
 #### MCP tool use
@@ -334,19 +334,38 @@ The SDK includes a helper function that retrieves and returns tool definitions f
 ```typescript
 // With Vercel AI SDK
 import { blTools } from "@blaxel/vercel";
-const tools = await blTools(['blaxel-search'])
+const tools = await blTools(['sandbox/my-sandbox'])
 
 // With Mastra
 import { blTools } from "@blaxel/mastra";
-const tools = await blTools(['blaxel-search'])
+const tools = await blTools(['sandbox/my-sandbox'])
 
 // With LlamaIndex
 import { blTools } from "@blaxel/llamaindex";
-const tools = await blTools(['blaxel-search'])
+const tools = await blTools(['sandbox/my-sandbox'])
 
 // With LangChain
 import { blTools } from "@blaxel/langgraph";
-const tools = await blTools(['blaxel-search'])
+const tools = await blTools(['sandbox/my-sandbox'])
+```
+
+Here is an example of retrieving tool definitions from a Blaxel sandbox's MCP server in the format required by Vercel's AI SDK:
+
+```typescript
+import { SandboxInstance } from "@blaxel/core";
+import { blTools } from "@blaxel/vercel";
+
+// Create a new sandbox
+const sandbox = await SandboxInstance.createIfNotExists({
+  name: "my-sandbox",
+  image: "blaxel/base-image:latest",
+  memory: 4096,
+  region: "us-pdx-1",
+  ttl: "24h"
+});
+
+// Get sandbox tools
+const tools = await blTools(['sandbox/my-sandbox'])
 ```
 
 ### Telemetry
