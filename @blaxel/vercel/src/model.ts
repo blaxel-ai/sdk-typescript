@@ -59,6 +59,44 @@ export const blModel = async (
       headers,
     });
   };
+
+  // OpenAI-specific fetch that prevents proxy compression issues
+  // This fixes "TypeError: terminated" errors caused by Brotli decompression issues
+  const authenticatedFetchOpenAI = async (input: string | URL | Request, init?: RequestInit) => {
+    await authenticate();
+
+    let existingHeaders: Record<string, string> = {};
+    if (init?.headers) {
+      if (init.headers instanceof Headers) {
+        init.headers.forEach((value, key) => {
+          existingHeaders[key] = value;
+        });
+      } else if (Array.isArray(init.headers)) {
+        for (const [key, value] of init.headers) {
+          existingHeaders[key] = value;
+        }
+      } else {
+        existingHeaders = { ...(init.headers as Record<string, string>) };
+      }
+    }
+
+    delete existingHeaders['authorization'];
+    delete existingHeaders['Authorization'];
+
+    const headers = {
+      // Prevent proxies from transforming/compressing the response
+      // We had an issue with APICallError [AI_APICallError]: Invalid JSON response
+      // It's due to a compression error through our gateway proxy, when some compression header are set.
+      'Cache-Control': 'no-transform',
+      ...existingHeaders,
+      ...settings.headers,
+    };
+
+    return fetch(input, {
+      ...init,
+      headers,
+    });
+  };
   try {
     if (type === "gemini") {
       return createGoogleGenerativeAI({
@@ -142,7 +180,7 @@ export const blModel = async (
     return createOpenAI({
       apiKey: "replaced",
       baseURL: `${url}/v1`,
-      fetch: authenticatedFetch,
+      fetch: authenticatedFetchOpenAI,
       ...options,
     })(modelId);
   } catch (err) {
