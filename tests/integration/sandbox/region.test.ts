@@ -1,6 +1,6 @@
 import { SandboxInstance, VolumeInstance, CodeInterpreter } from "@blaxel/core"
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
-import { defaultImage, defaultLabels, defaultRegion, env, uniqueName, waitForSandboxDeletion, waitForVolumeDeletion } from './helpers.js'
+import { defaultImage, defaultLabels, defaultRegion, uniqueName, waitForSandboxDeletion, waitForVolumeDeletion } from './helpers.js'
 
 describe('BL_REGION Environment Variable Auto-Fill', () => {
   const createdSandboxes: string[] = []
