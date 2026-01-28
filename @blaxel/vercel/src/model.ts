@@ -52,8 +52,41 @@ export const blModel = async (
     const headers = {
       ...existingHeaders,
       ...settings.headers,
+    };
+
+    return fetch(input, {
+      ...init,
+      headers,
+    });
+  };
+
+  // OpenAI-specific fetch that prevents proxy compression issues
+  // This fixes "TypeError: terminated" errors caused by Brotli decompression issues
+  const authenticatedFetchOpenAI = async (input: string | URL | Request, init?: RequestInit) => {
+    await authenticate();
+
+    let existingHeaders: Record<string, string> = {};
+    if (init?.headers) {
+      if (init.headers instanceof Headers) {
+        init.headers.forEach((value, key) => {
+          existingHeaders[key] = value;
+        });
+      } else if (Array.isArray(init.headers)) {
+        for (const [key, value] of init.headers) {
+          existingHeaders[key] = value;
+        }
+      } else {
+        existingHeaders = { ...(init.headers as Record<string, string>) };
+      }
+    }
+
+    delete existingHeaders['authorization'];
+    delete existingHeaders['Authorization'];
+
+    const headers = {
+      ...existingHeaders,
+      ...settings.headers,
       // Prevent proxies (like Cloudflare) from transforming/compressing the response
-      // This fixes "TypeError: terminated" errors caused by Brotli decompression issues
       'Cache-Control': 'no-transform',
     };
 
@@ -90,8 +123,6 @@ export const blModel = async (
           const headers = {
             ...existingHeaders,
             ...settings.headers,
-            // Prevent proxies (like Cloudflare) from transforming/compressing the response
-            'Cache-Control': 'no-transform',
           };
           return fetch(`${url}/v1beta/models/${modelId}:generateContent`, {
             ...options,
@@ -147,7 +178,7 @@ export const blModel = async (
     return createOpenAI({
       apiKey: "replaced",
       baseURL: `${url}/v1`,
-      fetch: authenticatedFetch,
+      fetch: authenticatedFetchOpenAI,
       ...options,
     })(modelId);
   } catch (err) {
