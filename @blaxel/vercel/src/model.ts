@@ -52,6 +52,9 @@ export const blModel = async (
     const headers = {
       ...existingHeaders,
       ...settings.headers,
+      // Prevent proxies (like Cloudflare) from transforming/compressing the response
+      // This fixes "TypeError: terminated" errors caused by Brotli decompression issues
+      'Cache-Control': 'no-transform',
     };
 
     return fetch(input, {
@@ -87,6 +90,8 @@ export const blModel = async (
           const headers = {
             ...existingHeaders,
             ...settings.headers,
+            // Prevent proxies (like Cloudflare) from transforming/compressing the response
+            'Cache-Control': 'no-transform',
           };
           return fetch(`${url}/v1beta/models/${modelId}:generateContent`, {
             ...options,
