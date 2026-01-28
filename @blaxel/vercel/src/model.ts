@@ -84,10 +84,12 @@ export const blModel = async (
     delete existingHeaders['Authorization'];
 
     const headers = {
+      // Prevent proxies from transforming/compressing the response
+      // We had an issue with APICallError [AI_APICallError]: Invalid JSON response
+      // It's due to a compression error through our gateway proxy, when some compression header are set.
+      'Cache-Control': 'no-transform',
       ...existingHeaders,
       ...settings.headers,
-      // Prevent proxies (like Cloudflare) from transforming/compressing the response
-      'Cache-Control': 'no-transform',
     };
 
     return fetch(input, {
