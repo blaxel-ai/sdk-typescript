@@ -10,6 +10,20 @@ import { beforeAll, describe, expect, it } from 'vitest'
 
 const TEST_JOB_NAME = "mk3"
 
+/**
+ * Check if an error is due to maximum parallel executions limit
+ */
+function isMaxParallelExecutionsError(error: unknown): boolean {
+  if (error && typeof error === 'object' && 'error' in error) {
+    const errorObj = error as { error?: string }
+    return errorObj.error?.includes('Maximum parallel executions limit reached') ?? false
+  }
+  if (error instanceof Error) {
+    return error.message.includes('Maximum parallel executions limit reached')
+  }
+  return false
+}
+
 async function checkJobExists(jobName: string): Promise<boolean> {
   try {
     const { data } = await getJob({
@@ -53,12 +67,21 @@ describe('Jobs API Integration', () => {
       const job = blJob(TEST_JOB_NAME)
 
       // Create execution
-      const executionId = await job.createExecution({
-        tasks: [
-          { name: "Richard" },
-          { name: "John" },
-        ],
-      })
+      let executionId: string
+      try {
+        executionId = await job.createExecution({
+          tasks: [
+            { name: "Richard" },
+            { name: "John" },
+          ],
+        })
+      } catch (error) {
+        if (isMaxParallelExecutionsError(error)) {
+          console.warn('[SKIP] Maximum parallel executions limit reached')
+          return skip()
+        }
+        throw error
+      }
 
       expect(executionId).toBeDefined()
       expect(typeof executionId).toBe('string')
@@ -89,9 +112,18 @@ describe('Jobs API Integration', () => {
 
       const job = blJob(TEST_JOB_NAME)
 
-      const executionId = await job.createExecution({
-        tasks: [{ name: "Richard" }, { name: "John" }],
-      })
+      let executionId: string
+      try {
+        executionId = await job.createExecution({
+          tasks: [{ name: "Richard" }, { name: "John" }],
+        })
+      } catch (error) {
+        if (isMaxParallelExecutionsError(error)) {
+          console.warn('[SKIP] Maximum parallel executions limit reached')
+          return skip()
+        }
+        throw error
+      }
 
       const completedExecution = await job.waitForExecution(executionId, {
         maxWait: 60000, // 1 minute
@@ -107,7 +139,16 @@ describe('Jobs API Integration', () => {
 
       const job = blJob(TEST_JOB_NAME)
 
-      const executionId = await job.run([{ name: "Richard" }, { name: "John" }])
+      let executionId: string
+      try {
+        executionId = await job.run([{ name: "Richard" }, { name: "John" }])
+      } catch (error) {
+        if (isMaxParallelExecutionsError(error)) {
+          console.warn('[SKIP] Maximum parallel executions limit reached')
+          return skip()
+        }
+        throw error
+      }
 
       expect(executionId).toBeDefined()
       expect(typeof executionId).toBe('string')
@@ -123,10 +164,19 @@ describe('Jobs API Integration', () => {
 
       const job = blJob(TEST_JOB_NAME)
 
-      const executionId = await job.run(
-        [{ name: "MemoryTest" }],
-        { memory: 2048 }
-      )
+      let executionId: string
+      try {
+        executionId = await job.run(
+          [{ name: "MemoryTest" }],
+          { memory: 2048 }
+        )
+      } catch (error) {
+        if (isMaxParallelExecutionsError(error)) {
+          console.warn('[SKIP] Maximum parallel executions limit reached')
+          return skip()
+        }
+        throw error
+      }
 
       expect(executionId).toBeDefined()
       expect(typeof executionId).toBe('string')
@@ -142,15 +192,24 @@ describe('Jobs API Integration', () => {
 
       const job = blJob(TEST_JOB_NAME)
 
-      const executionId = await job.run(
-        [{ name: "EnvTest" }],
-        {
-          env: {
-            CUSTOM_VAR: "test_value",
-            DEBUG_MODE: "true",
-          },
+      let executionId: string
+      try {
+        executionId = await job.run(
+          [{ name: "EnvTest" }],
+          {
+            env: {
+              CUSTOM_VAR: "test_value",
+              DEBUG_MODE: "true",
+            },
+          }
+        )
+      } catch (error) {
+        if (isMaxParallelExecutionsError(error)) {
+          console.warn('[SKIP] Maximum parallel executions limit reached')
+          return skip()
         }
-      )
+        throw error
+      }
 
       expect(executionId).toBeDefined()
       expect(typeof executionId).toBe('string')
@@ -166,16 +225,25 @@ describe('Jobs API Integration', () => {
 
       const job = blJob(TEST_JOB_NAME)
 
-      const executionId = await job.run(
-        [{ name: "CombinedTest" }],
-        {
-          memory: 1024,
-          env: {
-            TEST_ENV: "production",
-            LOG_LEVEL: "info",
-          },
+      let executionId: string
+      try {
+        executionId = await job.run(
+          [{ name: "CombinedTest" }],
+          {
+            memory: 1024,
+            env: {
+              TEST_ENV: "production",
+              LOG_LEVEL: "info",
+            },
+          }
+        )
+      } catch (error) {
+        if (isMaxParallelExecutionsError(error)) {
+          console.warn('[SKIP] Maximum parallel executions limit reached')
+          return skip()
         }
-      )
+        throw error
+      }
 
       expect(executionId).toBeDefined()
       expect(typeof executionId).toBe('string')
@@ -192,10 +260,19 @@ describe('Jobs API Integration', () => {
       const job = blJob(TEST_JOB_NAME)
 
       // Create execution with memory override (2048 MB = 2 GB)
-      const executionId = await job.createExecution({
-        tasks: [{ name: "Richard" }],
-        memory: 2048,
-      })
+      let executionId: string
+      try {
+        executionId = await job.createExecution({
+          tasks: [{ name: "Richard" }],
+          memory: 2048,
+        })
+      } catch (error) {
+        if (isMaxParallelExecutionsError(error)) {
+          console.warn('[SKIP] Maximum parallel executions limit reached')
+          return skip()
+        }
+        throw error
+      }
 
       expect(executionId).toBeDefined()
       expect(typeof executionId).toBe('string')
@@ -212,13 +289,22 @@ describe('Jobs API Integration', () => {
       const job = blJob(TEST_JOB_NAME)
 
       // Create execution with environment variable overrides
-      const executionId = await job.createExecution({
-        tasks: [{ name: "John" }],
-        env: {
-          CUSTOM_ENV: "OVERRIDE_VALUE",
-          ANOTHER_ENV: "TEST_VALUE",
-        },
-      })
+      let executionId: string
+      try {
+        executionId = await job.createExecution({
+          tasks: [{ name: "John" }],
+          env: {
+            CUSTOM_ENV: "OVERRIDE_VALUE",
+            ANOTHER_ENV: "TEST_VALUE",
+          },
+        })
+      } catch (error) {
+        if (isMaxParallelExecutionsError(error)) {
+          console.warn('[SKIP] Maximum parallel executions limit reached')
+          return skip()
+        }
+        throw error
+      }
 
       expect(executionId).toBeDefined()
       expect(typeof executionId).toBe('string')
@@ -235,14 +321,23 @@ describe('Jobs API Integration', () => {
       const job = blJob(TEST_JOB_NAME)
 
       // Create execution with both memory and environment overrides
-      const executionId = await job.createExecution({
-        tasks: [{ name: "Combined" }],
-        memory: 1024,
-        env: {
-          TEST_MODE: "true",
-          LOG_LEVEL: "debug",
-        },
-      })
+      let executionId: string
+      try {
+        executionId = await job.createExecution({
+          tasks: [{ name: "Combined" }],
+          memory: 1024,
+          env: {
+            TEST_MODE: "true",
+            LOG_LEVEL: "debug",
+          },
+        })
+      } catch (error) {
+        if (isMaxParallelExecutionsError(error)) {
+          console.warn('[SKIP] Maximum parallel executions limit reached')
+          return skip()
+        }
+        throw error
+      }
 
       expect(executionId).toBeDefined()
       expect(typeof executionId).toBe('string')
