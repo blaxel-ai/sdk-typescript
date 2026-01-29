@@ -15,17 +15,17 @@ export type ApplyEditResponse = {
 };
 
 export type ContentSearchMatch = {
-    column?: number;
+    column: number;
     context?: string;
-    line?: number;
-    path?: string;
-    text?: string;
+    line: number;
+    path: string;
+    text: string;
 };
 
 export type ContentSearchResponse = {
-    matches?: Array<ContentSearchMatch>;
-    query?: string;
-    total?: number;
+    matches: Array<ContentSearchMatch>;
+    query: string;
+    total: number;
 };
 
 export type Directory = {
@@ -70,30 +70,30 @@ export type FileWithContent = {
 };
 
 export type FindMatch = {
-    path?: string;
+    path: string;
     /**
      * "file" or "directory"
      */
-    type?: string;
+    type: string;
 };
 
 export type FindResponse = {
-    matches?: Array<FindMatch>;
-    total?: number;
+    matches: Array<FindMatch>;
+    total: number;
 };
 
 export type FuzzySearchMatch = {
-    path?: string;
-    score?: number;
+    path: string;
+    score: number;
     /**
      * "file" or "directory"
      */
-    type?: string;
+    type: string;
 };
 
 export type FuzzySearchResponse = {
-    matches?: Array<FuzzySearchMatch>;
-    total?: number;
+    matches: Array<FuzzySearchMatch>;
+    total: number;
 };
 
 export type MultipartCompleteRequest = {
