@@ -147,9 +147,16 @@ export type ProcessRequest = {
     env?: {
         [key: string]: string;
     };
+    /**
+     * Disable scale-to-zero while process runs. Default timeout is 600s (10 minutes). Set timeout to 0 for infinite.
+     */
+    keepAlive?: boolean;
     maxRestarts?: number;
     name?: string;
     restartOnFailure?: boolean;
+    /**
+     * Timeout in seconds. When keepAlive is true, defaults to 600s (10 minutes). Set to 0 for infinite (no auto-kill).
+     */
     timeout?: number;
     waitForCompletion?: boolean;
     waitForPorts?: Array<number>;
@@ -160,6 +167,10 @@ export type ProcessResponse = {
     command: string;
     completedAt: string;
     exitCode: number;
+    /**
+     * Whether scale-to-zero is disabled for this process
+     */
+    keepAlive?: boolean;
     logs: string;
     maxRestarts?: number;
     name: string;
