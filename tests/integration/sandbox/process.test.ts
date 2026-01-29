@@ -258,7 +258,6 @@ describe('Sandbox Process Operations', () => {
       })
 
       await sandbox.process.wait("stream-test")
-      await sleep(1000)
       stream.close()
 
       expect(logs.length).toBeGreaterThan(0)
@@ -269,7 +268,7 @@ describe('Sandbox Process Operations', () => {
 
       await sandbox.process.exec({
         name: "close-early",
-        command: "for i in $(seq 1 10); do echo $i; sleep 1; done",
+        command: "for i in $(seq 1 10); do echo $i; sleep 0.3; done",
         waitForCompletion: false
       })
 
@@ -277,11 +276,11 @@ describe('Sandbox Process Operations', () => {
         onLog: (log) => logs.push(log)
       })
 
-      await sleep(2000)
+      await sleep(500)
       stream.close()
 
       const logsAtClose = logs.length
-      await sleep(3000)
+      await sleep(1000)
 
       // No new logs should arrive after close
       expect(logs.length).toBe(logsAtClose)

@@ -96,6 +96,20 @@ export type FuzzySearchResponse = {
     total?: number;
 };
 
+export type HealthResponse = {
+    arch?: string;
+    buildTime?: string;
+    gitCommit?: string;
+    goVersion?: string;
+    os?: string;
+    restartCount?: number;
+    startedAt?: string;
+    status?: string;
+    uptime?: string;
+    uptimeSeconds?: number;
+    version?: string;
+};
+
 export type MultipartCompleteRequest = {
     parts?: Array<MultipartPartInfo>;
 };
@@ -963,6 +977,22 @@ export type PutFilesystemTreeByPathResponses = {
 
 export type PutFilesystemTreeByPathResponse = PutFilesystemTreeByPathResponses[keyof PutFilesystemTreeByPathResponses];
 
+export type GetHealthData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/health';
+};
+
+export type GetHealthResponses = {
+    /**
+     * Health status
+     */
+    200: HealthResponse;
+};
+
+export type GetHealthResponse = GetHealthResponses[keyof GetHealthResponses];
+
 export type DeleteNetworkProcessByPidMonitorData = {
     body?: never;
     path: {
@@ -1319,6 +1349,31 @@ export type GetProcessByIdentifierLogsStreamResponses = {
 };
 
 export type GetProcessByIdentifierLogsStreamResponse = GetProcessByIdentifierLogsStreamResponses[keyof GetProcessByIdentifierLogsStreamResponses];
+
+export type PostRestartData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/restart';
+};
+
+export type PostRestartErrors = {
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type PostRestartError = PostRestartErrors[keyof PostRestartErrors];
+
+export type PostRestartResponses = {
+    /**
+     * Restart initiated
+     */
+    200: SuccessResponse;
+};
+
+export type PostRestartResponse = PostRestartResponses[keyof PostRestartResponses];
 
 export type GetWatchFilesystemByPathData = {
     body?: never;
