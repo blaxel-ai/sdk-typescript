@@ -97,17 +97,18 @@ export type FuzzySearchResponse = {
 };
 
 export type HealthResponse = {
-    arch?: string;
-    buildTime?: string;
-    gitCommit?: string;
-    goVersion?: string;
-    os?: string;
-    restartCount?: number;
-    startedAt?: string;
-    status?: string;
-    uptime?: string;
-    uptimeSeconds?: number;
-    version?: string;
+    arch: string;
+    buildTime: string;
+    gitCommit: string;
+    goVersion: string;
+    lastUpgrade: UpgradeStatus;
+    os: string;
+    startedAt: string;
+    status: string;
+    upgradeCount: number;
+    uptime: string;
+    uptimeSeconds: number;
+    version: string;
 };
 
 export type MultipartCompleteRequest = {
@@ -215,6 +216,52 @@ export type TreeRequest = {
     };
 };
 
+export type UpgradeRequest = {
+    /**
+     * Base URL for releases (useful for forks)
+     */
+    baseUrl?: string;
+    /**
+     * Version to upgrade to: "develop", "main", "latest", or specific tag like "v1.0.0"
+     */
+    version?: string;
+};
+
+export type UpgradeStatus = {
+    /**
+     * Path to downloaded binary
+     */
+    binaryPath?: string;
+    /**
+     * Bytes downloaded
+     */
+    bytesDownloaded?: number;
+    /**
+     * URL used for download
+     */
+    downloadUrl?: string;
+    /**
+     * Error message if failed
+     */
+    error?: string;
+    /**
+     * When the upgrade was attempted
+     */
+    lastAttempt?: string;
+    /**
+     * Current state (idle, running, completed, failed)
+     */
+    status: ProcessUpgradeState;
+    /**
+     * Current/last step (none, starting, download, validate, replace, completed, skipped)
+     */
+    step: string;
+    /**
+     * Version being upgraded to
+     */
+    version: string;
+};
+
 export type FilesystemMultipartUpload = {
     initiatedAt?: string;
     parts?: {
@@ -231,6 +278,8 @@ export type FilesystemUploadedPart = {
     size?: number;
     uploadedAt?: string;
 };
+
+export type ProcessUpgradeState = 'idle' | 'running' | 'completed' | 'failed';
 
 export type PutCodegenFastapplyByPathData = {
     /**
@@ -1350,30 +1399,33 @@ export type GetProcessByIdentifierLogsStreamResponses = {
 
 export type GetProcessByIdentifierLogsStreamResponse = GetProcessByIdentifierLogsStreamResponses[keyof GetProcessByIdentifierLogsStreamResponses];
 
-export type PostRestartData = {
-    body?: never;
+export type PostUpgradeData = {
+    /**
+     * Upgrade options
+     */
+    body?: UpgradeRequest;
     path?: never;
     query?: never;
-    url: '/restart';
+    url: '/upgrade';
 };
 
-export type PostRestartErrors = {
+export type PostUpgradeErrors = {
     /**
      * Internal server error
      */
     500: ErrorResponse;
 };
 
-export type PostRestartError = PostRestartErrors[keyof PostRestartErrors];
+export type PostUpgradeError = PostUpgradeErrors[keyof PostUpgradeErrors];
 
-export type PostRestartResponses = {
+export type PostUpgradeResponses = {
     /**
-     * Restart initiated
+     * Upgrade initiated
      */
     200: SuccessResponse;
 };
 
-export type PostRestartResponse = PostRestartResponses[keyof PostRestartResponses];
+export type PostUpgradeResponse = PostUpgradeResponses[keyof PostUpgradeResponses];
 
 export type GetWatchFilesystemByPathData = {
     body?: never;
