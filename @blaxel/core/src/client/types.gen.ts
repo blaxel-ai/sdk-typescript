@@ -284,7 +284,7 @@ export type CreateJobExecutionRequest = {
      * Environment variable overrides (optional, will merge with job's environment variables)
      */
     env?: {
-        [key: string]: unknown;
+        [key: string]: string;
     };
     /**
      * Execution ID (optional, will be generated if not provided)
@@ -2323,6 +2323,10 @@ export type RevisionMetadataWritable = {
  */
 export type Sandbox = {
     events?: CoreEvents;
+    /**
+     * Time in seconds until the sandbox is automatically deleted based on TTL and lifecycle policies. Only present for sandboxes with expiration configured.
+     */
+    readonly expiresIn?: number;
     /**
      * Last time the sandbox was used (read-only, managed by the system)
      */

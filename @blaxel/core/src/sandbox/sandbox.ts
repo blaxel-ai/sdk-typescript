@@ -43,6 +43,14 @@ export class SandboxInstance {
     return this.sandbox.spec;
   }
 
+  get lastUsedAt() {
+    return this.sandbox.lastUsedAt;
+  }
+
+  get expiresIn() {
+    return this.sandbox.expiresIn;
+  }
+
   /* eslint-disable */
   async wait({maxWait = 60000, interval = 1000}: {maxWait?: number, interval?: number} = {}) {
     logger.warn("⚠️  Warning: sandbox.wait() is deprecated. You don't need to wait for the sandbox to be deployed anymore.");
