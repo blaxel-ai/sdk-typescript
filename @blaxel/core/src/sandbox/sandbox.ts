@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { createSandbox, deleteSandbox, getSandbox, listSandboxes, SandboxLifecycle, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
+import { settings } from "../common/settings.js";
 import { SandboxCodegen } from "./codegen/index.js";
 import { SandboxFileSystem } from "./filesystem/index.js";
 import { SandboxNetwork } from "./network/index.js";
@@ -45,13 +46,21 @@ export class SandboxInstance {
     return this.sandbox.spec;
   }
 
+  get lastUsedAt() {
+    return this.sandbox.lastUsedAt;
+  }
+
+  get expiresIn() {
+    return this.sandbox.expiresIn;
+  }
+
   /* eslint-disable */
   async wait({maxWait = 60000, interval = 1000}: {maxWait?: number, interval?: number} = {}) {
     logger.warn("⚠️  Warning: sandbox.wait() is deprecated. You don't need to wait for the sandbox to be deployed anymore.");
     return this;
   }
 
-  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = false }: { safe?: boolean } = {}) {
+  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = true }: { safe?: boolean } = {}) {
     const defaultName = `sandbox-${uuidv4().replace(/-/g, '').substring(0, 8)}`
     const defaultImage = `blaxel/base-image:latest`
     const defaultMemory = 4096
@@ -79,7 +88,7 @@ export class SandboxInstance {
       const volumes = normalizeVolumes(sandbox.volumes);
       const ttl = sandbox.ttl;
       const expires = sandbox.expires;
-      const region = sandbox.region;
+      const region = sandbox.region || settings.region;
       const lifecycle = sandbox.lifecycle;
       const snapshotEnabled = sandbox.snapshotEnabled;
 
