@@ -1,6 +1,50 @@
 import { SandboxInstance, settings } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
 import { defaultLabels, defaultRegion, sleep, uniqueName } from './helpers.js'
+import { HealthResponse } from "../../../@blaxel/core/dist/cjs/types/sandbox/client/types.gen.js"
+
+const VERSION = process.env.BL_ENV === "dev" ? "develop" : "latest"
+
+/**
+ * Wait for sandbox upgrade to complete by polling the health endpoint
+ * Returns the health data when upgrade count > 0, throws if upgrade failed
+ */
+async function waitForUpgradeComplete(
+  sandboxHost: string,
+  maxWaitTime: number = 30000
+): Promise<HealthResponse> {
+  console.log(`[TEST] Waiting for health upgrade count > 0...`)
+  const healthCheckStartTime = Date.now()
+  let healthData: HealthResponse | null = null
+
+  while (Date.now() - healthCheckStartTime < maxWaitTime) {
+    try {
+      const healthResponse = await fetch(`${sandboxHost}/health`, {
+        method: "GET",
+        headers: settings.headers,
+      })
+      healthData = await healthResponse.json() as HealthResponse
+      console.log(`[TEST] Health check - upgradeCount: ${healthData.upgradeCount} (elapsed: ${Date.now() - healthCheckStartTime}ms)`)
+      if (healthData.upgradeCount && healthData.upgradeCount > 0) {
+        console.log(`[TEST] Upgrade completed (took ${Date.now() - healthCheckStartTime}ms)`)
+        return healthData
+      }
+      if (healthData?.lastUpgrade?.status === "failed") {
+        console.log(`[TEST] Health check - last upgrade failed, health data:`, healthData)
+        throw new Error(`Upgrade failed: ${JSON.stringify(healthData)}`)
+      }
+    } catch (error: unknown) {
+      // Re-throw upgrade failures
+      if (error instanceof Error && error.message.startsWith("Upgrade failed:")) {
+        throw error
+      }
+      console.log(`[TEST] Health check error: ${String(error)} (elapsed: ${Date.now() - healthCheckStartTime}ms)`)
+    }
+    await sleep(500)
+  }
+
+  throw new Error(`Upgrade did not complete within ${maxWaitTime}ms. Last health data: ${JSON.stringify(healthData)}`)
+}
 
 describe('Sandbox System Operations', () => {
   const createdSandboxes: string[] = []
@@ -17,9 +61,9 @@ describe('Sandbox System Operations', () => {
     )
   })
 
-  describe('restart', () => {
-    it('restarts sandbox and preview remains responsive', { timeout: 180000 }, async () => {
-      const name = uniqueName("system-restart")
+  describe('upgrade', () => {
+    it('upgrades sandbox and preview remains responsive', { timeout: 180000 }, async () => {
+      const name = uniqueName("system-upgrade")
       console.log(`[TEST] Starting test with sandbox name: ${name}`)
 
       // Create sandbox with Next.js image
@@ -33,7 +77,7 @@ describe('Sandbox System Operations', () => {
         ports: [{ target: 3000 }],
         labels: defaultLabels,
       })
-      // createdSandboxes.push(name)
+      createdSandboxes.push(name)
       console.log(`[TEST] Sandbox created in ${Date.now() - createStart}ms`)
 
       const sandboxHost = sandbox.metadata?.url
@@ -64,7 +108,7 @@ describe('Sandbox System Operations', () => {
       // Create a public preview on port 3000
       console.log(`[TEST] Creating preview on port 3000...`)
       const preview = await sandbox.previews.create({
-        metadata: { name: "restart-test-preview" },
+        metadata: { name: "upgrade-test-preview" },
         spec: {
           port: 3000,
           public: true,
@@ -98,69 +142,141 @@ describe('Sandbox System Operations', () => {
       console.log(`[TEST] Preview ready: ${previewReady} (took ${Date.now() - startTime}ms)`)
       expect(previewReady).toBe(true)
 
-      // Verify preview is accessible before restart and capture content
-      console.log(`[TEST] Verifying preview is accessible before restart...`)
-      const preRestartResponse = await fetch(previewUrl)
-      console.log(`[TEST] Pre-restart preview status: ${preRestartResponse.status}`)
-      expect(preRestartResponse.status).toBe(200)
-      const preRestartContent = await preRestartResponse.text()
-      console.log(`[TEST] Pre-restart preview content length: ${preRestartContent.length} bytes`)
+      // Verify preview is accessible before upgrade and capture content
+      console.log(`[TEST] Verifying preview is accessible before upgrade...`)
+      const preUpgradeResponse = await fetch(previewUrl)
+      console.log(`[TEST] Pre-upgrade preview status: ${preUpgradeResponse.status}`)
+      expect(preUpgradeResponse.status).toBe(200)
+      const preUpgradeContent = await preUpgradeResponse.text()
+      console.log(`[TEST] Pre-upgrade preview content length: ${preUpgradeContent.length} bytes`)
 
-      // Restart the sandbox system
-      console.log(`[TEST] Calling sandbox.system.restart()...`)
-      const restartStart = Date.now()
-      const restartResult = await sandbox.system.restart()
-      console.log(`[TEST] Restart call completed in ${Date.now() - restartStart}ms, result:`, restartResult)
-      expect(restartResult).toBeDefined()
+      // Upgrade the sandbox system
+      console.log(`[TEST] Calling sandbox.system.upgrade({ version: ${VERSION} })...`)
+      const upgradeStart = Date.now()
+      const upgradeResult = await sandbox.system.upgrade({ version: VERSION })
+      console.log(`[TEST] Upgrade call completed in ${Date.now() - upgradeStart}ms, result:`, upgradeResult)
+      expect(upgradeResult).toBeDefined()
 
-      // Wait for health to show restart count > 0
-      console.log(`[TEST] Waiting for health restart count > 0...`)
-      let healthRestartCount = 0
-      const healthCheckStartTime = Date.now()
+      // Wait for health to show upgrade count > 0
+      const healthData = await waitForUpgradeComplete(sandboxHost!, maxWaitTime)
+      expect(healthData.upgradeCount).toBeGreaterThan(0)
 
-      while (Date.now() - healthCheckStartTime < maxWaitTime) {
-        try {
-          const healthResponse = await fetch(`${sandboxHost}/health`, {
-            method: "GET",
-            headers: settings.headers,
-          })
-          const healthData = await healthResponse.json() as { restartCount: number }
-          console.log(`[TEST] Health check - restartCount: ${healthData.restartCount} (elapsed: ${Date.now() - healthCheckStartTime}ms)`)
-          if (healthData.restartCount > 0) {
-            healthRestartCount = healthData.restartCount
-            break
-          }
-        } catch (error: unknown) {
-          console.log(`[TEST] Health check error: ${String(error)} (elapsed: ${Date.now() - healthCheckStartTime}ms)`)
-        }
-        await sleep(500)
-      }
-
-      console.log(`[TEST] Health restart count: ${healthRestartCount} (took ${Date.now() - healthCheckStartTime}ms)`)
-      expect(healthRestartCount).toBeGreaterThan(0)
-
-      // Wait a bit for everything to stabilize after restart
+      // Wait a bit for everything to stabilize after upgrade
       console.log(`[TEST] Waiting 2s for stabilization...`)
       await sleep(5000)
 
-      // Verify preview URL is still responsive after restart
-      console.log(`[TEST] Verifying preview is still responsive after restart...`)
-      const postRestartResponse = await fetch(previewUrl)
-      console.log(`[TEST] Post-restart preview status: ${postRestartResponse.status}`)
-      expect(postRestartResponse.status).toBe(200)
+      // Verify preview URL is still responsive after upgrade
+      console.log(`[TEST] Verifying preview is still responsive after upgrade...`)
+      const postUpgradeResponse = await fetch(previewUrl)
+      console.log(`[TEST] Post-upgrade preview status: ${postUpgradeResponse.status}`)
+      expect(postUpgradeResponse.status).toBe(200)
 
       // Verify we can still read content from the preview and compare sizes
-      const postRestartContent = await postRestartResponse.text()
-      console.log(`[TEST] Post-restart preview content length: ${postRestartContent.length} bytes`)
-      expect(postRestartContent).toBeDefined()
-      expect(postRestartContent.length).toBeGreaterThan(0)
+      const postUpgradeContent = await postUpgradeResponse.text()
+      console.log(`[TEST] Post-upgrade preview content length: ${postUpgradeContent.length} bytes`)
+      expect(postUpgradeContent).toBeDefined()
+      expect(postUpgradeContent.length).toBeGreaterThan(0)
 
-      // Verify the content size is similar before and after restart (allow delta of 200 bytes)
-      const sizeDelta = Math.abs(postRestartContent.length - preRestartContent.length)
-      console.log(`[TEST] Comparing content sizes - pre: ${preRestartContent.length}, post: ${postRestartContent.length}, delta: ${sizeDelta}`)
+      // Verify the content size is similar before and after upgrade (allow delta of 200 bytes)
+      const sizeDelta = Math.abs(postUpgradeContent.length - preUpgradeContent.length)
+      console.log(`[TEST] Comparing content sizes - pre: ${preUpgradeContent.length}, post: ${postUpgradeContent.length}, delta: ${sizeDelta}`)
       expect(sizeDelta).toBeLessThanOrEqual(200)
 
       console.log(`[TEST] Test completed successfully!`)
+    })
+
+    it('upgrades sandbox and running process persists and completes on time', { timeout: 120000 }, async () => {
+      const name = uniqueName("system-upgrade-process")
+      console.log(`[TEST] Starting process persistence test with sandbox name: ${name}`)
+
+      // Create sandbox
+      console.log(`[TEST] Creating sandbox...`)
+      const createStart = Date.now()
+      const sandbox = await SandboxInstance.create({
+        name,
+        image: "blaxel/base-image:latest",
+        memory: 1024,
+        region: defaultRegion,
+        labels: defaultLabels,
+      })
+      createdSandboxes.push(name)
+
+      console.log(`[TEST] Sandbox created in ${Date.now() - createStart}ms`)
+
+      // Start a sleep process that will run for 30 seconds
+      const sleepDuration = 6
+      console.log(`[TEST] Starting sleep process for ${sleepDuration} seconds...`)
+      const processStart = Date.now()
+      const sleepProcess = await sandbox.process.exec({
+        name: "test-sleep",
+        command: `sleep ${sleepDuration}`,
+        waitForCompletion: false,
+      })
+      console.log(`[TEST] Sleep process started with name: ${sleepProcess.name}`)
+      expect(sleepProcess.name).toBe("test-sleep")
+
+      // Wait a bit to ensure the process is running
+      await sleep(2000)
+
+      // Verify the process is running before upgrade
+      console.log(`[TEST] Checking process status before upgrade...`)
+      const processBeforeUpgrade = await sandbox.process.get("test-sleep")
+      console.log(`[TEST] Process status before upgrade: ${processBeforeUpgrade.status}`)
+      expect(processBeforeUpgrade.status).toBe("running")
+
+      // Upgrade the sandbox system
+      console.log(`[TEST] Calling sandbox.system.upgrade({ version: ${VERSION} })...`)
+      const upgradeStart = Date.now()
+      const upgradeResult = await sandbox.system.upgrade({ version: VERSION })
+      console.log(`[TEST] Upgrade call completed in ${Date.now() - upgradeStart}ms, result:`, upgradeResult)
+      expect(upgradeResult).toBeDefined()
+
+      // Wait for the upgrade to complete (check health)
+      const sandboxHost = sandbox.metadata?.url
+      const healthData = await waitForUpgradeComplete(sandboxHost!, 10000)
+      expect(healthData.upgradeCount).toBeGreaterThan(0)
+
+      // Check that the sleep process is still visible in the API after upgrade
+      console.log(`[TEST] Checking process status after upgrade...`)
+      const processAfterUpgrade = await sandbox.process.get("test-sleep")
+      console.log(`[TEST] Process status after upgrade: ${processAfterUpgrade.status}`)
+      expect(processAfterUpgrade).toBeDefined()
+      // The process should still be running (or completed if we took too long)
+      expect(["running", "completed"]).toContain(processAfterUpgrade.status)
+
+      // Calculate remaining time for the sleep to complete
+      const elapsedSinceStart = Date.now() - processStart
+      const expectedTotalDuration = sleepDuration * 1000
+      const remainingTime = expectedTotalDuration - elapsedSinceStart
+      console.log(`[TEST] Elapsed since process start: ${elapsedSinceStart}ms, remaining: ${remainingTime}ms`)
+
+      // If the process is still running, wait for it to complete
+      if (processAfterUpgrade.status === "running") {
+        // Wait for the process to complete with some buffer (2 seconds extra)
+        const waitTime = Math.max(remainingTime + 2000, 2000)
+        console.log(`[TEST] Waiting ${waitTime}ms for process to complete...`)
+
+        const completedProcess = await sandbox.process.wait("test-sleep", {
+          maxWait: waitTime,
+          interval: 1000,
+        })
+        console.log(`[TEST] Process completed with status: ${completedProcess.status}, exitCode: ${completedProcess.exitCode}`)
+        expect(completedProcess.status).toBe("completed")
+        expect(completedProcess.exitCode).toBe(0)
+      }
+
+      // Verify the process completed in roughly the expected time (within 10 seconds tolerance)
+      const totalDuration = Date.now() - processStart
+      console.log(`[TEST] Total duration from process start to completion: ${totalDuration}ms`)
+      console.log(`[TEST] Expected duration: ~${expectedTotalDuration}ms`)
+
+      // The process should have completed close to the expected time
+      // Allow 15 seconds tolerance for upgrade overhead
+      const tolerance = 15000
+      expect(totalDuration).toBeGreaterThanOrEqual(expectedTotalDuration - 2000) // At least 28 seconds
+      expect(totalDuration).toBeLessThanOrEqual(expectedTotalDuration + tolerance) // At most 45 seconds
+
+      console.log(`[TEST] Process persistence test completed successfully!`)
     })
   })
 })
