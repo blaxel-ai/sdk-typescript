@@ -418,4 +418,57 @@ server.listen(3000, '0.0.0.0', () => {
       }
     })
   })
+
+  describe('preview race conditions', () => {
+    it('creates a preview then remove it and recreate the same preview', async () => {
+      const waitForPreviewDeletion = async (url: string, timeoutMs: number = 10000) => {
+        const startTime = Date.now()
+        const pollInterval = 100
+
+        while (Date.now() - startTime < timeoutMs) {
+          try {
+            const response = await fetch(url)
+            if (response.status === 404) {
+              console.log(`Preview deleted: ${url}`)
+              await new Promise(resolve => setTimeout(resolve, 200))
+              return
+            }
+            console.log(`Preview not deleted: ${url} - ${response.status}`)
+          } catch {
+            // Preview might be unreachable, continue polling
+          }
+          await new Promise(resolve => setTimeout(resolve, pollInterval))
+        }
+      }
+
+      const runTest = async (index: number) => {
+        const previewName = `preview-race-${index}`
+        const preview = await sandbox.previews.createIfNotExists({
+          metadata: { name: previewName },
+          spec: { port: 3000, public: true }
+        })
+
+        const response = await fetch(preview.spec?.url ?? '')
+        expect(response.status).toBe(200)
+
+        await sandbox.previews.delete(previewName)
+        // await new Promise(resolve => setTimeout(resolve, 1000))
+        await waitForPreviewDeletion(preview.spec.url!)
+
+        const preview2 = await sandbox.previews.createIfNotExists({
+          metadata: { name: previewName },
+          spec: { port: 3000, public: true }
+        })
+        const response2 = await fetch(preview2.spec?.url ?? '')
+        if (response2.status !== 200) {
+          console.log(`Preview URL check failed for ${previewName}: ${preview2.spec?.url} - Status: ${response2.status}`)
+        } else {
+          console.log(`Preview URL check passed for ${previewName}: ${preview2.spec?.url} - Status: ${response2.status}`)
+        }
+        expect(response2.status).toBe(200)
+      }
+
+      await Promise.all(Array.from({ length: 100 }, (_, i) => runTest(i + 1)))
+    })
+  })
 })
