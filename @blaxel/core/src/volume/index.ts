@@ -172,6 +172,8 @@ export class VolumeInstance {
       status: data.status,
       terminatedAt: data.terminatedAt,
     }
+    // This is for safe update
+    await new Promise(resolve => setTimeout(resolve, 500))
     return new VolumeInstance(newVolume);
   }
 

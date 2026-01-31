@@ -320,6 +320,17 @@ describe('Sandbox Volume Operations', () => {
       })
       expect(checkResult2.logs).toContain("large-file-1.bin")
 
+      // Check disk usage percentage - should be lower now on 1GB volume
+      const diskCheck2 = await sandbox2.process.exec({
+        command: "df -h /data | tail -1 | awk '{print $5}' | sed 's/%//'",
+        waitForCompletion: true,
+      })
+      const usagePercent2 = parseInt(diskCheck2.logs.trim())
+      if (usagePercent2 > 50) {
+        console.log(`usagePercent2 => ${usagePercent2} is greater than 50, usagePercent1 => ${usagePercent1}`)
+      }
+      expect(usagePercent2).toBeLessThan(50) // ~400MB on 1GB volume = ~39%
+
       // Write another ~400MB file (would fail if volume wasn't resized)
       const writeResult = await sandbox2.process.exec({
         command: "dd if=/dev/urandom of=/data/large-file-2.bin bs=1M count=400 && echo 'WRITE_SUCCESS'",
