@@ -1933,16 +1933,20 @@ export type Ports = Array<Port>;
  * Preview of a Resource
  */
 export type Preview = {
+    events?: CoreEvents;
     metadata: PreviewMetadata;
     spec: PreviewSpec;
+    status?: Status;
 };
 
 /**
  * Preview of a Resource
  */
 export type PreviewWritable = {
+    events?: CoreEventsWritable;
     metadata: PreviewMetadataWritable;
     spec: PreviewSpecWritable;
+    status?: Status;
 };
 
 /**
@@ -2324,7 +2328,7 @@ export type RevisionMetadataWritable = {
 export type Sandbox = {
     events?: CoreEvents;
     /**
-     * Time in seconds until the sandbox is automatically deleted based on TTL and lifecycle policies. Only present for sandboxes with expiration configured.
+     * Time in seconds until the sandbox is automatically deleted based on TTL and lifecycle policies. Only present for sandboxes with lifecycle configured.
      */
     readonly expiresIn?: number;
     /**
