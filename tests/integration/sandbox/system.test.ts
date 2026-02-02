@@ -1,7 +1,7 @@
 import { SandboxInstance, settings } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
 import { defaultLabels, defaultRegion, sleep, uniqueName } from './helpers.js'
-import { HealthResponse } from "../../../@blaxel/core/dist/cjs/types/sandbox/client/types.gen.js"
+import { HealthResponse } from "@blaxel/core/sandbox/client/types.gen.js"
 
 const VERSION = process.env.BL_ENV === "dev" ? "develop" : "latest"
 
@@ -253,7 +253,7 @@ describe('Sandbox System Operations', () => {
       // If the process is still running, wait for it to complete
       if (processAfterUpgrade.status === "running") {
         // Wait for the process to complete with some buffer (2 seconds extra)
-        const waitTime = Math.max(remainingTime + 2000, 2000)
+        const waitTime = Math.max(remainingTime + 5000, 5000)
         console.log(`[TEST] Waiting ${waitTime}ms for process to complete...`)
 
         const completedProcess = await sandbox.process.wait("test-sleep", {
