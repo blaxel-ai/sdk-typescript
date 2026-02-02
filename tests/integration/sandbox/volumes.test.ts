@@ -294,6 +294,14 @@ describe('Sandbox Volume Operations', () => {
       })
       expect(checkResult1.logs).toContain("large-file-1.bin")
 
+      // Check disk usage percentage - should be high on 512MB volume with 400MB data
+      const diskCheck1 = await sandbox1.process.exec({
+        command: "df -h /data | tail -1 | awk '{print $5}' | sed 's/%//'",
+        waitForCompletion: true,
+      })
+      const usagePercent1 = parseInt(diskCheck1.logs.trim())
+      expect(usagePercent1).toBeGreaterThan(70) // ~400MB on 512MB volume = ~78%
+
       // Delete first sandbox
       await SandboxInstance.delete(sandbox1Name)
       await waitForSandboxDeletion(sandbox1Name)
