@@ -273,6 +273,38 @@ describe('Sandbox Preview Operations', () => {
 
       await sandbox.previews.delete("delete-token")
     })
+
+    it('creates private preview with 15 tokens and tests async deletion', async () => {
+      console.log(`Sandbox name: ${sandbox.metadata.name}`);
+      const preview = await sandbox.previews.create({
+        metadata: { name: "preview-with-many-tokens" },
+        spec: { port: 3000, public: false }
+      })
+      console.log(`Preview created: ${preview.metadata.name}`);
+
+      const expiration = new Date(Date.now() + 10 * 60 * 1000)
+      const tokens = await Promise.all(
+        Array.from({ length: 15 }, () => preview.tokens.create(expiration))
+      )
+
+      expect(tokens.length).toBe(15)
+      tokens.forEach(token => {
+        expect(token.value).toBeDefined()
+      })
+
+      const listedTokens = await preview.tokens.list()
+      expect(listedTokens.length).toBeGreaterThanOrEqual(15)
+
+      await sandbox.previews.delete("preview-with-many-tokens")
+      await expect(sandbox.previews.get("preview-with-many-tokens")).rejects.toThrow()
+
+      await sandbox.previews.create({
+        metadata: { name: "preview-with-many-tokens" },
+        spec: { port: 3000, public: true }
+      })
+      const response = await fetch(preview.spec.url ?? '')
+      expect(response.status).toBe(200)
+    })
   })
 
   describe('CORS headers', () => {
@@ -416,6 +448,35 @@ server.listen(3000, '0.0.0.0', () => {
       } finally {
         await SandboxInstance.delete(name).catch(() => {})
       }
+    })
+  })
+
+  describe('preview race conditions', () => {
+    it('creates a preview then remove it and recreate the same preview', async () => {
+      const runTest = async (index: number) => {
+        const previewName = `preview-race-${index}`
+        const preview = await sandbox.previews.createIfNotExists({
+          metadata: { name: previewName },
+          spec: { port: 3000, public: true }
+        })
+
+        const response = await fetch(preview.spec?.url ?? '')
+        expect(response.status).toBe(200)
+
+        await sandbox.previews.delete(previewName)
+
+        const preview2 = await sandbox.previews.createIfNotExists({
+          metadata: { name: previewName },
+          spec: { port: 3000, public: true }
+        })
+        const response2 = await fetch(preview2.spec?.url ?? '')
+        if (response2.status !== 200) {
+          console.log(`Preview URL check failed for ${previewName}: ${preview2.spec?.url} - Status: ${response2.status}`)
+        }
+        expect(response2.status).toBe(200)
+      }
+
+      await Promise.all(Array.from({ length: 100 }, (_, i) => runTest(i + 1)))
     })
   })
 })

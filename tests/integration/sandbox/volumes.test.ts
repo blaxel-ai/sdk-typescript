@@ -334,6 +334,9 @@ describe('Sandbox Volume Operations', () => {
         waitForCompletion: true,
       })
       const usagePercent2 = parseInt(diskCheck2.logs.trim())
+      if (usagePercent2 > 50) {
+        console.log(`usagePercent2 => ${usagePercent2} is greater than 50, usagePercent1 => ${usagePercent1}`)
+      }
       expect(usagePercent2).toBeLessThan(50) // ~400MB on 1GB volume = ~39%
 
       // Write another ~400MB file (would fail if volume wasn't resized)
