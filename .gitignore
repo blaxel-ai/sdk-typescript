@@ -11,3 +11,4 @@ sqlite.db
 .wrangler
 test-volume-template/
 reports
+tmp
