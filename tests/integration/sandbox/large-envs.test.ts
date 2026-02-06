@@ -1,6 +1,6 @@
 import { SandboxInstance, VolumeInstance } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
-import { defaultImage, defaultLabels, defaultRegion, uniqueName, waitForSandboxDeletion, waitForVolumeDeletion } from './helpers.js'
+import { defaultImage, defaultLabels, uniqueName, waitForSandboxDeletion, waitForVolumeDeletion } from './helpers.js'
 
 describe('Sandbox Large Environment Variables', () => {
   const createdSandboxes: string[] = []
@@ -128,7 +128,6 @@ describe('Sandbox Large Environment Variables', () => {
     const volume = await VolumeInstance.create({
       name: volumeName,
       size: 1024, // 1GB
-      region: defaultRegion,
       labels: defaultLabels,
     })
     createdVolumes.push(volumeName)
@@ -138,7 +137,6 @@ describe('Sandbox Large Environment Variables', () => {
     const sandbox1 = await SandboxInstance.create({
       name: sandboxName1,
       image: defaultImage,
-      region: defaultRegion,
       envs,
       volumes: [
         {
@@ -200,7 +198,6 @@ describe('Sandbox Large Environment Variables', () => {
     const sandbox2 = await SandboxInstance.create({
       name: sandboxName2,
       image: defaultImage,
-      region: defaultRegion,
       envs,
       volumes: [
         {
@@ -231,6 +228,124 @@ describe('Sandbox Large Environment Variables', () => {
     })
     expect(readResult.logs?.trim()).toBe(persistentData)
     console.log(`Volume persistence verified: data written by first sandbox is readable in second sandbox`)
+  })
+
+  it('creates a sandbox with large environment variables (4000 chars) without volume and verifies they are set', async () => {
+    const sandboxName = uniqueName("envs-large")
+    const targetChars = 4000
+    const envs = generateEnvsForTargetChars(targetChars)
+
+    // Calculate actual total characters
+    const totalChars = envs.reduce((sum, env) => sum + env.name.length + env.value.length, 0)
+    console.log(`Target: ${targetChars}, Actual: ${totalChars}, Env count: ${envs.length}`)
+    expect(totalChars).toBeGreaterThanOrEqual(targetChars)
+
+    // Create sandbox with large envs (no volume)
+    const sandbox = await SandboxInstance.create({
+      name: sandboxName,
+      image: defaultImage,
+      envs,
+      labels: defaultLabels,
+    })
+    createdSandboxes.push(sandboxName)
+
+    // Verify the sandbox was created with all environment variables
+    const retrieved = await SandboxInstance.get(sandboxName)
+    expect(retrieved.spec.runtime?.envs?.length).toBe(envs.length)
+
+    // Verify environment variables are set in the sandbox
+    const firstEnv = envs[0]
+    const checkFirst = await sandbox.process.exec({
+      command: `echo $${firstEnv.name}`,
+      waitForCompletion: true
+    })
+    expect(checkFirst.logs?.trim()).toBe(firstEnv.value)
+
+    const lastEnv = envs[envs.length - 1]
+    const checkLast = await sandbox.process.exec({
+      command: `echo $${lastEnv.name}`,
+      waitForCompletion: true
+    })
+    expect(checkLast.logs?.trim()).toBe(lastEnv.value)
+
+    // Verify total count of TEST_ENV_VAR_ variables
+    const countResult = await sandbox.process.exec({
+      command: "printenv | grep -c TEST_ENV_VAR_",
+      waitForCompletion: true
+    })
+    expect(parseInt(countResult.logs?.trim() || "0")).toBe(envs.length)
+  })
+
+  it('creates a sandbox with environment variables containing special and escape characters', async () => {
+    const sandboxName = uniqueName("envs-escape")
+
+    // Base set of special character patterns
+    const specialPatterns = [
+      { suffix: "NEWLINE", value: "line1\nline2\nline3" },
+      { suffix: "TAB", value: "col1\tcol2\tcol3" },
+      { suffix: "CARRIAGE_RETURN", value: "before\rafter" },
+      { suffix: "BACKSLASH", value: "path\\to\\file" },
+      { suffix: "DOUBLE_QUOTES", value: 'say "hello world"' },
+      { suffix: "SINGLE_QUOTES", value: "it's working" },
+      { suffix: "EQUALS", value: "key=value=extra" },
+      { suffix: "SPACES", value: "  leading and trailing  " },
+      { suffix: "DOLLAR", value: "price is $100" },
+      { suffix: "BACKTICK", value: "run `command` here" },
+      { suffix: "PIPE_AND_SEMI", value: "a | b ; c & d" },
+      { suffix: "PARENS_BRACES", value: "fn() { return [1,2]; }" },
+      { suffix: "HASH_EXCLAIM", value: "#comment !bang" },
+      { suffix: "UNICODE", value: "hello 世界 🌍 émojis" },
+      { suffix: "MIXED_ESCAPE", value: "line1\nline2\t\"quoted\"\n\\end" },
+      { suffix: "EMPTY", value: "" },
+      { suffix: "JSON", value: '{"key": "value", "arr": [1, 2, 3]}' },
+      { suffix: "URL", value: "https://example.com/path?q=hello&lang=en#section" },
+      { suffix: "BASE64_LIKE", value: "dGVzdA==\naW50ZWdyYXRpb24=" },
+      { suffix: "MULTILINE_CONFIG", value: "server {\n  listen 80;\n  location / {\n    proxy_pass http://localhost:3000;\n  }\n}" },
+    ]
+
+    // Duplicate patterns until we reach at least 4000 total chars
+    const targetChars = 4000
+    const specialEnvs: { name: string; value: string }[] = []
+    let totalChars = 0
+    let batch = 1
+    while (totalChars < targetChars) {
+      for (const pattern of specialPatterns) {
+        const name = `ENV_${String(batch).padStart(2, '0')}_${pattern.suffix}`
+        totalChars += name.length + pattern.value.length
+        specialEnvs.push({ name, value: pattern.value })
+      }
+      batch++
+    }
+
+    console.log(`Testing ${specialEnvs.length} env vars with special characters (${totalChars} total chars)`)
+    expect(totalChars).toBeGreaterThanOrEqual(targetChars)
+
+    // Create sandbox with special character envs
+    const sandbox = await SandboxInstance.create({
+      name: sandboxName,
+      image: defaultImage,
+      envs: specialEnvs,
+      labels: defaultLabels,
+    })
+    createdSandboxes.push(sandboxName)
+
+    // Verify the sandbox was created with all environment variables
+    const retrieved = await SandboxInstance.get(sandboxName)
+    expect(retrieved.spec.runtime?.envs?.length).toBe(specialEnvs.length)
+
+    // Use printenv to verify each env var (printenv prints the raw value, unlike echo which interprets)
+    for (const env of specialEnvs) {
+      const result = await sandbox.process.exec({
+        command: `printenv ${env.name}`,
+        waitForCompletion: true
+      })
+      const actual = result.logs ?? ""
+      // printenv adds a trailing newline, so we compare without it
+      // but the value itself may contain newlines, so only strip the last trailing newline
+      const actualTrimmed = actual.endsWith("\n") ? actual.slice(0, -1) : actual
+      console.log(`${env.name}: expected=${JSON.stringify(env.value)}, got=${JSON.stringify(actualTrimmed)}`)
+      expect(actualTrimmed).toBe(env.value)
+    }
   })
 
   it('fails to write a 2MB file to /var/secrets/bl-env (limit is 1MB)', async () => {
