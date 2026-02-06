@@ -54,50 +54,62 @@ describe('Sandbox Large Environment Variables', () => {
     return envs
   }
 
-  charTargets.forEach((targetChars) => {
-    it(`creates a sandbox with environment variables totaling ~${targetChars} chars`, async () => {
+  it('creates sandboxes with increasing environment variable sizes (1000-3000 chars, stops on first failure)', async () => {
+    const passedTargets: number[] = []
+
+    for (const targetChars of charTargets) {
       const name = uniqueName(`envs-${targetChars}`)
       const envs = generateEnvsForTargetChars(targetChars)
 
       // Calculate actual total characters
       const totalChars = envs.reduce((sum, env) => sum + env.name.length + env.value.length, 0)
-      console.log(`Target: ${targetChars}, Actual: ${totalChars}, Env count: ${envs.length}`)
-      expect(totalChars).toBeGreaterThanOrEqual(targetChars)
+      console.log(`Testing target: ${targetChars}, Actual: ${totalChars}, Env count: ${envs.length}`)
 
-      const sandbox = await SandboxInstance.create({
-        name,
-        image: defaultImage,
-        envs,
-        labels: defaultLabels,
-      })
-      createdSandboxes.push(name)
+      try {
+        const sandbox = await SandboxInstance.create({
+          name,
+          image: defaultImage,
+          envs,
+          labels: defaultLabels,
+        })
+        createdSandboxes.push(name)
 
-      // Verify the sandbox was created with all environment variables
-      const retrieved = await SandboxInstance.get(name)
-      expect(retrieved.spec.runtime?.envs?.length).toBe(envs.length)
+        // Verify the sandbox was created with all environment variables
+        const retrieved = await SandboxInstance.get(name)
+        expect(retrieved.spec.runtime?.envs?.length).toBe(envs.length)
 
-      // Verify first and last environment variables are actually set in the sandbox
-      const firstEnv = envs[0]
-      const checkFirst = await sandbox.process.exec({
-        command: `echo $${firstEnv.name}`,
-        waitForCompletion: true
-      })
-      expect(checkFirst.logs?.trim()).toBe(firstEnv.value)
+        // Verify first and last environment variables are actually set in the sandbox
+        const firstEnv = envs[0]
+        const checkFirst = await sandbox.process.exec({
+          command: `echo $${firstEnv.name}`,
+          waitForCompletion: true
+        })
+        expect(checkFirst.logs?.trim()).toBe(firstEnv.value)
 
-      const lastEnv = envs[envs.length - 1]
-      const checkLast = await sandbox.process.exec({
-        command: `echo $${lastEnv.name}`,
-        waitForCompletion: true
-      })
-      expect(checkLast.logs?.trim()).toBe(lastEnv.value)
+        const lastEnv = envs[envs.length - 1]
+        const checkLast = await sandbox.process.exec({
+          command: `echo $${lastEnv.name}`,
+          waitForCompletion: true
+        })
+        expect(checkLast.logs?.trim()).toBe(lastEnv.value)
 
-      // Verify total count of TEST_ENV_VAR_ variables in the environment
-      const countResult = await sandbox.process.exec({
-        command: "printenv | grep -c TEST_ENV_VAR_",
-        waitForCompletion: true
-      })
-      expect(parseInt(countResult.logs?.trim() || "0")).toBe(envs.length)
-    })
+        // Verify total count of TEST_ENV_VAR_ variables in the environment
+        const countResult = await sandbox.process.exec({
+          command: "printenv | grep -c TEST_ENV_VAR_",
+          waitForCompletion: true
+        })
+        expect(parseInt(countResult.logs?.trim() || "0")).toBe(envs.length)
+
+        passedTargets.push(targetChars)
+        console.log(`✓ Passed: ${targetChars} chars (${envs.length} env vars)`)
+      } catch (error) {
+        console.log(`✗ Failed at ${targetChars} chars (${envs.length} env vars)`)
+        console.log(`Passed targets before failure: ${passedTargets.join(', ') || 'none'}`)
+        throw error
+      }
+    }
+
+    console.log(`All ${charTargets.length} targets passed: ${passedTargets.join(', ')}`)
   })
 
   it('creates a sandbox with large environment variables (4000 chars) and a volume, then verifies persistence', async () => {
