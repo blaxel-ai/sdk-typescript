@@ -284,7 +284,7 @@ export type CreateJobExecutionRequest = {
      * Environment variable overrides (optional, will merge with job's environment variables)
      */
     env?: {
-        [key: string]: unknown;
+        [key: string]: string;
     };
     /**
      * Execution ID (optional, will be generated if not provided)
@@ -1933,16 +1933,20 @@ export type Ports = Array<Port>;
  * Preview of a Resource
  */
 export type Preview = {
+    events?: CoreEvents;
     metadata: PreviewMetadata;
     spec: PreviewSpec;
+    status?: Status;
 };
 
 /**
  * Preview of a Resource
  */
 export type PreviewWritable = {
+    events?: CoreEventsWritable;
     metadata: PreviewMetadataWritable;
     spec: PreviewSpecWritable;
+    status?: Status;
 };
 
 /**
@@ -2323,6 +2327,10 @@ export type RevisionMetadataWritable = {
  */
 export type Sandbox = {
     events?: CoreEvents;
+    /**
+     * Time in seconds until the sandbox is automatically deleted based on TTL and lifecycle policies. Only present for sandboxes with lifecycle configured.
+     */
+    readonly expiresIn?: number;
     /**
      * Last time the sandbox was used (read-only, managed by the system)
      */

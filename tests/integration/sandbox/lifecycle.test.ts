@@ -18,65 +18,153 @@ describe('Sandbox Lifecycle and Expiration', () => {
     )
   })
 
-  describe('TTL (time-to-live)', () => {
-    it('creates sandbox with TTL string', async () => {
-      const name = uniqueName("ttl-string")
-      const sandbox = await SandboxInstance.create({
+  describe('expiration behavior', { timeout: 180000 }, () => {
+    it('sandbox terminates after TTL string expires', async () => {
+      const name = uniqueName("ttl-string-expire")
+      const testFile = "/tmp/ttl-string-test-marker.txt"
+      const testContent = "this-should-not-persist-ttl-string"
+
+      const firstSandbox = await SandboxInstance.create({
         name,
         image: defaultImage,
-        ttl: "5m",
+        ttl: "1s",
         labels: defaultLabels,
       })
+
+      // Write content to the first sandbox
+      await firstSandbox.fs.write(testFile, testContent)
+      const written = await firstSandbox.fs.read(testFile)
+      expect(written).toBe(testContent)
+
+      // Wait for TTL + buffer
+      await sleep(1100)
+
+      const retrievedSandbox = await SandboxInstance.get(name)
+      expect(retrievedSandbox.status).toBe("TERMINATED")
+
+      // Create a new sandbox with the same name
+      const secondSandbox = await SandboxInstance.create({name, labels: defaultLabels})
+      expect(secondSandbox.metadata.name).toBe(name)
       createdSandboxes.push(name)
 
-      expect(sandbox.metadata.name).toBe(name)
-
-      await sleep(100)
-
-      // Verify sandbox is running
-      const status = await SandboxInstance.get(name)
-      expect(status.status).not.toBe("TERMINATED")
+      // Verify the file does not exist in the new sandbox (proves it's recreated from scratch)
+      await expect(secondSandbox.fs.read(testFile)).rejects.toThrow()
     })
 
-    it('creates sandbox with expires date', async () => {
-      const name = uniqueName("expires-date")
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000) // 5 minutes from now
+    it('sandbox terminates after expires date', async () => {
+      const name = uniqueName("expires-date-expire")
+      const testFile = "/tmp/expires-date-test-marker.txt"
+      const testContent = "this-should-not-persist-expires-date"
 
-      const sandbox = await SandboxInstance.create({
+      const expiresAt = new Date(Date.now() + 1000) // 1 second from now
+
+      const firstSandbox = await SandboxInstance.create({
         name,
         image: defaultImage,
         expires: expiresAt,
         labels: defaultLabels,
       })
+
+      // Write content to the first sandbox
+      await firstSandbox.fs.write(testFile, testContent)
+      const written = await firstSandbox.fs.read(testFile)
+      expect(written).toBe(testContent)
+
+      // Wait for expiration + buffer
+      await sleep(1100)
+
+      const retrievedSandbox = await SandboxInstance.get(name)
+      expect(retrievedSandbox.status).toBe("TERMINATED")
+
+      // Create a new sandbox with the same name
+      const secondSandbox = await SandboxInstance.create({name, labels: defaultLabels})
+      expect(secondSandbox.metadata.name).toBe(name)
       createdSandboxes.push(name)
 
-      expect(sandbox.metadata.name).toBe(name)
+      // Verify the file does not exist in the new sandbox (proves it's recreated from scratch)
+      await expect(secondSandbox.fs.read(testFile)).rejects.toThrow()
     })
-  })
 
-  describe('expiration policies', () => {
-    it('creates sandbox with ttl-max-age policy', async () => {
-      const name = uniqueName("maxage-policy")
-      const sandbox = await SandboxInstance.create({
+    it('sandbox terminates after lifecycle ttl-max-age policy expires', async () => {
+      const name = uniqueName("lifecycle-maxage-expire")
+      const testFile = "/tmp/lifecycle-maxage-test-marker.txt"
+      const testContent = "this-should-not-persist-lifecycle-maxage"
+
+      const firstSandbox = await SandboxInstance.create({
         name,
         image: defaultImage,
         lifecycle: {
           expirationPolicies: [
-            { type: "ttl-max-age", value: "10m", action: "delete" }
+            { type: "ttl-max-age", value: "1s", action: "delete" }
           ]
         },
         labels: defaultLabels,
       })
+
+      // Write content to the first sandbox
+      await firstSandbox.fs.write(testFile, testContent)
+      const written = await firstSandbox.fs.read(testFile)
+      expect(written).toBe(testContent)
+
+      // Wait for TTL + buffer
+      await sleep(1100)
+
+      const retrievedSandbox = await SandboxInstance.get(name)
+      expect(retrievedSandbox.status).toBe("TERMINATED")
+
+      // Create a new sandbox with the same name
+      const secondSandbox = await SandboxInstance.create({name, labels: defaultLabels})
+      expect(secondSandbox.metadata.name).toBe(name)
       createdSandboxes.push(name)
 
-      expect(sandbox.metadata.name).toBe(name)
+      // Verify the file does not exist in the new sandbox (proves it's recreated from scratch)
+      await expect(secondSandbox.fs.read(testFile)).rejects.toThrow()
     })
 
-    it('creates sandbox with date expiration policy', async () => {
-      const name = uniqueName("date-policy")
-      const expirationDate = new Date(Date.now() + 10 * 60 * 1000)
+    it('sandbox terminates after lifecycle ttl-idle policy expires', async () => {
+      const name = uniqueName("lifecycle-idle-expire")
+      const testFile = "/tmp/lifecycle-idle-test-marker.txt"
+      const testContent = "this-should-not-persist-lifecycle-idle"
 
-      const sandbox = await SandboxInstance.create({
+      const firstSandbox = await SandboxInstance.create({
+        name,
+        image: defaultImage,
+        lifecycle: {
+          expirationPolicies: [
+            { type: "ttl-idle", value: "5s", action: "delete" }
+          ]
+        },
+        labels: defaultLabels,
+      })
+
+      // Write content to the first sandbox
+      await firstSandbox.fs.write(testFile, testContent)
+      const written = await firstSandbox.fs.read(testFile)
+      expect(written).toBe(testContent)
+
+      // Wait for idle TTL + buffer
+      await sleep(7000)
+
+      const retrievedSandbox = await SandboxInstance.get(name)
+      expect(retrievedSandbox.status).toBe("TERMINATED")
+
+      // Create a new sandbox with the same name
+      const secondSandbox = await SandboxInstance.create({name, labels: defaultLabels})
+      expect(secondSandbox.metadata.name).toBe(name)
+      createdSandboxes.push(name)
+
+      // Verify the file does not exist in the new sandbox (proves it's recreated from scratch)
+      await expect(secondSandbox.fs.read(testFile)).rejects.toThrow()
+    })
+
+    it('sandbox terminates after lifecycle date policy expires', async () => {
+      const name = uniqueName("lifecycle-date-expire")
+      const testFile = "/tmp/lifecycle-date-test-marker.txt"
+      const testContent = "this-should-not-persist-lifecycle-date"
+
+      const expirationDate = new Date(Date.now() + 1000) // 1 second from now
+
+      const firstSandbox = await SandboxInstance.create({
         name,
         image: defaultImage,
         lifecycle: {
@@ -86,86 +174,25 @@ describe('Sandbox Lifecycle and Expiration', () => {
         },
         labels: defaultLabels,
       })
-      createdSandboxes.push(name)
 
-      expect(sandbox.metadata.name).toBe(name)
-    })
+      // Write content to the first sandbox
+      await firstSandbox.fs.write(testFile, testContent)
+      const written = await firstSandbox.fs.read(testFile)
+      expect(written).toBe(testContent)
 
-    it('creates sandbox with ttl-idle policy', async () => {
-      const name = uniqueName("idle-policy")
-      const sandbox = await SandboxInstance.create({
-        name,
-        image: defaultImage,
-        lifecycle: {
-          expirationPolicies: [
-            { type: "ttl-idle", value: "5m", action: "delete" }
-          ]
-        },
-        labels: defaultLabels,
-      })
-      createdSandboxes.push(name)
-
-      expect(sandbox.metadata.name).toBe(name)
-    })
-
-    it('creates sandbox with multiple policies', async () => {
-      const name = uniqueName("multi-policy")
-      const sandbox = await SandboxInstance.create({
-        name,
-        image: defaultImage,
-        lifecycle: {
-          expirationPolicies: [
-            { type: "ttl-idle", value: "5m", action: "delete" },
-            { type: "ttl-max-age", value: "30m", action: "delete" }
-          ]
-        },
-        labels: defaultLabels,
-      })
-      createdSandboxes.push(name)
-
-      expect(sandbox.metadata.name).toBe(name)
-    })
-
-    it('supports various duration formats', async () => {
-      const durations = ["30s", "5m", "1h"]
-
-      for (const duration of durations) {
-        const name = uniqueName(`dur-${duration.replace(/\D/g, '')}`)
-        const sandbox = await SandboxInstance.create({
-          name,
-          image: defaultImage,
-          lifecycle: {
-            expirationPolicies: [
-              { type: "ttl-max-age", value: duration, action: "delete" }
-            ]
-          },
-          labels: defaultLabels,
-        })
-        createdSandboxes.push(name)
-
-        expect(sandbox.metadata.name).toBe(name)
-      }
-    })
-  })
-
-  describe('TTL expiration behavior', { timeout: 180000 }, () => {
-    it('sandbox terminates after TTL expires', async () => {
-      const name = uniqueName("ttl-expire")
-      await SandboxInstance.create({
-        name,
-        image: defaultImage,
-        ttl: "1s",
-        labels: defaultLabels,
-      })
-      // Don't add to createdSandboxes - we expect it to auto-delete
-
-      // Wait for TTL + buffer (cron runs every minute)
+      // Wait for date expiration + buffer
       await sleep(1100)
 
-      // This should not fail
-      const sbx = await SandboxInstance.create({name, labels: defaultLabels})
-      expect(sbx.metadata.name).toBe(name)
+      const retrievedSandbox = await SandboxInstance.get(name)
+      expect(retrievedSandbox.status).toBe("TERMINATED")
+
+      // Create a new sandbox with the same name
+      const secondSandbox = await SandboxInstance.create({name, labels: defaultLabels})
+      expect(secondSandbox.metadata.name).toBe(name)
       createdSandboxes.push(name)
+
+      // Verify the file does not exist in the new sandbox (proves it's recreated from scratch)
+      await expect(secondSandbox.fs.read(testFile)).rejects.toThrow()
     })
   })
 

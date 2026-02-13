@@ -150,6 +150,35 @@ export class SandboxPreviews {
       },
       throwOnError: true,
     });
+
+    if (data.status === 'DELETING') {
+      await this.waitForDeletion(previewName);
+    }
+
     return data;
   }
+
+  private async waitForDeletion(previewName: string, timeoutMs: number = 10000): Promise<void> {
+    console.log(`Waiting for preview deletion: ${previewName}`);
+    const pollInterval = 500; // Poll every 500ms
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < timeoutMs) {
+
+      const {response} = await getSandboxPreview({
+        path: {
+          sandboxName: this.sandboxName,
+          previewName,
+        },
+      });
+      if (response.status === 404) {
+        return;
+      }
+      // Preview still exists, wait and retry
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+    // Timeout reached, but deletion was initiated
+    throw new Error(`Preview deletion timeout: ${previewName} is still in DELETING state after ${timeoutMs}ms`);
+  }
+
 }
