@@ -33,6 +33,7 @@ function getCredentials(): CredentialsType | null {
     );
     type AuthWorkspace = {
       name: string;
+      env?: string;
       credentials: CredentialsType;
     };
     type AuthConfig = {
@@ -44,14 +45,21 @@ function getCredentials(): CredentialsType | null {
 
     const configJson = yaml.parse(config) as AuthConfig;
     const workspaceName = env.BL_WORKSPACE || configJson.context.workspace;
-    const credentials = configJson.workspaces.find(
+    const workspace = configJson.workspaces.find(
       (wk: AuthWorkspace) => wk.name === workspaceName
-    )?.credentials;
-    if (!credentials) {
+    );
+
+    // Set BL_ENV from config.yaml workspace if not already set via env vars
+    if (!env.BL_ENV && workspace?.env) {
+      process.env.BL_ENV = workspace.env;
+    }
+
+    if (!workspace?.credentials) {
       return null;
     }
-    credentials.workspace = workspaceName;
-    return credentials;
+
+    workspace.credentials.workspace = workspaceName;
+    return workspace.credentials;
   } catch {
     // If any error (e.g., running in browser), just return null
     return null;
