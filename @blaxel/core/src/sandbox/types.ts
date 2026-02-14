@@ -45,7 +45,7 @@ export type SandboxCreateConfiguration = {
   volumes?: (VolumeBinding | VolumeAttachment)[];
   ttl?: string;
   expires?: Date;
-  region: string;
+  region?: string;
   lifecycle?: SandboxLifecycle;
   snapshotEnabled?: boolean;
   labels?: Record<string, string>;
