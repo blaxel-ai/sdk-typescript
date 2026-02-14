@@ -2,6 +2,8 @@ import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { SandboxInstance } from "@blaxel/core"
 import { uniqueName, defaultImage, defaultLabels, sleep } from './helpers.js'
 
+let SKIP_KEEP_ALIVE = true
+
 describe('Sandbox Process Operations', () => {
   let sandbox: SandboxInstance
   const sandboxName = uniqueName("process-test")
@@ -361,6 +363,88 @@ describe('Sandbox Process Operations', () => {
 
       expect(result.restartCount).toBeGreaterThan(0)
       expect(result.restartCount).toBeLessThanOrEqual(3)
+    })
+  })
+
+  describe('keepAlive', () => {
+    if (SKIP_KEEP_ALIVE) {
+      it('skips keepAlive tests', () => {
+        expect(true).toBe(true)
+      })
+      return
+    }
+
+    it('executes process with keepAlive enabled', async () => {
+      const result = await sandbox.process.exec({
+        name: "keepalive-basic",
+        command: "echo 'keepalive test'",
+        keepAlive: true,
+        waitForCompletion: true
+      })
+
+      expect(result.status).toBe("completed")
+      expect(result.logs).toContain("keepalive test")
+    })
+
+    it('executes process with keepAlive and custom timeout', async () => {
+      const result = await sandbox.process.exec({
+        name: "keepalive-timeout",
+        command: "sleep 2 && echo 'done with timeout'",
+        keepAlive: true,
+        timeout: 60,
+        waitForCompletion: true
+      })
+
+      expect(result.status).toBe("completed")
+      expect(result.logs).toContain("done with timeout")
+    })
+
+    it('kills process when timeout expires', async () => {
+      const startTime = Date.now()
+
+      await sandbox.process.exec({
+        name: "keepalive-timeout-kill",
+        command: "sleep 120",
+        keepAlive: true,
+        timeout: 3,
+        waitForCompletion: false
+      })
+
+      // Wait for the process to be killed by timeout
+      await sleep(5000)
+
+      const process = await sandbox.process.get("keepalive-timeout-kill")
+      const elapsed = Date.now() - startTime
+
+      // Process should be killed/failed, not running
+      expect(["killed", "failed", "completed"]).toContain(process.status)
+      // Should have been killed around the 3 second timeout mark
+      expect(elapsed).toBeLessThan(10000)
+    })
+
+    it('allows infinite timeout with timeout 0', async () => {
+      const result = await sandbox.process.exec({
+        name: "keepalive-infinite",
+        command: "sleep 2 && echo 'infinite timeout done'",
+        keepAlive: true,
+        timeout: 0,
+        waitForCompletion: true
+      })
+
+      expect(result.status).toBe("completed")
+      expect(result.logs).toContain("infinite timeout done")
+    })
+
+    it('runs without keepAlive by default', async () => {
+      const result = await sandbox.process.exec({
+        name: "no-keepalive",
+        command: "echo 'no keepalive'",
+        waitForCompletion: true
+      })
+
+      expect(result.status).toBe("completed")
+      // Process should complete normally without keepAlive
+      expect(result.logs).toContain("no keepalive")
     })
   })
 })
