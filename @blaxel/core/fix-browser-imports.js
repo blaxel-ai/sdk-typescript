@@ -63,6 +63,33 @@ function replaceNodeWithBrowser(buildDir) {
   }
 }
 
+function replaceImageWithBrowser(buildDir) {
+  // File paths for both image and image.browser files
+  const imagePath = path.join(buildDir, 'image', 'image.js');
+  const imageTypesPath = path.join(buildDir, 'image', 'image.d.ts');
+  const browserPath = path.join(buildDir, 'image', 'image.browser.js');
+  const browserTypesPath = path.join(buildDir, 'image', 'image.browser.d.ts');
+
+  // Replace image.js with image.browser.js content
+  if (fs.existsSync(browserPath) && fs.existsSync(imagePath)) {
+    // Delete the original image.js
+    fs.unlinkSync(imagePath);
+    // Rename image.browser.js to image.js (keep the same filename for imports)
+    fs.renameSync(browserPath, imagePath);
+    console.log(`  ✅ Replaced image.js with image.browser.js content`);
+  } else if (!fs.existsSync(browserPath)) {
+    console.error(`  ⚠️  Warning: image.browser.js not found in ${buildDir}/image/`);
+    console.error(`     Make sure image.browser.ts is compiled in the regular build first.`);
+  }
+
+  // Replace image.d.ts with image.browser.d.ts if they exist
+  if (fs.existsSync(browserTypesPath) && fs.existsSync(imageTypesPath)) {
+    fs.unlinkSync(imageTypesPath);
+    fs.renameSync(browserTypesPath, imageTypesPath);
+    console.log(`  ✅ Replaced image.d.ts with image.browser.d.ts content`);
+  }
+}
+
 // Create browser-specific builds
 const builds = ['dist/esm-browser', 'dist/cjs-browser'];
 
@@ -89,6 +116,9 @@ builds.forEach(buildDir => {
 
     // Replace node.js with browser.js content
     replaceNodeWithBrowser(buildDir);
+
+    // Replace image.js with image.browser.js content (removes archiver dependency)
+    replaceImageWithBrowser(buildDir);
 
     // Note: We don't need to fix imports since node.js now contains browser.js content
     // sentry.ts now handles both Node.js and browser environments with fetch
