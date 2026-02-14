@@ -7,10 +7,14 @@ import { openai } from "@llamaindex/openai";
 
 // Type for model metadata
 interface ModelData {
+  metadata: {
+    url?: string;
+  };
   spec: {
     runtime?: {
       type?: string;
       model?: string;
+      generation?: string;
     };
   };
 }
@@ -111,6 +115,24 @@ class BlaxelLLM implements ToolCallLLM<object, ToolCallLLMMessageOptions> {
         headers,
       });
     };
+
+    // mk3 models use the direct gateway URL and always speak OpenAI-compatible API
+    if (this.modelData?.spec.runtime?.generation === "mk3") {
+      const gatewayUrl = this.modelData.metadata.url;
+      if (!gatewayUrl) {
+        throw new Error(`Model ${this.model} is mk3 but has no gateway URL in metadata`);
+      }
+
+      return openai({
+        model: this.model,
+        apiKey: currentToken,
+        baseURL: `${gatewayUrl}/v1`,
+        additionalSessionOptions: {
+          fetch: authenticatedFetch,
+        },
+        ...this.options,
+      }) as unknown as ToolCallLLM<object, ToolCallLLMMessageOptions>;
+    }
 
     if (this.type === "mistral") {
       return openai({

@@ -12,14 +12,63 @@ export const blModel = async (
   model: string,
   options?: Record<string, unknown>
 ): Promise<ReturnType<ReturnType<typeof createOpenAI>>> => {
-  const url = `${settings.runUrl}/${settings.workspace}/models/${model}`;
   const modelData = await getModelMetadata(model);
   if (!modelData) {
     throw new Error(`Model ${model} not found`);
   }
   await authenticate();
-  const type = modelData?.spec.runtime?.type || "openai";
   const modelId = modelData?.spec.runtime?.model || "gpt-4o";
+
+  // mk3 models use the direct gateway URL and always speak OpenAI-compatible API
+  if (modelData.spec.runtime?.generation === "mk3") {
+    const gatewayUrl = modelData.metadata.url;
+    if (!gatewayUrl) {
+      throw new Error(`Model ${model} is mk3 but has no gateway URL in metadata`);
+    }
+
+    const mk3Fetch = async (input: string | URL | Request, init?: RequestInit) => {
+      await authenticate();
+
+      let existingHeaders: Record<string, string> = {};
+      if (init?.headers) {
+        if (init.headers instanceof Headers) {
+          init.headers.forEach((value, key) => {
+            existingHeaders[key] = value;
+          });
+        } else if (Array.isArray(init.headers)) {
+          for (const [key, value] of init.headers) {
+            existingHeaders[key] = value;
+          }
+        } else {
+          existingHeaders = { ...(init.headers as Record<string, string>) };
+        }
+      }
+
+      delete existingHeaders['authorization'];
+      delete existingHeaders['Authorization'];
+
+      const headers = {
+        'Cache-Control': 'no-transform',
+        ...existingHeaders,
+        ...settings.headers,
+      };
+
+      return fetch(input, {
+        ...init,
+        headers,
+      });
+    };
+
+    return createOpenAI({
+      apiKey: "replaced",
+      baseURL: `${gatewayUrl}/v1`,
+      fetch: mk3Fetch,
+      ...options,
+    })(model);
+  }
+
+  const url = `${settings.runUrl}/${settings.workspace}/models/${model}`;
+  const type = modelData?.spec.runtime?.type || "openai";
 
   // Custom fetch function that refreshes authentication on each request
   const authenticatedFetch = async (input: string | URL | Request, init?: RequestInit) => {
