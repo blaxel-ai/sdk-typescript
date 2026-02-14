@@ -89,6 +89,7 @@ jobs:
     env:
       BL_API_KEY: ${{ secrets.BL_API_KEY }}
       BL_WORKSPACE: ${{ secrets.BL_WORKSPACE }}
+      BL_REGION: us-pdx-1
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

@@ -18,8 +18,6 @@ export default defineConfig({
     reporters: ['verbose'],
     globalSetup: ['tests/integration/sandbox/globalTeardown.ts', 'tests/benchmarks/sandbox/teardown.ts'],
     env: {
-      // Tests will use environment variables from shell
-      // BL_ENV: "dev"
     },
     benchmark: {
       include: ['tests/benchmarks/**/*.bench.ts'],
