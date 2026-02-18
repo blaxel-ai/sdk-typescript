@@ -40,10 +40,15 @@ export class ClientCredentials extends Credentials {
   }
 
   async authenticate() {
-    if (!this.needRefresh()) {
-      return this.currentPromise || Promise.resolve();
+    if (this.currentPromise) {
+      return this.currentPromise;
     }
-    this.currentPromise = this.processWithRetry();
+    if (!this.needRefresh()) {
+      return Promise.resolve();
+    }
+    this.currentPromise = this.processWithRetry().finally(() => {
+      this.currentPromise = null;
+    });
     return this.currentPromise;
   }
 
@@ -76,7 +81,6 @@ export class ClientCredentials extends Credentials {
       throw new Error(response.error.error);
     }
     this.accessToken = response.data?.access_token || "";
-    this.currentPromise = null;
   }
 
   get authorization() {
