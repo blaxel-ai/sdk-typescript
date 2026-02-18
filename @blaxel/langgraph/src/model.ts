@@ -56,12 +56,32 @@ export const blModel = async (
   model: string,
   options?: Record<string, unknown>
 ): Promise<LanguageModelLike> => {
-  const url = `${settings.runUrl}/${settings.workspace}/models/${model}`;
   const modelData = await getModelMetadata(model);
   if (!modelData) {
     throw new Error(`Model ${model} not found`);
   }
   await authenticate();
+
+  // mk3 models use the direct gateway URL and always speak OpenAI-compatible API
+  if (modelData.spec.runtime?.generation === "mk3") {
+    const gatewayUrl = modelData.metadata.url;
+    if (!gatewayUrl) {
+      throw new Error(`Model ${model} is mk3 but has no gateway URL in metadata`);
+    }
+
+    return new ChatOpenAI({
+      apiKey: "replaced",
+      model: model,
+      configuration: {
+        baseURL: `${gatewayUrl}/v1`,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        fetch: authenticatedFetch(),
+      },
+      ...options,
+    });
+  }
+
+  const url = `${settings.runUrl}/${settings.workspace}/models/${model}`;
   const type = modelData.spec.runtime?.type || "openai";
   try {
     if (type === "gemini") {

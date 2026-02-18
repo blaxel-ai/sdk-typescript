@@ -83,6 +83,12 @@ export class VolumeInstance {
     if (!volume.spec.region && settings.region) {
       volume.spec.region = settings.region;
     }
+    if (!volume.spec.region) {
+      console.warn(
+        "VolumeInstance.create: 'region' is not set. In a future version, 'region' will be a required parameter. " +
+        "Please specify a region (e.g. 'us-pdx-1', 'eu-lon-1', 'us-was-1') in the volume configuration or set the BL_REGION environment variable."
+      );
+    }
 
     const { data } = await createVolume({
       body: volume,

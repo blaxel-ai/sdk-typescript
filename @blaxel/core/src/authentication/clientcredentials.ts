@@ -43,7 +43,9 @@ export class ClientCredentials extends Credentials {
     if (!this.needRefresh()) {
       return this.currentPromise || Promise.resolve();
     }
-    this.currentPromise = this.processWithRetry();
+    this.currentPromise = this.processWithRetry().finally(() => {
+      this.currentPromise = null;
+    });
     return this.currentPromise;
   }
 
@@ -76,7 +78,6 @@ export class ClientCredentials extends Credentials {
       throw new Error(response.error.error);
     }
     this.accessToken = response.data?.access_token || "";
-    this.currentPromise = null;
   }
 
   get authorization() {

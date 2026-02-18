@@ -89,6 +89,12 @@ export class SandboxInstance {
       const ttl = sandbox.ttl;
       const expires = sandbox.expires;
       const region = sandbox.region || settings.region;
+      if (!region) {
+        console.warn(
+          "SandboxInstance.create: 'region' is not set. In a future version, 'region' will be a required parameter. " +
+          "Please specify a region (e.g. 'us-pdx-1', 'eu-lon-1', 'us-was-1') in the sandbox configuration or set the BL_REGION environment variable."
+        );
+      }
       const lifecycle = sandbox.lifecycle;
       const snapshotEnabled = sandbox.snapshotEnabled;
 
