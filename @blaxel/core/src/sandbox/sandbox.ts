@@ -75,6 +75,7 @@ export class SandboxInstance {
       'envs' in sandbox ||
       'volumes' in sandbox ||
       'lifecycle' in sandbox ||
+      'network' in sandbox ||
       'snapshotEnabled' in sandbox ||
       'labels' in sandbox
     ) {
@@ -96,6 +97,7 @@ export class SandboxInstance {
         );
       }
       const lifecycle = sandbox.lifecycle;
+      const network = sandbox.network;
       const snapshotEnabled = sandbox.snapshotEnabled;
 
       sandbox = {
@@ -112,6 +114,7 @@ export class SandboxInstance {
           },
           volumes: volumes,
           lifecycle: lifecycle,
+          network: network,
         }
       } as SandboxModel
       if (ttl) {
