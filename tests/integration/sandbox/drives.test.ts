@@ -153,7 +153,7 @@ describe('Drive Operations', () => {
   })
 
   describe('Sandbox Drive Mounting', () => {
-    it('attaches a drive to a sandbox', async () => {
+    it('mounts a drive to a sandbox', async () => {
       const driveName = uniqueName("mount-drive")
       const sandboxName = uniqueName("mount-sandbox")
 
@@ -176,8 +176,8 @@ describe('Drive Operations', () => {
       })
       createdSandboxes.push(sandboxName)
 
-      // Attach drive
-      const result = await sandbox.drive.attach({
+      // Mount drive
+      const result = await sandbox.drive.mount({
         driveName,
         mountPath: "/mnt/test",
         drivePath: "/"
@@ -209,8 +209,8 @@ describe('Drive Operations', () => {
       })
       createdSandboxes.push(sandboxName)
 
-      // Attach drive
-      await sandbox.drive.attach({
+      // Mount drive
+      await sandbox.drive.mount({
         driveName,
         mountPath: "/mnt/data",
       })
@@ -246,8 +246,8 @@ describe('Drive Operations', () => {
       })
       createdSandboxes.push(sandboxName)
 
-      // Attach drive
-      await sandbox.drive.attach({
+      // Mount drive
+      await sandbox.drive.mount({
         driveName,
         mountPath: "/mnt/storage",
       })
@@ -267,9 +267,9 @@ describe('Drive Operations', () => {
       expect(result.logs).toContain("Hello from Drive")
     })
 
-    it('detaches a drive from sandbox', async () => {
-      const driveName = uniqueName("detach-drive")
-      const sandboxName = uniqueName("detach-sandbox")
+    it('unmounts a drive from sandbox', async () => {
+      const driveName = uniqueName("unmount-drive")
+      const sandboxName = uniqueName("unmount-sandbox")
 
       await DriveInstance.create({
         name: driveName,
@@ -288,8 +288,8 @@ describe('Drive Operations', () => {
       })
       createdSandboxes.push(sandboxName)
 
-      // Attach drive
-      await sandbox.drive.attach({
+      // Mount drive
+      await sandbox.drive.mount({
         driveName,
         mountPath: "/mnt/temp",
       })
@@ -299,10 +299,10 @@ describe('Drive Operations', () => {
       const foundBefore = mountsBefore.find(m => m.driveName === driveName)
       expect(foundBefore).toBeDefined()
 
-      // Detach drive
-      const detachResult = await sandbox.drive.detach("/mnt/temp")
-      expect(detachResult.success).toBe(true)
-      expect(detachResult.mountPath).toBe("/mnt/temp")
+      // Unmount drive
+      const unmountResult = await sandbox.drive.unmount("/mnt/temp")
+      expect(unmountResult.success).toBe(true)
+      expect(unmountResult.mountPath).toBe("/mnt/temp")
 
       // Verify it's unmounted
       const mountsAfter = await sandbox.drive.list()
@@ -332,7 +332,7 @@ describe('Drive Operations', () => {
       createdSandboxes.push(sandboxName)
 
       // First, mount the root and create a subdirectory
-      await sandbox.drive.attach({
+      await sandbox.drive.mount({
         driveName,
         mountPath: "/mnt/root",
       })
@@ -342,10 +342,10 @@ describe('Drive Operations', () => {
         waitForCompletion: true
       })
 
-      await sandbox.drive.detach("/mnt/root")
+      await sandbox.drive.unmount("/mnt/root")
 
       // Now mount only the subdirectory
-      const mountResult = await sandbox.drive.attach({
+      const mountResult = await sandbox.drive.mount({
         driveName,
         mountPath: "/mnt/sub",
         drivePath: "/subdir"
@@ -364,7 +364,7 @@ describe('Drive Operations', () => {
   })
 
   describe('Drive persistence across sandboxes', () => {
-    it('data persists when drive is attached to different sandboxes', async () => {
+    it('data persists when drive is mounted to different sandboxes', async () => {
       const driveName = uniqueName("persist-drive")
       const fileContent = "persistent data " + Date.now()
 
@@ -387,7 +387,7 @@ describe('Drive Operations', () => {
       })
       createdSandboxes.push(sandbox1Name)
 
-      await sandbox1.drive.attach({
+      await sandbox1.drive.mount({
         driveName,
         mountPath: "/data",
       })
@@ -397,7 +397,7 @@ describe('Drive Operations', () => {
         waitForCompletion: true
       })
 
-      await sandbox1.drive.detach("/data")
+      await sandbox1.drive.unmount("/data")
 
       // Delete first sandbox
       await SandboxInstance.delete(sandbox1Name)
@@ -414,7 +414,7 @@ describe('Drive Operations', () => {
       })
       createdSandboxes.push(sandbox2Name)
 
-      await sandbox2.drive.attach({
+      await sandbox2.drive.mount({
         driveName,
         mountPath: "/data",
       })
@@ -459,13 +459,13 @@ describe('Drive Operations', () => {
       })
       createdSandboxes.push(sandboxName)
 
-      // Attach both drives
-      await sandbox.drive.attach({
+      // Mount both drives
+      await sandbox.drive.mount({
         driveName: drive1Name,
         mountPath: "/mnt/drive1",
       })
 
-      await sandbox.drive.attach({
+      await sandbox.drive.mount({
         driveName: drive2Name,
         mountPath: "/mnt/drive2",
       })
@@ -522,16 +522,16 @@ describe('Drive Operations', () => {
       })
       createdSandboxes.push(sandboxName)
 
-      // Attach with path without leading slash - should still work
-      const result = await sandbox.drive.attach({
+      // Mount with path without leading slash - should still work
+      const result = await sandbox.drive.mount({
         driveName,
         mountPath: "/mnt/test",
       })
 
       expect(result.success).toBe(true)
 
-      // Detach should also work without leading slash
-      await sandbox.drive.detach("mnt/test")
+      // Unmount should also work without leading slash
+      await sandbox.drive.unmount("mnt/test")
 
       const mounts = await sandbox.drive.list()
       const found = mounts.find(m => m.driveName === driveName)
@@ -561,7 +561,7 @@ describe('Drive Operations', () => {
       })
       createdSandboxes.push(sandboxName)
 
-      await sandbox.drive.attach({
+      await sandbox.drive.mount({
         driveName,
         mountPath: "/mnt/files",
       })
@@ -611,7 +611,7 @@ describe('Drive Operations', () => {
       })
       createdSandboxes.push(sandboxName)
 
-      await sandbox.drive.attach({
+      await sandbox.drive.mount({
         driveName,
         mountPath: "/mnt/fs",
       })

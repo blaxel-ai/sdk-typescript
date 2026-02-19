@@ -2,13 +2,13 @@ import { Sandbox } from "../../client/types.gen.js";
 import { settings } from "../../common/settings.js";
 import { SandboxAction } from "../action.js";
 
-export interface DriveAttachRequest {
+export interface DriveMountRequest {
   driveName: string;
   mountPath: string;
   drivePath?: string;
 }
 
-export interface DriveAttachResponse {
+export interface DriveMountResponse {
   success: boolean;
   message: string;
   driveName: string;
@@ -26,7 +26,7 @@ export interface DriveListResponse {
   mounts: DriveMountInfo[];
 }
 
-export interface DriveDetachResponse {
+export interface DriveUnmountResponse {
   success: boolean;
   message: string;
   mountPath: string;
@@ -38,9 +38,9 @@ export class SandboxDrive extends SandboxAction {
   }
 
   /**
-   * Attach a drive to the sandbox at a specific mount path
+   * Mount a drive to the sandbox at a specific mount path
    */
-  async attach(request: DriveAttachRequest): Promise<DriveAttachResponse> {
+  async mount(request: DriveMountRequest): Promise<DriveMountResponse> {
     const headers = this.sandbox.forceUrl ? this.sandbox.headers : settings.headers;
     
     const body = {
@@ -60,16 +60,16 @@ export class SandboxDrive extends SandboxAction {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Failed to attach drive: ${errorText}`);
+      throw new Error(`Failed to mount drive: ${errorText}`);
     }
 
-    return await response.json() as DriveAttachResponse;
+    return await response.json() as DriveMountResponse;
   }
 
   /**
-   * Detach a drive from the sandbox by mount path
+   * Unmount a drive from the sandbox by mount path
    */
-  async detach(mountPath: string): Promise<DriveDetachResponse> {
+  async unmount(mountPath: string): Promise<DriveUnmountResponse> {
     const headers = this.sandbox.forceUrl ? this.sandbox.headers : settings.headers;
     
     // Ensure mountPath starts with /
@@ -85,10 +85,10 @@ export class SandboxDrive extends SandboxAction {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Failed to detach drive: ${errorText}`);
+      throw new Error(`Failed to unmount drive: ${errorText}`);
     }
 
-    return await response.json() as DriveDetachResponse;
+    return await response.json() as DriveUnmountResponse;
   }
 
   /**
