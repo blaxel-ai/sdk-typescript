@@ -216,6 +216,13 @@ export type TreeRequest = {
     };
 };
 
+export type TunnelConfigRequest = {
+    /**
+     * Base64-encoded tunnel config JSON
+     */
+    config: string;
+};
+
 export type UpgradeRequest = {
     /**
      * Base URL for releases (useful for forks)
@@ -1164,6 +1171,71 @@ export type GetNetworkProcessByPidPortsResponses = {
 };
 
 export type GetNetworkProcessByPidPortsResponse = GetNetworkProcessByPidPortsResponses[keyof GetNetworkProcessByPidPortsResponses];
+
+export type DeleteNetworkTunnelData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/network/tunnel';
+};
+
+export type DeleteNetworkTunnelErrors = {
+    /**
+     * No tunnel is running
+     */
+    400: ErrorResponse;
+    /**
+     * Failed to stop tunnel
+     */
+    500: ErrorResponse;
+};
+
+export type DeleteNetworkTunnelError = DeleteNetworkTunnelErrors[keyof DeleteNetworkTunnelErrors];
+
+export type DeleteNetworkTunnelResponses = {
+    /**
+     * Tunnel disconnected
+     */
+    200: SuccessResponse;
+};
+
+export type DeleteNetworkTunnelResponse = DeleteNetworkTunnelResponses[keyof DeleteNetworkTunnelResponses];
+
+export type PutNetworkTunnelConfigData = {
+    /**
+     * Base64-encoded tunnel configuration
+     */
+    body: TunnelConfigRequest;
+    path?: never;
+    query?: never;
+    url: '/network/tunnel/config';
+};
+
+export type PutNetworkTunnelConfigErrors = {
+    /**
+     * Invalid request body
+     */
+    400: ErrorResponse;
+    /**
+     * Invalid tunnel configuration
+     */
+    422: ErrorResponse;
+    /**
+     * Failed to apply configuration
+     */
+    500: ErrorResponse;
+};
+
+export type PutNetworkTunnelConfigError = PutNetworkTunnelConfigErrors[keyof PutNetworkTunnelConfigErrors];
+
+export type PutNetworkTunnelConfigResponses = {
+    /**
+     * Configuration applied
+     */
+    200: SuccessResponse;
+};
+
+export type PutNetworkTunnelConfigResponse = PutNetworkTunnelConfigResponses[keyof PutNetworkTunnelConfigResponses];
 
 export type GetProcessData = {
     body?: never;
