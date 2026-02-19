@@ -439,6 +439,76 @@ export type CustomDomainSpecWritable = {
 };
 
 /**
+ * Drive providing persistent storage that can be attached to agents, functions, and sandboxes. Drives are backed by SeaweedFS buckets and can be mounted at runtime via the sbx API.
+ */
+export type Drive = {
+    events?: CoreEvents;
+    metadata: Metadata;
+    spec: DriveSpec;
+    state?: DriveState;
+    /**
+     * Drive status computed from events
+     */
+    readonly status?: string;
+};
+
+/**
+ * Drive providing persistent storage that can be attached to agents, functions, and sandboxes. Drives are backed by SeaweedFS buckets and can be mounted at runtime via the sbx API.
+ */
+export type DriveWritable = {
+    events?: CoreEventsWritable;
+    metadata: MetadataWritable;
+    spec: DriveSpecWritable;
+    state?: DriveStateWritable;
+};
+
+/**
+ * Immutable drive configuration set at creation time
+ */
+export type DriveSpec = {
+    /**
+     * The internal infrastructure resource identifier for this drive (bucket name)
+     */
+    readonly infrastructureId?: string;
+    /**
+     * Deployment region for the drive (e.g., us-pdx-1, eu-lon-1). Must match the region of resources it attaches to.
+     */
+    region?: string;
+    /**
+     * Optional size limit for the drive in GB. If not specified, drive has no size limit.
+     */
+    size?: number;
+};
+
+/**
+ * Immutable drive configuration set at creation time
+ */
+export type DriveSpecWritable = {
+    /**
+     * Deployment region for the drive (e.g., us-pdx-1, eu-lon-1). Must match the region of resources it attaches to.
+     */
+    region?: string;
+    /**
+     * Optional size limit for the drive in GB. If not specified, drive has no size limit.
+     */
+    size?: number;
+};
+
+/**
+ * Current runtime state of the drive
+ */
+export type DriveState = {
+    [key: string]: unknown;
+};
+
+/**
+ * Current runtime state of the drive
+ */
+export type DriveStateWritable = {
+    [key: string]: unknown;
+};
+
+/**
  * An egress gateway that manages outbound traffic routing within a VPC. Multiple egress IPs can be allocated from a single gateway.
  */
 export type EgressGateway = {
@@ -3648,6 +3718,142 @@ export type VerifyCustomDomainResponses = {
 };
 
 export type VerifyCustomDomainResponse = VerifyCustomDomainResponses[keyof VerifyCustomDomainResponses];
+
+export type ListDrivesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/drives';
+};
+
+export type ListDrivesErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+};
+
+export type ListDrivesResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<Drive>;
+};
+
+export type ListDrivesResponse = ListDrivesResponses[keyof ListDrivesResponses];
+
+export type CreateDriveData = {
+    body: DriveWritable;
+    path?: never;
+    query?: never;
+    url: '/drives';
+};
+
+export type CreateDriveErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+};
+
+export type CreateDriveResponses = {
+    /**
+     * successful operation
+     */
+    200: Drive;
+};
+
+export type CreateDriveResponse = CreateDriveResponses[keyof CreateDriveResponses];
+
+export type DeleteDriveData = {
+    body?: never;
+    path: {
+        driveName: string;
+    };
+    query?: never;
+    url: '/drives/{driveName}';
+};
+
+export type DeleteDriveErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Drive not found
+     */
+    404: unknown;
+};
+
+export type DeleteDriveResponses = {
+    /**
+     * successful operation
+     */
+    200: {
+        message?: string;
+        name?: string;
+    };
+};
+
+export type DeleteDriveResponse = DeleteDriveResponses[keyof DeleteDriveResponses];
+
+export type GetDriveData = {
+    body?: never;
+    path: {
+        driveName: string;
+    };
+    query?: never;
+    url: '/drives/{driveName}';
+};
+
+export type GetDriveErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Drive not found
+     */
+    404: unknown;
+};
+
+export type GetDriveResponses = {
+    /**
+     * successful operation
+     */
+    200: Drive;
+};
+
+export type GetDriveResponse = GetDriveResponses[keyof GetDriveResponses];
+
+export type UpdateDriveData = {
+    body: DriveWritable;
+    path: {
+        driveName: string;
+    };
+    query?: never;
+    url: '/drives/{driveName}';
+};
+
+export type UpdateDriveErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Drive not found
+     */
+    404: unknown;
+};
+
+export type UpdateDriveResponses = {
+    /**
+     * successful operation
+     */
+    200: Drive;
+};
+
+export type UpdateDriveResponse = UpdateDriveResponses[keyof UpdateDriveResponses];
 
 export type GetWorkspaceFeaturesData = {
     body?: never;
