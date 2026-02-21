@@ -776,10 +776,6 @@ export type FunctionSpec = {
      * When true, the function is publicly accessible without authentication. Only available for mk3 generation.
      */
     public?: boolean;
-    /**
-     * Base64-encoded API reference for MCP code mode
-     */
-    reference?: string;
     revision?: RevisionConfiguration;
     runtime?: FunctionRuntime;
     triggers?: Triggers;
@@ -799,10 +795,6 @@ export type FunctionSpecWritable = {
      * When true, the function is publicly accessible without authentication. Only available for mk3 generation.
      */
     public?: boolean;
-    /**
-     * Base64-encoded API reference for MCP code mode
-     */
-    reference?: string;
     revision?: RevisionConfiguration;
     runtime?: FunctionRuntime;
     triggers?: TriggersWritable;
