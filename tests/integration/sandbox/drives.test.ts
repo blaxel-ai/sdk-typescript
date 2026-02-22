@@ -566,9 +566,9 @@ describe('Drive Operations', () => {
         mountPath: "/mnt/files",
       })
 
-      // Create directory structure
+      // Create directory structure (POSIX mkdir - no brace expansion; /bin/sh may be dash/ash)
       await sandbox.process.exec({
-        command: "mkdir -p /mnt/files/project/{src,tests,docs} && echo 'code' > /mnt/files/project/src/main.js",
+        command: "mkdir -p /mnt/files/project/src /mnt/files/project/tests /mnt/files/project/docs && echo 'code' > /mnt/files/project/src/main.js",
         waitForCompletion: true
       })
 
