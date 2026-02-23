@@ -48,17 +48,24 @@ class BlAgent {
 
   async call(
     url: URL,
-    input: Record<string, unknown> | string | undefined
+    input: Record<string, unknown> | string | undefined,
+    headers: Record<string, string> = {},
+    params: Record<string, string> = {}
   ): Promise<Response> {
     let body = input;
     if (typeof body != "string") {
       body = JSON.stringify(body);
     }
-    const response = await fetch(url, {
+    const fetchUrl = new URL(url.toString());
+    for (const [key, value] of Object.entries(params)) {
+      fetchUrl.searchParams.set(key, value);
+    }
+    const response = await fetch(fetchUrl, {
       method: "POST",
       headers: {
         ...settings.headers,
         "Content-Type": "application/json",
+        ...headers,
       },
       body,
     });
@@ -66,7 +73,9 @@ class BlAgent {
   }
 
   async run(
-    input: Record<string, unknown> | string | undefined
+    input: Record<string, unknown> | string | undefined,
+    headers: Record<string, string> = {},
+    params: Record<string, string> = {}
   ): Promise<string> {
     logger.debug(`Agent Calling: ${this.agentName}`);
 
@@ -80,7 +89,7 @@ class BlAgent {
     });
 
     try {
-      const response = await this.call(this.url, input);
+      const response = await this.call(this.url, input, headers, params);
       span.setAttribute("agent.run.result", await response.text());
       return await response.text();
     } catch (err: unknown) {
@@ -90,7 +99,7 @@ class BlAgent {
           throw err;
         }
         try {
-          const response = await this.call(this.fallbackUrl, input);
+          const response = await this.call(this.fallbackUrl, input, headers, params);
           span.setAttribute("agent.run.result", await response.text());
           return await response.text();
         } catch (err: unknown) {
