@@ -125,7 +125,7 @@ describe('Sandbox Process Operations', () => {
 
       await sandbox.process.exec({
         name: "stdout-test",
-        command: "for i in $(seq 1 5); do sleep 0.5; echo tick $i; sleep 0.5; done && echo 'stderr here' >&2",
+        command: "for i in $(seq 1 5); do sleep 0.1; echo tick $i; sleep 0.1; done && echo 'stderr here' >&2",
         waitForCompletion: false
       })
 
@@ -141,8 +141,7 @@ describe('Sandbox Process Operations', () => {
         }
       })
 
-      await sandbox.process.wait("stdout-test")
-      stream.close()
+      await stream.wait()
 
       expect(stdoutLogs.join(' ')).toContain('tick 1')
       expect(stdoutLogs.join(' ')).toContain('tick 2')
