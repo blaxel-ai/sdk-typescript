@@ -35,7 +35,7 @@ export class CodeInterpreter extends SandboxInstance {
 
   static async create(
     sandbox?: Sandbox | SandboxCreateConfiguration | Record<string, any> | null,
-    { safe = false }: { safe?: boolean } = {}
+    { safe = true }: { safe?: boolean } = {}
   ): Promise<CodeInterpreter> {
     const payload: Record<string, any> = {
       image: CodeInterpreter.DEFAULT_IMAGE,
@@ -78,6 +78,11 @@ export class CodeInterpreter extends SandboxInstance {
           }
         }
       }
+    }
+
+    // Auto-fill region with BL_REGION if not set
+    if (!payload["region"] && settings.region) {
+      payload["region"] = settings.region;
     }
 
     const baseInstance = await SandboxInstance.create(payload, { safe });

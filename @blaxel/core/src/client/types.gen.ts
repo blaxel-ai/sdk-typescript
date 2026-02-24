@@ -59,6 +59,10 @@ export type AgentSpec = {
      */
     enabled?: boolean;
     policies?: PoliciesList;
+    /**
+     * When true, the agent is publicly accessible without authentication. Only available for mk3 generation.
+     */
+    public?: boolean;
     repository?: Repository;
     revision?: RevisionConfiguration;
     runtime?: AgentRuntime;
@@ -74,6 +78,10 @@ export type AgentSpecWritable = {
      */
     enabled?: boolean;
     policies?: PoliciesList;
+    /**
+     * When true, the agent is publicly accessible without authentication. Only available for mk3 generation.
+     */
+    public?: boolean;
     repository?: Repository;
     revision?: RevisionConfiguration;
     runtime?: AgentRuntime;
@@ -249,6 +257,34 @@ export type Country = {
 };
 
 /**
+ * Response returned when a job execution is successfully created. Contains identifiers and the tasks that will be executed.
+ */
+export type CreateJobExecutionOutput = {
+    /**
+     * Unique identifier for the created execution. Use this ID to track execution status, retrieve logs, or cancel the execution.
+     */
+    executionId?: string;
+    /**
+     * Unique identifier for this request, used for idempotency and tracking. Auto-generated if not provided in the request.
+     */
+    id?: string;
+    /**
+     * Name of the job that this execution belongs to
+     */
+    jobId?: string;
+    /**
+     * Array of task configurations that will be executed in parallel according to the job's concurrency settings. Each task can have custom parameters.
+     */
+    tasks?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Name of the workspace where the job execution was created
+     */
+    workspaceId?: string;
+};
+
+/**
  * Request to create a job execution
  */
 export type CreateJobExecutionRequest = {
@@ -256,7 +292,7 @@ export type CreateJobExecutionRequest = {
      * Environment variable overrides (optional, will merge with job's environment variables)
      */
     env?: {
-        [key: string]: unknown;
+        [key: string]: string;
     };
     /**
      * Execution ID (optional, will be generated if not provided)
@@ -282,34 +318,6 @@ export type CreateJobExecutionRequest = {
     }>;
     /**
      * Workspace ID
-     */
-    workspaceId?: string;
-};
-
-/**
- * Response returned when a job execution is successfully created. Contains identifiers and the tasks that will be executed.
- */
-export type CreateJobExecutionResponse = {
-    /**
-     * Unique identifier for the created execution. Use this ID to track execution status, retrieve logs, or cancel the execution.
-     */
-    executionId?: string;
-    /**
-     * Unique identifier for this request, used for idempotency and tracking. Auto-generated if not provided in the request.
-     */
-    id?: string;
-    /**
-     * Name of the job that this execution belongs to
-     */
-    jobId?: string;
-    /**
-     * Array of task configurations that will be executed in parallel according to the job's concurrency settings. Each task can have custom parameters.
-     */
-    tasks?: Array<{
-        [key: string]: unknown;
-    }>;
-    /**
-     * Name of the workspace where the job execution was created
      */
     workspaceId?: string;
 };
@@ -428,6 +436,156 @@ export type CustomDomainSpecWritable = {
     txtRecords?: {
         [key: string]: string;
     };
+};
+
+/**
+ * An egress gateway that manages outbound traffic routing within a VPC. Multiple egress IPs can be allocated from a single gateway.
+ */
+export type EgressGateway = {
+    events?: CoreEvents;
+    metadata: EgressGatewayMetadata;
+    spec: EgressGatewaySpec;
+    status?: Status;
+};
+
+/**
+ * An egress gateway that manages outbound traffic routing within a VPC. Multiple egress IPs can be allocated from a single gateway.
+ */
+export type EgressGatewayWritable = {
+    events?: CoreEventsWritable;
+    metadata: EgressGatewayMetadataWritable;
+    spec: EgressGatewaySpec;
+    status?: Status;
+};
+
+/**
+ * Metadata for an egress gateway resource including workspace, VPC, and name
+ */
+export type EgressGatewayMetadata = TimeFields & OwnerFields & {
+    /**
+     * Human-readable name for display in the UI. Can contain spaces and special characters, max 63 characters.
+     */
+    displayName?: string;
+    /**
+     * Unique identifier for the egress gateway within the VPC. Must be lowercase alphanumeric with hyphens, max 49 characters. Immutable after creation.
+     */
+    name: string;
+    /**
+     * Name of the VPC this egress gateway belongs to
+     */
+    readonly vpcName?: string;
+    /**
+     * Name of the workspace this resource belongs to (read-only, set automatically)
+     */
+    readonly workspace?: string;
+};
+
+/**
+ * Metadata for an egress gateway resource including workspace, VPC, and name
+ */
+export type EgressGatewayMetadataWritable = TimeFields & OwnerFields & {
+    /**
+     * Human-readable name for display in the UI. Can contain spaces and special characters, max 63 characters.
+     */
+    displayName?: string;
+    /**
+     * Unique identifier for the egress gateway within the VPC. Must be lowercase alphanumeric with hyphens, max 49 characters. Immutable after creation.
+     */
+    name: string;
+};
+
+/**
+ * Specification for an egress gateway including region and capacity configuration
+ */
+export type EgressGatewaySpec = {
+    /**
+     * Region where the egress gateway is provisioned (e.g. us-pdx-1, eu-lon-1)
+     */
+    region: string;
+};
+
+/**
+ * An individual IP address allocated from an egress gateway for dedicated outbound traffic
+ */
+export type EgressIp = {
+    events?: CoreEvents;
+    metadata: EgressIpMetadata;
+    spec: EgressIpSpec;
+    status?: Status;
+};
+
+/**
+ * An individual IP address allocated from an egress gateway for dedicated outbound traffic
+ */
+export type EgressIpWritable = {
+    events?: CoreEventsWritable;
+    metadata: EgressIpMetadataWritable;
+    spec: EgressIpSpecWritable;
+    status?: Status;
+};
+
+/**
+ * Metadata for an egress IP address including gateway association and name
+ */
+export type EgressIpMetadata = TimeFields & OwnerFields & {
+    /**
+     * Human-readable name for display in the UI. Can contain spaces and special characters, max 63 characters.
+     */
+    displayName?: string;
+    /**
+     * Name of the egress gateway this IP is allocated from
+     */
+    readonly gatewayName?: string;
+    /**
+     * Unique identifier for the egress IP within the gateway. Must be lowercase alphanumeric with hyphens, max 49 characters. Immutable after creation.
+     */
+    name: string;
+    /**
+     * Name of the VPC this egress IP belongs to
+     */
+    readonly vpcName?: string;
+    /**
+     * Name of the workspace this resource belongs to (read-only, set automatically)
+     */
+    readonly workspace?: string;
+};
+
+/**
+ * Metadata for an egress IP address including gateway association and name
+ */
+export type EgressIpMetadataWritable = TimeFields & OwnerFields & {
+    /**
+     * Human-readable name for display in the UI. Can contain spaces and special characters, max 63 characters.
+     */
+    displayName?: string;
+    /**
+     * Unique identifier for the egress IP within the gateway. Must be lowercase alphanumeric with hyphens, max 49 characters. Immutable after creation.
+     */
+    name: string;
+};
+
+/**
+ * Specification for an egress IP including IP family and the provisioned address
+ */
+export type EgressIpSpec = {
+    /**
+     * IP address family, either IPv4 or IPv6
+     */
+    ipFamily: 'IPv4' | 'IPv6';
+    /**
+     * Public IP address assigned to this egress IP (read-only, set after provisioning)
+     */
+    readonly publicIp?: string;
+};
+
+/**
+ * Specification for an egress IP including IP family and the provisioned address
+ */
+export type EgressIpSpecWritable = {
+    /**
+     * IP address family, either IPv4 or IPv6
+     */
+    ipFamily: 'IPv4' | 'IPv6';
 };
 
 /**
@@ -614,6 +772,10 @@ export type FunctionSpec = {
     enabled?: boolean;
     integrationConnections?: IntegrationConnectionsList;
     policies?: PoliciesList;
+    /**
+     * When true, the function is publicly accessible without authentication. Only available for mk3 generation.
+     */
+    public?: boolean;
     revision?: RevisionConfiguration;
     runtime?: FunctionRuntime;
     triggers?: Triggers;
@@ -629,6 +791,10 @@ export type FunctionSpecWritable = {
     enabled?: boolean;
     integrationConnections?: IntegrationConnectionsList;
     policies?: PoliciesList;
+    /**
+     * When true, the function is publicly accessible without authentication. Only available for mk3 generation.
+     */
+    public?: boolean;
     revision?: RevisionConfiguration;
     runtime?: FunctionRuntime;
     triggers?: TriggersWritable;
@@ -1069,6 +1235,16 @@ export type JobExecutionMetadataWritable = {
  */
 export type JobExecutionSpec = {
     /**
+     * Environment variable overrides (if provided for this execution, values are masked with ***)
+     */
+    envOverride?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Memory override in megabytes (if provided for this execution)
+     */
+    memoryOverride?: number;
+    /**
      * Number of parallel tasks
      */
     parallelism?: number;
@@ -1086,6 +1262,16 @@ export type JobExecutionSpec = {
  * Job execution specification
  */
 export type JobExecutionSpecWritable = {
+    /**
+     * Environment variable overrides (if provided for this execution, values are masked with ***)
+     */
+    envOverride?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Memory override in megabytes (if provided for this execution)
+     */
+    memoryOverride?: number;
     /**
      * Number of parallel tasks
      */
@@ -1591,6 +1777,10 @@ export type ModelRuntime = {
      */
     endpointName?: string;
     /**
+     * Infrastructure generation. Empty (default) uses the classic deployment path. mk3 deploys through the model-gateway on microVM clusters.
+     */
+    generation?: 'mk3' | 'mk2';
+    /**
      * Model identifier at the provider (e.g., gpt-4.1, claude-sonnet-4-20250514, mistral-large-latest)
      */
     model?: string;
@@ -1913,16 +2103,20 @@ export type Ports = Array<Port>;
  * Preview of a Resource
  */
 export type Preview = {
+    events?: CoreEvents;
     metadata: PreviewMetadata;
     spec: PreviewSpec;
+    status?: Status;
 };
 
 /**
  * Preview of a Resource
  */
 export type PreviewWritable = {
+    events?: CoreEventsWritable;
     metadata: PreviewMetadataWritable;
     spec: PreviewSpecWritable;
+    status?: Status;
 };
 
 /**
@@ -2185,6 +2379,10 @@ export type Region = {
      */
     country?: string;
     /**
+     * Egress availability status - indicates if network plane URL is configured for the region
+     */
+    egressAvailable?: boolean;
+    /**
      * Region display name
      */
     infoGeneration?: string;
@@ -2303,6 +2501,10 @@ export type RevisionMetadataWritable = {
  */
 export type Sandbox = {
     events?: CoreEvents;
+    /**
+     * Time in seconds until the sandbox is automatically deleted based on TTL and lifecycle policies. Only present for sandboxes with lifecycle configured.
+     */
+    readonly expiresIn?: number;
     /**
      * Last time the sandbox was used (read-only, managed by the system)
      */
@@ -2434,6 +2636,20 @@ export type SandboxLifecycle = {
 };
 
 /**
+ * Network configuration for a sandbox including egress IP binding. All three fields (vpcName, egressGatewayName, egressIpName) must be specified together to assign a dedicated IP.
+ */
+export type SandboxNetwork = {
+    /**
+     * Name of the egress gateway in the VPC. Must be specified together with vpcName and egressIpName.
+     */
+    egressGatewayName: string;
+    /**
+     * Name of the VPC where the egress gateway is provisioned. Must be specified together with egressGatewayName and egressIpName.
+     */
+    vpcName: string;
+};
+
+/**
  * Runtime configuration defining how the sandbox VM is provisioned and its resource limits
  */
 export type SandboxRuntime = {
@@ -2469,6 +2685,7 @@ export type SandboxSpec = {
      */
     enabled?: boolean;
     lifecycle?: SandboxLifecycle;
+    network?: SandboxNetwork;
     /**
      * Region where the sandbox should be created (e.g. us-pdx-1, eu-lon-1). If not specified, defaults to the region closest to the user.
      */
@@ -2702,6 +2919,33 @@ export type Triggers = Array<Trigger>;
  * Triggers to use your agent
  */
 export type TriggersWritable = Array<TriggerWritable>;
+
+/**
+ * Virtual Private Cloud scoped to a workspace for network isolation and dedicated egress
+ */
+export type Vpc = {
+    events?: CoreEvents;
+    metadata: Metadata;
+    spec: VpcSpec;
+    status?: Status;
+};
+
+/**
+ * Virtual Private Cloud scoped to a workspace for network isolation and dedicated egress
+ */
+export type VpcWritable = {
+    events?: CoreEventsWritable;
+    metadata: MetadataWritable;
+    spec: VpcSpec;
+    status?: Status;
+};
+
+/**
+ * VPC specification (controlplane-only, no external resources)
+ */
+export type VpcSpec = {
+    [key: string]: unknown;
+};
 
 /**
  * Persistent storage volume that can be attached to sandboxes for durable file storage across sessions. Volumes survive sandbox deletion and can be reattached to new sandboxes.
@@ -3408,6 +3652,124 @@ export type VerifyCustomDomainResponses = {
 };
 
 export type VerifyCustomDomainResponse = VerifyCustomDomainResponses[keyof VerifyCustomDomainResponses];
+
+export type ListAllEgressGatewaysData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/egressgateways';
+};
+
+export type ListAllEgressGatewaysResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<EgressGateway>;
+};
+
+export type ListAllEgressGatewaysResponse = ListAllEgressGatewaysResponses[keyof ListAllEgressGatewaysResponses];
+
+export type ListAllEgressIpsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/egressips';
+};
+
+export type ListAllEgressIpsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<EgressIp>;
+};
+
+export type ListAllEgressIpsResponse = ListAllEgressIpsResponses[keyof ListAllEgressIpsResponses];
+
+export type GetWorkspaceFeaturesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/features';
+};
+
+export type GetWorkspaceFeaturesErrors = {
+    /**
+     * Unauthorized - Invalid or missing authentication credentials
+     */
+    401: _Error;
+    /**
+     * Forbidden - You do not have access to this workspace
+     */
+    403: _Error;
+    /**
+     * Not found - Workspace does not exist
+     */
+    404: _Error;
+};
+
+export type GetWorkspaceFeaturesError = GetWorkspaceFeaturesErrors[keyof GetWorkspaceFeaturesErrors];
+
+export type GetWorkspaceFeaturesResponses = {
+    /**
+     * Map of enabled features (only enabled flags are included)
+     */
+    200: {
+        /**
+         * Map of feature keys to enabled state (always true). Disabled features are omitted.
+         */
+        features?: {
+            [key: string]: boolean;
+        };
+    };
+};
+
+export type GetWorkspaceFeaturesResponse = GetWorkspaceFeaturesResponses[keyof GetWorkspaceFeaturesResponses];
+
+export type TestFeatureFlagData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the feature flag
+         */
+        featureKey: string;
+    };
+    query?: never;
+    url: '/features/{featureKey}';
+};
+
+export type TestFeatureFlagErrors = {
+    /**
+     * Unauthorized - Invalid or missing authentication credentials
+     */
+    401: _Error;
+    /**
+     * Forbidden - You do not have access to this feature flag
+     */
+    403: _Error;
+    /**
+     * Not found - Feature flag not found
+     */
+    404: _Error;
+};
+
+export type TestFeatureFlagError = TestFeatureFlagErrors[keyof TestFeatureFlagErrors];
+
+export type TestFeatureFlagResponses = {
+    /**
+     * Feature flag evaluation result with details
+     */
+    200: {
+        enabled?: boolean;
+        evaluatedAt?: string;
+        featureKey?: string;
+        payload?: {
+            [key: string]: unknown;
+        };
+        variant?: string;
+    };
+};
+
+export type TestFeatureFlagResponse = TestFeatureFlagResponses[keyof TestFeatureFlagResponses];
 
 export type ListFunctionsData = {
     body?: never;
@@ -4239,10 +4601,10 @@ export type CreateJobExecutionResponses = {
     /**
      * successful operation
      */
-    200: CreateJobExecutionResponse;
+    200: CreateJobExecutionOutput;
 };
 
-export type CreateJobExecutionResponse2 = CreateJobExecutionResponses[keyof CreateJobExecutionResponses];
+export type CreateJobExecutionResponse = CreateJobExecutionResponses[keyof CreateJobExecutionResponses];
 
 export type DeleteJobExecutionData = {
     body?: never;
@@ -5885,6 +6247,226 @@ export type UpdateVolumeResponses = {
 };
 
 export type UpdateVolumeResponse = UpdateVolumeResponses[keyof UpdateVolumeResponses];
+
+export type ListVpcsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/vpcs';
+};
+
+export type ListVpcsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<Vpc>;
+};
+
+export type ListVpcsResponse = ListVpcsResponses[keyof ListVpcsResponses];
+
+export type CreateVpcData = {
+    body: VpcWritable;
+    path?: never;
+    query?: never;
+    url: '/vpcs';
+};
+
+export type CreateVpcResponses = {
+    /**
+     * successful operation
+     */
+    200: Vpc;
+};
+
+export type CreateVpcResponse = CreateVpcResponses[keyof CreateVpcResponses];
+
+export type DeleteVpcData = {
+    body?: never;
+    path: {
+        vpcName: string;
+    };
+    query?: never;
+    url: '/vpcs/{vpcName}';
+};
+
+export type DeleteVpcResponses = {
+    /**
+     * successful operation
+     */
+    200: Vpc;
+};
+
+export type DeleteVpcResponse = DeleteVpcResponses[keyof DeleteVpcResponses];
+
+export type GetVpcData = {
+    body?: never;
+    path: {
+        vpcName: string;
+    };
+    query?: never;
+    url: '/vpcs/{vpcName}';
+};
+
+export type GetVpcResponses = {
+    /**
+     * successful operation
+     */
+    200: Vpc;
+};
+
+export type GetVpcResponse = GetVpcResponses[keyof GetVpcResponses];
+
+export type ListEgressGatewaysData = {
+    body?: never;
+    path: {
+        vpcName: string;
+    };
+    query?: never;
+    url: '/vpcs/{vpcName}/egressgateways';
+};
+
+export type ListEgressGatewaysResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<EgressGateway>;
+};
+
+export type ListEgressGatewaysResponse = ListEgressGatewaysResponses[keyof ListEgressGatewaysResponses];
+
+export type CreateEgressGatewayData = {
+    body: EgressGatewayWritable;
+    path: {
+        vpcName: string;
+    };
+    query?: never;
+    url: '/vpcs/{vpcName}/egressgateways';
+};
+
+export type CreateEgressGatewayResponses = {
+    /**
+     * successful operation
+     */
+    200: EgressGateway;
+};
+
+export type CreateEgressGatewayResponse = CreateEgressGatewayResponses[keyof CreateEgressGatewayResponses];
+
+export type DeleteEgressGatewayData = {
+    body?: never;
+    path: {
+        vpcName: string;
+        gatewayName: string;
+    };
+    query?: never;
+    url: '/vpcs/{vpcName}/egressgateways/{gatewayName}';
+};
+
+export type DeleteEgressGatewayResponses = {
+    /**
+     * successful operation
+     */
+    200: EgressGateway;
+};
+
+export type DeleteEgressGatewayResponse = DeleteEgressGatewayResponses[keyof DeleteEgressGatewayResponses];
+
+export type GetEgressGatewayData = {
+    body?: never;
+    path: {
+        vpcName: string;
+        gatewayName: string;
+    };
+    query?: never;
+    url: '/vpcs/{vpcName}/egressgateways/{gatewayName}';
+};
+
+export type GetEgressGatewayResponses = {
+    /**
+     * successful operation
+     */
+    200: EgressGateway;
+};
+
+export type GetEgressGatewayResponse = GetEgressGatewayResponses[keyof GetEgressGatewayResponses];
+
+export type ListEgressIpsData = {
+    body?: never;
+    path: {
+        vpcName: string;
+        gatewayName: string;
+    };
+    query?: never;
+    url: '/vpcs/{vpcName}/egressgateways/{gatewayName}/ips';
+};
+
+export type ListEgressIpsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<EgressIp>;
+};
+
+export type ListEgressIpsResponse = ListEgressIpsResponses[keyof ListEgressIpsResponses];
+
+export type CreateEgressIpData = {
+    body: EgressIpWritable;
+    path: {
+        vpcName: string;
+        gatewayName: string;
+    };
+    query?: never;
+    url: '/vpcs/{vpcName}/egressgateways/{gatewayName}/ips';
+};
+
+export type CreateEgressIpResponses = {
+    /**
+     * successful operation
+     */
+    200: EgressIp;
+};
+
+export type CreateEgressIpResponse = CreateEgressIpResponses[keyof CreateEgressIpResponses];
+
+export type DeleteEgressIpData = {
+    body?: never;
+    path: {
+        vpcName: string;
+        gatewayName: string;
+        ipName: string;
+    };
+    query?: never;
+    url: '/vpcs/{vpcName}/egressgateways/{gatewayName}/ips/{ipName}';
+};
+
+export type DeleteEgressIpResponses = {
+    /**
+     * successful operation
+     */
+    200: EgressIp;
+};
+
+export type DeleteEgressIpResponse = DeleteEgressIpResponses[keyof DeleteEgressIpResponses];
+
+export type GetEgressIpData = {
+    body?: never;
+    path: {
+        vpcName: string;
+        gatewayName: string;
+        ipName: string;
+    };
+    query?: never;
+    url: '/vpcs/{vpcName}/egressgateways/{gatewayName}/ips/{ipName}';
+};
+
+export type GetEgressIpResponses = {
+    /**
+     * successful operation
+     */
+    200: EgressIp;
+};
+
+export type GetEgressIpResponse = GetEgressIpResponses[keyof GetEgressIpResponses];
 
 export type ListWorkspacesData = {
     body?: never;

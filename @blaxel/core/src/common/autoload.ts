@@ -32,6 +32,9 @@ export function initialize(config: Config) {
   client.setConfig({
     baseUrl: settings.baseUrl,
   });
+  clientSandbox.setConfig({
+    baseUrl: settings.baseUrl,
+  });
 }
 
 export function authenticate() {

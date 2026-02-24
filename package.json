@@ -14,7 +14,7 @@
     "test:integration": "vitest run tests/integration",
     "test:e2e": "vitest run tests/e2e --config vitest.e2e.config.ts",
     "test:runtime-environments": "./tests/runtime-environments/test-all.sh",
-    "test:bench": "node --experimental-strip-types tests/benchmarks/bench-with-cleanup.ts"
+    "test:bench": "vitest bench --run"
   },
   "dependencies": {
     "@blaxel/core": "workspace:*",

@@ -1,4 +1,7 @@
+import dotenv from 'dotenv'
 import { defineConfig } from 'vitest/config'
+
+dotenv.config()
 
 export default defineConfig({
   test: {
@@ -16,15 +19,13 @@ export default defineConfig({
     hookTimeout: 120000, // 2 minutes for setup/teardown
     globals: true,
     reporters: ['verbose'],
-    globalSetup: [],
-    globalTeardown: ['tests/integration/sandbox/globalTeardown.ts', 'tests/benchmarks/sandbox/teardown.ts'],
+    globalSetup: ['tests/integration/sandbox/globalTeardown.ts', 'tests/benchmarks/sandbox/teardown.ts'],
     env: {
-      // Tests will use environment variables from shell
-      // BL_ENV: "dev"
     },
     benchmark: {
       include: ['tests/benchmarks/**/*.bench.ts'],
       reporters: ['default'],
+      outputJson: './tmp/bench-results.json',
     },
   },
 })

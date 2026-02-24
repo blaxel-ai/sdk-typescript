@@ -1,12 +1,14 @@
 import { v4 as uuidv4 } from "uuid";
 import { createSandbox, deleteSandbox, getSandbox, listSandboxes, SandboxLifecycle, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
+import { settings } from "../common/settings.js";
 import { SandboxCodegen } from "./codegen/index.js";
 import { SandboxFileSystem } from "./filesystem/index.js";
 import { SandboxNetwork } from "./network/index.js";
 import { SandboxPreviews } from "./preview.js";
 import { SandboxProcess } from "./process/index.js";
 import { SandboxSessions } from "./session.js";
+import { SandboxSystem } from "./system.js";
 import { normalizeEnvs, normalizePorts, normalizeVolumes, SandboxConfiguration, SandboxCreateConfiguration, SandboxUpdateMetadata, SessionWithToken } from "./types.js";
 
 export class SandboxInstance {
@@ -16,6 +18,7 @@ export class SandboxInstance {
   previews: SandboxPreviews;
   sessions: SandboxSessions;
   codegen: SandboxCodegen;
+  system: SandboxSystem;
 
   constructor(private sandbox: SandboxConfiguration) {
     this.process = new SandboxProcess(sandbox);
@@ -24,6 +27,7 @@ export class SandboxInstance {
     this.previews = new SandboxPreviews(sandbox);
     this.sessions = new SandboxSessions(sandbox);
     this.codegen = new SandboxCodegen(sandbox);
+    this.system = new SandboxSystem(sandbox);
   }
 
   get metadata() {
@@ -42,13 +46,21 @@ export class SandboxInstance {
     return this.sandbox.spec;
   }
 
+  get lastUsedAt() {
+    return this.sandbox.lastUsedAt;
+  }
+
+  get expiresIn() {
+    return this.sandbox.expiresIn;
+  }
+
   /* eslint-disable */
   async wait({maxWait = 60000, interval = 1000}: {maxWait?: number, interval?: number} = {}) {
     logger.warn("⚠️  Warning: sandbox.wait() is deprecated. You don't need to wait for the sandbox to be deployed anymore.");
     return this;
   }
 
-  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = false }: { safe?: boolean } = {}) {
+  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = true }: { safe?: boolean } = {}) {
     const defaultName = `sandbox-${uuidv4().replace(/-/g, '').substring(0, 8)}`
     const defaultImage = `blaxel/base-image:latest`
     const defaultMemory = 4096
@@ -63,6 +75,7 @@ export class SandboxInstance {
       'envs' in sandbox ||
       'volumes' in sandbox ||
       'lifecycle' in sandbox ||
+      'network' in sandbox ||
       'snapshotEnabled' in sandbox ||
       'labels' in sandbox
     ) {
@@ -76,8 +89,15 @@ export class SandboxInstance {
       const volumes = normalizeVolumes(sandbox.volumes);
       const ttl = sandbox.ttl;
       const expires = sandbox.expires;
-      const region = sandbox.region;
+      const region = sandbox.region || settings.region;
+      if (!region) {
+        console.warn(
+          "SandboxInstance.create: 'region' is not set. In a future version, 'region' will be a required parameter. " +
+          "Please specify a region (e.g. 'us-pdx-1', 'eu-lon-1', 'us-was-1') in the sandbox configuration or set the BL_REGION environment variable."
+        );
+      }
       const lifecycle = sandbox.lifecycle;
+      const network = sandbox.network;
       const snapshotEnabled = sandbox.snapshotEnabled;
 
       sandbox = {
@@ -94,6 +114,7 @@ export class SandboxInstance {
           },
           volumes: volumes,
           lifecycle: lifecycle,
+          network: network,
         }
       } as SandboxModel
       if (ttl) {
