@@ -120,6 +120,7 @@ export class McpTool {
           throw err;
         }
         logger.debug(`MCP:${this.name}:Connecting to fallback`);
+        this.transportName = undefined;
         this.transport = await this.getTransport(this.fallbackUrl);
         await this.client.connect(this.transport);
         logger.debug(`MCP:${this.name}:Connected to fallback`);

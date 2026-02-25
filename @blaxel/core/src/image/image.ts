@@ -43,6 +43,49 @@ export interface ImageBuildOptions {
   sandboxVersion?: string;
 }
 
+export interface PipInstallOptions {
+  findLinks?: string;
+  indexUrl?: string;
+  extraIndexUrl?: string;
+  pre?: boolean;
+  extraOptions?: string;
+}
+
+export interface AptInstallOptions {
+  update?: boolean;
+  clean?: boolean;
+}
+
+export interface ApkAddOptions {
+  update?: boolean;
+  noCache?: boolean;
+  clean?: boolean;
+}
+
+export interface NpmInstallOptions {
+  packageManager?: "npm" | "yarn" | "pnpm" | "bun";
+  globalInstall?: boolean;
+  saveDev?: boolean;
+}
+
+export interface GemInstallOptions {
+  noDocument?: boolean;
+}
+
+export interface CargoInstallOptions {
+  locked?: boolean;
+}
+
+export interface ComposerInstallOptions {
+  noDev?: boolean;
+  optimizeAutoloader?: boolean;
+}
+
+export interface UvInstallOptions {
+  system?: boolean;
+  upgrade?: boolean;
+}
+
 function generateDockerfile(context: ImageBuildContext): string {
   // Build the raw Dockerfile content
   const lines: string[] = [`FROM ${context.baseImage}`];
@@ -159,6 +202,241 @@ export class ImageInstance {
       newContext.instructions.push(`RUN ${cmd}`);
     }
     return new ImageInstance(newContext);
+  }
+
+  /**
+   * Install Python packages using pip.
+   */
+  pipInstall(...packages: string[]): ImageInstance;
+  pipInstall(options: PipInstallOptions, ...packages: string[]): ImageInstance;
+  pipInstall(...args: (string | PipInstallOptions)[]): ImageInstance {
+    let options: PipInstallOptions = {};
+    let packages: string[];
+    if (args.length > 0 && typeof args[0] === "object") {
+      options = args[0] as PipInstallOptions;
+      packages = args.slice(1) as string[];
+    } else {
+      packages = args as string[];
+    }
+    if (packages.length === 0) return this;
+
+    const opts: string[] = [];
+    if (options.findLinks) opts.push(`--find-links ${options.findLinks}`);
+    if (options.indexUrl) opts.push(`--index-url ${options.indexUrl}`);
+    if (options.extraIndexUrl) opts.push(`--extra-index-url ${options.extraIndexUrl}`);
+    if (options.pre) opts.push("--pre");
+    if (options.extraOptions) opts.push(options.extraOptions);
+
+    const cmd = ["pip install", ...opts, ...packages].join(" ").replace(/\s+/g, " ").trim();
+    return this.runCommands(cmd);
+  }
+
+  /**
+   * Install packages using apt-get (Debian/Ubuntu).
+   */
+  aptInstall(...packages: string[]): ImageInstance;
+  aptInstall(options: AptInstallOptions, ...packages: string[]): ImageInstance;
+  aptInstall(...args: (string | AptInstallOptions)[]): ImageInstance {
+    let options: AptInstallOptions = {};
+    let packages: string[];
+    if (args.length > 0 && typeof args[0] === "object") {
+      options = args[0] as AptInstallOptions;
+      packages = args.slice(1) as string[];
+    } else {
+      packages = args as string[];
+    }
+    if (packages.length === 0) return this;
+
+    const update = options.update ?? true;
+    const clean = options.clean ?? true;
+    const parts: string[] = [];
+    if (update) parts.push("apt-get update");
+    parts.push(`apt-get install -y --no-install-recommends ${packages.join(" ")}`);
+    if (clean) parts.push("rm -rf /var/lib/apt/lists/*");
+
+    return this.runCommands(parts.join(" && "));
+  }
+
+  /**
+   * Install packages using apk (Alpine Linux).
+   */
+  apkAdd(...packages: string[]): ImageInstance;
+  apkAdd(options: ApkAddOptions, ...packages: string[]): ImageInstance;
+  apkAdd(...args: (string | ApkAddOptions)[]): ImageInstance {
+    let options: ApkAddOptions = {};
+    let packages: string[];
+    if (args.length > 0 && typeof args[0] === "object") {
+      options = args[0] as ApkAddOptions;
+      packages = args.slice(1) as string[];
+    } else {
+      packages = args as string[];
+    }
+    if (packages.length === 0) return this;
+
+    const noCache = options.noCache ?? true;
+    const update = options.update ?? true;
+    const clean = options.clean ?? true;
+    const pkgs = packages.join(" ");
+
+    if (noCache) {
+      return this.runCommands(`apk add --no-cache ${pkgs}`);
+    }
+
+    const parts: string[] = [];
+    if (update) parts.push("apk update");
+    parts.push(`apk add ${pkgs}`);
+    if (clean) parts.push("rm -rf /var/cache/apk/*");
+    return this.runCommands(parts.join(" && "));
+  }
+
+  /**
+   * Install Node.js packages using npm, yarn, pnpm, or bun.
+   */
+  npmInstall(...packages: string[]): ImageInstance;
+  npmInstall(options: NpmInstallOptions, ...packages: string[]): ImageInstance;
+  npmInstall(...args: (string | NpmInstallOptions)[]): ImageInstance {
+    let options: NpmInstallOptions = {};
+    let packages: string[];
+    if (args.length > 0 && typeof args[0] === "object") {
+      options = args[0] as NpmInstallOptions;
+      packages = args.slice(1) as string[];
+    } else {
+      packages = args as string[];
+    }
+
+    const pm = (options.packageManager ?? "npm").toLowerCase();
+    const g = options.globalInstall ?? false;
+    const d = options.saveDev ?? false;
+    const pkgs = packages.join(" ");
+
+    let cmd: string;
+    if (!packages.length) {
+      // Install from lockfile/package.json
+      const installCmds: Record<string, string> = {
+        npm: "npm install",
+        yarn: "yarn install",
+        pnpm: "pnpm install",
+        bun: "bun install",
+      };
+      cmd = installCmds[pm];
+      if (!cmd) throw new Error(`Invalid package manager: ${pm}. Must be one of npm, yarn, pnpm, bun`);
+    } else {
+      const addCmds: Record<string, string> = {
+        npm: `npm install ${g ? "-g " : ""}${d ? "--save-dev " : ""}${pkgs}`,
+        yarn: `yarn ${g ? "global add" : "add"} ${d && !g ? "--dev " : ""}${pkgs}`,
+        pnpm: `pnpm add ${g ? "-g " : ""}${d ? "-D " : ""}${pkgs}`,
+        bun: `bun add ${g ? "-g " : ""}${d ? "-d " : ""}${pkgs}`,
+      };
+      cmd = addCmds[pm];
+      if (!cmd) throw new Error(`Invalid package manager: ${pm}. Must be one of npm, yarn, pnpm, bun`);
+    }
+
+    return this.runCommands(cmd.replace(/\s+/g, " ").trim());
+  }
+
+  /**
+   * Install Ruby gems.
+   */
+  gemInstall(...packages: string[]): ImageInstance;
+  gemInstall(options: GemInstallOptions, ...packages: string[]): ImageInstance;
+  gemInstall(...args: (string | GemInstallOptions)[]): ImageInstance {
+    let options: GemInstallOptions = {};
+    let packages: string[];
+    if (args.length > 0 && typeof args[0] === "object") {
+      options = args[0] as GemInstallOptions;
+      packages = args.slice(1) as string[];
+    } else {
+      packages = args as string[];
+    }
+    if (packages.length === 0) return this;
+
+    const noDoc = options.noDocument ?? true;
+    const cmd = `gem install ${noDoc ? "--no-document " : ""}${packages.join(" ")}`.replace(/\s+/g, " ").trim();
+    return this.runCommands(cmd);
+  }
+
+  /**
+   * Install Rust packages using cargo.
+   */
+  cargoInstall(...packages: string[]): ImageInstance;
+  cargoInstall(options: CargoInstallOptions, ...packages: string[]): ImageInstance;
+  cargoInstall(...args: (string | CargoInstallOptions)[]): ImageInstance {
+    let options: CargoInstallOptions = {};
+    let packages: string[];
+    if (args.length > 0 && typeof args[0] === "object") {
+      options = args[0] as CargoInstallOptions;
+      packages = args.slice(1) as string[];
+    } else {
+      packages = args as string[];
+    }
+    if (packages.length === 0) return this;
+
+    const cmd = `cargo install ${options.locked ? "--locked " : ""}${packages.join(" ")}`.replace(/\s+/g, " ").trim();
+    return this.runCommands(cmd);
+  }
+
+  /**
+   * Install Go packages.
+   */
+  goInstall(...packages: string[]): ImageInstance {
+    if (packages.length === 0) return this;
+    const commands = packages.map((pkg) => `go install ${pkg}`);
+    return this.runCommands(commands.join(" && "));
+  }
+
+  /**
+   * Install PHP packages using Composer.
+   */
+  composerInstall(...packages: string[]): ImageInstance;
+  composerInstall(options: ComposerInstallOptions, ...packages: string[]): ImageInstance;
+  composerInstall(...args: (string | ComposerInstallOptions)[]): ImageInstance {
+    let options: ComposerInstallOptions = {};
+    let packages: string[];
+    if (args.length > 0 && typeof args[0] === "object") {
+      options = args[0] as ComposerInstallOptions;
+      packages = args.slice(1) as string[];
+    } else {
+      packages = args as string[];
+    }
+
+    const flags = `${options.noDev ? "--no-dev " : ""}${options.optimizeAutoloader ? "--optimize-autoloader " : ""}`;
+    let cmd: string;
+    if (packages.length > 0) {
+      cmd = `composer require ${flags}${packages.join(" ")}`;
+    } else {
+      cmd = `composer install ${flags}`;
+    }
+    return this.runCommands(cmd.replace(/\s+/g, " ").trim());
+  }
+
+  /**
+   * Install Python packages using uv (fast Python package installer).
+   */
+  uvInstall(...packages: string[]): ImageInstance;
+  uvInstall(options: UvInstallOptions, ...packages: string[]): ImageInstance;
+  uvInstall(...args: (string | UvInstallOptions)[]): ImageInstance {
+    let options: UvInstallOptions = {};
+    let packages: string[];
+    if (args.length > 0 && typeof args[0] === "object") {
+      options = args[0] as UvInstallOptions;
+      packages = args.slice(1) as string[];
+    } else {
+      packages = args as string[];
+    }
+    if (packages.length === 0) return this;
+
+    const system = options.system ?? true;
+    const cmd = `uv pip install ${system ? "--system " : ""}${options.upgrade ? "--upgrade " : ""}${packages.join(" ")}`.replace(/\s+/g, " ").trim();
+    return this.runCommands(cmd);
+  }
+
+  /**
+   * Install Python CLI applications using pipx.
+   */
+  pipxInstall(...packages: string[]): ImageInstance {
+    if (packages.length === 0) return this;
+    const commands = packages.map((pkg) => `pipx install ${pkg}`);
+    return this.runCommands(commands.join(" && "));
   }
 
   /**
