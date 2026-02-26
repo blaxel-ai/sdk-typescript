@@ -123,9 +123,11 @@ describe('Sandbox Process Operations', () => {
       const allLogs: string[] = []
       const errorLogs: string[] = []
 
+      // Use longer sleeps in the command to give streamLogs time to connect
+      // and emit stderr *before* final stdout so both are captured
       await sandbox.process.exec({
         name: "stdout-test",
-        command: "for i in $(seq 1 5); do sleep 0.1; echo tick $i; sleep 0.1; done && echo 'stderr here' >&2",
+        command: "sleep 1 && for i in $(seq 1 5); do sleep 0.3; echo tick $i; done && sleep 0.3 && echo 'stderr here' >&2",
         waitForCompletion: false
       })
 

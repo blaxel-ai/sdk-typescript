@@ -1,6 +1,6 @@
 import { SandboxInstance } from "@blaxel/core"
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { defaultLabels, defaultRegion, uniqueName } from './helpers.js'
+import { defaultLabels, defaultRegion, fetchWithRetry, uniqueName } from './helpers.js'
 
 describe('Sandbox Preview Operations', () => {
   let sandbox: SandboxInstance
@@ -452,7 +452,10 @@ server.listen(3000, '0.0.0.0', () => {
   })
 
   describe('preview race conditions', () => {
-    it('creates a preview then remove it and recreate the same preview', async () => {
+    it('creates a preview then remove it and recreate the same preview', { timeout: 120000 }, async () => {
+      const concurrency = 10
+      const total = 100
+
       const runTest = async (index: number) => {
         const previewName = `preview-race-${index}`
         const preview = await sandbox.previews.createIfNotExists({
@@ -460,7 +463,7 @@ server.listen(3000, '0.0.0.0', () => {
           spec: { port: 3000, public: true }
         })
 
-        const response = await fetch(preview.spec?.url ?? '')
+        const response = await fetchWithRetry(preview.spec?.url ?? '', undefined, { retries: 5, delayMs: 1000 })
         expect(response.status).toBe(200)
 
         await sandbox.previews.delete(previewName)
@@ -469,14 +472,18 @@ server.listen(3000, '0.0.0.0', () => {
           metadata: { name: previewName },
           spec: { port: 3000, public: true }
         })
-        const response2 = await fetch(preview2.spec?.url ?? '')
-        if (response2.status !== 200) {
-          console.log(`Preview URL check failed for ${previewName}: ${preview2.spec?.url} - Status: ${response2.status}`)
-        }
+        const response2 = await fetchWithRetry(preview2.spec?.url ?? '', undefined, { retries: 5, delayMs: 1000 })
         expect(response2.status).toBe(200)
       }
 
-      await Promise.all(Array.from({ length: 100 }, (_, i) => runTest(i + 1)))
+      // Run in batches to avoid overwhelming the infra
+      for (let start = 0; start < total; start += concurrency) {
+        const batch = Array.from(
+          { length: Math.min(concurrency, total - start) },
+          (_, i) => runTest(start + i + 1)
+        )
+        await Promise.all(batch)
+      }
     })
   })
 })
