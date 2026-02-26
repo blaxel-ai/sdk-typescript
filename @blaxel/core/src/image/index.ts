@@ -5,4 +5,12 @@ export {
   LocalFile,
   SANDBOX_API_IMAGE,
   SANDBOX_API_PATH,
+  PipInstallOptions,
+  AptInstallOptions,
+  ApkAddOptions,
+  NpmInstallOptions,
+  GemInstallOptions,
+  CargoInstallOptions,
+  ComposerInstallOptions,
+  UvInstallOptions,
 } from "./image.js";

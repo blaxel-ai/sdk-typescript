@@ -123,9 +123,11 @@ describe('Sandbox Process Operations', () => {
       const allLogs: string[] = []
       const errorLogs: string[] = []
 
+      // Use longer sleeps in the command to give streamLogs time to connect
+      // and emit stderr *before* final stdout so both are captured
       await sandbox.process.exec({
         name: "stdout-test",
-        command: "for i in $(seq 1 5); do sleep 0.1; echo tick $i; sleep 0.1; done && echo 'stderr here' >&2",
+        command: "sleep 1 && for i in $(seq 1 5); do sleep 0.3; echo tick $i; done && sleep 0.3 && echo 'stderr here' >&2",
         waitForCompletion: false
       })
 
@@ -155,6 +157,94 @@ describe('Sandbox Process Operations', () => {
       expect(allLogs.join(' ')).toContain('tick 4')
       expect(allLogs.join(' ')).toContain('tick 5')
       expect(allLogs.join(' ')).toContain('stderr here')
+    })
+
+    it('does not duplicate logs with onLog and waitForCompletion false', async () => {
+      const logs: string[] = []
+
+      const result = await sandbox.process.exec({
+        name: "no-dup-nowait",
+        command: "for i in 1 2 3 4 5; do echo \"line-$i\"; done",
+        waitForCompletion: false,
+        onLog: (log) => {
+          logs.push(log)
+        }
+      })
+
+      await sandbox.process.wait("no-dup-nowait")
+      await sleep(500)
+      const closeable1 = result as unknown as { close?: () => void }
+      closeable1.close?.()
+
+      const allLogs = logs.join('\n')
+      expect(allLogs).toContain('line-1')
+      expect(allLogs).toContain('line-2')
+      expect(allLogs).toContain('line-3')
+      expect(allLogs).toContain('line-4')
+      expect(allLogs).toContain('line-5')
+
+      for (const marker of ['line-1', 'line-2', 'line-3', 'line-4', 'line-5']) {
+        const count = logs.filter(l => l.includes(marker)).length
+        expect(count, `"${marker}" appeared ${count} times, expected exactly 1`).toBe(1)
+      }
+    })
+
+    it('does not duplicate logs with onLog and waitForCompletion true', async () => {
+      const logs: string[] = []
+
+      const result = await sandbox.process.exec({
+        name: "no-dup-wait",
+        command: "for i in 1 2 3 4 5; do echo \"line-$i\"; sleep 0.2; done",
+        waitForCompletion: true,
+        onLog: (log) => {
+          logs.push(log)
+        }
+      })
+
+      const closeable2 = result as unknown as { close?: () => void }
+      closeable2.close?.()
+
+      expect(result.status).toBe("completed")
+
+      const allLogs = logs.join('\n')
+      expect(allLogs).toContain('line-1')
+      expect(allLogs).toContain('line-2')
+      expect(allLogs).toContain('line-3')
+      expect(allLogs).toContain('line-4')
+      expect(allLogs).toContain('line-5')
+
+      for (const marker of ['line-1', 'line-2', 'line-3', 'line-4', 'line-5']) {
+        const count = logs.filter(l => l.includes(marker)).length
+        expect(count, `"${marker}" appeared ${count} times, expected exactly 1`).toBe(1)
+      }
+    })
+
+    it('does not duplicate logs with onLog and waitForCompletion unset', async () => {
+      const logs: string[] = []
+
+      const result = await sandbox.process.exec({
+        name: "no-dup-default",
+        command: "for i in 1 2 3 4 5; do echo \"line-$i\";done",
+        onLog: (log) => {
+          logs.push(log)
+        }
+      })
+
+      await sleep(500)
+      const closeable3 = result as unknown as { close?: () => void }
+      closeable3.close?.()
+
+      const allLogs = logs.join('\n')
+      expect(allLogs).toContain('line-1')
+      expect(allLogs).toContain('line-2')
+      expect(allLogs).toContain('line-3')
+      expect(allLogs).toContain('line-4')
+      expect(allLogs).toContain('line-5')
+
+      for (const marker of ['line-1', 'line-2', 'line-3', 'line-4', 'line-5']) {
+        const count = logs.filter(l => l.includes(marker)).length
+        expect(count, `"${marker}" appeared ${count} times, expected exactly 1`).toBe(1)
+      }
     })
   })
 

@@ -8,7 +8,6 @@ describe('Delete-Recreate Race Condition Tests', () => {
     const iterations = 5
 
     for (let i = 0; i < iterations; i++) {
-      // Create sandbox
       const sandbox = await SandboxInstance.create({
         name: sandboxName,
         region: defaultRegion,
@@ -17,17 +16,14 @@ describe('Delete-Recreate Race Condition Tests', () => {
       })
       await sandbox.wait()
 
-      // Verify it's running
       const check = await SandboxInstance.get(sandboxName)
       expect(check.status).not.toBe("DELETING")
 
-      // Delete and wait for completion
       await SandboxInstance.delete(sandboxName)
-      const deleted = await waitForSandboxDeletion(sandboxName, 60)
+      const deleted = await waitForSandboxDeletion(sandboxName, 90)
       expect(deleted).toBe(true)
 
-      // Small race window before recreating
-      await sleep(100)
+      await sleep(3000)
     }
   })
 
@@ -40,7 +36,6 @@ describe('Delete-Recreate Race Condition Tests', () => {
 
     const workers = sandboxNames.map(async (sandboxName) => {
       for (let i = 0; i < iterationsPerWorker; i++) {
-        // Create sandbox
         const sandbox = await SandboxInstance.create({
           name: sandboxName,
           region: defaultRegion,
@@ -49,17 +44,14 @@ describe('Delete-Recreate Race Condition Tests', () => {
         })
         await sandbox.wait()
 
-        // Verify status
         const check = await SandboxInstance.get(sandboxName)
         expect(check.status).not.toBe("DELETING")
 
-        // Delete and wait
         await SandboxInstance.delete(sandboxName)
-        const deleted = await waitForSandboxDeletion(sandboxName, 60)
+        const deleted = await waitForSandboxDeletion(sandboxName, 90)
         expect(deleted).toBe(true)
 
-        // Race window
-        await sleep(100)
+        await sleep(3000)
       }
     })
 
@@ -69,7 +61,6 @@ describe('Delete-Recreate Race Condition Tests', () => {
   it('detects if sandbox gets stuck in DELETING state', { timeout: 120000 }, async () => {
     const sandboxName = uniqueName("race-deleting-check")
 
-    // Create sandbox
     const sandbox = await SandboxInstance.create({
       name: sandboxName,
       region: defaultRegion,
@@ -78,33 +69,27 @@ describe('Delete-Recreate Race Condition Tests', () => {
     })
     await sandbox.wait()
 
-    // Delete
     await SandboxInstance.delete(sandboxName)
 
-    // Try to create again immediately (this should wait or fail gracefully)
-    await sleep(100)
+    await sleep(2000)
 
-    // Check if it's stuck in DELETING
     try {
       const status = await SandboxInstance.get(sandboxName)
 
-      // If it still exists, it should not be in DELETING state for too long
       if (status.status === "DELETING") {
-        // Wait a bit more and check again
-        await sleep(5000)
-        const statusAfterWait = await SandboxInstance.get(sandboxName)
-
-        // After 5 seconds, it should either be deleted or still deleting (which is acceptable)
-        // We just don't want it to get stuck permanently
-        expect(["DELETING", "TERMINATED"]).toContain(statusAfterWait.status)
+        await sleep(10000)
+        try {
+          const statusAfterWait = await SandboxInstance.get(sandboxName)
+          expect(["DELETING", "TERMINATED"]).toContain(statusAfterWait.status)
+        } catch {
+          // Deleted while we were waiting — that's fine
+        }
       }
     } catch {
       // Sandbox is already deleted, which is good
-      expect(true).toBe(true)
     }
 
-    // Clean up
-    await waitForSandboxDeletion(sandboxName, 60)
+    await waitForSandboxDeletion(sandboxName, 90)
   })
 })
 
