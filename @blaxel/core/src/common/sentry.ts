@@ -233,17 +233,9 @@ export function initSentry() {
             });
         };
 
-        // Uncaught exception handler - only capture SDK errors
-        const uncaughtExceptionHandler = (error: Error) => {
-          if (isFromSDK(error)) {
-            captureException(error);
-          }
-        };
-
-        // Unhandled rejection handler - only capture SDK errors
-        const unhandledRejectionHandler = (reason: unknown) => {
-          const error =
-            reason instanceof Error ? reason : new Error(String(reason));
+        // Monitor uncaught exceptions to capture SDK errors without
+        // preventing Node.js default crash behavior (print + exit).
+        const uncaughtExceptionMonitorHandler = (error: Error) => {
           if (isFromSDK(error)) {
             captureException(error);
           }
@@ -251,8 +243,7 @@ export function initSentry() {
 
         process.on("SIGTERM", () => signalHandler("SIGTERM"));
         process.on("SIGINT", () => signalHandler("SIGINT"));
-        process.on("uncaughtException", uncaughtExceptionHandler);
-        process.on("unhandledRejection", unhandledRejectionHandler);
+        process.on("uncaughtExceptionMonitor", uncaughtExceptionMonitorHandler);
 
         // Intercept console.error to capture SDK errors that are caught and logged
         const originalConsoleError = console.error;
