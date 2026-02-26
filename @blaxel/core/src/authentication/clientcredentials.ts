@@ -40,8 +40,11 @@ export class ClientCredentials extends Credentials {
   }
 
   async authenticate() {
+    if (this.currentPromise) {
+      return this.currentPromise;
+    }
     if (!this.needRefresh()) {
-      return this.currentPromise || Promise.resolve();
+      return Promise.resolve();
     }
     this.currentPromise = this.processWithRetry().finally(() => {
       this.currentPromise = null;

@@ -1779,7 +1779,7 @@ export type ModelRuntime = {
     /**
      * Infrastructure generation. Empty (default) uses the classic deployment path. mk3 deploys through the model-gateway on microVM clusters.
      */
-    generation?: 'mk3';
+    generation?: 'mk3' | 'mk2';
     /**
      * Model identifier at the provider (e.g., gpt-4.1, claude-sonnet-4-20250514, mistral-large-latest)
      */
@@ -2378,6 +2378,10 @@ export type Region = {
      * Region display name
      */
     country?: string;
+    /**
+     * Egress availability status - indicates if network plane URL is configured for the region
+     */
+    egressAvailable?: boolean;
     /**
      * Region display name
      */
@@ -3648,6 +3652,38 @@ export type VerifyCustomDomainResponses = {
 };
 
 export type VerifyCustomDomainResponse = VerifyCustomDomainResponses[keyof VerifyCustomDomainResponses];
+
+export type ListAllEgressGatewaysData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/egressgateways';
+};
+
+export type ListAllEgressGatewaysResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<EgressGateway>;
+};
+
+export type ListAllEgressGatewaysResponse = ListAllEgressGatewaysResponses[keyof ListAllEgressGatewaysResponses];
+
+export type ListAllEgressIpsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/egressips';
+};
+
+export type ListAllEgressIpsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<EgressIp>;
+};
+
+export type ListAllEgressIpsResponse = ListAllEgressIpsResponses[keyof ListAllEgressIpsResponses];
 
 export type GetWorkspaceFeaturesData = {
     body?: never;

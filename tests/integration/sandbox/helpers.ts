@@ -102,3 +102,45 @@ export async function waitForVolumeDeletion(volumeName: string, maxAttempts: num
 export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
+
+/**
+ * Fetch with retries for transient failures (401/5xx) during infra propagation.
+ */
+export async function fetchWithRetry(
+  url: string,
+  options?: RequestInit,
+  { retries = 5, delayMs = 500 }: { retries?: number; delayMs?: number } = {}
+): Promise<Response> {
+  let lastResponse: Response | undefined
+  for (let i = 0; i <= retries; i++) {
+    lastResponse = await fetch(url, options)
+    if (lastResponse.status !== 401 && lastResponse.status < 500) {
+      return lastResponse
+    }
+    if (i < retries) {
+      await sleep(delayMs)
+    }
+  }
+  return lastResponse!
+}
+
+/**
+ * Retry a callback until it succeeds or max retries reached.
+ * Useful for infra operations that may hit transient 404/409 during redeployment.
+ */
+export async function retry<T>(
+  fn: () => Promise<T>,
+  { retries = 5, delayMs = 2000, shouldRetry }: { retries?: number; delayMs?: number; shouldRetry?: (err: unknown) => boolean } = {}
+): Promise<T> {
+  let lastError: unknown
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await fn()
+    } catch (err) {
+      lastError = err
+      if (shouldRetry && !shouldRetry(err)) throw err
+      if (i < retries) await sleep(delayMs)
+    }
+  }
+  throw lastError
+}

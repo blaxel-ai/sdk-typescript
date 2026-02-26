@@ -17,7 +17,7 @@ export class SandboxProcess extends SandboxAction {
       onStderr?: (stderr: string) => void,
       onError?: (error: Error) => void,
     } = {}
-  ): { close: () => void } {
+  ): { close: () => void, wait: () => Promise<void> } {
     const controller = new AbortController();
     const handleError = (err: Error) => {
       if (options.onError) {
@@ -27,7 +27,7 @@ export class SandboxProcess extends SandboxAction {
       }
     };
 
-    void (async () => {
+    const done = (async () => {
       try {
         const headers = this.sandbox.forceUrl ? this.sandbox.headers : settings.headers;
         const stream = await fetch(`${this.url}/process/${identifier}/logs/stream`, {
@@ -81,6 +81,7 @@ export class SandboxProcess extends SandboxAction {
 
     return {
       close: () => controller.abort(),
+      wait: () => done,
     };
   }
 

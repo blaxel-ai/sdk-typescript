@@ -60,7 +60,7 @@ export class SandboxInstance {
     return this;
   }
 
-  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = true }: { safe?: boolean } = {}) {
+  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = false }: { safe?: boolean } = {}) {
     const defaultName = `sandbox-${uuidv4().replace(/-/g, '').substring(0, 8)}`
     const defaultImage = `blaxel/base-image:latest`
     const defaultMemory = 4096
@@ -75,6 +75,7 @@ export class SandboxInstance {
       'envs' in sandbox ||
       'volumes' in sandbox ||
       'lifecycle' in sandbox ||
+      'network' in sandbox ||
       'snapshotEnabled' in sandbox ||
       'labels' in sandbox
     ) {
@@ -96,6 +97,7 @@ export class SandboxInstance {
         );
       }
       const lifecycle = sandbox.lifecycle;
+      const network = sandbox.network;
       const snapshotEnabled = sandbox.snapshotEnabled;
 
       sandbox = {
@@ -112,6 +114,7 @@ export class SandboxInstance {
           },
           volumes: volumes,
           lifecycle: lifecycle,
+          network: network,
         }
       } as SandboxModel
       if (ttl) {

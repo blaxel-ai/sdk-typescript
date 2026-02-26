@@ -1,4 +1,4 @@
-import { Port, Sandbox, SandboxLifecycle, VolumeAttachment } from "../client/types.gen";
+import { Port, Sandbox, SandboxLifecycle, VolumeAttachment, SandboxNetwork } from "../client/types.gen";
 import { PostProcessResponse, ProcessRequest } from "./client";
 
 export interface SessionCreateOptions {
@@ -47,6 +47,7 @@ export type SandboxCreateConfiguration = {
   expires?: Date;
   region?: string;
   lifecycle?: SandboxLifecycle;
+  network?: SandboxNetwork;
   snapshotEnabled?: boolean;
   labels?: Record<string, string>;
 }

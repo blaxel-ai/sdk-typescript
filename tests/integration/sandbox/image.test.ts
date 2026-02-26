@@ -57,7 +57,7 @@ describe('Sandbox Image Tests', () => {
         name,
         labels: defaultLabels
         // Note: image is intentionally omitted here
-      })
+      }, { safe: true })
       createdSandboxes.push(name)
 
       // SDK should have filled in the default image
@@ -82,7 +82,7 @@ describe('Sandbox Image Tests', () => {
         name,
         image: "blaxel/base-image",
         labels: defaultLabels
-      })
+      }, { safe: true })
       createdSandboxes.push(name)
 
       expect(sandbox.metadata.name).toBe(name)
@@ -103,7 +103,7 @@ describe('Sandbox Image Tests', () => {
         name,
         image: "blaxel/base-image:latest",
         labels: defaultLabels
-      })
+      }, { safe: true })
       createdSandboxes.push(name)
 
       expect(sandbox.metadata.name).toBe(name)
@@ -129,7 +129,7 @@ describe('Sandbox Image Tests', () => {
           name,
           image: randomImage,
           labels: defaultLabels
-        })
+        }, { safe: true })
       ).rejects.toThrow()
 
       // Verify the sandbox was not created
@@ -147,7 +147,7 @@ describe('Sandbox Image Tests', () => {
           name,
           image: invalidImage,
           labels: defaultLabels
-        })
+        }, { safe: true })
       ).rejects.toThrow()
     })
 
@@ -160,7 +160,7 @@ describe('Sandbox Image Tests', () => {
           name,
           image: badRegistryImage,
           labels: defaultLabels
-        })
+        }, { safe: true })
       ).rejects.toThrow()
     })
 
@@ -173,7 +173,7 @@ describe('Sandbox Image Tests', () => {
           name,
           image: invalidTagImage,
           labels: defaultLabels
-        })
+        }, { safe: true })
       ).rejects.toThrow()
 
       // Verify the sandbox was not created
@@ -191,7 +191,7 @@ describe('Sandbox Image Tests', () => {
         name,
         image: "docker",
         labels: defaultLabels
-      })
+      }, { safe: true })
       createdSandboxes.push(name)
 
       expect(sandbox.metadata.name).toBe(name)
@@ -212,7 +212,7 @@ describe('Sandbox Image Tests', () => {
         name,
         image: "docker:latest",
         labels: defaultLabels
-      })
+      }, { safe: true })
       createdSandboxes.push(name)
 
       expect(sandbox.metadata.name).toBe(name)
@@ -233,7 +233,7 @@ describe('Sandbox Image Tests', () => {
         name,
         image: "docker:lqyszf5qx5pe",
         labels: defaultLabels
-      })
+      }, { safe: true })
       createdSandboxes.push(name)
 
       expect(sandbox.metadata.name).toBe(name)
@@ -254,7 +254,7 @@ describe('Sandbox Image Tests', () => {
         name,
         image: "sandbox/docker",
         labels: defaultLabels
-      })
+      }, { safe: true })
       createdSandboxes.push(name)
 
       expect(sandbox.metadata.name).toBe(name)
@@ -275,7 +275,7 @@ describe('Sandbox Image Tests', () => {
         name,
         image: "sandbox/docker:latest",
         labels: defaultLabels
-      })
+      }, { safe: true })
       createdSandboxes.push(name)
 
       expect(sandbox.metadata.name).toBe(name)
@@ -296,7 +296,7 @@ describe('Sandbox Image Tests', () => {
         name,
         image: "sandbox/docker:lqyszf5qx5pe",
         labels: defaultLabels
-      })
+      }, { safe: true })
       createdSandboxes.push(name)
 
       expect(sandbox.metadata.name).toBe(name)
