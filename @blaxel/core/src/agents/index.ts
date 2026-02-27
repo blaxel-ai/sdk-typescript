@@ -37,7 +37,7 @@ class BlAgent {
   }
 
   get forcedUrl() {
-    return getForcedUrl('function', this.agentName)
+    return getForcedUrl('agent', this.agentName)
   }
 
   get url() {
