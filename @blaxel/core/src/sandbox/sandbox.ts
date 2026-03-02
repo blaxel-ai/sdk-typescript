@@ -3,6 +3,7 @@ import { createSandbox, deleteSandbox, getSandbox, listSandboxes, SandboxLifecyc
 import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
 import { SandboxCodegen } from "./codegen/index.js";
+import { SandboxDrive } from "./drive/index.js";
 import { SandboxFileSystem } from "./filesystem/index.js";
 import { SandboxNetwork } from "./network/index.js";
 import { SandboxPreviews } from "./preview.js";
@@ -19,6 +20,7 @@ export class SandboxInstance {
   sessions: SandboxSessions;
   codegen: SandboxCodegen;
   system: SandboxSystem;
+  drives: SandboxDrive;
 
   constructor(private sandbox: SandboxConfiguration) {
     this.process = new SandboxProcess(sandbox);
@@ -28,6 +30,7 @@ export class SandboxInstance {
     this.sessions = new SandboxSessions(sandbox);
     this.codegen = new SandboxCodegen(sandbox);
     this.system = new SandboxSystem(sandbox);
+    this.drives = new SandboxDrive(sandbox);
   }
 
   get metadata() {
