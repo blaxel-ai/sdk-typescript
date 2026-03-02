@@ -1,6 +1,8 @@
 import { DriveInstance, SandboxInstance } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
-import { defaultImage, defaultLabels, defaultRegion, uniqueName, waitForSandboxDeletion } from './helpers.js'
+import { defaultImage, defaultLabels, uniqueName, waitForSandboxDeletion } from './helpers.js'
+
+const defaultRegion = process.env.BL_ENV !== 'dev' ? 'us-was-1' : 'eu-dub-1' // Only region for drives right now
 
 describe('Drive Operations', () => {
   const createdSandboxes: string[] = []
@@ -131,7 +133,7 @@ describe('Drive Operations', () => {
 
     it('creates drive if not exists', async () => {
       const name = uniqueName("drive-idempotent")
-      
+
       // Create the first time
       const drive1 = await DriveInstance.createIfNotExists({
         name,
@@ -173,7 +175,7 @@ describe('Drive Operations', () => {
         memory: 2048,
         region: defaultRegion,
         labels: defaultLabels,
-      })
+      },{safe: true})
       createdSandboxes.push(sandboxName)
 
       // Mount drive

@@ -42,7 +42,7 @@ export class SandboxDrive extends SandboxAction {
    */
   async mount(request: DriveMountRequest): Promise<DriveMountResponse> {
     const headers = this.sandbox.forceUrl ? this.sandbox.headers : settings.headers;
-    
+
     const body = {
       driveName: request.driveName,
       mountPath: request.mountPath,
@@ -71,14 +71,14 @@ export class SandboxDrive extends SandboxAction {
    */
   async unmount(mountPath: string): Promise<DriveUnmountResponse> {
     const headers = this.sandbox.forceUrl ? this.sandbox.headers : settings.headers;
-    
+
     // Ensure mountPath starts with /
     const normalizedPath = mountPath.startsWith('/') ? mountPath : `/${mountPath}`;
-    
+
     // Remove leading slash for URL (DELETE /drives/mnt/test not /drives//mnt/test)
     const urlPath = normalizedPath.substring(1);
 
-    const response = await fetch(`${this.url}/drives/${urlPath}`, {
+    const response = await fetch(`${this.url}/drives/mount/${urlPath}`, {
       method: 'DELETE',
       headers,
     });
