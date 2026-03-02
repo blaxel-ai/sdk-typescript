@@ -459,7 +459,7 @@ export type DriveWritable = {
     events?: CoreEventsWritable;
     metadata: MetadataWritable;
     spec: DriveSpecWritable;
-    state?: DriveStateWritable;
+    state?: DriveState;
 };
 
 /**

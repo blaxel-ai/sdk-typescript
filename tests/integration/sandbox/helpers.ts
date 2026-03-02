@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
  * Environment-aware configuration
  */
 export const env = process.env.BL_ENV || "prod"
-export const defaultRegion = env === "dev" ? "eu-dub-1" : "us-pdx-1"
+export const defaultRegion = env === "dev" ? "eu-dub-1" : "us-was-1"
 export const defaultImage = "blaxel/base-image:latest"
 
 /**
