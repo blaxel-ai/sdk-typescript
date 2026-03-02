@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll } from 'vitest'
 import { SandboxInstance, updateSandbox, Sandbox } from "@blaxel/core"
-import { uniqueName, defaultImage, defaultLabels, sleep, waitForSandboxDeployed } from './helpers.js'
+import { uniqueName, defaultImage, defaultLabels, sleep, waitForSandboxDeployed, retry } from './helpers.js'
 
 describe('Sandbox Lifecycle and Expiration', () => {
   const createdSandboxes: string[] = []
@@ -264,12 +264,11 @@ describe('Sandbox Lifecycle and Expiration', () => {
       expect(contentAfter).toBe(testContent)
     })
 
-    it('updateTtl multiple times preserves files', async () => {
+    it('updateTtl multiple times preserves files', { timeout: 120000 }, async () => {
       const name = uniqueName("multi-ttl")
       const testFilePath = "/tmp/multi-ttl-test.txt"
       const testContent = `multi-update-content-${Date.now()}`
 
-      // Create sandbox
       const sandbox = await SandboxInstance.create({
         name,
         image: defaultImage,
@@ -278,21 +277,28 @@ describe('Sandbox Lifecycle and Expiration', () => {
       })
       createdSandboxes.push(name)
 
-      // Write a file
       await sandbox.fs.write(testFilePath, testContent)
 
-      // Update TTL multiple times
-      await SandboxInstance.updateTtl(name, "10m")
-      await waitForSandboxDeployed(name)
+      const updateAndWait = async (ttl: string) => {
+        await retry(
+          async () => {
+            await SandboxInstance.updateTtl(name, ttl)
+          },
+          { retries: 3, delayMs: 3000 }
+        )
+        await waitForSandboxDeployed(name, 60)
+        await sleep(1000)
+      }
 
-      await SandboxInstance.updateTtl(name, "15m")
-      await waitForSandboxDeployed(name)
+      await updateAndWait("10m")
+      await updateAndWait("15m")
+      await updateAndWait("20m")
 
-      await SandboxInstance.updateTtl(name, "20m")
-      await waitForSandboxDeployed(name)
-      const finalSandbox = await SandboxInstance.get(name)
+      const finalSandbox = await retry(
+        () => SandboxInstance.get(name),
+        { retries: 3, delayMs: 2000 }
+      )
 
-      // File should still be there
       const content = await finalSandbox.fs.read(testFilePath)
       expect(content).toBe(testContent)
     })

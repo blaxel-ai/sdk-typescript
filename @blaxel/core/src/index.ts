@@ -10,6 +10,7 @@ export * from "./common/logger.js";
 export * from "./common/settings.js";
 export * from "./common/webhook.js";
 export * from "./drive/index.js";
+export * from "./image/index.js";
 export * from "./jobs/index.js";
 export * from "./mcp/index.js";
 export * from "./models/index.js";

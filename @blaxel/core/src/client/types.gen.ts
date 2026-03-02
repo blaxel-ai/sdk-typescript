@@ -498,14 +498,10 @@ export type DriveSpecWritable = {
  * Current runtime state of the drive
  */
 export type DriveState = {
-    [key: string]: unknown;
-};
-
-/**
- * Current runtime state of the drive
- */
-export type DriveStateWritable = {
-    [key: string]: unknown;
+    /**
+     * S3-compatible endpoint URL for accessing drive contents
+     */
+    readonly s3Url?: string;
 };
 
 /**
@@ -1849,7 +1845,7 @@ export type ModelRuntime = {
     /**
      * Infrastructure generation. Empty (default) uses the classic deployment path. mk3 deploys through the model-gateway on microVM clusters.
      */
-    generation?: 'mk3';
+    generation?: 'mk3' | 'mk2';
     /**
      * Model identifier at the provider (e.g., gpt-4.1, claude-sonnet-4-20250514, mistral-large-latest)
      */
@@ -2437,6 +2433,12 @@ export type PublicIps = {
  */
 export type Region = {
     /**
+     * S3-compatible endpoint URL for drive storage in this region. Use {s3Endpoint}/{bucketName} to access drive contents.
+     */
+    agentDrivePublicUrl?: {
+        [key: string]: unknown;
+    };
+    /**
      * Region display name
      */
     allowed?: string;
@@ -2448,6 +2450,14 @@ export type Region = {
      * Region display name
      */
     country?: string;
+    /**
+     * Drives availability status - indicates if an S3 endpoint is configured for the region
+     */
+    drivesAvailable?: boolean;
+    /**
+     * Egress availability status - indicates if network plane URL is configured for the region
+     */
+    egressAvailable?: boolean;
     /**
      * Region display name
      */
@@ -3854,6 +3864,95 @@ export type UpdateDriveResponses = {
 };
 
 export type UpdateDriveResponse = UpdateDriveResponses[keyof UpdateDriveResponses];
+
+export type CreateDriveAccessTokenData = {
+    body?: never;
+    path: {
+        driveName: string;
+    };
+    query?: never;
+    url: '/drives/{driveName}/access-token';
+};
+
+export type CreateDriveAccessTokenErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Drives feature not enabled
+     */
+    403: unknown;
+    /**
+     * Drive not found
+     */
+    404: unknown;
+};
+
+export type CreateDriveAccessTokenResponses = {
+    /**
+     * successful operation
+     */
+    200: {
+        access_token?: string;
+        expires_in?: number;
+        token_type?: string;
+    };
+};
+
+export type CreateDriveAccessTokenResponse = CreateDriveAccessTokenResponses[keyof CreateDriveAccessTokenResponses];
+
+export type GetDriveJwksData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/drives/jwks.json';
+};
+
+export type GetDriveJwksResponses = {
+    /**
+     * successful operation
+     */
+    200: {
+        keys?: Array<{
+            [key: string]: unknown;
+        }>;
+    };
+};
+
+export type GetDriveJwksResponse = GetDriveJwksResponses[keyof GetDriveJwksResponses];
+
+export type ListAllEgressGatewaysData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/egressgateways';
+};
+
+export type ListAllEgressGatewaysResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<EgressGateway>;
+};
+
+export type ListAllEgressGatewaysResponse = ListAllEgressGatewaysResponses[keyof ListAllEgressGatewaysResponses];
+
+export type ListAllEgressIpsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/egressips';
+};
+
+export type ListAllEgressIpsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<EgressIp>;
+};
+
+export type ListAllEgressIpsResponse = ListAllEgressIpsResponses[keyof ListAllEgressIpsResponses];
 
 export type GetWorkspaceFeaturesData = {
     body?: never;
