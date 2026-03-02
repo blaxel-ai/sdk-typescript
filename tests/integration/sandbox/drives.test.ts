@@ -177,7 +177,7 @@ describe('Drive Operations', () => {
       createdSandboxes.push(sandboxName)
 
       // Mount drive
-      const result = await sandbox.drive.mount({
+      const result = await sandbox.drives.mount({
         driveName,
         mountPath: "/mnt/test",
         drivePath: "/"
@@ -210,13 +210,13 @@ describe('Drive Operations', () => {
       createdSandboxes.push(sandboxName)
 
       // Mount drive
-      await sandbox.drive.mount({
+      await sandbox.drives.mount({
         driveName,
         mountPath: "/mnt/data",
       })
 
       // List mounts
-      const mounts = await sandbox.drive.list()
+      const mounts = await sandbox.drives.list()
       expect(Array.isArray(mounts)).toBe(true)
 
       const found = mounts.find(m => m.driveName === driveName)
@@ -247,7 +247,7 @@ describe('Drive Operations', () => {
       createdSandboxes.push(sandboxName)
 
       // Mount drive
-      await sandbox.drive.mount({
+      await sandbox.drives.mount({
         driveName,
         mountPath: "/mnt/storage",
       })
@@ -289,23 +289,23 @@ describe('Drive Operations', () => {
       createdSandboxes.push(sandboxName)
 
       // Mount drive
-      await sandbox.drive.mount({
+      await sandbox.drives.mount({
         driveName,
         mountPath: "/mnt/temp",
       })
 
       // Verify it's mounted
-      const mountsBefore = await sandbox.drive.list()
+      const mountsBefore = await sandbox.drives.list()
       const foundBefore = mountsBefore.find(m => m.driveName === driveName)
       expect(foundBefore).toBeDefined()
 
       // Unmount drive
-      const unmountResult = await sandbox.drive.unmount("/mnt/temp")
+      const unmountResult = await sandbox.drives.unmount("/mnt/temp")
       expect(unmountResult.success).toBe(true)
       expect(unmountResult.mountPath).toBe("/mnt/temp")
 
       // Verify it's unmounted
-      const mountsAfter = await sandbox.drive.list()
+      const mountsAfter = await sandbox.drives.list()
       const foundAfter = mountsAfter.find(m => m.driveName === driveName)
       expect(foundAfter).toBeUndefined()
     })
@@ -332,7 +332,7 @@ describe('Drive Operations', () => {
       createdSandboxes.push(sandboxName)
 
       // First, mount the root and create a subdirectory
-      await sandbox.drive.mount({
+      await sandbox.drives.mount({
         driveName,
         mountPath: "/mnt/root",
       })
@@ -342,10 +342,10 @@ describe('Drive Operations', () => {
         waitForCompletion: true
       })
 
-      await sandbox.drive.unmount("/mnt/root")
+      await sandbox.drives.unmount("/mnt/root")
 
       // Now mount only the subdirectory
-      const mountResult = await sandbox.drive.mount({
+      const mountResult = await sandbox.drives.mount({
         driveName,
         mountPath: "/mnt/sub",
         drivePath: "/subdir"
@@ -387,7 +387,7 @@ describe('Drive Operations', () => {
       })
       createdSandboxes.push(sandbox1Name)
 
-      await sandbox1.drive.mount({
+      await sandbox1.drives.mount({
         driveName,
         mountPath: "/data",
       })
@@ -397,7 +397,7 @@ describe('Drive Operations', () => {
         waitForCompletion: true
       })
 
-      await sandbox1.drive.unmount("/data")
+      await sandbox1.drives.unmount("/data")
 
       // Delete first sandbox
       await SandboxInstance.delete(sandbox1Name)
@@ -414,7 +414,7 @@ describe('Drive Operations', () => {
       })
       createdSandboxes.push(sandbox2Name)
 
-      await sandbox2.drive.mount({
+      await sandbox2.drives.mount({
         driveName,
         mountPath: "/data",
       })
@@ -460,18 +460,18 @@ describe('Drive Operations', () => {
       createdSandboxes.push(sandboxName)
 
       // Mount both drives
-      await sandbox.drive.mount({
+      await sandbox.drives.mount({
         driveName: drive1Name,
         mountPath: "/mnt/drive1",
       })
 
-      await sandbox.drive.mount({
+      await sandbox.drives.mount({
         driveName: drive2Name,
         mountPath: "/mnt/drive2",
       })
 
       // Verify both are mounted
-      const mounts = await sandbox.drive.list()
+      const mounts = await sandbox.drives.list()
       expect(mounts.length).toBeGreaterThanOrEqual(2)
 
       const found1 = mounts.find(m => m.driveName === drive1Name)
@@ -523,7 +523,7 @@ describe('Drive Operations', () => {
       createdSandboxes.push(sandboxName)
 
       // Mount with path without leading slash - should still work
-      const result = await sandbox.drive.mount({
+      const result = await sandbox.drives.mount({
         driveName,
         mountPath: "/mnt/test",
       })
@@ -531,9 +531,9 @@ describe('Drive Operations', () => {
       expect(result.success).toBe(true)
 
       // Unmount should also work without leading slash
-      await sandbox.drive.unmount("mnt/test")
+      await sandbox.drives.unmount("mnt/test")
 
-      const mounts = await sandbox.drive.list()
+      const mounts = await sandbox.drives.list()
       const found = mounts.find(m => m.driveName === driveName)
       expect(found).toBeUndefined()
     })
@@ -561,7 +561,7 @@ describe('Drive Operations', () => {
       })
       createdSandboxes.push(sandboxName)
 
-      await sandbox.drive.mount({
+      await sandbox.drives.mount({
         driveName,
         mountPath: "/mnt/files",
       })
@@ -611,7 +611,7 @@ describe('Drive Operations', () => {
       })
       createdSandboxes.push(sandboxName)
 
-      await sandbox.drive.mount({
+      await sandbox.drives.mount({
         driveName,
         mountPath: "/mnt/fs",
       })

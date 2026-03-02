@@ -20,7 +20,7 @@ export class SandboxInstance {
   sessions: SandboxSessions;
   codegen: SandboxCodegen;
   system: SandboxSystem;
-  drive: SandboxDrive;
+  drives: SandboxDrive;
 
   constructor(private sandbox: SandboxConfiguration) {
     this.process = new SandboxProcess(sandbox);
@@ -30,7 +30,7 @@ export class SandboxInstance {
     this.sessions = new SandboxSessions(sandbox);
     this.codegen = new SandboxCodegen(sandbox);
     this.system = new SandboxSystem(sandbox);
-    this.drive = new SandboxDrive(sandbox);
+    this.drives = new SandboxDrive(sandbox);
   }
 
   get metadata() {
