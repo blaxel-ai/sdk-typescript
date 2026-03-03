@@ -2,7 +2,7 @@ import { DriveInstance, SandboxInstance } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
 import { defaultImage, defaultLabels, uniqueName, waitForSandboxDeletion } from './helpers.js'
 
-const defaultRegion = process.env.BL_ENV !== 'dev' ? 'us-was-1' : 'eu-dub-1' // Only region for drives right now
+const defaultRegion = process.env.BL_ENV !== 'dev' ? 'us-pdx-1' : 'eu-dub-1' // Only region for drives right now
 
 describe('Drive Operations', () => {
   const createdSandboxes: string[] = []

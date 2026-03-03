@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
  * Environment-aware configuration
  */
 export const env = process.env.BL_ENV || "prod"
-export const defaultRegion = env === "dev" ? "eu-dub-1" : "us-was-1"
+export const defaultRegion = env === "dev" ? "eu-dub-1" : "us-pdx-1"
 export const defaultImage = "blaxel/base-image:latest"
 
 /**
@@ -43,6 +43,28 @@ export async function waitForSandboxDeployed(sandboxName: string, maxAttempts: n
   }
 
   console.warn(`Timeout waiting for ${sandboxName} to be deployed`)
+  return false
+}
+
+/**
+ * Waits for a sandbox to reach TERMINATED status by polling
+ * @param sandboxName The name of the sandbox to wait for
+ * @param maxAttempts Maximum number of attempts to wait (default: 30 seconds)
+ * @returns Promise<boolean> - true if terminated, false if timeout
+ */
+export async function waitForSandboxTerminated(sandboxName: string, maxAttempts: number = 30): Promise<boolean> {
+  let attempts = 0
+
+  while (attempts < maxAttempts) {
+    const sandbox = await SandboxInstance.get(sandboxName)
+    if (sandbox.status === "TERMINATED") {
+      return true
+    }
+    await sleep(1000)
+    attempts++
+  }
+
+  console.warn(`Timeout waiting for ${sandboxName} to be terminated`)
   return false
 }
 
