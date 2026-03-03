@@ -47,28 +47,6 @@ export async function waitForSandboxDeployed(sandboxName: string, maxAttempts: n
 }
 
 /**
- * Waits for a sandbox to reach TERMINATED status by polling
- * @param sandboxName The name of the sandbox to wait for
- * @param maxAttempts Maximum number of attempts to wait (default: 30 seconds)
- * @returns Promise<boolean> - true if terminated, false if timeout
- */
-export async function waitForSandboxTerminated(sandboxName: string, maxAttempts: number = 30): Promise<boolean> {
-  let attempts = 0
-
-  while (attempts < maxAttempts) {
-    const sandbox = await SandboxInstance.get(sandboxName)
-    if (sandbox.status === "TERMINATED") {
-      return true
-    }
-    await sleep(1000)
-    attempts++
-  }
-
-  console.warn(`Timeout waiting for ${sandboxName} to be terminated`)
-  return false
-}
-
-/**
  * Waits for a sandbox deletion to fully complete by polling until the sandbox no longer exists
  * @param sandboxName The name of the sandbox to wait for deletion
  * @param maxAttempts Maximum number of attempts to wait (default: 30 seconds)

@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll } from 'vitest'
 import { SandboxInstance, updateSandbox, Sandbox } from "@blaxel/core"
-import { uniqueName, defaultImage, defaultLabels, sleep, waitForSandboxDeployed, waitForSandboxTerminated, retry } from './helpers.js'
+import { uniqueName, defaultImage, defaultLabels, sleep, waitForSandboxDeployed, retry } from './helpers.js'
 
 describe('Sandbox Lifecycle and Expiration', () => {
   const createdSandboxes: string[] = []
@@ -36,9 +36,11 @@ describe('Sandbox Lifecycle and Expiration', () => {
       const written = await firstSandbox.fs.read(testFile)
       expect(written).toBe(testContent)
 
-      // Poll until sandbox reaches TERMINATED status (backend TTL enforcement may have variable latency)
-      const terminated = await waitForSandboxTerminated(name, 30)
-      expect(terminated).toBe(true)
+      // Wait for TTL + buffer
+      await sleep(2000)
+
+      const retrievedSandbox = await SandboxInstance.get(name)
+      expect(retrievedSandbox.status).toBe("TERMINATED")
 
       // Create a new sandbox with the same name
       const secondSandbox = await SandboxInstance.create({name, labels: defaultLabels})
@@ -68,9 +70,11 @@ describe('Sandbox Lifecycle and Expiration', () => {
       const written = await firstSandbox.fs.read(testFile)
       expect(written).toBe(testContent)
 
-      // Poll until sandbox reaches TERMINATED status (backend TTL enforcement may have variable latency)
-      const terminated = await waitForSandboxTerminated(name, 30)
-      expect(terminated).toBe(true)
+      // Wait for expiration + buffer
+      await sleep(2000)
+
+      const retrievedSandbox = await SandboxInstance.get(name)
+      expect(retrievedSandbox.status).toBe("TERMINATED")
 
       // Create a new sandbox with the same name
       const secondSandbox = await SandboxInstance.create({name, labels: defaultLabels})
@@ -102,9 +106,11 @@ describe('Sandbox Lifecycle and Expiration', () => {
       const written = await firstSandbox.fs.read(testFile)
       expect(written).toBe(testContent)
 
-      // Poll until sandbox reaches TERMINATED status (backend TTL enforcement may have variable latency)
-      const terminated = await waitForSandboxTerminated(name, 30)
-      expect(terminated).toBe(true)
+      // Wait for TTL + buffer
+      await sleep(2000)
+
+      const retrievedSandbox = await SandboxInstance.get(name)
+      expect(retrievedSandbox.status).toBe("TERMINATED")
 
       // Create a new sandbox with the same name
       const secondSandbox = await SandboxInstance.create({name, labels: defaultLabels})
@@ -136,9 +142,11 @@ describe('Sandbox Lifecycle and Expiration', () => {
       const written = await firstSandbox.fs.read(testFile)
       expect(written).toBe(testContent)
 
-      // Poll until sandbox reaches TERMINATED status (idle TTL enforcement may have variable latency)
-      const terminated = await waitForSandboxTerminated(name, 30)
-      expect(terminated).toBe(true)
+      // Wait for idle TTL + buffer
+      await sleep(8000)
+
+      const retrievedSandbox = await SandboxInstance.get(name)
+      expect(retrievedSandbox.status).toBe("TERMINATED")
 
       // Create a new sandbox with the same name
       const secondSandbox = await SandboxInstance.create({name, labels: defaultLabels})
@@ -172,9 +180,11 @@ describe('Sandbox Lifecycle and Expiration', () => {
       const written = await firstSandbox.fs.read(testFile)
       expect(written).toBe(testContent)
 
-      // Poll until sandbox reaches TERMINATED status (backend TTL enforcement may have variable latency)
-      const terminated = await waitForSandboxTerminated(name, 30)
-      expect(terminated).toBe(true)
+      // Wait for date expiration + buffer
+      await sleep(2000)
+
+      const retrievedSandbox = await SandboxInstance.get(name)
+      expect(retrievedSandbox.status).toBe("TERMINATED")
 
       // Create a new sandbox with the same name
       const secondSandbox = await SandboxInstance.create({name, labels: defaultLabels})
