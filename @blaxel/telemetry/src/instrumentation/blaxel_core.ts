@@ -149,7 +149,7 @@ function patchMcpServer() {
         handler: ((message: any) => void) | undefined
       ) {
         if (handler) {
-          const tracedHandler = (message: any) => {
+          const tracedHandler = async (message: any) => {
             const messageId = message.id ? String(message.id) : "";
             const [clientId] = messageId.includes(":")
               ? messageId.split(":")
@@ -174,7 +174,7 @@ function patchMcpServer() {
             });
 
             try {
-              handler(message);
+              await Promise.resolve(handler(message));
               span.end();
             } catch (err) {
               span.setStatus("error");
