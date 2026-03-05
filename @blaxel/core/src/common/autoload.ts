@@ -33,26 +33,17 @@ const isBrowser = typeof globalThis !== "undefined" && (globalThis as any)?.wind
 
 if (isNode && !isBrowser) {
   try {
-    const apiHostname = new URL(settings.baseUrl).hostname;
-
-    // Warm API + edge connections via the shared pool
-    import("./h2pool.js").then(({ h2Pool }) => {
-      h2Pool.warm(apiHostname);
-
-      const region = settings.region;
-      if (region) {
-        h2Pool.warm(`any.${region}.bl.run`);
-      }
-
-      // Wire the pool-backed H2 fetch into the control-plane client.
-      // Uses dynamic lookup so the client transparently degrades to
-      // regular fetch if the pool session is unavailable.
-      import("./h2fetch.js").then(({ createPoolBackedH2Fetch }) => {
-        client.setConfig({
-          fetch: createPoolBackedH2Fetch(h2Pool, apiHostname),
-        });
+    // Pre-warm edge H2 for the configured region so the first
+    // SandboxInstance.create() gets an instant session via the pool.
+    // The control-plane client (api.blaxel.ai) stays on regular fetch
+    // which already benefits from undici's built-in connection pooling.
+    const region = settings.region;
+    if (region) {
+      import("./h2pool.js").then(({ h2Pool }) => {
+        const edgeSuffix = settings.env === "prod" ? "bl.run" : "runv2.blaxel.dev";
+        h2Pool.warm(`any.${region}.${edgeSuffix}`);
       }).catch(() => {});
-    }).catch(() => {});
+    }
   } catch {
     // Silently ignore warming failures
   }

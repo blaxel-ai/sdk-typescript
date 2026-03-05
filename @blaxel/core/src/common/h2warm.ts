@@ -21,6 +21,10 @@ export async function establishH2(sniHostname: string): Promise<http2.ClientHttp
     session.on("error", reject);
   });
 
+  // Complete the SETTINGS exchange so the first real request has zero
+  // protocol overhead. This RTT is hidden by the parallel createSandbox() call.
+  await new Promise<void>((resolve) => session.ping(() => resolve()));
+
   // Unref so the session doesn't prevent process exit
   session.unref();
 

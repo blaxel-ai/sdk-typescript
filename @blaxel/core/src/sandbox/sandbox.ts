@@ -146,7 +146,8 @@ export class SandboxInstance {
     sandbox.spec.runtime.image = sandbox.spec.runtime.image || defaultImage;
     sandbox.spec.runtime.memory = sandbox.spec.runtime.memory || defaultMemory;
 
-    const edgeDomain = sandbox.spec?.region ? `any.${sandbox.spec.region}.bl.run` : null;
+    const edgeSuffix = settings.env === "prod" ? "bl.run" : "runv2.blaxel.dev";
+    const edgeDomain = sandbox.spec?.region ? `any.${sandbox.spec.region}.${edgeSuffix}` : null;
 
     // Kick off warming so h2Pool.get() can join it during the API call
     if (edgeDomain) h2Pool.warm(edgeDomain);
