@@ -3,9 +3,6 @@ import http2 from "http2";
 import tls from "tls";
 
 export async function establishH2(sniHostname: string): Promise<http2.ClientHttp2Session> {
-  const { address } = await dns.lookup(sniHostname);
-
-export async function establishH2(sniHostname: string): Promise<http2.ClientHttp2Session> {
   const timeout = new Promise<never>((_, reject) =>
     setTimeout(() => reject(new Error("H2 warm-up timed out")), 5000)
   );
