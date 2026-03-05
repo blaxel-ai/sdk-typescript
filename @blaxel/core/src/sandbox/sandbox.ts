@@ -192,6 +192,10 @@ export class SandboxInstance {
   }
 
   async delete() {
+    if (this.h2Session) {
+      this.h2Session.close();
+      this.h2Session = null;
+    }
     return await SandboxInstance.delete(this.metadata.name!);
   }
 

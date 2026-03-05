@@ -65,4 +65,11 @@ export function authenticate() {
   return settings.authenticate();
 }
 
+export function closeApiH2Session() {
+  if (apiH2Session) {
+    apiH2Session.close();
+    apiH2Session = null;
+  }
+}
+
 export { apiH2Session, apiH2WarmingPromise };
