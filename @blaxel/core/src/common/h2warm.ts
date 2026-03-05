@@ -11,7 +11,10 @@ export async function establishH2(sniHostname: string): Promise<http2.ClientHttp
         host: address,
         port: 443,
         servername: sniHostname,
-        rejectUnauthorized: false,
+      tls.connect({
+        host: address,
+        port: 443,
+        servername: sniHostname,
         ALPNProtocols: ["h2"],
       }),
   });
