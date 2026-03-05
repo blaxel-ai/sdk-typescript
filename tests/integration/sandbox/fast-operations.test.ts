@@ -54,6 +54,7 @@ describe('Fast Sandbox Operations', () => {
         image: defaultImage,
         labels: defaultLabels,
       })
+      await sandbox.wait()
       const createTime = Date.now() - createStart
 
       const execStart = Date.now()
