@@ -5,12 +5,18 @@ import tls from "tls";
 export async function establishH2(sniHostname: string): Promise<http2.ClientHttp2Session> {
   const { address } = await dns.lookup(sniHostname);
 
+export async function establishH2(sniHostname: string): Promise<http2.ClientHttp2Session> {
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error("H2 warm-up timed out")), 5000)
+  );
+  return Promise.race([_establishH2(sniHostname), timeout]);
+}
+
+async function _establishH2(sniHostname: string): Promise<http2.ClientHttp2Session> {
+  const { address } = await dns.lookup(sniHostname);
+
   const session = http2.connect(`https://${sniHostname}:443`, {
     createConnection: () =>
-      tls.connect({
-        host: address,
-        port: 443,
-        servername: sniHostname,
       tls.connect({
         host: address,
         port: 443,
