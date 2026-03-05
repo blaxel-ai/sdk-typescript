@@ -107,8 +107,7 @@ export class SandboxFileSystem extends SandboxAction {
       url = `${this.forcedUrl.toString()}/filesystem/${path}`;
     }
 
-    // Make the request using fetch instead of axios for better FormData handling
-    const response = await fetch(url, {
+    const response = await this.h2Fetch(url, {
       method: 'PUT',
       headers: {
         ...settings.headers,

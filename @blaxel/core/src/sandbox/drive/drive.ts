@@ -49,7 +49,7 @@ export class SandboxDrive extends SandboxAction {
       drivePath: request.drivePath || "/",
     };
 
-    const response = await fetch(`${this.url}/drives/mount`, {
+    const response = await this.h2Fetch(`${this.url}/drives/mount`, {
       method: 'POST',
       headers: {
         ...headers,
@@ -78,7 +78,7 @@ export class SandboxDrive extends SandboxAction {
     // Remove leading slash for URL (DELETE /drives/mnt/test not /drives//mnt/test)
     const urlPath = normalizedPath.substring(1);
 
-    const response = await fetch(`${this.url}/drives/mount/${urlPath}`, {
+    const response = await this.h2Fetch(`${this.url}/drives/mount/${urlPath}`, {
       method: 'DELETE',
       headers,
     });
@@ -97,7 +97,7 @@ export class SandboxDrive extends SandboxAction {
   async list(): Promise<DriveMountInfo[]> {
     const headers = this.sandbox.forceUrl ? this.sandbox.headers : settings.headers;
 
-    const response = await fetch(`${this.url}/drives/mount`, {
+    const response = await this.h2Fetch(`${this.url}/drives/mount`, {
       method: 'GET',
       headers,
     });

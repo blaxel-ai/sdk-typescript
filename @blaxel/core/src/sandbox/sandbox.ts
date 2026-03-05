@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { createSandbox, deleteSandbox, getSandbox, listSandboxes, SandboxLifecycle, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
+import { h2Pool } from "../common/h2pool.js";
 import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
 import { SandboxCodegen } from "./codegen/index.js";
@@ -147,14 +148,19 @@ export class SandboxInstance {
 
     const edgeDomain = sandbox.spec?.region ? `any.${sandbox.spec.region}.bl.run` : null;
 
+    // Kick off warming so h2Pool.get() can join it during the API call
+    if (edgeDomain) h2Pool.warm(edgeDomain);
+
     const [{ data }, h2Session] = await Promise.all([
       createSandbox({
         body: sandbox,
         throwOnError: true,
       }),
-      edgeDomain ? import("../common/h2warm.js").then(({ establishH2 }) => establishH2(edgeDomain)).catch(() => null) : Promise.resolve(null),
+      edgeDomain ? h2Pool.get(edgeDomain) : Promise.resolve(null),
     ]);
-    const instance = new SandboxInstance(data);
+    // Inject the H2 session into the config so subsystems can use it
+    const config = { ...data, h2Session } as SandboxConfiguration;
+    const instance = new SandboxInstance(config);
     instance.h2Session = h2Session;
     // TODO remove this part once we have a better way to handle this
     if (safe) {
@@ -191,10 +197,8 @@ export class SandboxInstance {
   }
 
   async delete() {
-    if (this.h2Session) {
-      this.h2Session.close();
-      this.h2Session = null;
-    }
+    // Don't close the H2 session — it's shared via h2Pool
+    this.h2Session = null;
     return await SandboxInstance.delete(this.metadata.name!);
   }
 

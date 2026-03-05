@@ -21,9 +21,6 @@ export async function establishH2(sniHostname: string): Promise<http2.ClientHttp
     session.on("error", reject);
   });
 
-  // Ping to fully warm the connection
-  await new Promise<void>((resolve) => session.ping(() => resolve()));
-
   // Unref so the session doesn't prevent process exit
   session.unref();
 

@@ -1,3 +1,4 @@
+import type http2 from "http2";
 import { Port, Sandbox, SandboxLifecycle, VolumeAttachment, SandboxNetwork } from "../client/types.gen";
 import { PostProcessResponse, ProcessRequest } from "./client";
 
@@ -29,6 +30,7 @@ export type SandboxConfiguration = {
   forceUrl?: string;
   headers?: Record<string, string>;
   params?: Record<string, string>;
+  h2Session?: http2.ClientHttp2Session | null;
 } & Sandbox;
 
 export type SandboxUpdateMetadata = {

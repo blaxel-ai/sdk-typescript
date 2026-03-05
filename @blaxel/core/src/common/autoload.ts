@@ -26,25 +26,33 @@ for (const interceptor of responseInterceptors) {
 // Initialize Sentry for SDK error tracking immediately when module loads
 initSentry();
 
-// Background H2 connection warming for the API endpoint (Node.js only)
+// Background H2 connection warming (Node.js only)
 const isNode = typeof process !== "undefined" && process.versions != null && process.versions.node != null;
 /* eslint-disable */
 const isBrowser = typeof globalThis !== "undefined" && (globalThis as any)?.window !== undefined;
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-let apiH2Session: any = null;
-let apiH2WarmingPromise: Promise<any> = Promise.resolve(null);
-
 if (isNode && !isBrowser) {
   try {
-    const apiUrl = new URL(settings.baseUrl);
-    const hostname = apiUrl.hostname;
-    apiH2WarmingPromise = import("./h2warm.js").then(({ establishH2 }) =>
-      establishH2(hostname)
-    ).then((session) => {
-      apiH2Session = session;
-      return session;
-    }).catch(() => null);
+    const apiHostname = new URL(settings.baseUrl).hostname;
+
+    // Warm API + edge connections via the shared pool
+    import("./h2pool.js").then(({ h2Pool }) => {
+      h2Pool.warm(apiHostname);
+
+      const region = settings.region;
+      if (region) {
+        h2Pool.warm(`any.${region}.bl.run`);
+      }
+
+      // Wire the pool-backed H2 fetch into the control-plane client.
+      // Uses dynamic lookup so the client transparently degrades to
+      // regular fetch if the pool session is unavailable.
+      import("./h2fetch.js").then(({ createPoolBackedH2Fetch }) => {
+        client.setConfig({
+          fetch: createPoolBackedH2Fetch(h2Pool, apiHostname),
+        });
+      }).catch(() => {});
+    }).catch(() => {});
   } catch {
     // Silently ignore warming failures
   }
@@ -65,11 +73,11 @@ export function authenticate() {
   return settings.authenticate();
 }
 
-export function closeApiH2Session() {
-  if (apiH2Session) {
-    apiH2Session.close();
-    apiH2Session = null;
-  }
+/**
+ * Close all pooled H2 connections. Call this for explicit cleanup
+ * (e.g. in test teardown or before process exit).
+ */
+export async function closeConnections() {
+  const { h2Pool } = await import("./h2pool.js");
+  h2Pool.closeAll();
 }
-
-export { apiH2Session, apiH2WarmingPromise };
