@@ -1,3 +1,6 @@
+import dns from "dns/promises";
+import http2 from "http2";
+import tls from "tls";
 import { v4 as uuidv4 } from "uuid";
 import { createSandbox, deleteSandbox, getSandbox, listSandboxes, SandboxLifecycle, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
@@ -12,6 +15,31 @@ import { SandboxSessions } from "./session.js";
 import { SandboxSystem } from "./system.js";
 import { normalizeEnvs, normalizePorts, normalizeVolumes, SandboxConfiguration, SandboxCreateConfiguration, SandboxUpdateMetadata, SessionWithToken } from "./types.js";
 
+async function establishH2(sniHostname: string): Promise<http2.ClientHttp2Session> {
+  const { address } = await dns.lookup(sniHostname);
+
+  const session = http2.connect(`https://${sniHostname}:443`, {
+    createConnection: () =>
+      tls.connect({
+        host: address,
+        port: 443,
+        servername: sniHostname,
+        rejectUnauthorized: false,
+        ALPNProtocols: ["h2"],
+      }),
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    session.on("connect", resolve);
+    session.on("error", reject);
+  });
+
+  // Ping to fully warm the connection
+  await new Promise<void>((resolve) => session.ping(() => resolve()));
+
+  return session;
+}
+
 export class SandboxInstance {
   fs: SandboxFileSystem;
   network: SandboxNetwork;
@@ -21,6 +49,7 @@ export class SandboxInstance {
   codegen: SandboxCodegen;
   system: SandboxSystem;
   drives: SandboxDrive;
+  h2Session: http2.ClientHttp2Session | null;
 
   constructor(private sandbox: SandboxConfiguration) {
     this.process = new SandboxProcess(sandbox);
@@ -31,6 +60,7 @@ export class SandboxInstance {
     this.codegen = new SandboxCodegen(sandbox);
     this.system = new SandboxSystem(sandbox);
     this.drives = new SandboxDrive(sandbox);
+    this.h2Session = null;
   }
 
   get metadata() {
@@ -142,11 +172,17 @@ export class SandboxInstance {
     sandbox.spec.runtime.image = sandbox.spec.runtime.image || defaultImage;
     sandbox.spec.runtime.memory = sandbox.spec.runtime.memory || defaultMemory;
 
-    const { data } = await createSandbox({
-      body: sandbox,
-      throwOnError: true,
-    });
+    const edgeDomain = sandbox.spec?.region ? `any.${sandbox.spec.region}.bl.run` : null;
+
+    const [{ data }, h2Session] = await Promise.all([
+      createSandbox({
+        body: sandbox,
+        throwOnError: true,
+      }),
+      edgeDomain ? establishH2(edgeDomain) : Promise.resolve(null),
+    ]);
     const instance = new SandboxInstance(data);
+    instance.h2Session = h2Session;
     // TODO remove this part once we have a better way to handle this
     if (safe) {
       try {
