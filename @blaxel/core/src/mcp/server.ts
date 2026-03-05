@@ -3,8 +3,6 @@ import { v4 as uuidv4 } from "uuid";
 import WebSocket, { WebSocketServer } from "ws";
 import { env } from "../common/env.js";
 import { logger } from "../common/logger.js";
-import { BlaxelSpan, startSpan } from "../telemetry/telemetry.js";
-const spans = new Map<string, BlaxelSpan>();
 
 interface JSONRPCMessage {
   jsonrpc: "2.0";
@@ -53,26 +51,9 @@ export class BlaxelMcpServerTransport implements Transport {
       this.onconnection?.(clientId);
 
       ws.on("message", (data: Buffer) => {
-        const span = startSpan("message", {
-          attributes: {
-            "mcp.client.id": clientId,
-            "span.type": "mcp.message",
-          },
-          isRoot: false,
-        });
-
         try {
           const msg = JSON.parse(data.toString()) as JSONRPCMessage;
           this.messageHandler?.(msg, clientId);
-          if ("method" in msg && "id" in msg && "params" in msg) {
-            span.setAttributes({
-              "mcp.message.parsed": true,
-              "mcp.method": msg.method as string,
-              "mcp.messageId": msg.id as string,
-              "mcp.toolName": msg.params?.name as string,
-            });
-            spans.set(clientId + ":" + msg.id, span);
-          }
 
           // Handle msg.id safely
           const msgId = msg.id ? String(msg.id) : "";
@@ -82,40 +63,19 @@ export class BlaxelMcpServerTransport implements Transport {
           // Use optional chaining for safe access
           const client = this.clients.get(cId ?? "");
           if (client?.ws?.readyState === WebSocket.OPEN) {
-            const msgSpan = spans.get(cId + ":" + (msg.id ?? ""));
-            try {
-              client.ws.send(JSON.stringify(msg));
-              if (msgSpan) {
-                msgSpan.setAttributes({
-                  "mcp.message.response_sent": true,
-                });
-              }
-            } catch (err) {
-              if (msgSpan) {
-                msgSpan.setStatus("error"); // Error status
-                msgSpan.recordException(err as Error);
-              }
-              throw err;
-            } finally {
-              if (msgSpan) {
-                msgSpan.end();
-              }
-            }
+            client.ws.send(JSON.stringify(msg));
           } else {
             this.clients.delete(cId);
             this.ondisconnection?.(cId);
           }
         } catch (err: unknown) {
           if (err instanceof Error) {
-            span.setStatus("error"); // Error status
-            span.recordException(err);
             this.onerror?.(err);
           } else {
             this.onerror?.(
               new Error(`Failed to parse message: ${String(err)}`)
             );
           }
-          span.end();
         }
       });
 
@@ -141,26 +101,7 @@ export class BlaxelMcpServerTransport implements Transport {
       // Send to specific client
       const client = this.clients.get(cId);
       if (client?.ws?.readyState === WebSocket.OPEN) {
-        const msgSpan = spans.get(cId + ":" + msg.id);
-
-        try {
-          client.ws.send(data);
-          if (msgSpan) {
-            msgSpan.setAttributes({
-              "mcp.message.response_sent": true,
-            });
-          }
-        } catch (err) {
-          if (msgSpan) {
-            msgSpan.setStatus("error"); // Error status
-            msgSpan.recordException(err as Error);
-          }
-          throw err;
-        } finally {
-          if (msgSpan) {
-            msgSpan.end();
-          }
-        }
+        client.ws.send(data);
       } else {
         this.clients.delete(cId);
         this.ondisconnection?.(cId);

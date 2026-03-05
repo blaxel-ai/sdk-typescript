@@ -6,7 +6,6 @@ import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
 import { authenticate, SandboxInstance } from "../index.js";
 import { BlaxelMcpClientTransport } from "../mcp/client.js";
-import { startSpan } from "../telemetry/telemetry.js";
 import { Tool } from "./types.js";
 import { FunctionSchema, schemaToZodSchema } from "./zodSchema.js";
 
@@ -162,90 +161,53 @@ export class McpTool {
   }
 
   async listTools(): Promise<Tool[]> {
-    const span = startSpan(this.name, {
-      attributes: {
-        "span.type": "tool.list",
-      },
-    });
-    try {
-      logger.debug(`MCP:${this.name}:Listing tools`);
-      await this.start();
-      const { tools } = (await this.client.listTools()) as {
-        tools: Array<{
-          name: string;
-          description: string;
-          inputSchema: FunctionSchema;
-        }>;
+    logger.debug(`MCP:${this.name}:Listing tools`);
+    await this.start();
+    const { tools } = (await this.client.listTools()) as {
+      tools: Array<{
+        name: string;
+        description: string;
+        inputSchema: FunctionSchema;
+      }>;
+    };
+    await this.close();
+    const result = tools.map((tool) => {
+      return {
+        name: tool.name,
+        description: tool.description,
+        inputSchema: schemaToZodSchema(tool.inputSchema),
+        originalSchema: tool.inputSchema,
+        call: (input: Record<string, unknown> | undefined) => {
+          return this.call(tool.name, input);
+        },
       };
-      await this.close();
-      const result = tools.map((tool) => {
-        return {
-          name: tool.name,
-          description: tool.description,
-          inputSchema: schemaToZodSchema(tool.inputSchema),
-          originalSchema: tool.inputSchema,
-          call: (input: Record<string, unknown> | undefined) => {
-            return this.call(tool.name, input);
-          },
-        };
-      });
-      span.setAttribute("tool.list.result", JSON.stringify(result));
-      return result;
-    } catch (err) {
-      span.setStatus("error");
-      span.recordException(err as Error);
-      throw err;
-    } finally {
-      span.end();
-    }
+    });
+    return result;
   }
 
   async call(toolName: string, args: Record<string, unknown> | undefined): Promise<unknown> {
-    const span = startSpan(this.name + "." + toolName, {
-      attributes: {
-        "span.type": "tool.call",
-        "tool.name": toolName,
-        "tool.args": JSON.stringify(args),
-      },
+    logger.debug(
+      `MCP:${this.name}:Tool calling`,
+      toolName,
+      JSON.stringify(args)
+    );
+    logger.debug(`MCP:${this.name}:Tool calling:start`);
+    await this.start();
+    logger.debug(`MCP:${this.name}:Tool calling:start2`);
+    const result = await this.client.callTool({
+      name: toolName,
+      arguments: args,
+      _meta: this.meta
     });
-    try {
-      logger.debug(
-        `MCP:${this.name}:Tool calling`,
-        toolName,
-        JSON.stringify(args)
-      );
-      logger.debug(`MCP:${this.name}:Tool calling:start`);
-      await this.start();
-      logger.debug(`MCP:${this.name}:Tool calling:start2`);
-      const result = await this.client.callTool({
-        name: toolName,
-        arguments: args,
-        _meta: this.meta
-      });
-      logger.debug(`MCP:${this.name}:Tool calling:result`);
-      await this.close();
-      logger.debug(
-        `MCP:${this.name}:Tool result`,
-        toolName,
-        JSON.stringify(args),
-        // result
-      );
-      span.setAttribute("tool.call.result", JSON.stringify(result));
-      return result;
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        logger.error(`MCP tool call failed: ${err.message}`, {
-          error: err.message,
-          stack: err.stack,
-          mcpName: this.name,
-          toolName,
-          args: JSON.stringify(args)
-        });
-      }
-      throw err;
-    } finally {
-      span.end();
-    }
+    logger.debug(`MCP:${this.name}:Tool calling:result`);
+    await this.close();
+    logger.debug(
+      `MCP:${this.name}:Tool result`,
+      toolName,
+      JSON.stringify(args),
+      // result
+    );
+    return result;
   }
 
   async getTransport(forcedUrl?: URL): Promise<BlaxelMcpClientTransport | StreamableHTTPClientTransport> {
