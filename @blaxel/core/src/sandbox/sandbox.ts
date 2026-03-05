@@ -1,8 +1,7 @@
-import dns from "dns/promises";
 import http2 from "http2";
-import tls from "tls";
 import { v4 as uuidv4 } from "uuid";
 import { createSandbox, deleteSandbox, getSandbox, listSandboxes, SandboxLifecycle, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
+import { establishH2 } from "../common/h2warm.js";
 import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
 import { SandboxCodegen } from "./codegen/index.js";
@@ -14,31 +13,6 @@ import { SandboxProcess } from "./process/index.js";
 import { SandboxSessions } from "./session.js";
 import { SandboxSystem } from "./system.js";
 import { normalizeEnvs, normalizePorts, normalizeVolumes, SandboxConfiguration, SandboxCreateConfiguration, SandboxUpdateMetadata, SessionWithToken } from "./types.js";
-
-async function establishH2(sniHostname: string): Promise<http2.ClientHttp2Session> {
-  const { address } = await dns.lookup(sniHostname);
-
-  const session = http2.connect(`https://${sniHostname}:443`, {
-    createConnection: () =>
-      tls.connect({
-        host: address,
-        port: 443,
-        servername: sniHostname,
-        rejectUnauthorized: false,
-        ALPNProtocols: ["h2"],
-      }),
-  });
-
-  await new Promise<void>((resolve, reject) => {
-    session.on("connect", resolve);
-    session.on("error", reject);
-  });
-
-  // Ping to fully warm the connection
-  await new Promise<void>((resolve) => session.ping(() => resolve()));
-
-  return session;
-}
 
 export class SandboxInstance {
   fs: SandboxFileSystem;
