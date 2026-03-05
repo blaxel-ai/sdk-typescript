@@ -84,8 +84,12 @@ export function h2RequestDirect(
       body = Buffer.from(init.body);
     } else if (init.body instanceof Uint8Array) {
       body = Buffer.from(init.body.buffer, init.body.byteOffset, init.body.byteLength);
+    } else {
+      // FormData, ReadableStream, Blob, etc. can't be serialized to Buffer
+      // for manual H2 framing — fall back to regular fetch.
+      return globalThis.fetch(url, init);
     }
-    if (body && !h2Headers["content-length"]) {
+    if (!h2Headers["content-length"]) {
       h2Headers["content-length"] = body.byteLength;
     }
   }
