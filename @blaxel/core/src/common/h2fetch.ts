@@ -162,6 +162,7 @@ function _h2Send(
           reject(new DOMException("The operation was aborted.", "AbortError"));
         }
       }, { once: true });
+    }
 
     let settled = false;
 
