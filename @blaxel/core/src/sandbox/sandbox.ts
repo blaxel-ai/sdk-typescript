@@ -153,7 +153,7 @@ export class SandboxInstance {
         body: sandbox,
         throwOnError: true,
       }),
-      edgeDomain ? establishH2(edgeDomain) : Promise.resolve(null),
+      edgeDomain ? establishH2(edgeDomain).catch(() => null) : Promise.resolve(null),
     ]);
     const instance = new SandboxInstance(data);
     instance.h2Session = h2Session;
