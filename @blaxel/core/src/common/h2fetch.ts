@@ -157,8 +157,11 @@ function _h2Send(
       signal.addEventListener("abort", () => {
         clearTimeout(timer);
         req.close();
+        if (!settled) {
+          settled = true;
+          reject(new DOMException("The operation was aborted.", "AbortError"));
+        }
       }, { once: true });
-    }
 
     let settled = false;
 
