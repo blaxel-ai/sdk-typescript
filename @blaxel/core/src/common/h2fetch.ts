@@ -191,6 +191,7 @@ function _h2Send(
             req.on("end", () => controller.close());
             req.on("error", (err) => controller.error(err));
             signal?.addEventListener("abort", () => {
+              req.close();
               controller.error(new DOMException("The operation was aborted.", "AbortError"));
             }, { once: true });
           },
