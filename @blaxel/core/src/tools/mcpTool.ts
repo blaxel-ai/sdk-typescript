@@ -186,28 +186,41 @@ export class McpTool {
   }
 
   async call(toolName: string, args: Record<string, unknown> | undefined): Promise<unknown> {
-    logger.debug(
-      `MCP:${this.name}:Tool calling`,
-      toolName,
-      JSON.stringify(args)
-    );
-    logger.debug(`MCP:${this.name}:Tool calling:start`);
-    await this.start();
-    logger.debug(`MCP:${this.name}:Tool calling:start2`);
-    const result = await this.client.callTool({
-      name: toolName,
-      arguments: args,
-      _meta: this.meta
-    });
-    logger.debug(`MCP:${this.name}:Tool calling:result`);
-    await this.close();
-    logger.debug(
-      `MCP:${this.name}:Tool result`,
-      toolName,
-      JSON.stringify(args),
-      // result
-    );
-    return result;
+    try {
+      logger.debug(
+        `MCP:${this.name}:Tool calling`,
+        toolName,
+        JSON.stringify(args)
+      );
+      logger.debug(`MCP:${this.name}:Tool calling:start`);
+      await this.start();
+      logger.debug(`MCP:${this.name}:Tool calling:start2`);
+      const result = await this.client.callTool({
+        name: toolName,
+        arguments: args,
+        _meta: this.meta
+      });
+      logger.debug(`MCP:${this.name}:Tool calling:result`);
+      await this.close();
+      logger.debug(
+        `MCP:${this.name}:Tool result`,
+        toolName,
+        JSON.stringify(args),
+        // result
+      );
+      return result;
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        logger.error(`MCP tool call failed: ${err.message}`, {
+          error: err.message,
+          stack: err.stack,
+          mcpName: this.name,
+          toolName,
+          args: JSON.stringify(args)
+        });
+      }
+      throw err;
+    }
   }
 
   async getTransport(forcedUrl?: URL): Promise<BlaxelMcpClientTransport | StreamableHTTPClientTransport> {
