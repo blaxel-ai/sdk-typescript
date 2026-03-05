@@ -1,4 +1,3 @@
-import http2 from "http2";
 import { client } from "../client/client.gen.js";
 import { interceptors } from "../client/interceptors.js";
 import { responseInterceptors } from "../client/responseInterceptor.js";
@@ -32,8 +31,9 @@ const isNode = typeof process !== "undefined" && process.versions != null && pro
 /* eslint-disable */
 const isBrowser = typeof globalThis !== "undefined" && (globalThis as any)?.window !== undefined;
 
-let apiH2Session: http2.ClientHttp2Session | null = null;
-let apiH2WarmingPromise: Promise<http2.ClientHttp2Session | null> = Promise.resolve(null);
+/* eslint-disable @typescript-eslint/no-explicit-any */
+let apiH2Session: any = null;
+let apiH2WarmingPromise: Promise<any> = Promise.resolve(null);
 
 if (isNode && !isBrowser) {
   try {

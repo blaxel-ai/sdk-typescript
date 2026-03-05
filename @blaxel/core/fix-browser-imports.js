@@ -63,6 +63,23 @@ function replaceNodeWithBrowser(buildDir) {
   }
 }
 
+function replaceH2WarmWithStub(buildDir) {
+  // Replace h2warm.js with a no-op stub in browser builds
+  // h2warm.ts uses Node.js-only modules (http2, tls, dns/promises)
+  const h2warmPath = path.join(buildDir, 'common', 'h2warm.js');
+  const h2warmTypesPath = path.join(buildDir, 'common', 'h2warm.d.ts');
+
+  if (fs.existsSync(h2warmPath)) {
+    fs.writeFileSync(h2warmPath, `// Browser stub - H2 warming is Node.js only\nexport async function establishH2(sniHostname) { return null; }\n`);
+    console.log(`  ✅ Replaced h2warm.js with browser stub`);
+  }
+
+  if (fs.existsSync(h2warmTypesPath)) {
+    fs.writeFileSync(h2warmTypesPath, `export declare function establishH2(sniHostname: string): Promise<null>;\n`);
+    console.log(`  ✅ Replaced h2warm.d.ts with browser stub`);
+  }
+}
+
 function replaceImageWithBrowser(buildDir) {
   // File paths for both image and image.browser files
   const imagePath = path.join(buildDir, 'image', 'image.js');
@@ -119,6 +136,9 @@ builds.forEach(buildDir => {
 
     // Replace image.js with image.browser.js content (removes archiver dependency)
     replaceImageWithBrowser(buildDir);
+
+    // Replace h2warm.js with no-op stub (uses Node.js-only http2/tls/dns modules)
+    replaceH2WarmWithStub(buildDir);
 
     // Note: We don't need to fix imports since node.js now contains browser.js content
     // sentry.ts now handles both Node.js and browser environments with fetch

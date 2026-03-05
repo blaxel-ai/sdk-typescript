@@ -1,7 +1,5 @@
-import http2 from "http2";
 import { v4 as uuidv4 } from "uuid";
 import { createSandbox, deleteSandbox, getSandbox, listSandboxes, SandboxLifecycle, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
-import { establishH2 } from "../common/h2warm.js";
 import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
 import { SandboxCodegen } from "./codegen/index.js";
@@ -23,7 +21,8 @@ export class SandboxInstance {
   codegen: SandboxCodegen;
   system: SandboxSystem;
   drives: SandboxDrive;
-  h2Session: http2.ClientHttp2Session | null;
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  h2Session: any;
 
   constructor(private sandbox: SandboxConfiguration) {
     this.process = new SandboxProcess(sandbox);
@@ -153,7 +152,7 @@ export class SandboxInstance {
         body: sandbox,
         throwOnError: true,
       }),
-      edgeDomain ? establishH2(edgeDomain).catch(() => null) : Promise.resolve(null),
+      edgeDomain ? import("../common/h2warm.js").then(({ establishH2 }) => establishH2(edgeDomain)).catch(() => null) : Promise.resolve(null),
     ]);
     const instance = new SandboxInstance(data);
     instance.h2Session = h2Session;
