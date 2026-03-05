@@ -1,6 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
 import { createSandbox, deleteSandbox, getSandbox, listSandboxes, SandboxLifecycle, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
-import { h2Pool } from "../common/h2pool.js";
 import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
 import { SandboxCodegen } from "./codegen/index.js";
@@ -150,14 +149,16 @@ export class SandboxInstance {
     const edgeDomain = sandbox.spec?.region ? `any.${sandbox.spec.region}.${edgeSuffix}` : null;
 
     // Kick off warming so h2Pool.get() can join it during the API call
-    if (edgeDomain) h2Pool.warm(edgeDomain);
+    if (edgeDomain) {
+      import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.warm(edgeDomain)).catch(() => {});
+    }
 
     const [{ data }, h2Session] = await Promise.all([
       createSandbox({
         body: sandbox,
         throwOnError: true,
       }),
-      edgeDomain ? h2Pool.get(edgeDomain) : Promise.resolve(null),
+      edgeDomain ? import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.get(edgeDomain)).catch(() => null) : Promise.resolve(null),
     ]);
     // Inject the H2 session into the config so subsystems can use it
     const config = { ...data, h2Session } as SandboxConfiguration;
