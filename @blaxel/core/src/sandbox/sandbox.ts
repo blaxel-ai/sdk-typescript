@@ -56,6 +56,26 @@ export class SandboxInstance {
     return this.sandbox.lastUsedAt;
   }
 
+  /**
+   * Warm and attach an H2 session based on the sandbox's region.
+   * Shared by create(), get(), list(), and update helpers.
+   */
+  private static async attachH2Session(instance: SandboxInstance): Promise<SandboxInstance> {
+    const region = instance.spec?.region;
+    if (!region) return instance;
+    const edgeSuffix = settings.env === "prod" ? "bl.run" : "runv2.blaxel.dev";
+    const edgeDomain = `any.${region}.${edgeSuffix}`;
+    try {
+      const { h2Pool } = await import("../common/h2pool.js");
+      const h2Session = await h2Pool.get(edgeDomain);
+      instance.h2Session = h2Session;
+      instance.sandbox.h2Session = h2Session;
+    } catch {
+      // H2 warming is best-effort; fall back to regular fetch
+    }
+    return instance;
+  }
+
   get expiresIn() {
     return this.sandbox.expiresIn;
   }
@@ -164,6 +184,7 @@ export class SandboxInstance {
     const config = { ...data, h2Session } as SandboxConfiguration;
     const instance = new SandboxInstance(config);
     instance.h2Session = h2Session;
+    // Note: H2 session already attached via Promise.all above, no need for attachH2Session()
     // TODO remove this part once we have a better way to handle this
     if (safe) {
       try {
@@ -180,12 +201,14 @@ export class SandboxInstance {
       },
       throwOnError: true,
     });
-    return new SandboxInstance(data);
+    const instance = new SandboxInstance(data);
+    return SandboxInstance.attachH2Session(instance);
   }
 
   static async list() {
     const { data } = await listSandboxes({throwOnError: true}) as { response: Response; data: SandboxModel[] };
-    return data.map((sandbox) => new SandboxInstance(sandbox));
+    const instances = data.map((sandbox) => new SandboxInstance(sandbox));
+    return Promise.all(instances.map((instance) => SandboxInstance.attachH2Session(instance)));
   }
 
   static async delete(sandboxName: string) {
@@ -213,7 +236,7 @@ export class SandboxInstance {
       throwOnError: true,
     });
     const instance = new SandboxInstance(data);
-    return instance;
+    return SandboxInstance.attachH2Session(instance);
   }
 
   static async updateTtl(sandboxName: string, ttl: string) {
@@ -225,7 +248,7 @@ export class SandboxInstance {
       throwOnError: true,
     });
     const instance = new SandboxInstance(data);
-    return instance;
+    return SandboxInstance.attachH2Session(instance);
   }
 
   static async updateLifecycle(sandboxName: string, lifecycle: SandboxLifecycle) {
@@ -237,7 +260,7 @@ export class SandboxInstance {
       throwOnError: true,
     });
     const instance = new SandboxInstance(data);
-    return instance;
+    return SandboxInstance.attachH2Session(instance);
   }
 
   static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration) {

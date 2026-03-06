@@ -1,4 +1,5 @@
 import { createClient, type Client } from "@hey-api/client-fetch";
+import { interceptors } from "../client/interceptors.js";
 import { responseInterceptors } from "../client/responseInterceptor.js";
 import { createH2Fetch, h2RequestDirect } from "../common/h2fetch.js";
 import { getForcedUrl, getGlobalUniqueHash } from "../common/internal.js";
@@ -61,18 +62,22 @@ export class SandboxAction {
     const session = this.sandbox.h2Session;
     if (session && !session.closed && !session.destroyed) {
       if (!this._h2Client) {
-        // Auth is already resolved by create(). Pre-bake headers to skip
-        // the async interceptor on every request.
         this._h2Client = createClient({
           fetch: createH2Fetch(session),
-          headers: settings.headers,
         });
+        for (const interceptor of interceptors) {
+          // @ts-expect-error - Interceptor is not typed
+          this._h2Client.interceptors.request.use(interceptor);
+        }
         for (const interceptor of responseInterceptors) {
           this._h2Client.interceptors.response.use(interceptor);
         }
       }
       return this._h2Client;
     }
+
+    // Invalidate cached H2 client when session is no longer usable
+    this._h2Client = null;
 
     return defaultClient
   }
