@@ -18,7 +18,7 @@ export class BlaxelMcpServerTransport implements Transport {
 
   onclose?: () => void;
   onerror?: (err: Error) => void;
-  private messageHandler?: (msg: JSONRPCMessage, clientId: string) => void;
+  private messageHandler?: (msg: JSONRPCMessage, clientId: string) => void | Promise<void>;
   onconnection?: (clientId: string) => void;
   ondisconnection?: (clientId: string) => void;
 
@@ -50,10 +50,10 @@ export class BlaxelMcpServerTransport implements Transport {
       });
       this.onconnection?.(clientId);
 
-      ws.on("message", (data: Buffer) => {
+      ws.on("message", async (data: Buffer) => {
         try {
           const msg = JSON.parse(data.toString()) as JSONRPCMessage;
-          this.messageHandler?.(msg, clientId);
+          await this.messageHandler?.(msg, clientId);
 
           // Handle msg.id safely
           const msgId = msg.id ? String(msg.id) : "";

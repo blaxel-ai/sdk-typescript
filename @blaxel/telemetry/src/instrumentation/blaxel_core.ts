@@ -178,6 +178,7 @@ function patchMcpServer() {
             } catch (err) {
               span.setStatus("error");
               span.recordException(err as Error);
+              throw err;
             } finally {
               span.end();
             }
