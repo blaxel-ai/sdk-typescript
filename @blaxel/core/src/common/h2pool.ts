@@ -74,9 +74,14 @@ class H2Pool {
       const session = await pending;
       if (session && !session.closed && !session.destroyed) return session;
     }
-
-    // Start fresh
     // Start fresh, deduplicating concurrent callers via inflight
+    // Re-check: another caller may have started a fresh one while we awaited
+    const existingInflight = this.inflight.get(domain);
+    if (existingInflight) return existingInflight;
+
+    const freshCached = this.tryGet(domain);
+    if (freshCached) return freshCached;
+
     const p = this.establish(domain)
       .then((session) => {
         this.sessions.set(domain, session);
@@ -88,7 +93,6 @@ class H2Pool {
       });
     this.inflight.set(domain, p);
     return p;
-  }
 
   /** Close all sessions (for cleanup). */
   closeAll(): void {
