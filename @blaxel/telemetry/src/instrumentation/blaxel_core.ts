@@ -175,12 +175,11 @@ function patchMcpServer() {
 
             try {
               await Promise.resolve(handler(message));
-              span.end();
             } catch (err) {
               span.setStatus("error");
               span.recordException(err as Error);
+            } finally {
               span.end();
-              throw err;
             }
           };
           origSetter.call(this, tracedHandler);
