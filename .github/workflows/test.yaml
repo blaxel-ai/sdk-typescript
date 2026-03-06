@@ -1,6 +1,7 @@
 name: TS SDK build
 
 on:
+  workflow_dispatch:
   pull_request:
     branches:
       - "main"
