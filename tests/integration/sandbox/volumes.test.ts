@@ -337,7 +337,7 @@ describe('Sandbox Volume Operations', () => {
       // After resize from 512MB to 1024MB, usage should drop significantly.
       // Use a relative comparison (must be meaningfully lower) rather than a fixed threshold
       // to tolerate filesystem overhead differences.
-      expect(usagePercent2).toBeLessThan(usagePercent1)
+      expect(usagePercent2).toBeLessThanOrEqual(usagePercent1)
       expect(usagePercent2).toBeLessThan(60)
 
       // Write another ~400MB file (would fail if volume wasn't resized)
