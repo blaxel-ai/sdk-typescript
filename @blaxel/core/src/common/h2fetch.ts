@@ -127,6 +127,7 @@ async function _h2Request(
     method,
     headers: input.headers,
     body,
+    signal: input.signal,
   });
 }
 
