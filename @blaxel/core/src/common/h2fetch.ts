@@ -183,33 +183,18 @@ function _h2Send(
         resHeaders.set(k, Array.isArray(v) ? v.join(", ") : String(v));
       }
 
-      const ct = resHeaders.get("content-type") ?? "";
-      const isStreaming = ct.includes("text/event-stream") ||
-        ct.includes("application/x-ndjson") ||
-        ct.includes("application/octet-stream");
-
-      if (isStreaming) {
-        const readable = new ReadableStream<Uint8Array>({
-          start(controller) {
-            req.on("data", (chunk: Buffer) => controller.enqueue(new Uint8Array(chunk)));
-            req.on("end", () => controller.close());
-            req.on("error", (err) => controller.error(err));
-            signal?.addEventListener("abort", () => {
-              req.close();
-              controller.error(new DOMException("The operation was aborted.", "AbortError"));
-            }, { once: true });
-          },
-        });
-        resolve(new Response(readable, { status, headers: resHeaders }));
-      } else {
-        // Buffer the entire body — faster for json()/text() callers
-        const chunks: Buffer[] = [];
-        req.on("data", (chunk: Buffer) => chunks.push(chunk));
-        req.on("end", () => {
-          resolve(new Response(Buffer.concat(chunks), { status, headers: resHeaders }));
-        });
-        req.on("error", (err) => reject(err));
-      }
+      const readable = new ReadableStream<Uint8Array>({
+        start(controller) {
+          req.on("data", (chunk: Buffer) => controller.enqueue(new Uint8Array(chunk)));
+          req.on("end", () => controller.close());
+          req.on("error", (err) => controller.error(err));
+          signal?.addEventListener("abort", () => {
+            req.close();
+            controller.error(new DOMException("The operation was aborted.", "AbortError"));
+          }, { once: true });
+        },
+      });
+      resolve(new Response(readable, { status, headers: resHeaders }));
     });
 
     req.on("error", () => {
