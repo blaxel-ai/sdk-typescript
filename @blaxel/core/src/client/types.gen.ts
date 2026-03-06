@@ -439,6 +439,72 @@ export type CustomDomainSpecWritable = {
 };
 
 /**
+ * Drive providing persistent storage that can be attached to agents, functions, and sandboxes. Drives are backed by SeaweedFS buckets and can be mounted at runtime via the sbx API.
+ */
+export type Drive = {
+    events?: CoreEvents;
+    metadata: Metadata;
+    spec: DriveSpec;
+    state?: DriveState;
+    /**
+     * Drive status computed from events
+     */
+    readonly status?: string;
+};
+
+/**
+ * Drive providing persistent storage that can be attached to agents, functions, and sandboxes. Drives are backed by SeaweedFS buckets and can be mounted at runtime via the sbx API.
+ */
+export type DriveWritable = {
+    events?: CoreEventsWritable;
+    metadata: MetadataWritable;
+    spec: DriveSpecWritable;
+    state?: DriveState;
+};
+
+/**
+ * Immutable drive configuration set at creation time
+ */
+export type DriveSpec = {
+    /**
+     * The internal infrastructure resource identifier for this drive (bucket name)
+     */
+    readonly infrastructureId?: string;
+    /**
+     * Deployment region for the drive (e.g., us-pdx-1, eu-lon-1). Must match the region of resources it attaches to.
+     */
+    region?: string;
+    /**
+     * Optional size limit for the drive in GB. If not specified, drive has no size limit.
+     */
+    size?: number;
+};
+
+/**
+ * Immutable drive configuration set at creation time
+ */
+export type DriveSpecWritable = {
+    /**
+     * Deployment region for the drive (e.g., us-pdx-1, eu-lon-1). Must match the region of resources it attaches to.
+     */
+    region?: string;
+    /**
+     * Optional size limit for the drive in GB. If not specified, drive has no size limit.
+     */
+    size?: number;
+};
+
+/**
+ * Current runtime state of the drive
+ */
+export type DriveState = {
+    /**
+     * S3-compatible endpoint URL for accessing drive contents
+     */
+    readonly s3Url?: string;
+};
+
+/**
  * An egress gateway that manages outbound traffic routing within a VPC. Multiple egress IPs can be allocated from a single gateway.
  */
 export type EgressGateway = {
@@ -2367,6 +2433,12 @@ export type PublicIps = {
  */
 export type Region = {
     /**
+     * S3-compatible endpoint URL for drive storage in this region. Use {s3Endpoint}/{bucketName} to access drive contents.
+     */
+    agentDrivePublicUrl?: {
+        [key: string]: unknown;
+    };
+    /**
      * Region display name
      */
     allowed?: string;
@@ -2378,6 +2450,10 @@ export type Region = {
      * Region display name
      */
     country?: string;
+    /**
+     * Drives availability status - indicates if an S3 endpoint is configured for the region
+     */
+    drivesAvailable?: boolean;
     /**
      * Egress availability status - indicates if network plane URL is configured for the region
      */
@@ -3652,6 +3728,199 @@ export type VerifyCustomDomainResponses = {
 };
 
 export type VerifyCustomDomainResponse = VerifyCustomDomainResponses[keyof VerifyCustomDomainResponses];
+
+export type ListDrivesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/drives';
+};
+
+export type ListDrivesErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+};
+
+export type ListDrivesResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<Drive>;
+};
+
+export type ListDrivesResponse = ListDrivesResponses[keyof ListDrivesResponses];
+
+export type CreateDriveData = {
+    body: DriveWritable;
+    path?: never;
+    query?: never;
+    url: '/drives';
+};
+
+export type CreateDriveErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+};
+
+export type CreateDriveResponses = {
+    /**
+     * successful operation
+     */
+    200: Drive;
+};
+
+export type CreateDriveResponse = CreateDriveResponses[keyof CreateDriveResponses];
+
+export type DeleteDriveData = {
+    body?: never;
+    path: {
+        driveName: string;
+    };
+    query?: never;
+    url: '/drives/{driveName}';
+};
+
+export type DeleteDriveErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Drive not found
+     */
+    404: unknown;
+};
+
+export type DeleteDriveResponses = {
+    /**
+     * successful operation
+     */
+    200: {
+        message?: string;
+        name?: string;
+    };
+};
+
+export type DeleteDriveResponse = DeleteDriveResponses[keyof DeleteDriveResponses];
+
+export type GetDriveData = {
+    body?: never;
+    path: {
+        driveName: string;
+    };
+    query?: never;
+    url: '/drives/{driveName}';
+};
+
+export type GetDriveErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Drive not found
+     */
+    404: unknown;
+};
+
+export type GetDriveResponses = {
+    /**
+     * successful operation
+     */
+    200: Drive;
+};
+
+export type GetDriveResponse = GetDriveResponses[keyof GetDriveResponses];
+
+export type UpdateDriveData = {
+    body: DriveWritable;
+    path: {
+        driveName: string;
+    };
+    query?: never;
+    url: '/drives/{driveName}';
+};
+
+export type UpdateDriveErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Drive not found
+     */
+    404: unknown;
+};
+
+export type UpdateDriveResponses = {
+    /**
+     * successful operation
+     */
+    200: Drive;
+};
+
+export type UpdateDriveResponse = UpdateDriveResponses[keyof UpdateDriveResponses];
+
+export type CreateDriveAccessTokenData = {
+    body?: never;
+    path: {
+        driveName: string;
+    };
+    query?: never;
+    url: '/drives/{driveName}/access-token';
+};
+
+export type CreateDriveAccessTokenErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Drives feature not enabled
+     */
+    403: unknown;
+    /**
+     * Drive not found
+     */
+    404: unknown;
+};
+
+export type CreateDriveAccessTokenResponses = {
+    /**
+     * successful operation
+     */
+    200: {
+        access_token?: string;
+        expires_in?: number;
+        token_type?: string;
+    };
+};
+
+export type CreateDriveAccessTokenResponse = CreateDriveAccessTokenResponses[keyof CreateDriveAccessTokenResponses];
+
+export type GetDriveJwksData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/drives/jwks.json';
+};
+
+export type GetDriveJwksResponses = {
+    /**
+     * successful operation
+     */
+    200: {
+        keys?: Array<{
+            [key: string]: unknown;
+        }>;
+    };
+};
+
+export type GetDriveJwksResponse = GetDriveJwksResponses[keyof GetDriveJwksResponses];
 
 export type ListAllEgressGatewaysData = {
     body?: never;

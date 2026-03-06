@@ -4,9 +4,8 @@ import { Agent, getAgent } from "../client/index.js";
 import { getForcedUrl, getGlobalUniqueHash } from "../common/internal.js";
 import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
-import { startSpan } from '../telemetry/telemetry.js';
 
-class BlAgent {
+export class BlAgent {
   agentName: string;
   constructor(agentName: string) {
     this.agentName = agentName;
@@ -37,7 +36,7 @@ class BlAgent {
   }
 
   get forcedUrl() {
-    return getForcedUrl('function', this.agentName)
+    return getForcedUrl('agent', this.agentName)
   }
 
   get url() {
@@ -79,39 +78,22 @@ class BlAgent {
   ): Promise<string> {
     logger.debug(`Agent Calling: ${this.agentName}`);
 
-    const span = startSpan(this.agentName, {
-      attributes: {
-        "agent.name": this.agentName,
-        "agent.args": JSON.stringify(input),
-        "span.type": "agent.run",
-      },
-      isRoot: false,
-    });
-
     try {
       const response = await this.call(this.url, input, headers, params);
-      span.setAttribute("agent.run.result", await response.text());
       return await response.text();
     } catch (err: unknown) {
       if (err instanceof Error) {
         if (!this.fallbackUrl) {
-          span.setAttribute("agent.run.error", err.stack as string);
           throw err;
         }
         try {
           const response = await this.call(this.fallbackUrl, input, headers, params);
-          span.setAttribute("agent.run.result", await response.text());
           return await response.text();
         } catch (err: unknown) {
-          if (err instanceof Error) {
-            span.setAttribute("agent.run.error", err.stack as string);
-          }
           throw err;
         }
       }
       throw err;
-    } finally {
-      span.end();
     }
   }
 }
