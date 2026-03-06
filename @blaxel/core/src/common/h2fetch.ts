@@ -183,14 +183,24 @@ function _h2Send(
         resHeaders.set(k, Array.isArray(v) ? v.join(", ") : String(v));
       }
 
+      let streamClosed = false;
       const readable = new ReadableStream<Uint8Array>({
         start(controller) {
-          req.on("data", (chunk: Buffer) => controller.enqueue(new Uint8Array(chunk)));
-          req.on("end", () => controller.close());
-          req.on("error", (err) => controller.error(err));
+          req.on("data", (chunk: Buffer) => {
+            if (!streamClosed) controller.enqueue(new Uint8Array(chunk));
+          });
+          req.on("end", () => {
+            if (!streamClosed) { streamClosed = true; controller.close(); }
+          });
+          req.on("error", (err) => {
+            if (!streamClosed) { streamClosed = true; controller.error(err); }
+          });
           signal?.addEventListener("abort", () => {
             req.close();
-            controller.error(new DOMException("The operation was aborted.", "AbortError"));
+            if (!streamClosed) {
+              streamClosed = true;
+              controller.error(new DOMException("The operation was aborted.", "AbortError"));
+            }
           }, { once: true });
         },
       });
