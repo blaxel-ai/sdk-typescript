@@ -142,6 +142,7 @@ class Settings {
     return this.credentials.authorization;
   }
 
+  
   get token(): string {
     if(this.config.apikey) {
       return this.config.apikey;
