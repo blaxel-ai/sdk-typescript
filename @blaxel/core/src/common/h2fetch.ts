@@ -147,6 +147,8 @@ function _h2Send(
     }
 
     const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
       req.close();
       globalThis.fetch(fallbackUrl, fallbackInit).then(resolve, reject);
     }, H2_REQUEST_TIMEOUT_MS);
