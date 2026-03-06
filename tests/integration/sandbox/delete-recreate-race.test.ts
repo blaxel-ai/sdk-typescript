@@ -2,30 +2,13 @@ import { SandboxInstance } from "@blaxel/core"
 import { describe, expect, it } from 'vitest'
 import { defaultLabels, defaultRegion, sleep, uniqueName, waitForSandboxDeletion } from './helpers.js'
 
-async function createWithRetry(
-  opts: Parameters<typeof SandboxInstance.create>[0],
-  maxRetries = 15,
-): Promise<SandboxInstance> {
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await SandboxInstance.create(opts)
-    } catch (err: any) {
-      const isStillDeleting = err?.code === "SANDBOX_ALREADY_EXISTS" &&
-        err?.details?.existing_status === "DELETING"
-      if (!isStillDeleting || attempt === maxRetries) throw err
-      await sleep(2000)
-    }
-  }
-  throw new Error("unreachable")
-}
-
 describe('Delete-Recreate Race Condition Tests', () => {
   it('handles rapid delete-recreate cycles without conflicts', { timeout: 300000 }, async () => {
     const sandboxName = uniqueName("race-single")
     const iterations = 5
 
     for (let i = 0; i < iterations; i++) {
-      const sandbox = await createWithRetry({
+      const sandbox = await SandboxInstance.create({
         name: sandboxName,
         region: defaultRegion,
         memory: 2048,
@@ -53,7 +36,7 @@ describe('Delete-Recreate Race Condition Tests', () => {
 
     const workers = sandboxNames.map(async (sandboxName) => {
       for (let i = 0; i < iterationsPerWorker; i++) {
-        const sandbox = await createWithRetry({
+        const sandbox = await SandboxInstance.create({
           name: sandboxName,
           region: defaultRegion,
           memory: 2048,
