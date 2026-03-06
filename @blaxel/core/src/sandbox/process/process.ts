@@ -30,7 +30,7 @@ export class SandboxProcess extends SandboxAction {
     const done = (async () => {
       try {
         const headers = this.sandbox.forceUrl ? this.sandbox.headers : settings.headers;
-        const stream = await fetch(`${this.url}/process/${identifier}/logs/stream`, {
+        const stream = await this.h2Fetch(`${this.url}/process/${identifier}/logs/stream`, {
           method: 'GET',
           signal: controller.signal,
           headers,
@@ -144,7 +144,7 @@ export class SandboxProcess extends SandboxAction {
     const headers = this.sandbox.forceUrl ? this.sandbox.headers : settings.headers;
     const controller = new AbortController();
 
-    const response = await fetch(`${this.url}/process`, {
+    const response = await this.h2Fetch(`${this.url}/process`, {
       method: 'POST',
       signal: controller.signal,
       headers: {
