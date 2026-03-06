@@ -76,14 +76,18 @@ class H2Pool {
     }
 
     // Start fresh
-    try {
-      const session = await this.establish(domain);
-      this.sessions.set(domain, session);
-      return session;
-    } catch {
-      return null;
-    }
-  }
+    // Start fresh, deduplicating concurrent callers via inflight
+    const p = this.establish(domain)
+      .then((session) => {
+        this.sessions.set(domain, session);
+        return session;
+      })
+      .catch(() => null)
+      .finally(() => {
+        this.inflight.delete(domain);
+      });
+    this.inflight.set(domain, p);
+    return p;
 
   /** Close all sessions (for cleanup). */
   closeAll(): void {
