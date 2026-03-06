@@ -8,9 +8,8 @@ import {
 } from "../client/index.js";
 import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
-import { startSpan } from "../telemetry/telemetry.js";
 
-class BlJob {
+export class BlJob {
   jobName: string;
   constructor(jobName: string) {
     this.jobName = jobName;
@@ -26,32 +25,15 @@ class BlJob {
   ): Promise<string> {
     logger.debug(`Job Calling: ${this.jobName}`);
 
-    const span = startSpan(this.jobName, {
-      attributes: {
-        "job.name": this.jobName,
-        "span.type": "job.run",
-      },
-      isRoot: false,
-    });
+    const request: CreateJobExecutionRequest = {
+      tasks,
+      ...(options?.env && { env: options.env }),
+      ...(options?.memory && { memory: options.memory }),
+      ...(options?.executionId && { executionId: options.executionId }),
+    };
 
-    try {
-      const request: CreateJobExecutionRequest = {
-        tasks,
-        ...(options?.env && { env: options.env }),
-        ...(options?.memory && { memory: options.memory }),
-        ...(options?.executionId && { executionId: options.executionId }),
-      };
-
-      const executionId = await this.createExecution(request);
-      return executionId;
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        span.setAttribute("job.run.error", err.stack as string);
-      }
-      throw err;
-    } finally {
-      span.end();
-    }
+    const executionId = await this.createExecution(request);
+    return executionId;
   }
 
   /**

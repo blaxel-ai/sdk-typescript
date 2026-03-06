@@ -28,6 +28,7 @@ import {
   createMetricExporter,
   createTraceExporter
 } from "./auth_refresh_exporters";
+import { instrumentBlaxelCore } from "./instrumentation/blaxel_core";
 import { OtelTelemetryProvider } from "./telemetry_provider";
 
 export class BlaxelResource implements Resource {
@@ -244,6 +245,9 @@ class TelemetryManager {
     registerInstrumentations({
       instrumentations: [httpInstrumentation],
     });
+
+    // Instrument @blaxel/core classes via monkey patching
+    instrumentBlaxelCore();
   }
 
   setExporters() {
