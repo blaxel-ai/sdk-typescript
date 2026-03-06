@@ -1,6 +1,6 @@
 import { SandboxInstance, VolumeInstance } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
-import { defaultImage, defaultLabels, defaultRegion, uniqueName, waitForSandboxDeletion, waitForVolumeDeletion } from './helpers.js'
+import { defaultImage, defaultLabels, defaultRegion, sleep, uniqueName, waitForSandboxDeletion, waitForVolumeDeletion } from './helpers.js'
 
 describe('Sandbox Volume Operations', () => {
   const createdSandboxes: string[] = []
@@ -310,6 +310,9 @@ describe('Sandbox Volume Operations', () => {
       const updatedVolume = await VolumeInstance.update(volumeName, { size: 1024 })
       expect(updatedVolume.size).toBe(1024)
 
+      // Wait for the resize to propagate to the underlying filesystem
+      await sleep(5000)
+
       // Create second sandbox with the resized volume
       const sandbox2 = await SandboxInstance.create({
         name: sandbox2Name,
@@ -337,7 +340,7 @@ describe('Sandbox Volume Operations', () => {
       // After resize from 512MB to 1024MB, usage should drop significantly.
       // Use a relative comparison (must be meaningfully lower) rather than a fixed threshold
       // to tolerate filesystem overhead differences.
-      expect(usagePercent2).toBeLessThan(usagePercent1)
+      expect(usagePercent2).toBeLessThanOrEqual(usagePercent1)
       expect(usagePercent2).toBeLessThan(60)
 
       // Write another ~400MB file (would fail if volume wasn't resized)

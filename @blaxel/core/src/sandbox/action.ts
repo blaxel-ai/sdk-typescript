@@ -1,4 +1,7 @@
-import { createClient } from "@hey-api/client-fetch";
+import { createClient, type Client } from "@hey-api/client-fetch";
+import { interceptors } from "../client/interceptors.js";
+import { responseInterceptors } from "../client/responseInterceptor.js";
+import { createH2Fetch, h2RequestDirect } from "../common/h2fetch.js";
 import { getForcedUrl, getGlobalUniqueHash } from "../common/internal.js";
 import { settings } from "../common/settings.js";
 import { client as defaultClient } from "./client/client.gen.js";
@@ -24,6 +27,8 @@ export class ResponseError extends Error {
 }
 
 export class SandboxAction {
+  private _h2Client: Client | null = null;
+
   constructor(protected sandbox: SandboxConfiguration) {}
 
   get name() {
@@ -53,7 +58,40 @@ export class SandboxAction {
         headers: this.sandbox.headers,
       })
     }
+
+    const session = this.sandbox.h2Session;
+    if (session && !session.closed && !session.destroyed) {
+      if (!this._h2Client) {
+        this._h2Client = createClient({
+          fetch: createH2Fetch(session),
+        });
+        for (const interceptor of interceptors) {
+          // @ts-expect-error - Interceptor is not typed
+          this._h2Client.interceptors.request.use(interceptor);
+        }
+        for (const interceptor of responseInterceptors) {
+          this._h2Client.interceptors.response.use(interceptor);
+        }
+      }
+      return this._h2Client;
+    }
+
+    // Invalidate cached H2 client when session is no longer usable
+    this._h2Client = null;
+
     return defaultClient
+  }
+
+  /**
+   * Routes through the H2 session when available, falling back to
+   * globalThis.fetch. Uses a direct H2 path that avoids Request allocation.
+   */
+  protected h2Fetch(input: string | URL, init?: RequestInit): Promise<Response> {
+    const session = this.sandbox.h2Session;
+    if (session && !session.closed && !session.destroyed) {
+      return h2RequestDirect(session, input.toString(), init);
+    }
+    return globalThis.fetch(input, init);
   }
 
   get forcedUrl() {

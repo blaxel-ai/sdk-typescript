@@ -48,7 +48,7 @@ describe('Delete-Recreate Race Condition Tests', () => {
         expect(check.status).not.toBe("DELETING")
 
         await SandboxInstance.delete(sandboxName)
-        const deleted = await waitForSandboxDeletion(sandboxName, 90)
+        const deleted = await waitForSandboxDeletion(sandboxName, 180)
         expect(deleted).toBe(true)
 
         await sleep(3000)

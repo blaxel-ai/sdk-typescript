@@ -63,6 +63,42 @@ function replaceNodeWithBrowser(buildDir) {
   }
 }
 
+function replaceH2FilesWithStubs(buildDir) {
+  // Replace all H2-related files with no-op stubs in browser builds.
+  // These files use Node.js-only modules (http2, tls, dns/promises).
+  const stubs = [
+    {
+      name: 'h2warm',
+      js: `// Browser stub - H2 warming is Node.js only\nexport async function establishH2(sniHostname) { return null; }\n`,
+      dts: `export declare function establishH2(sniHostname: string): Promise<null>;\n`,
+    },
+    {
+      name: 'h2pool',
+      js: `// Browser stub - H2 pool is Node.js only\nconst noop = () => {};\nconst noopAsync = async () => null;\nexport const h2Pool = { warm: noop, get: noopAsync, tryGet: () => null, closeAll: noop };\n`,
+      dts: `export declare const h2Pool: { warm(domain: string): void; get(domain: string): Promise<null>; tryGet(domain: string): null; closeAll(): void; };\n`,
+    },
+    {
+      name: 'h2fetch',
+      js: `// Browser stub - H2 fetch is Node.js only, falls back to global fetch\nexport function createH2Fetch(session) { return (input) => globalThis.fetch(input); }\nexport function createPoolBackedH2Fetch(pool, domain) { return (input) => globalThis.fetch(input); }\nexport function h2RequestDirect(session, url, init) { return globalThis.fetch(url, init); }\n`,
+      dts: `export declare function createH2Fetch(session: any): (input: Request) => Promise<Response>;\nexport declare function createPoolBackedH2Fetch(pool: any, domain: string): (input: Request) => Promise<Response>;\nexport declare function h2RequestDirect(session: any, url: string, init?: RequestInit): Promise<Response>;\n`,
+    },
+  ];
+
+  for (const stub of stubs) {
+    const jsPath = path.join(buildDir, 'common', `${stub.name}.js`);
+    const dtsPath = path.join(buildDir, 'common', `${stub.name}.d.ts`);
+
+    if (fs.existsSync(jsPath)) {
+      fs.writeFileSync(jsPath, stub.js);
+      console.log(`  ✅ Replaced ${stub.name}.js with browser stub`);
+    }
+    if (fs.existsSync(dtsPath)) {
+      fs.writeFileSync(dtsPath, stub.dts);
+      console.log(`  ✅ Replaced ${stub.name}.d.ts with browser stub`);
+    }
+  }
+}
+
 function replaceImageWithBrowser(buildDir) {
   // File paths for both image and image.browser files
   const imagePath = path.join(buildDir, 'image', 'image.js');
@@ -119,6 +155,9 @@ builds.forEach(buildDir => {
 
     // Replace image.js with image.browser.js content (removes archiver dependency)
     replaceImageWithBrowser(buildDir);
+
+    // Replace H2 files with no-op stubs (use Node.js-only http2/tls/dns modules)
+    replaceH2FilesWithStubs(buildDir);
 
     // Note: We don't need to fix imports since node.js now contains browser.js content
     // sentry.ts now handles both Node.js and browser environments with fetch
