@@ -30,6 +30,7 @@ export class CodeInterpreter extends SandboxInstance {
       spec: base.spec,
       status: base.status,
       events: base.events,
+      h2Session: base.h2Session,
     };
     return new CodeInterpreter(config);
   }
@@ -93,6 +94,7 @@ export class CodeInterpreter extends SandboxInstance {
       spec: baseInstance.spec,
       status: baseInstance.status,
       events: baseInstance.events,
+      h2Session: baseInstance.h2Session,
     };
     // Preserve forceUrl and headers from input if it was a dict-like object
     if (sandbox && typeof sandbox === "object" && !Array.isArray(sandbox)) {
