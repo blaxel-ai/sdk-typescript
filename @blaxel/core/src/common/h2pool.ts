@@ -88,6 +88,7 @@ class H2Pool {
       });
     this.inflight.set(domain, p);
     return p;
+  }
 
   /** Close all sessions (for cleanup). */
   closeAll(): void {
