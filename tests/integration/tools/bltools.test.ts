@@ -16,7 +16,7 @@ describe('MCP Tools Integration', () => {
         image: defaultImage,
         memory: 2048,
         labels: defaultLabels,
-      })
+      }, { safe: true })
     })
 
     afterAll(async () => {
@@ -59,7 +59,7 @@ describe('MCP Tools Integration', () => {
         image: defaultImage,
         memory: 2048,
         labels: defaultLabels,
-      })
+      }, { safe: true })
     })
 
     afterAll(async () => {
