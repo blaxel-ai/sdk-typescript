@@ -16,7 +16,7 @@ describe('MCP Tools Integration', () => {
         image: defaultImage,
         memory: 2048,
         labels: defaultLabels,
-      })
+      }, { safe: true })
     })
 
     afterAll(async () => {
@@ -39,7 +39,7 @@ describe('MCP Tools Integration', () => {
       expect(tools.length).toBeGreaterThan(0)
 
       // Find the exec tool to test
-      const execTool = tools.find(t => t.name.toLowerCase().includes('exec'))
+      const execTool: any = tools.find((t: any) => t.name.toLowerCase().includes('exec'))
       if (execTool) {
         const result = await execTool.invoke({
           command: "echo 'hello'",
@@ -59,7 +59,7 @@ describe('MCP Tools Integration', () => {
         image: defaultImage,
         memory: 2048,
         labels: defaultLabels,
-      })
+      }, { safe: true })
     })
 
     afterAll(async () => {
@@ -102,7 +102,7 @@ describe('MCP Tools Integration', () => {
         image: defaultImage,
         memory: 2048,
         labels: defaultLabels,
-      })
+      }, { safe: true })
     })
 
     afterAll(async () => {
@@ -147,7 +147,7 @@ describe('MCP Tools Integration', () => {
         image: defaultImage,
         memory: 2048,
         labels: defaultLabels,
-      })
+      }, { safe: true })
     })
 
     afterAll(async () => {
@@ -192,7 +192,7 @@ describe('MCP Tools Integration', () => {
         image: defaultImage,
         memory: 2048,
         labels: defaultLabels,
-      })
+      }, { safe: true })
     })
 
     afterAll(async () => {
