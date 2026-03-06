@@ -149,8 +149,6 @@ class Settings {
     return this.credentials.token;
   }
 
-  
-
   get version(): string {
     return BUILD_VERSION || "unknown";
   }
