@@ -1,6 +1,6 @@
 import { SandboxInstance, VolumeInstance } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
-import { defaultImage, defaultLabels, defaultRegion, uniqueName, waitForSandboxDeletion, waitForVolumeDeletion } from './helpers.js'
+import { defaultImage, defaultLabels, defaultRegion, sleep, uniqueName, waitForSandboxDeletion, waitForVolumeDeletion } from './helpers.js'
 
 describe('Sandbox Volume Operations', () => {
   const createdSandboxes: string[] = []
@@ -309,6 +309,9 @@ describe('Sandbox Volume Operations', () => {
       // Resize volume to 1GB
       const updatedVolume = await VolumeInstance.update(volumeName, { size: 1024 })
       expect(updatedVolume.size).toBe(1024)
+
+      // Wait for the resize to propagate to the underlying filesystem
+      await sleep(5000)
 
       // Create second sandbox with the resized volume
       const sandbox2 = await SandboxInstance.create({
