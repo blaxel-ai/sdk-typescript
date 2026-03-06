@@ -3,10 +3,11 @@ import http2 from "http2";
 import tls from "tls";
 
 export async function establishH2(sniHostname: string): Promise<http2.ClientHttp2Session> {
-  const timeout = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error("H2 warm-up timed out")), 5000)
-  );
-  return Promise.race([_establishH2(sniHostname), timeout]);
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("H2 warm-up timed out")), 5000);
+  });
+  return Promise.race([_establishH2(sniHostname), timeout]).finally(() => clearTimeout(timer));
 }
 
 async function _establishH2(sniHostname: string): Promise<http2.ClientHttp2Session> {
