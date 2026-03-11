@@ -1,11 +1,11 @@
 import { Client as ModelContextProtocolClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { getFunction, getSandbox } from "../client/index.js";
 import { env } from "../common/env.js";
-import { getForcedUrl, getGlobalUniqueHash } from "../common/internal.js";
+import { getForcedUrl } from "../common/internal.js";
 import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
-import { authenticate, SandboxInstance } from "../index.js";
-import { BlaxelMcpClientTransport } from "../mcp/client.js";
+import { authenticate } from "../index.js";
 import { startSpan } from "../telemetry/telemetry.js";
 import { Tool } from "./types.js";
 import { FunctionSchema, schemaToZodSchema } from "./zodSchema.js";
@@ -15,7 +15,6 @@ const McpToolCache = new Map<string, McpTool>();
 export type ToolOptions = {
   ms?: number;
   meta?: Record<string, unknown> | undefined;
-  transport?: string
 };
 
 export class McpTool {
@@ -23,13 +22,12 @@ export class McpTool {
   private type: string;
   private pluralType: string;
   private client: ModelContextProtocolClient;
-  private transport?: BlaxelMcpClientTransport | StreamableHTTPClientTransport;
 
   private timer?: NodeJS.Timeout;
   private ms: number;
-  private transportName?: string;
   private meta: Record<string, unknown> | undefined;
   private startPromise?: Promise<void> | null;
+  private metadataUrl?: string | null;
 
   constructor(name: string, options: ToolOptions | number = { ms: 5000 }) {
     this.name = name;
@@ -45,43 +43,53 @@ export class McpTool {
     } else {
       this.ms = typeof options === "number" ? options : options.ms || 5000;
     }
-    this.meta = (typeof options === "object" && options.meta) || undefined
+    this.meta = (typeof options === "object" && options.meta) || undefined;
 
-    this.client = new ModelContextProtocolClient(
-      {
-        name: this.name,
-        version: "1.0.0",
-      }
-    );
+    this.client = new ModelContextProtocolClient({
+      name: this.name,
+      version: "1.0.0",
+    });
   }
 
-  get fallbackUrl() {
-    if (this.externalUrl != this.url) {
-      return this.externalUrl;
-    }
-    return null;
+  get forcedUrl(): URL | null {
+    return getForcedUrl(this.type, this.name);
   }
 
-  get externalUrl() {
+  get externalUrl(): URL {
     return new URL(
       `${settings.runUrl}/${settings.workspace}/${this.pluralType}/${this.name}`
     );
   }
 
-  get internalUrl() {
-    const hash = getGlobalUniqueHash(settings.workspace, this.type, this.name);
-    return new URL(
-      `${settings.runInternalProtocol}://bl-${settings.env}-${hash}.${settings.runInternalHostname}`
-    );
+  private async fetchMetadataUrl(): Promise<string | null> {
+    try {
+      if (this.type === "sandbox") {
+        const { data } = await getSandbox({ path: { sandboxName: this.name } });
+        if (data?.metadata?.url) return data.metadata.url;
+      } else {
+        const { data } = await getFunction({ path: { functionName: this.name } });
+        if (data?.metadata?.url) return data.metadata.url;
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.debug(`Failed to fetch metadata URL for ${this.name}: ${message}`);
+    }
+    return null;
   }
 
-  get forcedUrl() {
-    return getForcedUrl(this.type, this.name)
-  }
-
-  get url() {
-    if (this.forcedUrl) return this.forcedUrl;
-    if (settings.runInternalHostname) return this.internalUrl;
+  private async resolveUrl(): Promise<URL> {
+    if (this.forcedUrl) {
+      logger.debug(`MCP:${this.name}:ForcedURL:${this.forcedUrl.toString()}`);
+      return this.forcedUrl;
+    }
+    if (this.metadataUrl === undefined) {
+      this.metadataUrl = await this.fetchMetadataUrl();
+    }
+    if (this.metadataUrl) {
+      logger.debug(`MCP:${this.name}:MetadataURL:${this.metadataUrl}`);
+      return new URL(this.metadataUrl);
+    }
+    logger.debug(`MCP:${this.name}:FallingBackToExternalURL:${this.externalUrl.toString()}`);
     return this.externalUrl;
   }
 
@@ -90,41 +98,15 @@ export class McpTool {
     this.stopCloseTimer();
     this.startPromise = this.startPromise || (async () => {
       await authenticate();
-      // Sandbox using run v2 API
-      if (this.pluralType == "sandboxes") {
-        const sandbox = await SandboxInstance.get(this.name);
-        const url = sandbox.metadata.url + "/mcp";
-        this.transport = new StreamableHTTPClientTransport(new URL(url), {
-          requestInit: { headers: settings.headers },
-        });
-        await this.client.connect(this.transport);
-        logger.debug(`MCP:${this.name}:Connected to sandbox`);
-        return;
-      }
-
-      try {
-        logger.debug(`MCP:${this.name}:Connecting::${this.url.toString()}`);
-        this.transport = await this.getTransport();
-        await this.client.connect(this.transport);
-        logger.debug(`MCP:${this.name}:Connected`);
-      } catch (err) {
-        if (err instanceof Error) {
-          logger.error(`MCP ${this.name} connection failed: ${err.message}`, {
-            error: err.message,
-            stack: err.stack,
-            mcpName: this.name,
-            url: this.url
-          });
-        }
-        if (!this.fallbackUrl) {
-          throw err;
-        }
-        logger.debug(`MCP:${this.name}:Connecting to fallback`);
-        this.transportName = undefined;
-        this.transport = await this.getTransport(this.fallbackUrl);
-        await this.client.connect(this.transport);
-        logger.debug(`MCP:${this.name}:Connected to fallback`);
-      }
+      const url = await this.resolveUrl();
+      const mcpUrl = new URL(url.toString());
+      mcpUrl.pathname = mcpUrl.pathname.replace(/\/$/, "") + "/mcp";
+      logger.debug(`MCP:${this.name}:Connecting::${mcpUrl.toString()}`);
+      const transport = new StreamableHTTPClientTransport(mcpUrl, {
+        requestInit: { headers: settings.headers },
+      });
+      await this.client.connect(transport);
+      logger.debug(`MCP:${this.name}:Connected`);
     })();
     return await this.startPromise;
   }
@@ -146,7 +128,7 @@ export class McpTool {
           logger.error(`MCP ${this.name} close failed: ${err.message}`, {
             error: err.message,
             stack: err.stack,
-            mcpName: this.name
+            mcpName: this.name,
           });
         }
       });
@@ -209,27 +191,14 @@ export class McpTool {
       },
     });
     try {
-      logger.debug(
-        `MCP:${this.name}:Tool calling`,
-        toolName,
-        JSON.stringify(args)
-      );
-      logger.debug(`MCP:${this.name}:Tool calling:start`);
+      logger.debug(`MCP:${this.name}:Tool calling`, toolName, JSON.stringify(args));
       await this.start();
-      logger.debug(`MCP:${this.name}:Tool calling:start2`);
       const result = await this.client.callTool({
         name: toolName,
         arguments: args,
-        _meta: this.meta
+        _meta: this.meta,
       });
-      logger.debug(`MCP:${this.name}:Tool calling:result`);
       await this.close();
-      logger.debug(
-        `MCP:${this.name}:Tool result`,
-        toolName,
-        JSON.stringify(args),
-        // result
-      );
       span.setAttribute("tool.call.result", JSON.stringify(result));
       return result;
     } catch (err: unknown) {
@@ -239,51 +208,12 @@ export class McpTool {
           stack: err.stack,
           mcpName: this.name,
           toolName,
-          args: JSON.stringify(args)
+          args: JSON.stringify(args),
         });
       }
       throw err;
     } finally {
       span.end();
-    }
-  }
-
-  async getTransport(forcedUrl?: URL): Promise<BlaxelMcpClientTransport | StreamableHTTPClientTransport> {
-    if (!this.transportName) {
-      // Detect transport type dynamically by querying the function's endpoint
-      try {
-        const testUrl = (forcedUrl || this.url).toString();
-        const response = await fetch(testUrl + "/", {
-          method: "GET",
-          headers: settings.headers,
-        });
-        const responseText = await response.text();
-
-        if (responseText.toLowerCase().includes("websocket")) {
-          this.transportName = "websocket";
-        } else {
-          this.transportName = "http-stream";
-        }
-
-        logger.debug(`Detected transport type for ${this.name}: ${this.transportName}`);
-      } catch (error) {
-        // Default to websocket if we can't determine the transport type
-        const message = error instanceof Error ? error.message : String(error);
-        logger.warn(`Failed to detect transport type for ${this.name}: ${message}. Defaulting to websocket.`);
-        this.transportName = "websocket";
-      }
-    }
-
-    const url = forcedUrl || this.url;
-    if (this.transportName === "http-stream") {
-      url.pathname = url.pathname + "/mcp";
-      return new StreamableHTTPClientTransport(url, { requestInit: { headers: settings.headers } })
-    } else {
-      return new BlaxelMcpClientTransport(
-        url.toString(),
-        settings.headers,
-        { retry: { max: 0 } }
-      );
     }
   }
 }
