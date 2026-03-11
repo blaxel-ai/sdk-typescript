@@ -10,7 +10,9 @@ import { describe, it, expect, afterAll } from 'vitest'
 import { ImageInstance, SandboxInstance, deleteSandbox } from "@blaxel/core"
 import { uniqueName, waitForSandboxDeletion } from './helpers'
 
-describe('Image Build Integration', () => {
+const IMAGE_BUILD = process.env.IMAGE_BUILD === 'true'
+
+describe.skipIf(!IMAGE_BUILD)('Image Build Integration', () => {
   const createdSandboxes: string[] = []
 
   afterAll(async () => {
