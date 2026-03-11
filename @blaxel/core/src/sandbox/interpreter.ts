@@ -1,4 +1,5 @@
 import { Port, Sandbox, SandboxLifecycle } from "../client/types.gen.js";
+import { h2RequestDirect } from "../common/h2fetch.js";
 import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
 import { SandboxInstance } from "./sandbox.js";
@@ -29,6 +30,7 @@ export class CodeInterpreter extends SandboxInstance {
       spec: base.spec,
       status: base.status,
       events: base.events,
+      h2Session: base.h2Session,
     };
     return new CodeInterpreter(config);
   }
@@ -92,6 +94,7 @@ export class CodeInterpreter extends SandboxInstance {
       spec: baseInstance.spec,
       status: baseInstance.status,
       events: baseInstance.events,
+      h2Session: baseInstance.h2Session,
     };
     // Preserve forceUrl and headers from input if it was a dict-like object
     if (sandbox && typeof sandbox === "object" && !Array.isArray(sandbox)) {
@@ -110,6 +113,14 @@ export class CodeInterpreter extends SandboxInstance {
 
   get _jupyterUrl(): string {
     return this.process.url;
+  }
+
+  private _fetch(input: string | URL, init?: RequestInit): Promise<Response> {
+    const session = this._sandboxConfig.h2Session;
+    if (session && !session.closed && !session.destroyed) {
+      return h2RequestDirect(session, input.toString(), init);
+    }
+    return globalThis.fetch(input, init);
   }
 
   static OutputMessage = class {
@@ -348,7 +359,7 @@ export class CodeInterpreter extends SandboxInstance {
     }
 
     try {
-      const response = await fetch(`${this._jupyterUrl}/port/8888/execute`, {
+      const response = await this._fetch(`${this._jupyterUrl}/port/8888/execute`, {
         method: "POST",
         headers: {
           ...headers,
@@ -472,7 +483,7 @@ export class CodeInterpreter extends SandboxInstance {
     }
 
     try {
-      const response = await fetch(`${this._jupyterUrl}/port/8888/contexts`, {
+      const response = await this._fetch(`${this._jupyterUrl}/port/8888/contexts`, {
         method: "POST",
         headers: {
           ...headers,

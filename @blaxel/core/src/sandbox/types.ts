@@ -1,4 +1,5 @@
-import { Port, Sandbox, SandboxLifecycle, VolumeAttachment } from "../client/types.gen";
+import type http2 from "http2";
+import { Port, Sandbox, SandboxLifecycle, VolumeAttachment, SandboxNetwork } from "../client/types.gen";
 import { PostProcessResponse, ProcessRequest } from "./client";
 
 export interface SessionCreateOptions {
@@ -29,6 +30,7 @@ export type SandboxConfiguration = {
   forceUrl?: string;
   headers?: Record<string, string>;
   params?: Record<string, string>;
+  h2Session?: http2.ClientHttp2Session | null;
 } & Sandbox;
 
 export type SandboxUpdateMetadata = {
@@ -47,6 +49,7 @@ export type SandboxCreateConfiguration = {
   expires?: Date;
   region?: string;
   lifecycle?: SandboxLifecycle;
+  network?: SandboxNetwork;
   snapshotEnabled?: boolean;
   labels?: Record<string, string>;
 }

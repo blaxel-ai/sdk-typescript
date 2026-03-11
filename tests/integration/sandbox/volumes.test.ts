@@ -1,6 +1,6 @@
 import { SandboxInstance, VolumeInstance } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
-import { defaultImage, defaultLabels, defaultRegion, uniqueName, waitForSandboxDeletion, waitForVolumeDeletion } from './helpers.js'
+import { defaultImage, defaultLabels, defaultRegion, sleep, uniqueName, waitForSandboxDeletion, waitForVolumeDeletion } from './helpers.js'
 
 describe('Sandbox Volume Operations', () => {
   const createdSandboxes: string[] = []
@@ -294,6 +294,14 @@ describe('Sandbox Volume Operations', () => {
       })
       expect(checkResult1.logs).toContain("large-file-1.bin")
 
+      // Check disk usage percentage - should be high on 512MB volume with 400MB data
+      const diskCheck1 = await sandbox1.process.exec({
+        command: "df /data | tail -1 | awk '{print $5}' | sed 's/%//'",
+        waitForCompletion: true,
+      })
+      const usagePercent1 = parseInt(diskCheck1.logs.trim())
+      expect(usagePercent1).toBeGreaterThan(60)
+
       // Delete first sandbox
       await SandboxInstance.delete(sandbox1Name)
       await waitForSandboxDeletion(sandbox1Name)
@@ -301,6 +309,9 @@ describe('Sandbox Volume Operations', () => {
       // Resize volume to 1GB
       const updatedVolume = await VolumeInstance.update(volumeName, { size: 1024 })
       expect(updatedVolume.size).toBe(1024)
+
+      // Wait for the resize to propagate to the underlying filesystem
+      await sleep(5000)
 
       // Create second sandbox with the resized volume
       const sandbox2 = await SandboxInstance.create({
@@ -319,6 +330,18 @@ describe('Sandbox Volume Operations', () => {
         waitForCompletion: true,
       })
       expect(checkResult2.logs).toContain("large-file-1.bin")
+
+      // Check disk usage percentage - should be lower now on 1GB volume
+      const diskCheck2 = await sandbox2.process.exec({
+        command: "df /data | tail -1 | awk '{print $5}' | sed 's/%//'",
+        waitForCompletion: true,
+      })
+      const usagePercent2 = parseInt(diskCheck2.logs.trim())
+      // After resize from 512MB to 1024MB, usage should drop significantly.
+      // Use a relative comparison (must be meaningfully lower) rather than a fixed threshold
+      // to tolerate filesystem overhead differences.
+      expect(usagePercent2).toBeLessThanOrEqual(usagePercent1)
+      expect(usagePercent2).toBeLessThan(60)
 
       // Write another ~400MB file (would fail if volume wasn't resized)
       const writeResult = await sandbox2.process.exec({

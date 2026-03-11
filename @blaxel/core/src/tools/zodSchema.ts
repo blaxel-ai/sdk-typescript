@@ -1,5 +1,23 @@
 import z from "zod";
 
+const jsonTypeToZod = (type: string, param: FunctionSchema): z.ZodType => {
+  switch (type) {
+    case "boolean":
+      return z.boolean();
+    case "number":
+    case "integer":
+      return z.number();
+    case "null":
+      return z.null();
+    case "array":
+      return z.array(schemaToZodSchema(param.items || {}));
+    case "object":
+      return schemaToZodSchema(param);
+    default:
+      return z.string();
+  }
+};
+
 /**
  * Converts an array of `FunctionSchema` objects into a Zod schema for validation.
  *
@@ -7,42 +25,33 @@ import z from "zod";
  * @returns {z.ZodObject<any>} A Zod object schema representing the parameters.
  */
 export const schemaToZodSchema = (schema: FunctionSchema): z.ZodObject<any> => {
-    const shape: { [key: string]: z.ZodType } = {};
+  const shape: { [key: string]: z.ZodType } = {};
 
-    if (schema.properties) {
-      Object.entries(schema.properties).forEach(([key, param]) => {
-        let zodType: z.ZodType;
+  if (schema.properties) {
+    Object.entries(schema.properties).forEach(([key, param]) => {
+      let zodType: z.ZodType;
 
-        switch (param.type) {
-          case "boolean":
-            zodType = z.boolean();
-            break;
-          case "number":
-          case "integer":
-            zodType = z.number();
-            break;
-          case "null":
-            zodType = z.null();
-            break;
-          case "array":
-            zodType = z.array(schemaToZodSchema(param.items || {}));
-            break;
-          case "object":
-            zodType = schemaToZodSchema(param);
-            break;
-          default:
-            zodType = z.string();
-        }
-        if (param.description) {
-          zodType = zodType.describe(param.description);
-        }
-        shape[key] =
-          param.required || schema.required?.includes(key)
-            ? zodType
-            : zodType.optional();
-      });
-    }
-    return z.object(shape);
+      if (Array.isArray(param.type)) {
+        // Handle union types like ["null", "boolean"]
+        const types = param.type.map((t) => jsonTypeToZod(t, param));
+        zodType =
+          types.length === 1
+            ? types[0]
+            : z.union(types as [z.ZodTypeAny, z.ZodTypeAny, ...z.ZodTypeAny[]]);
+      } else {
+        zodType = jsonTypeToZod(param.type ?? "string", param);
+      }
+
+      if (param.description) {
+        zodType = zodType.describe(param.description);
+      }
+      shape[key] =
+        param.required || schema.required?.includes(key)
+          ? zodType
+          : zodType.optional();
+    });
+  }
+  return z.object(shape);
 };
 
 /**
@@ -117,5 +126,5 @@ export type FunctionSchema = {
   /**
    * Type of the schema
    */
-  type?: string;
+  type?: string | string[];
 };

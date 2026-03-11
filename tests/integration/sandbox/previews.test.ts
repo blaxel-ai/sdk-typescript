@@ -1,6 +1,6 @@
 import { SandboxInstance } from "@blaxel/core"
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { defaultLabels, defaultRegion, uniqueName } from './helpers.js'
+import { defaultLabels, defaultRegion, fetchWithRetry, uniqueName } from './helpers.js'
 
 describe('Sandbox Preview Operations', () => {
   let sandbox: SandboxInstance
@@ -273,6 +273,38 @@ describe('Sandbox Preview Operations', () => {
 
       await sandbox.previews.delete("delete-token")
     })
+
+    it('creates private preview with 15 tokens and tests async deletion', async () => {
+      console.log(`Sandbox name: ${sandbox.metadata.name}`);
+      const preview = await sandbox.previews.create({
+        metadata: { name: "preview-with-many-tokens" },
+        spec: { port: 3000, public: false }
+      })
+      console.log(`Preview created: ${preview.metadata.name}`);
+
+      const expiration = new Date(Date.now() + 10 * 60 * 1000)
+      const tokens = await Promise.all(
+        Array.from({ length: 15 }, () => preview.tokens.create(expiration))
+      )
+
+      expect(tokens.length).toBe(15)
+      tokens.forEach(token => {
+        expect(token.value).toBeDefined()
+      })
+
+      const listedTokens = await preview.tokens.list()
+      expect(listedTokens.length).toBeGreaterThanOrEqual(15)
+
+      await sandbox.previews.delete("preview-with-many-tokens")
+      await expect(sandbox.previews.get("preview-with-many-tokens")).rejects.toThrow()
+
+      await sandbox.previews.create({
+        metadata: { name: "preview-with-many-tokens" },
+        spec: { port: 3000, public: true }
+      })
+      const response = await fetch(preview.spec.url ?? '')
+      expect(response.status).toBe(200)
+    })
   })
 
   describe('CORS headers', () => {
@@ -415,6 +447,42 @@ server.listen(3000, '0.0.0.0', () => {
         expect(preview1.spec?.url).not.toBe(preview2.spec?.url)
       } finally {
         await SandboxInstance.delete(name).catch(() => {})
+      }
+    })
+  })
+
+  describe('preview race conditions', () => {
+    it('creates a preview then remove it and recreate the same preview', { timeout: 120000 }, async () => {
+      const concurrency = 10
+      const total = 100
+
+      const runTest = async (index: number) => {
+        const previewName = `preview-race-${index}`
+        const preview = await sandbox.previews.createIfNotExists({
+          metadata: { name: previewName },
+          spec: { port: 3000, public: true }
+        })
+
+        const response = await fetchWithRetry(preview.spec?.url ?? '', undefined, { retries: 5, delayMs: 1000 })
+        expect(response.status).toBe(200)
+
+        await sandbox.previews.delete(previewName)
+
+        const preview2 = await sandbox.previews.createIfNotExists({
+          metadata: { name: previewName },
+          spec: { port: 3000, public: true }
+        })
+        const response2 = await fetchWithRetry(preview2.spec?.url ?? '', undefined, { retries: 5, delayMs: 1000 })
+        expect(response2.status).toBe(200)
+      }
+
+      // Run in batches to avoid overwhelming the infra
+      for (let start = 0; start < total; start += concurrency) {
+        const batch = Array.from(
+          { length: Math.min(concurrency, total - start) },
+          (_, i) => runTest(start + i + 1)
+        )
+        await Promise.all(batch)
       }
     })
   })

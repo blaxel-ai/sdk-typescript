@@ -16,7 +16,7 @@ describe('LlamaIndex Integration', () => {
       image: defaultImage,
       memory: 2048,
       labels: defaultLabels,
-    })
+    }, { safe: true })
   })
 
   afterAll(async () => {

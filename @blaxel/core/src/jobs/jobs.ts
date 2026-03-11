@@ -19,7 +19,7 @@ class BlJob {
   async run(
     tasks: Record<string, unknown>[],
     options?: {
-      env?: Record<string, unknown>;
+      env?: Record<string, string>;
       memory?: number;
       executionId?: string;
     },

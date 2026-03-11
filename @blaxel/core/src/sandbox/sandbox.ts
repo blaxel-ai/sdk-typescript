@@ -3,11 +3,13 @@ import { createSandbox, deleteSandbox, getSandbox, listSandboxes, SandboxLifecyc
 import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
 import { SandboxCodegen } from "./codegen/index.js";
+import { SandboxDrive } from "./drive/index.js";
 import { SandboxFileSystem } from "./filesystem/index.js";
 import { SandboxNetwork } from "./network/index.js";
 import { SandboxPreviews } from "./preview.js";
 import { SandboxProcess } from "./process/index.js";
 import { SandboxSessions } from "./session.js";
+import { SandboxSystem } from "./system.js";
 import { normalizeEnvs, normalizePorts, normalizeVolumes, SandboxConfiguration, SandboxCreateConfiguration, SandboxUpdateMetadata, SessionWithToken } from "./types.js";
 
 export class SandboxInstance {
@@ -17,6 +19,10 @@ export class SandboxInstance {
   previews: SandboxPreviews;
   sessions: SandboxSessions;
   codegen: SandboxCodegen;
+  system: SandboxSystem;
+  drives: SandboxDrive;
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  h2Session: any;
 
   constructor(private sandbox: SandboxConfiguration) {
     this.process = new SandboxProcess(sandbox);
@@ -25,6 +31,9 @@ export class SandboxInstance {
     this.previews = new SandboxPreviews(sandbox);
     this.sessions = new SandboxSessions(sandbox);
     this.codegen = new SandboxCodegen(sandbox);
+    this.system = new SandboxSystem(sandbox);
+    this.drives = new SandboxDrive(sandbox);
+    this.h2Session = null;
   }
 
   get metadata() {
@@ -43,13 +52,41 @@ export class SandboxInstance {
     return this.sandbox.spec;
   }
 
+  get lastUsedAt() {
+    return this.sandbox.lastUsedAt;
+  }
+
+  /**
+   * Warm and attach an H2 session based on the sandbox's region.
+   * Shared by create(), get(), list(), and update helpers.
+   */
+  private static async attachH2Session(instance: SandboxInstance): Promise<SandboxInstance> {
+    const region = instance.spec?.region;
+    if (!region) return instance;
+    const edgeSuffix = settings.env === "prod" ? "bl.run" : "runv2.blaxel.dev";
+    const edgeDomain = `any.${region}.${edgeSuffix}`;
+    try {
+      const { h2Pool } = await import("../common/h2pool.js");
+      const h2Session = await h2Pool.get(edgeDomain);
+      instance.h2Session = h2Session;
+      instance.sandbox.h2Session = h2Session;
+    } catch {
+      // H2 warming is best-effort; fall back to regular fetch
+    }
+    return instance;
+  }
+
+  get expiresIn() {
+    return this.sandbox.expiresIn;
+  }
+
   /* eslint-disable */
   async wait({maxWait = 60000, interval = 1000}: {maxWait?: number, interval?: number} = {}) {
     logger.warn("⚠️  Warning: sandbox.wait() is deprecated. You don't need to wait for the sandbox to be deployed anymore.");
     return this;
   }
 
-  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = true }: { safe?: boolean } = {}) {
+  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = false }: { safe?: boolean } = {}) {
     const defaultName = `sandbox-${uuidv4().replace(/-/g, '').substring(0, 8)}`
     const defaultImage = `blaxel/base-image:latest`
     const defaultMemory = 4096
@@ -64,6 +101,7 @@ export class SandboxInstance {
       'envs' in sandbox ||
       'volumes' in sandbox ||
       'lifecycle' in sandbox ||
+      'network' in sandbox ||
       'snapshotEnabled' in sandbox ||
       'labels' in sandbox
     ) {
@@ -78,7 +116,14 @@ export class SandboxInstance {
       const ttl = sandbox.ttl;
       const expires = sandbox.expires;
       const region = sandbox.region || settings.region;
+      if (!region) {
+        console.warn(
+          "SandboxInstance.create: 'region' is not set. In a future version, 'region' will be a required parameter. " +
+          "Please specify a region (e.g. 'us-pdx-1', 'eu-lon-1', 'us-was-1') in the sandbox configuration or set the BL_REGION environment variable."
+        );
+      }
       const lifecycle = sandbox.lifecycle;
+      const network = sandbox.network;
       const snapshotEnabled = sandbox.snapshotEnabled;
 
       sandbox = {
@@ -95,6 +140,7 @@ export class SandboxInstance {
           },
           volumes: volumes,
           lifecycle: lifecycle,
+          network: network,
         }
       } as SandboxModel
       if (ttl) {
@@ -119,11 +165,26 @@ export class SandboxInstance {
     sandbox.spec.runtime.image = sandbox.spec.runtime.image || defaultImage;
     sandbox.spec.runtime.memory = sandbox.spec.runtime.memory || defaultMemory;
 
-    const { data } = await createSandbox({
-      body: sandbox,
-      throwOnError: true,
-    });
-    const instance = new SandboxInstance(data);
+    const edgeSuffix = settings.env === "prod" ? "bl.run" : "runv2.blaxel.dev";
+    const edgeDomain = sandbox.spec?.region ? `any.${sandbox.spec.region}.${edgeSuffix}` : null;
+
+    // Kick off warming so h2Pool.get() can join it during the API call
+    if (edgeDomain) {
+      import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.warm(edgeDomain)).catch(() => {});
+    }
+
+    const [{ data }, h2Session] = await Promise.all([
+      createSandbox({
+        body: sandbox,
+        throwOnError: true,
+      }),
+      edgeDomain ? import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.get(edgeDomain)).catch(() => null) : Promise.resolve(null),
+    ]);
+    // Inject the H2 session into the config so subsystems can use it
+    const config = { ...data, h2Session } as SandboxConfiguration;
+    const instance = new SandboxInstance(config);
+    instance.h2Session = h2Session;
+    // Note: H2 session already attached via Promise.all above, no need for attachH2Session()
     // TODO remove this part once we have a better way to handle this
     if (safe) {
       try {
@@ -140,12 +201,14 @@ export class SandboxInstance {
       },
       throwOnError: true,
     });
-    return new SandboxInstance(data);
+    const instance = new SandboxInstance(data);
+    return SandboxInstance.attachH2Session(instance);
   }
 
   static async list() {
     const { data } = await listSandboxes({throwOnError: true}) as { response: Response; data: SandboxModel[] };
-    return data.map((sandbox) => new SandboxInstance(sandbox));
+    const instances = data.map((sandbox) => new SandboxInstance(sandbox));
+    return Promise.all(instances.map((instance) => SandboxInstance.attachH2Session(instance)));
   }
 
   static async delete(sandboxName: string) {
@@ -159,6 +222,8 @@ export class SandboxInstance {
   }
 
   async delete() {
+    // Don't close the H2 session — it's shared via h2Pool
+    this.h2Session = null;
     return await SandboxInstance.delete(this.metadata.name!);
   }
 
@@ -171,7 +236,7 @@ export class SandboxInstance {
       throwOnError: true,
     });
     const instance = new SandboxInstance(data);
-    return instance;
+    return SandboxInstance.attachH2Session(instance);
   }
 
   static async updateTtl(sandboxName: string, ttl: string) {
@@ -183,7 +248,7 @@ export class SandboxInstance {
       throwOnError: true,
     });
     const instance = new SandboxInstance(data);
-    return instance;
+    return SandboxInstance.attachH2Session(instance);
   }
 
   static async updateLifecycle(sandboxName: string, lifecycle: SandboxLifecycle) {
@@ -195,7 +260,7 @@ export class SandboxInstance {
       throwOnError: true,
     });
     const instance = new SandboxInstance(data);
-    return instance;
+    return SandboxInstance.attachH2Session(instance);
   }
 
   static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration) {

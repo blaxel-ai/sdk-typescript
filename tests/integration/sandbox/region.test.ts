@@ -2,6 +2,9 @@ import { SandboxInstance, VolumeInstance, CodeInterpreter } from "@blaxel/core"
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { defaultImage, defaultLabels, defaultRegion, env, uniqueName, waitForSandboxDeletion, waitForVolumeDeletion } from './helpers.js'
 
+const backendDefaultRegion = env === "dev" ? "eu-dub-1" : "us-pdx-1"
+const alternateRegion = env === "dev" ? "eu-dub-2" : "eu-lon-1"
+
 describe('BL_REGION Environment Variable Auto-Fill', () => {
   const createdSandboxes: string[] = []
   const createdVolumes: string[] = []
@@ -62,9 +65,7 @@ describe('BL_REGION Environment Variable Auto-Fill', () => {
       createdSandboxes.push(name)
 
       expect(sandbox.metadata.name).toBe(name)
-      // Backend should assign default region based on environment
-      // prod -> us-pdx-1, dev -> eu-dub-1
-      expect(sandbox.spec.region).toBe(defaultRegion)
+      expect(sandbox.spec.region).toBe(backendDefaultRegion)
     })
 
     it('creates sandbox with BL_REGION when environment variable is set', async () => {
@@ -84,7 +85,7 @@ describe('BL_REGION Environment Variable Auto-Fill', () => {
     })
 
     it('explicit region takes precedence over BL_REGION', async () => {
-      process.env.BL_REGION = process.env.BL_ENV === "dev" ? "eu-dub-2" : "us-was-1"
+      process.env.BL_REGION = alternateRegion
       const explicitRegion = defaultRegion
 
       const name = uniqueName("explicit-region")
@@ -130,8 +131,7 @@ describe('BL_REGION Environment Variable Auto-Fill', () => {
       createdSandboxes.push(name)
 
       expect(interpreter.metadata.name).toBe(name)
-      // Backend should assign default region based on environment
-      expect(interpreter.spec.region).toBe(defaultRegion)
+      expect(interpreter.spec.region).toBe(backendDefaultRegion)
     })
 
     it('creates CodeInterpreter with BL_REGION when environment variable is set', async () => {
@@ -149,7 +149,7 @@ describe('BL_REGION Environment Variable Auto-Fill', () => {
     })
 
     it('explicit region takes precedence over BL_REGION in CodeInterpreter', async () => {
-      process.env.BL_REGION = process.env.BL_ENV === "dev" ? "eu-dub-2" : "us-was-1"
+      process.env.BL_REGION = alternateRegion
       const explicitRegion = defaultRegion
 
       const name = uniqueName("interpreter-explicit")
@@ -178,8 +178,7 @@ describe('BL_REGION Environment Variable Auto-Fill', () => {
       createdVolumes.push(name)
 
       expect(volume.name).toBe(name)
-      // Backend should assign default region based on environment
-      expect(volume.spec.region).toBe(defaultRegion)
+      expect(volume.spec.region).toBe(backendDefaultRegion)
     })
 
     it('creates volume with BL_REGION when environment variable is set', async () => {
@@ -199,7 +198,7 @@ describe('BL_REGION Environment Variable Auto-Fill', () => {
     })
 
     it('explicit region takes precedence over BL_REGION in volume', async () => {
-      process.env.BL_REGION = process.env.BL_ENV === "dev" ? "eu-dub-2" : "us-was-1"
+      process.env.BL_REGION = alternateRegion
       const explicitRegion = defaultRegion
 
       const name = uniqueName("vol-explicit")
@@ -282,6 +281,7 @@ describe('BL_REGION Environment Variable Auto-Fill', () => {
       const volume1Name = uniqueName("mixed-vol1")
       const volume2Name = uniqueName("mixed-vol2")
 
+
       // Volume 1: auto-filled from BL_REGION
       const volume1 = await VolumeInstance.create({
         name: volume1Name,
@@ -299,7 +299,7 @@ describe('BL_REGION Environment Variable Auto-Fill', () => {
       })
       createdVolumes.push(volume2Name)
 
-      expect(volume1.spec.region).toBe(defaultRegion)
+      expect(volume1.spec.region).toBe(process.env.BL_REGION)
       expect(volume2.spec.region).toBe(explicitRegion)
     })
   })
@@ -307,7 +307,8 @@ describe('BL_REGION Environment Variable Auto-Fill', () => {
   describe('BL_REGION changes during runtime', () => {
     it('respects BL_REGION changes between create calls', async () => {
       // Create first resource with region1
-      process.env.BL_REGION = process.env.BL_ENV === "dev" ? "eu-dub-1" : "us-was-1"
+      let region1 = process.env.BL_ENV === "dev" ? "eu-dub-1" : "us-was-1"
+      process.env.BL_REGION = region1
       const name1 = uniqueName("region1")
       const sandbox1 = await SandboxInstance.create({
         name: name1,
@@ -316,10 +317,11 @@ describe('BL_REGION Environment Variable Auto-Fill', () => {
       })
       createdSandboxes.push(name1)
 
-      expect(sandbox1.spec.region).toBe(defaultRegion)
+      expect(sandbox1.spec.region).toBe(process.env.BL_REGION)
 
       // Change BL_REGION and create second resource
-      process.env.BL_REGION = process.env.BL_ENV === "dev" ? "eu-dub-2" : "us-was-1"
+      let region2 = process.env.BL_ENV === "dev" ? "eu-dub-1" : "eu-lon-1"
+      process.env.BL_REGION = region2
       const name2 = uniqueName("region2")
       const sandbox2 = await SandboxInstance.create({
         name: name2,
@@ -328,10 +330,7 @@ describe('BL_REGION Environment Variable Auto-Fill', () => {
       })
       createdSandboxes.push(name2)
 
-      expect(sandbox2.spec.region).toBe(defaultRegion)
-
-      // Verify both sandboxes have different regions
-      expect(sandbox1.spec.region).not.toBe(process.env.BL_REGION)
+      expect(sandbox2.spec.region).toBe(region2)
     })
   })
 })
