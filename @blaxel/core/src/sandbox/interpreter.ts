@@ -111,6 +111,32 @@ export class CodeInterpreter extends SandboxInstance {
     return new CodeInterpreter(config);
   }
 
+  static async createIfNotExists(sandbox: Sandbox | SandboxCreateConfiguration) {
+    try {
+      return await CodeInterpreter.create(sandbox);
+    } catch (e) {
+      if (typeof e === "object" && e !== null && "code" in e && (e.code === 409 || e.code === 'SANDBOX_ALREADY_EXISTS')) {
+        const name = 'name' in sandbox ? sandbox.name : (sandbox as Sandbox).metadata.name
+        if (!name) {
+          throw new Error("Name is required");
+        }
+
+        // Get the existing sandbox to check its status
+        const baseInstance = await CodeInterpreter.get(name);
+
+          // If the sandbox is TERMINATED, treat it as not existing
+          if (baseInstance.status === "TERMINATED") {
+            // Create a new sandbox - backend will handle cleanup of the terminated one
+            return await CodeInterpreter.create(sandbox);
+          }
+
+        // Otherwise return the existing running sandbox
+        return baseInstance;
+      }
+      throw e;
+    }
+  }
+
   get _jupyterUrl(): string {
     return this.process.url;
   }
