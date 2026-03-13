@@ -265,7 +265,7 @@ export class SandboxInstance {
 
   static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration) {
     try {
-      return await SandboxInstance.create(sandbox);
+      return await this.create(sandbox);
     } catch (e) {
       if (typeof e === "object" && e !== null && "code" in e && (e.code === 409 || e.code === 'SANDBOX_ALREADY_EXISTS')) {
         const name = 'name' in sandbox ? sandbox.name : (sandbox as SandboxModel).metadata.name
@@ -274,12 +274,12 @@ export class SandboxInstance {
         }
 
         // Get the existing sandbox to check its status
-        const sandboxInstance = await SandboxInstance.get(name);
+        const sandboxInstance = await this.get(name);
 
           // If the sandbox is TERMINATED, treat it as not existing
           if (sandboxInstance.status === "TERMINATED") {
             // Create a new sandbox - backend will handle cleanup of the terminated one
-            return await SandboxInstance.create(sandbox);
+            return await this.create(sandbox);
           }
 
         // Otherwise return the existing running sandbox

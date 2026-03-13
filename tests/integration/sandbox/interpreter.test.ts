@@ -144,4 +144,59 @@ describe('CodeInterpreter Operations', () => {
       expect(retrieved.metadata.name).toBe(interpreter.metadata.name)
     })
   })
+
+  describe('createIfNotExists', () => {
+    const cineNames: string[] = []
+
+    afterAll(async () => {
+      await Promise.all(
+        cineNames.map(async (name) => {
+          try {
+            await CodeInterpreter.delete(name)
+          } catch {
+            // Ignore cleanup errors
+          }
+        })
+      )
+    })
+
+    it('creates a new interpreter if it does not exist', async () => {
+      const name = uniqueName("ci-cine")
+      cineNames.push(name)
+
+      const ci = await CodeInterpreter.createIfNotExists({ name, labels: defaultLabels })
+
+      expect(ci.metadata.name).toBe(name)
+      expect(ci).toBeInstanceOf(CodeInterpreter)
+    }, 180000)
+
+    it('returns existing interpreter if it already exists', async () => {
+      const name = uniqueName("ci-cine-existing")
+      cineNames.push(name)
+
+      const first = await CodeInterpreter.create({ name, labels: defaultLabels })
+      const second = await CodeInterpreter.createIfNotExists({ name, labels: defaultLabels })
+
+      expect(second.metadata.name).toBe(first.metadata.name)
+      expect(second).toBeInstanceOf(CodeInterpreter)
+    }, 180000)
+
+    it('returned interpreter can run code', async () => {
+      const name = uniqueName("ci-cine-run")
+      cineNames.push(name)
+
+      const ci = await CodeInterpreter.createIfNotExists({ name, labels: defaultLabels })
+
+      const stdoutLines: string[] = []
+      await ci.runCode("print('hello from createIfNotExists')", {
+        language: "python",
+        onStdout: (msg) => {
+          stdoutLines.push(msg.text)
+        },
+        timeout: 30.0,
+      })
+
+      expect(stdoutLines.join('')).toContain('hello from createIfNotExists')
+    }, 180000)
+  })
 })
