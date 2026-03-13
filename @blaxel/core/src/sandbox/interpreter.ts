@@ -39,56 +39,42 @@ export class CodeInterpreter extends SandboxInstance {
     sandbox?: Sandbox | SandboxCreateConfiguration | Record<string, any> | null,
     { safe = true }: { safe?: boolean } = {}
   ): Promise<CodeInterpreter> {
-    const payload: Record<string, any> = {
+    // Build a SandboxCreateConfiguration with CodeInterpreter defaults
+    const defaults: SandboxCreateConfiguration = {
       image: CodeInterpreter.DEFAULT_IMAGE,
       ports: CodeInterpreter.DEFAULT_PORTS,
       lifecycle: CodeInterpreter.DEFAULT_LIFECYCLE,
     };
 
-    const allowedCopyKeys = new Set(["name", "envs", "memory", "region", "headers", "labels"]);
+    let merged: Sandbox | SandboxCreateConfiguration;
 
-    if (sandbox && typeof sandbox === "object") {
-      if (Array.isArray(sandbox)) {
-        // Skip arrays
-      } else if ("metadata" in sandbox || "spec" in sandbox) {
-        // It's a Sandbox object
+    if (sandbox && typeof sandbox === "object" && !Array.isArray(sandbox)) {
+      if ("metadata" in sandbox || "spec" in sandbox) {
+        // It's a Sandbox object - inject defaults into spec
         const sandboxObj = sandbox as Sandbox;
-        if (sandboxObj.metadata.name) {
-          payload["name"] = sandboxObj.metadata.name;
-        }
-        if (sandboxObj.metadata.labels) {
-          payload["labels"] = sandboxObj.metadata.labels;
-        }
-        if (sandboxObj.spec.runtime) {
-          if (sandboxObj.spec.runtime.envs) {
-            payload["envs"] = sandboxObj.spec.runtime.envs;
-          }
-          if (sandboxObj.spec.runtime.memory) {
-            payload["memory"] = sandboxObj.spec.runtime.memory;
-          }
-        }
-        if (sandboxObj.spec.region) {
-          payload["region"] = sandboxObj.spec.region;
-        }
-      } else if ("name" in sandbox || "image" in sandbox || "memory" in sandbox) {
-        // It's a SandboxCreateConfiguration or dict-like object
-        const sandboxDict = sandbox as Record<string, unknown>;
-        for (const k of allowedCopyKeys) {
-          const value = sandboxDict[k];
-          if (value !== null && value !== undefined) {
-            payload[k] = value;
-          }
-        }
+        merged = {
+          ...sandboxObj,
+          spec: {
+            ...sandboxObj.spec,
+            runtime: {
+              image: defaults.image,
+              ports: defaults.ports,
+              ...sandboxObj.spec?.runtime,
+            },
+            lifecycle: sandboxObj.spec?.lifecycle || defaults.lifecycle,
+          },
+        } as Sandbox;
+      } else {
+        // It's a SandboxCreateConfiguration or dict-like object - merge with defaults
+        merged = { ...defaults, ...sandbox } as SandboxCreateConfiguration;
       }
+    } else {
+      merged = defaults;
     }
 
-    // Auto-fill region with BL_REGION if not set
-    if (!payload["region"] && settings.region) {
-      payload["region"] = settings.region;
-    }
+    const baseInstance = await super.create(merged, { safe });
 
-    const baseInstance = await SandboxInstance.create(payload, { safe });
-    // Create config from the instance - preserve any forceUrl/headers if provided in input
+    // Create config from the instance
     const config: SandboxConfiguration = {
       metadata: baseInstance.metadata,
       spec: baseInstance.spec,
@@ -96,7 +82,7 @@ export class CodeInterpreter extends SandboxInstance {
       events: baseInstance.events,
       h2Session: baseInstance.h2Session,
     };
-    // Preserve forceUrl and headers from input if it was a dict-like object
+    // Preserve forceUrl, headers, and params from input if provided
     if (sandbox && typeof sandbox === "object" && !Array.isArray(sandbox)) {
       if ("forceUrl" in sandbox && typeof sandbox.forceUrl === "string") {
         config.forceUrl = sandbox.forceUrl;
@@ -109,6 +95,10 @@ export class CodeInterpreter extends SandboxInstance {
       }
     }
     return new CodeInterpreter(config);
+  }
+
+  static async createIfNotExists(sandbox: Sandbox | SandboxCreateConfiguration): Promise<CodeInterpreter> {
+    return await super.createIfNotExists(sandbox) as CodeInterpreter;
   }
 
   get _jupyterUrl(): string {
