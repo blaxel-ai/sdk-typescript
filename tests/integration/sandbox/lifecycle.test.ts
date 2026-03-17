@@ -277,8 +277,6 @@ describe('Sandbox Lifecycle and Expiration', () => {
       })
       createdSandboxes.push(name)
 
-      await sandbox.fs.write(testFilePath, testContent)
-
       const updateAndWait = async (ttl: string) => {
         await retry(
           async () => {
@@ -299,6 +297,8 @@ describe('Sandbox Lifecycle and Expiration', () => {
         { retries: 3, delayMs: 2000 }
       )
 
+      // Write the file after all TTL updates so we know the sandbox is stable
+      await finalSandbox.fs.write(testFilePath, testContent)
       const content = await finalSandbox.fs.read(testFilePath)
       expect(content).toBe(testContent)
     })
