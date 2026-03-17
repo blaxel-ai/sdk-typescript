@@ -238,8 +238,8 @@ export function initSentry() {
           }
         };
 
-        process.on("SIGTERM", signalHandler);
-        process.on("SIGINT", signalHandler);
+        process.once("SIGTERM", signalHandler);
+        process.once("SIGINT", signalHandler);
         process.on("uncaughtExceptionMonitor", uncaughtExceptionMonitorHandler);
 
         // Intercept console.error to capture SDK errors that are caught and logged
