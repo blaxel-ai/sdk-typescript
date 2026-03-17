@@ -23,30 +23,33 @@ describe('Sandbox Image Tests', () => {
   })
 
   describe('without image name', () => {
-    it('fails to create a sandbox without specifying an image using raw API', async () => {
+    it('backend defaults to blaxel/base-image:latest when no image is specified via raw API', async () => {
       const name = uniqueName("no-image")
 
-      // Use raw API to bypass SDK's default image logic
-      // The backend should reject this because image is required
-      await expect(
-        createSandbox({
-          body: {
-            metadata: { name, labels: defaultLabels },
-            spec: {
-              runtime: {
-                memory: 4096
-                // Note: image is intentionally omitted here
-              }
+      const { data } = await createSandbox({
+        body: {
+          metadata: { name, labels: defaultLabels },
+          spec: {
+            runtime: {
+              memory: 4096
+              // Note: image is intentionally omitted here
             }
-          },
-          throwOnError: true
-        })
-      ).rejects.toThrow()
+          }
+        },
+        throwOnError: true
+      })
+      createdSandboxes.push(name)
 
-      // Verify the sandbox was not created
-      await expect(
-        SandboxInstance.get(name)
-      ).rejects.toThrow()
+      expect(data.spec?.runtime?.image).toBe("blaxel/base-image:latest")
+
+      const sandbox = await SandboxInstance.get(name)
+      expect(sandbox.spec.runtime?.image).toBe("blaxel/base-image:latest")
+
+      const result = await sandbox.process.exec({
+        command: "echo 'testing'",
+        waitForCompletion: true
+      })
+      expect(result.logs).toContain("testing")
     })
 
     it('SDK automatically fills default image when not specified', async () => {
