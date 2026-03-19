@@ -21,7 +21,6 @@ export class SandboxInstance {
   codegen: SandboxCodegen;
   system: SandboxSystem;
   drives: SandboxDrive;
-  /* eslint-disable @typescript-eslint/no-explicit-any */
   h2Session: any;
 
   constructor(private sandbox: SandboxConfiguration) {
@@ -80,10 +79,29 @@ export class SandboxInstance {
     return this.sandbox.expiresIn;
   }
 
-  /* eslint-disable */
-  async wait({maxWait = 60000, interval = 1000}: {maxWait?: number, interval?: number} = {}) {
-    logger.warn("⚠️  Warning: sandbox.wait() is deprecated. You don't need to wait for the sandbox to be deployed anymore.");
-    return this;
+  // Not deprecated anymore, we are using asynchronous check if the deployment take more than 20s.
+  async wait({maxWait = 180_000, interval = 1_000}: {maxWait?: number, interval?: number} = {}) {
+    if (this.sandbox.status === "DEPLOYED") {
+      return this;
+    }
+    logger.info(`Sandbox ${this.metadata.name} is deploying, waiting for it to be ready...`);
+    const deadline = Date.now() + maxWait;
+    while (Date.now() < deadline) {
+      const { data } = await getSandbox({
+        path: { sandboxName: this.metadata.name },
+        throwOnError: true,
+      });
+      if (data.status === "DEPLOYED") {
+        logger.info(`Sandbox ${this.metadata.name} is now deployed`);
+        Object.assign(this.sandbox, data);
+        return this;
+      }
+      if (data.status === "FAILED" || data.status === "TERMINATED") {
+        throw new Error(`Sandbox ${this.metadata.name} reached terminal status: ${data.status}`);
+      }
+      await new Promise((r) => setTimeout(r, interval));
+    }
+    throw new Error(`Sandbox ${this.metadata.name} did not reach DEPLOYED status within ${maxWait / 1000}s`);
   }
 
   static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = false }: { safe?: boolean } = {}) {
@@ -143,11 +161,13 @@ export class SandboxInstance {
           network: network,
         }
       } as SandboxModel
-      if (ttl) {
-        sandbox.spec!.runtime!.ttl = ttl;
-      }
-      if (expires) {
-        sandbox.spec!.runtime!.expires = expires.toISOString();
+      if (sandbox.spec?.runtime) {
+        if (ttl) {
+          sandbox.spec.runtime.ttl = ttl;
+        }
+        if (expires) {
+          sandbox.spec.runtime.expires = expires.toISOString();
+        }
       }
     }
 
@@ -180,16 +200,17 @@ export class SandboxInstance {
       }),
       edgeDomain ? import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.get(edgeDomain)).catch(() => null) : Promise.resolve(null),
     ]);
-    // Inject the H2 session into the config so subsystems can use it
+
     const config = { ...data, h2Session } as SandboxConfiguration;
     const instance = new SandboxInstance(config);
     instance.h2Session = h2Session;
-    // Note: H2 session already attached via Promise.all above, no need for attachH2Session()
-    // TODO remove this part once we have a better way to handle this
+    if (data.status === "DEPLOYING") {
+      await instance.wait();
+    }
     if (safe) {
       try {
         await instance.fs.ls('/')
-      } catch {}
+      } catch { /* best-effort readiness check */ }
     }
     return instance;
   }
@@ -224,7 +245,7 @@ export class SandboxInstance {
   async delete() {
     // Don't close the H2 session — it's shared via h2Pool
     this.h2Session = null;
-    return await SandboxInstance.delete(this.metadata.name!);
+    return await SandboxInstance.delete(this.metadata.name);
   }
 
   static async updateMetadata(sandboxName: string, metadata: SandboxUpdateMetadata) {
@@ -273,16 +294,16 @@ export class SandboxInstance {
           throw new Error("Sandbox name is required");
         }
 
-        // Get the existing sandbox to check its status
         const sandboxInstance = await this.get(name);
 
-          // If the sandbox is TERMINATED, treat it as not existing
-          if (sandboxInstance.status === "TERMINATED") {
-            // Create a new sandbox - backend will handle cleanup of the terminated one
-            return await this.create(sandbox);
-          }
+        if (sandboxInstance.status === "TERMINATED") {
+          return await this.create(sandbox);
+        }
 
-        // Otherwise return the existing running sandbox
+        if (sandboxInstance.status === "DEPLOYING") {
+          await sandboxInstance.wait();
+        }
+
         return sandboxInstance;
       }
       throw e;
