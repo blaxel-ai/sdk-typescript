@@ -3,10 +3,10 @@
 /**
  * Serverless AI agent deployment that runs your custom agent code as an auto-scaling API endpoint. Agents are deployed from your code repository and expose a global inference URL for querying.
  */
-export type AgentReadable = {
-    events?: CoreEventsReadable;
-    metadata: MetadataReadable;
-    spec: AgentSpecReadable;
+export type Agent = {
+    events?: CoreEvents;
+    metadata: Metadata;
+    spec: AgentSpec;
     status?: Status;
 };
 
@@ -53,7 +53,7 @@ export type AgentRuntime = {
 /**
  * Configuration for an AI agent including runtime settings, repository source, and deployment triggers
  */
-export type AgentSpecReadable = {
+export type AgentSpec = {
     /**
      * When false, the agent is disabled and will not serve inference requests
      */
@@ -63,15 +63,10 @@ export type AgentSpecReadable = {
      * When true, the agent is publicly accessible without authentication. Only available for mk3 generation.
      */
     public?: boolean;
-    /**
-     * Region where the agent should be deployed (e.g. us-pdx-1, eu-lon-1). Required when volumes are attached.
-     */
-    region?: string;
     repository?: Repository;
     revision?: RevisionConfiguration;
     runtime?: AgentRuntime;
-    triggers?: TriggersReadable;
-    volumes?: VolumeAttachments;
+    triggers?: Triggers;
 };
 
 /**
@@ -87,21 +82,16 @@ export type AgentSpecWritable = {
      * When true, the agent is publicly accessible without authentication. Only available for mk3 generation.
      */
     public?: boolean;
-    /**
-     * Region where the agent should be deployed (e.g. us-pdx-1, eu-lon-1). Required when volumes are attached.
-     */
-    region?: string;
     repository?: Repository;
     revision?: RevisionConfiguration;
     runtime?: AgentRuntime;
     triggers?: TriggersWritable;
-    volumes?: VolumeAttachments;
 };
 
 /**
  * Long-lived API key for accessing Blaxel
  */
-export type ApiKeyReadable = TimeFieldsReadable & OwnerFieldsReadable & {
+export type ApiKey = TimeFields & OwnerFields & {
     /**
      * Api key
      */
@@ -131,7 +121,7 @@ export type ApiKeyReadable = TimeFieldsReadable & OwnerFieldsReadable & {
 /**
  * Long-lived API key for accessing Blaxel
  */
-export type ApiKeyWritable = TimeFieldsWritable & OwnerFieldsWritable & {
+export type ApiKeyWritable = TimeFields & OwnerFields & {
     /**
      * Duration until expiration. Supports formats like '30d' (30 days), '24h' (24 hours), '1w' (1 week). If not set, the API key never expires.
      */
@@ -185,7 +175,7 @@ export type Continent = {
 /**
  * Core event
  */
-export type CoreEventReadable = {
+export type CoreEvent = {
     /**
      * Canary revisionID link to the event
      */
@@ -245,7 +235,7 @@ export type CoreEventWritable = {
 /**
  * Events happening on a resource deployed on Blaxel
  */
-export type CoreEventsReadable = Array<CoreEventReadable>;
+export type CoreEvents = Array<CoreEvent>;
 
 /**
  * Events happening on a resource deployed on Blaxel
@@ -338,9 +328,9 @@ export type CreateJobExecutionRequest = {
  * to serve preview deployments. Each preview will be accessible at a subdomain:
  * <preview-id>.preview.<base-domain> (e.g., abc123.preview.example.com)
  */
-export type CustomDomainReadable = {
-    metadata: CustomDomainMetadataReadable;
-    spec: CustomDomainSpecReadable;
+export type CustomDomain = {
+    metadata: CustomDomainMetadata;
+    spec: CustomDomainSpec;
 };
 
 /**
@@ -357,7 +347,7 @@ export type CustomDomainWritable = {
 /**
  * Custom domain metadata
  */
-export type CustomDomainMetadataReadable = TimeFieldsReadable & OwnerFieldsReadable & {
+export type CustomDomainMetadata = TimeFields & OwnerFields & {
     /**
      * Display name for the custom domain
      */
@@ -376,7 +366,7 @@ export type CustomDomainMetadataReadable = TimeFieldsReadable & OwnerFieldsReada
 /**
  * Custom domain metadata
  */
-export type CustomDomainMetadataWritable = TimeFieldsWritable & OwnerFieldsWritable & {
+export type CustomDomainMetadataWritable = TimeFields & OwnerFields & {
     /**
      * Display name for the custom domain
      */
@@ -395,7 +385,7 @@ export type CustomDomainMetadataWritable = TimeFieldsWritable & OwnerFieldsWrita
 /**
  * Custom domain specification
  */
-export type CustomDomainSpecReadable = {
+export type CustomDomainSpec = {
     /**
      * CNAME target for the domain
      */
@@ -449,13 +439,13 @@ export type CustomDomainSpecWritable = {
 };
 
 /**
- * Drive providing persistent storage that can be attached to agents, functions, and sandboxes. Drives can be mounted at runtime via the sbx API.
+ * Drive providing persistent storage that can be attached to agents, functions, and sandboxes. Drives are backed by SeaweedFS buckets and can be mounted at runtime via the sbx API.
  */
-export type DriveReadable = {
-    events?: CoreEventsReadable;
-    metadata: MetadataReadable;
-    spec: DriveSpecReadable;
-    state?: DriveStateReadable;
+export type Drive = {
+    events?: CoreEvents;
+    metadata: Metadata;
+    spec: DriveSpec;
+    state?: DriveState;
     /**
      * Drive status computed from events
      */
@@ -463,19 +453,19 @@ export type DriveReadable = {
 };
 
 /**
- * Drive providing persistent storage that can be attached to agents, functions, and sandboxes. Drives can be mounted at runtime via the sbx API.
+ * Drive providing persistent storage that can be attached to agents, functions, and sandboxes. Drives are backed by SeaweedFS buckets and can be mounted at runtime via the sbx API.
  */
 export type DriveWritable = {
     events?: CoreEventsWritable;
     metadata: MetadataWritable;
     spec: DriveSpecWritable;
-    state?: DriveStateWritable;
+    state?: DriveState;
 };
 
 /**
  * Immutable drive configuration set at creation time
  */
-export type DriveSpecReadable = {
+export type DriveSpec = {
     /**
      * The internal infrastructure resource identifier for this drive (bucket name)
      */
@@ -507,7 +497,7 @@ export type DriveSpecWritable = {
 /**
  * Current runtime state of the drive
  */
-export type DriveStateReadable = {
+export type DriveState = {
     /**
      * S3-compatible endpoint URL for accessing drive contents
      */
@@ -517,9 +507,9 @@ export type DriveStateReadable = {
 /**
  * An egress gateway that manages outbound traffic routing within a VPC. Multiple egress IPs can be allocated from a single gateway.
  */
-export type EgressGatewayReadable = {
-    events?: CoreEventsReadable;
-    metadata: EgressGatewayMetadataReadable;
+export type EgressGateway = {
+    events?: CoreEvents;
+    metadata: EgressGatewayMetadata;
     spec: EgressGatewaySpec;
     status?: Status;
 };
@@ -537,7 +527,7 @@ export type EgressGatewayWritable = {
 /**
  * Metadata for an egress gateway resource including workspace, VPC, and name
  */
-export type EgressGatewayMetadataReadable = TimeFieldsReadable & OwnerFieldsReadable & {
+export type EgressGatewayMetadata = TimeFields & OwnerFields & {
     /**
      * Human-readable name for display in the UI. Can contain spaces and special characters, max 63 characters.
      */
@@ -559,7 +549,7 @@ export type EgressGatewayMetadataReadable = TimeFieldsReadable & OwnerFieldsRead
 /**
  * Metadata for an egress gateway resource including workspace, VPC, and name
  */
-export type EgressGatewayMetadataWritable = TimeFieldsWritable & OwnerFieldsWritable & {
+export type EgressGatewayMetadataWritable = TimeFields & OwnerFields & {
     /**
      * Human-readable name for display in the UI. Can contain spaces and special characters, max 63 characters.
      */
@@ -583,10 +573,10 @@ export type EgressGatewaySpec = {
 /**
  * An individual IP address allocated from an egress gateway for dedicated outbound traffic
  */
-export type EgressIpReadable = {
-    events?: CoreEventsReadable;
-    metadata: EgressIpMetadataReadable;
-    spec: EgressIpSpecReadable;
+export type EgressIp = {
+    events?: CoreEvents;
+    metadata: EgressIpMetadata;
+    spec: EgressIpSpec;
     status?: Status;
 };
 
@@ -603,7 +593,7 @@ export type EgressIpWritable = {
 /**
  * Metadata for an egress IP address including gateway association and name
  */
-export type EgressIpMetadataReadable = TimeFieldsReadable & OwnerFieldsReadable & {
+export type EgressIpMetadata = TimeFields & OwnerFields & {
     /**
      * Human-readable name for display in the UI. Can contain spaces and special characters, max 63 characters.
      */
@@ -629,7 +619,7 @@ export type EgressIpMetadataReadable = TimeFieldsReadable & OwnerFieldsReadable 
 /**
  * Metadata for an egress IP address including gateway association and name
  */
-export type EgressIpMetadataWritable = TimeFieldsWritable & OwnerFieldsWritable & {
+export type EgressIpMetadataWritable = TimeFields & OwnerFields & {
     /**
      * Human-readable name for display in the UI. Can contain spaces and special characters, max 63 characters.
      */
@@ -643,7 +633,7 @@ export type EgressIpMetadataWritable = TimeFieldsWritable & OwnerFieldsWritable 
 /**
  * Specification for an egress IP including IP family and the provisioned address
  */
-export type EgressIpSpecReadable = {
+export type EgressIpSpec = {
     /**
      * IP address family, either IPv4 or IPv6
      */
@@ -787,10 +777,10 @@ export type Form = {
 /**
  * MCP server deployment that exposes tools for AI agents via the Model Context Protocol (MCP). Deployed as a serverless auto-scaling endpoint using streamable HTTP transport.
  */
-export type FunctionReadable = {
-    events?: CoreEventsReadable;
-    metadata: MetadataReadable;
-    spec: FunctionSpecReadable;
+export type _Function = {
+    events?: CoreEvents;
+    metadata: Metadata;
+    spec: FunctionSpec;
     status?: Status;
 };
 
@@ -841,7 +831,7 @@ export type FunctionRuntime = {
 /**
  * Configuration for an MCP server function including runtime settings, transport protocol, and connected integrations
  */
-export type FunctionSpecReadable = {
+export type FunctionSpec = {
     /**
      * When false, the function is disabled and will not serve requests
      */
@@ -852,13 +842,9 @@ export type FunctionSpecReadable = {
      * When true, the function is publicly accessible without authentication. Only available for mk3 generation.
      */
     public?: boolean;
-    /**
-     * Region where the function should be deployed (e.g. us-pdx-1, eu-lon-1). If not specified, the function is deployed based on policy locations.
-     */
-    region?: string;
     revision?: RevisionConfiguration;
     runtime?: FunctionRuntime;
-    triggers?: TriggersReadable;
+    triggers?: Triggers;
 };
 
 /**
@@ -875,32 +861,14 @@ export type FunctionSpecWritable = {
      * When true, the function is publicly accessible without authentication. Only available for mk3 generation.
      */
     public?: boolean;
-    /**
-     * Region where the function should be deployed (e.g. us-pdx-1, eu-lon-1). If not specified, the function is deployed based on policy locations.
-     */
-    region?: string;
     revision?: RevisionConfiguration;
     runtime?: FunctionRuntime;
     triggers?: TriggersWritable;
 };
 
-/**
- * Mapping between an IdP group and a workspace role for directory sync
- */
-export type GroupWorkspaceMapping = {
-    /**
-     * Name of the IdP group (e.g. "Engineering", "Platform")
-     */
-    groupName?: string;
-    /**
-     * Role to assign in this workspace (admin or member)
-     */
-    role?: 'admin' | 'member';
-};
-
-export type ImageReadable = {
-    metadata: ImageMetadataReadable;
-    spec: ImageSpecReadable;
+export type Image = {
+    metadata: ImageMetadata;
+    spec: ImageSpec;
 };
 
 export type ImageWritable = {
@@ -908,7 +876,7 @@ export type ImageWritable = {
     spec: ImageSpecWritable;
 };
 
-export type ImageMetadataReadable = {
+export type ImageMetadata = {
     /**
      * The date and time when the image was created.
      */
@@ -954,7 +922,7 @@ export type ImageMetadataWritable = {
     resourceType?: string;
 };
 
-export type ImageSpecReadable = {
+export type ImageSpec = {
     /**
      * The size of the image in bytes.
      */
@@ -962,7 +930,7 @@ export type ImageSpecReadable = {
     /**
      * List of tags available for this image.
      */
-    tags?: Array<ImageTagReadable>;
+    tags?: Array<ImageTag>;
 };
 
 export type ImageSpecWritable = {
@@ -972,7 +940,7 @@ export type ImageSpecWritable = {
     tags?: Array<ImageTagWritable>;
 };
 
-export type ImageTagReadable = {
+export type ImageTag = {
     /**
      * The date and time when the tag was created.
      */
@@ -1028,8 +996,8 @@ export type Integration = {
 /**
  * Configured connection to an external service (LLM provider, API, SaaS, database) storing credentials and settings for use by workspace resources.
  */
-export type IntegrationConnectionReadable = {
-    metadata: MetadataReadable;
+export type IntegrationConnection = {
+    metadata: Metadata;
     spec: IntegrationConnectionSpec;
 };
 
@@ -1191,10 +1159,10 @@ export type IntegrationRepository = {
 /**
  * Batch processing job definition for running parallel AI tasks. Jobs can execute multiple tasks concurrently with configurable parallelism, retries, and timeouts.
  */
-export type JobReadable = {
-    events?: CoreEventsReadable;
-    metadata: MetadataReadable;
-    spec: JobSpecReadable;
+export type Job = {
+    events?: CoreEvents;
+    metadata: Metadata;
+    spec: JobSpec;
     status?: Status;
 };
 
@@ -1211,15 +1179,15 @@ export type JobWritable = {
 /**
  * Job execution
  */
-export type JobExecutionReadable = {
-    metadata: JobExecutionMetadataReadable;
-    spec: JobExecutionSpecReadable;
-    stats?: JobExecutionStatsReadable;
+export type JobExecution = {
+    metadata: JobExecutionMetadata;
+    spec: JobExecutionSpec;
+    stats?: JobExecutionStats;
     status?: JobExecutionStatus;
     /**
      * List of execution tasks
      */
-    tasks?: Array<JobExecutionTaskReadable>;
+    tasks?: Array<JobExecutionTask>;
 };
 
 /**
@@ -1239,7 +1207,7 @@ export type JobExecutionWritable = {
 /**
  * Job execution metadata
  */
-export type JobExecutionMetadataReadable = {
+export type JobExecutionMetadata = {
     /**
      * Cluster ID
      */
@@ -1331,7 +1299,7 @@ export type JobExecutionMetadataWritable = {
 /**
  * Job execution specification
  */
-export type JobExecutionSpecReadable = {
+export type JobExecutionSpec = {
     /**
      * Environment variable overrides (if provided for this execution, values are masked with ***)
      */
@@ -1349,7 +1317,7 @@ export type JobExecutionSpecReadable = {
     /**
      * List of execution tasks
      */
-    tasks?: Array<JobExecutionTaskReadable>;
+    tasks?: Array<JobExecutionTask>;
     /**
      * Job timeout in seconds (captured at execution creation time)
      */
@@ -1387,7 +1355,7 @@ export type JobExecutionSpecWritable = {
 /**
  * Job execution statistics
  */
-export type JobExecutionStatsReadable = {
+export type JobExecutionStats = {
     /**
      * Number of cancelled tasks
      */
@@ -1452,12 +1420,12 @@ export type JobExecutionStatus = 'queued' | 'pending' | 'running' | 'cancelling'
 /**
  * Job execution task
  */
-export type JobExecutionTaskReadable = {
+export type JobExecutionTask = {
     /**
      * Task conditions
      */
     conditions?: Array<JobExecutionTaskCondition>;
-    metadata?: JobExecutionTaskMetadataReadable;
+    metadata?: JobExecutionTaskMetadata;
     spec?: JobExecutionTaskSpec;
     status?: JobExecutionTaskStatus;
 };
@@ -1508,7 +1476,7 @@ export type JobExecutionTaskCondition = {
 /**
  * Job execution task metadata
  */
-export type JobExecutionTaskMetadataReadable = {
+export type JobExecutionTaskMetadata = {
     /**
      * Completion timestamp
      */
@@ -1602,7 +1570,7 @@ export type JobRuntime = {
 /**
  * Configuration for a batch job including execution parameters, parallelism settings, and deployment region
  */
-export type JobSpecReadable = {
+export type JobSpec = {
     /**
      * When false, the job is disabled and new executions cannot be triggered
      */
@@ -1614,7 +1582,7 @@ export type JobSpecReadable = {
     region?: string;
     revision?: RevisionConfiguration;
     runtime?: JobRuntime;
-    triggers?: TriggersReadable;
+    triggers?: Triggers;
 };
 
 /**
@@ -1668,7 +1636,7 @@ export type LocationResponse = {
 /**
  * Definition of an MCP from the MCP Hub
  */
-export type McpDefinitionReadable = TimeFieldsReadable & {
+export type McpDefinition = TimeFields & {
     /**
      * Categories of the artifact
      */
@@ -1734,7 +1702,7 @@ export type McpDefinitionReadable = TimeFieldsReadable & {
 /**
  * Definition of an MCP from the MCP Hub
  */
-export type McpDefinitionWritable = TimeFieldsWritable & {
+export type McpDefinitionWritable = TimeFields & {
     /**
      * Categories of the artifact
      */
@@ -1800,7 +1768,7 @@ export type McpDefinitionWritable = TimeFieldsWritable & {
 /**
  * Common metadata fields shared by all Blaxel resources including name, labels, timestamps, and ownership information
  */
-export type MetadataReadable = TimeFieldsReadable & OwnerFieldsReadable & {
+export type Metadata = TimeFields & OwnerFields & {
     /**
      * Human-readable name for display in the UI. Can contain spaces and special characters, max 63 characters.
      */
@@ -1827,7 +1795,7 @@ export type MetadataReadable = TimeFieldsReadable & OwnerFieldsReadable & {
 /**
  * Common metadata fields shared by all Blaxel resources including name, labels, timestamps, and ownership information
  */
-export type MetadataWritable = TimeFieldsWritable & OwnerFieldsWritable & {
+export type MetadataWritable = TimeFields & OwnerFields & {
     /**
      * Human-readable name for display in the UI. Can contain spaces and special characters, max 63 characters.
      */
@@ -1849,9 +1817,9 @@ export type MetadataLabels = {
 /**
  * Gateway endpoint to external LLM provider APIs (OpenAI, Anthropic, etc.) with unified access control, credentials management, and usage tracking.
  */
-export type ModelReadable = {
-    events?: CoreEventsReadable;
-    metadata: MetadataReadable;
+export type Model = {
+    events?: CoreEvents;
+    metadata: Metadata;
     spec: ModelSpec;
     status?: Status;
 };
@@ -1929,7 +1897,7 @@ export type OAuth = {
 /**
  * Owner fields for Persistance
  */
-export type OwnerFieldsReadable = {
+export type OwnerFields = {
     /**
      * The user or service account who created the resource
      */
@@ -1943,15 +1911,11 @@ export type OwnerFieldsReadable = {
 /**
  * Pending invitation in workspace
  */
-export type PendingInvitationReadable = TimeFieldsReadable & OwnerFieldsReadable & {
+export type PendingInvitation = TimeFields & OwnerFields & {
     /**
      * User email
      */
     email?: string;
-    /**
-     * The date and time when the invitation expires
-     */
-    expiresAt?: string;
     /**
      * User sub
      */
@@ -1969,15 +1933,11 @@ export type PendingInvitationReadable = TimeFieldsReadable & OwnerFieldsReadable
 /**
  * Pending invitation in workspace
  */
-export type PendingInvitationWritable = TimeFieldsWritable & OwnerFieldsWritable & {
+export type PendingInvitationWritable = TimeFields & OwnerFields & {
     /**
      * User email
      */
     email?: string;
-    /**
-     * The date and time when the invitation expires
-     */
-    expiresAt?: string;
     /**
      * User sub
      */
@@ -1995,12 +1955,12 @@ export type PendingInvitationWritable = TimeFieldsWritable & OwnerFieldsWritable
 /**
  * Pending invitation accept
  */
-export type PendingInvitationAcceptReadable = {
+export type PendingInvitationAccept = {
     /**
      * User email
      */
     email?: string;
-    workspace?: WorkspaceReadable;
+    workspace?: Workspace;
 };
 
 /**
@@ -2022,10 +1982,6 @@ export type PendingInvitationRender = {
      * User email
      */
     email?: string;
-    /**
-     * The date and time when the invitation expires
-     */
-    expiresAt?: string;
     /**
      * Invitation date
      */
@@ -2096,8 +2052,8 @@ export type PoliciesList = Array<string>;
 /**
  * Rule that controls how a deployment is made and served (e.g. location restrictions)
  */
-export type PolicyReadable = {
-    metadata: MetadataReadable;
+export type Policy = {
+    metadata: Metadata;
     spec: PolicySpec;
 };
 
@@ -2212,10 +2168,10 @@ export type Ports = Array<Port>;
 /**
  * Preview of a Resource
  */
-export type PreviewReadable = {
-    events?: CoreEventsReadable;
-    metadata: PreviewMetadataReadable;
-    spec: PreviewSpecReadable;
+export type Preview = {
+    events?: CoreEvents;
+    metadata: PreviewMetadata;
+    spec: PreviewSpec;
     status?: Status;
 };
 
@@ -2232,7 +2188,7 @@ export type PreviewWritable = {
 /**
  * PreviewMetadata
  */
-export type PreviewMetadataReadable = TimeFieldsReadable & OwnerFieldsReadable & {
+export type PreviewMetadata = TimeFields & OwnerFields & {
     /**
      * Model display name
      */
@@ -2258,7 +2214,7 @@ export type PreviewMetadataReadable = TimeFieldsReadable & OwnerFieldsReadable &
 /**
  * PreviewMetadata
  */
-export type PreviewMetadataWritable = TimeFieldsWritable & OwnerFieldsWritable & {
+export type PreviewMetadataWritable = TimeFields & OwnerFields & {
     /**
      * Model display name
      */
@@ -2284,7 +2240,7 @@ export type PreviewMetadataWritable = TimeFieldsWritable & OwnerFieldsWritable &
 /**
  * Preview of a Resource
  */
-export type PreviewSpecReadable = {
+export type PreviewSpec = {
     /**
      * Custom domain bound to this preview
      */
@@ -2376,9 +2332,9 @@ export type PreviewSpecWritable = {
 /**
  * Token for a Preview
  */
-export type PreviewTokenReadable = {
+export type PreviewToken = {
     metadata: PreviewTokenMetadata;
-    spec: PreviewTokenSpecReadable;
+    spec: PreviewTokenSpec;
 };
 
 /**
@@ -2418,7 +2374,7 @@ export type PreviewTokenMetadata = {
 /**
  * Spec for a Preview Token
  */
-export type PreviewTokenSpecReadable = {
+export type PreviewTokenSpec = {
     /**
      * Whether the token is expired
      */
@@ -2559,7 +2515,7 @@ export type RevisionConfiguration = {
 /**
  * Revision metadata
  */
-export type RevisionMetadataReadable = {
+export type RevisionMetadata = {
     /**
      * Is the revision active
      */
@@ -2617,128 +2573,10 @@ export type RevisionMetadataWritable = {
 };
 
 /**
- * SSO domain for SAML-based Single Sign-On
- * An SSO domain links an email domain (e.g., acme.com) to a workspace so that
- * users with that email domain are redirected to the workspace's
- * SSO/SAML identity provider during login.
- */
-export type SsoDomainReadable = {
-    metadata: SsoDomainMetadataReadable;
-    spec: SsoDomainSpecReadable;
-};
-
-/**
- * SSO domain for SAML-based Single Sign-On
- * An SSO domain links an email domain (e.g., acme.com) to a workspace so that
- * users with that email domain are redirected to the workspace's
- * SSO/SAML identity provider during login.
- */
-export type SsoDomainWritable = {
-    metadata: SsoDomainMetadataWritable;
-    spec: SsoDomainSpecWritable;
-};
-
-/**
- * SSO domain metadata
- */
-export type SsoDomainMetadataReadable = TimeFieldsReadable & OwnerFieldsReadable & {
-    /**
-     * Account ID
-     */
-    accountId?: string;
-    /**
-     * Display name for the SSO domain
-     */
-    displayName?: string;
-    /**
-     * Domain name (e.g., "acme.com")
-     */
-    name?: string;
-};
-
-/**
- * SSO domain metadata
- */
-export type SsoDomainMetadataWritable = TimeFieldsWritable & OwnerFieldsWritable & {
-    /**
-     * Account ID
-     */
-    accountId?: string;
-    /**
-     * Display name for the SSO domain
-     */
-    displayName?: string;
-    /**
-     * Domain name (e.g., "acme.com")
-     */
-    name?: string;
-};
-
-/**
- * SSO domain specification
- */
-export type SsoDomainSpecReadable = {
-    /**
-     * List of allowed login methods for this domain. When set, users with this email domain can only use the specified methods. Possible values are google, saml, email. Empty list means no restriction.
-     */
-    allowedAuthMethods?: Array<string>;
-    /**
-     * List of workspace names where users with this domain auto-join on login
-     */
-    autoJoinWorkspaces?: Array<string>;
-    /**
-     * The authentication method last used by a user with this domain (google, saml, email)
-     */
-    readonly lastUsedAuthMethod?: string;
-    /**
-     * Timestamp of when the last authentication method was used
-     */
-    readonly lastUsedAuthMethodAt?: string;
-    /**
-     * Last verification attempt timestamp
-     */
-    readonly lastVerifiedAt?: string;
-    /**
-     * Current verification status of the domain (pending, verified, failed)
-     */
-    status?: 'pending' | 'verified' | 'failed';
-    /**
-     * DNS TXT record name that must be created for verification
-     */
-    readonly txtRecordName?: string;
-    /**
-     * DNS TXT record value that must be set for verification
-     */
-    readonly txtRecordValue?: string;
-    /**
-     * Error message if verification failed
-     */
-    readonly verificationError?: string;
-};
-
-/**
- * SSO domain specification
- */
-export type SsoDomainSpecWritable = {
-    /**
-     * List of allowed login methods for this domain. When set, users with this email domain can only use the specified methods. Possible values are google, saml, email. Empty list means no restriction.
-     */
-    allowedAuthMethods?: Array<string>;
-    /**
-     * List of workspace names where users with this domain auto-join on login
-     */
-    autoJoinWorkspaces?: Array<string>;
-    /**
-     * Current verification status of the domain (pending, verified, failed)
-     */
-    status?: 'pending' | 'verified' | 'failed';
-};
-
-/**
  * Lightweight virtual machine for secure AI code execution. Sandboxes resume from standby in under 25ms and automatically scale to zero after inactivity, preserving memory state including running processes and filesystem.
  */
-export type SandboxReadable = {
-    events?: CoreEventsReadable;
+export type Sandbox = {
+    events?: CoreEvents;
     /**
      * Time in seconds until the sandbox is automatically deleted based on TTL and lifecycle policies. Only present for sandboxes with lifecycle configured.
      */
@@ -2747,7 +2585,7 @@ export type SandboxReadable = {
      * Last time the sandbox was used (read-only, managed by the system)
      */
     readonly lastUsedAt?: string;
-    metadata: MetadataReadable;
+    metadata: Metadata;
     spec: SandboxSpec;
     status?: Status;
 };
@@ -2871,22 +2709,18 @@ export type SandboxLifecycle = {
      * List of expiration policies. Multiple policies can be combined; whichever condition is met first triggers the action.
      */
     expirationPolicies?: Array<ExpirationPolicy>;
-    /**
-     * Duration to keep the sandbox record after termination for log access (e.g., '1h', '24h', '7d'). Defaults to 5m. Subject to maximum quota limits.
-     */
-    terminatedRetention?: string;
 };
 
 /**
- * Network configuration for a sandbox including egress IP binding. All fields (vpcName, egressGatewayName) must be specified together to assign a dedicated IP.
+ * Network configuration for a sandbox including egress IP binding. All three fields (vpcName, egressGatewayName, egressIpName) must be specified together to assign a dedicated IP.
  */
 export type SandboxNetwork = {
     /**
-     * Name of the egress gateway in the VPC. Must be specified together with vpcName.
+     * Name of the egress gateway in the VPC. Must be specified together with vpcName and egressIpName.
      */
     egressGatewayName: string;
     /**
-     * Name of the VPC where the egress gateway is provisioned. Must be specified together with egressGatewayName.
+     * Name of the VPC where the egress gateway is provisioned. Must be specified together with egressGatewayName and egressIpName.
      */
     vpcName: string;
 };
@@ -3024,7 +2858,7 @@ export type TemplateVariable = {
 /**
  * Time fields for Persistance
  */
-export type TimeFieldsReadable = {
+export type TimeFields = {
     /**
      * The date and time when the resource was created
      */
@@ -3038,8 +2872,8 @@ export type TimeFieldsReadable = {
 /**
  * Trigger configuration
  */
-export type TriggerReadable = {
-    configuration?: TriggerConfigurationReadable;
+export type Trigger = {
+    configuration?: TriggerConfiguration;
     /**
      * Enable or disable the trigger (default: true)
      */
@@ -3076,7 +2910,7 @@ export type TriggerWritable = {
 /**
  * Trigger configuration
  */
-export type TriggerConfigurationReadable = {
+export type TriggerConfiguration = {
     /**
      * The authentication type of the trigger
      */
@@ -3155,7 +2989,7 @@ export type TriggerConfigurationTask = {
 /**
  * Triggers to use your agent
  */
-export type TriggersReadable = Array<TriggerReadable>;
+export type Triggers = Array<Trigger>;
 
 /**
  * Triggers to use your agent
@@ -3165,9 +2999,9 @@ export type TriggersWritable = Array<TriggerWritable>;
 /**
  * Virtual Private Cloud scoped to a workspace for network isolation and dedicated egress
  */
-export type VpcReadable = {
-    events?: CoreEventsReadable;
-    metadata: MetadataReadable;
+export type Vpc = {
+    events?: CoreEvents;
+    metadata: Metadata;
     spec: VpcSpec;
     status?: Status;
 };
@@ -3192,11 +3026,11 @@ export type VpcSpec = {
 /**
  * Persistent storage volume that can be attached to sandboxes for durable file storage across sessions. Volumes survive sandbox deletion and can be reattached to new sandboxes.
  */
-export type VolumeReadable = {
-    events?: CoreEventsReadable;
-    metadata: MetadataReadable;
-    spec: VolumeSpecReadable;
-    state?: VolumeStateReadable;
+export type Volume = {
+    events?: CoreEvents;
+    metadata: Metadata;
+    spec: VolumeSpec;
+    state?: VolumeState;
     /**
      * Volume status computed from events
      */
@@ -3240,7 +3074,7 @@ export type VolumeAttachments = Array<VolumeAttachment>;
 /**
  * Immutable volume configuration set at creation time (size and region cannot be changed after creation)
  */
-export type VolumeSpecReadable = {
+export type VolumeSpec = {
     /**
      * The internal infrastructure resource identifier for this volume
      */
@@ -3280,7 +3114,7 @@ export type VolumeSpecWritable = {
 /**
  * Current runtime state of the volume including attachment status
  */
-export type VolumeStateReadable = {
+export type VolumeState = {
     /**
      * Resource currently using this volume in format "type:name" (e.g., "sandbox:my-sandbox"). Empty if not attached.
      */
@@ -3300,14 +3134,14 @@ export type VolumeStateWritable = {
 /**
  * Volume template for creating pre-configured volumes
  */
-export type VolumeTemplateReadable = {
-    metadata: MetadataReadable;
+export type VolumeTemplate = {
+    metadata: Metadata;
     spec: VolumeTemplateSpec;
-    state?: VolumeTemplateStateReadable;
+    state?: VolumeTemplateState;
     /**
      * List of versions for this template
      */
-    versions?: Array<VolumeTemplateVersionReadable>;
+    versions?: Array<VolumeTemplateVersion>;
 };
 
 /**
@@ -3340,7 +3174,7 @@ export type VolumeTemplateSpec = {
 /**
  * Volume template state
  */
-export type VolumeTemplateStateReadable = {
+export type VolumeTemplateState = {
     /**
      * Timestamp of last version upload
      */
@@ -3372,7 +3206,7 @@ export type VolumeTemplateStateWritable = {
 /**
  * Volume template version tracking individual versions of template content
  */
-export type VolumeTemplateVersionReadable = {
+export type VolumeTemplateVersion = {
     /**
      * S3 bucket name where this version is stored
      */
@@ -3428,7 +3262,7 @@ export type VolumeTemplateVersionWritable = {
 /**
  * Tenant container that groups all Blaxel resources (agents, functions, models, etc.) with shared team access control and billing.
  */
-export type WorkspaceReadable = TimeFieldsReadable & OwnerFieldsReadable & {
+export type Workspace = TimeFields & OwnerFields & {
     /**
      * Workspace account id
      */
@@ -3437,10 +3271,6 @@ export type WorkspaceReadable = TimeFieldsReadable & OwnerFieldsReadable & {
      * Workspace display name
      */
     displayName?: string;
-    /**
-     * Group-to-role mappings for directory sync (SCIM) group membership
-     */
-    groupMappings?: Array<GroupWorkspaceMapping>;
     /**
      * Autogenerated unique workspace id
      */
@@ -3468,7 +3298,7 @@ export type WorkspaceReadable = TimeFieldsReadable & OwnerFieldsReadable & {
 /**
  * Tenant container that groups all Blaxel resources (agents, functions, models, etc.) with shared team access control and billing.
  */
-export type WorkspaceWritable = TimeFieldsWritable & OwnerFieldsWritable & {
+export type WorkspaceWritable = TimeFields & OwnerFields & {
     /**
      * Workspace account id
      */
@@ -3477,10 +3307,6 @@ export type WorkspaceWritable = TimeFieldsWritable & OwnerFieldsWritable & {
      * Workspace display name
      */
     displayName?: string;
-    /**
-     * Group-to-role mappings for directory sync (SCIM) group membership
-     */
-    groupMappings?: Array<GroupWorkspaceMapping>;
     labels?: MetadataLabels;
     /**
      * Workspace name
@@ -3524,10 +3350,6 @@ export type WorkspaceUser = {
      */
     email_verified?: boolean;
     /**
-     * Whether the invitation has expired
-     */
-    expired?: boolean;
-    /**
      * Workspace user family name
      */
     family_name?: string;
@@ -3539,10 +3361,6 @@ export type WorkspaceUser = {
      * Workspace user role
      */
     role?: string;
-    /**
-     * Source of the user provisioning
-     */
-    source?: 'directory_sync' | 'invitation' | 'domain_capture';
     /**
      * Workspace user identifier
      */
@@ -3577,7 +3395,7 @@ export type ListAgentsResponses = {
     /**
      * successful operation
      */
-    200: Array<AgentReadable>;
+    200: Array<Agent>;
 };
 
 export type ListAgentsResponse = ListAgentsResponses[keyof ListAgentsResponses];
@@ -3618,7 +3436,7 @@ export type CreateAgentResponses = {
     /**
      * successful operation
      */
-    200: AgentReadable;
+    200: Agent;
 };
 
 export type CreateAgentResponse = CreateAgentResponses[keyof CreateAgentResponses];
@@ -3660,7 +3478,7 @@ export type DeleteAgentResponses = {
     /**
      * successful operation
      */
-    200: AgentReadable;
+    200: Agent;
 };
 
 export type DeleteAgentResponse = DeleteAgentResponses[keyof DeleteAgentResponses];
@@ -3707,7 +3525,7 @@ export type GetAgentResponses = {
     /**
      * successful operation
      */
-    200: AgentReadable;
+    200: Agent;
 };
 
 export type GetAgentResponse = GetAgentResponses[keyof GetAgentResponses];
@@ -3753,7 +3571,7 @@ export type UpdateAgentResponses = {
     /**
      * successful operation
      */
-    200: AgentReadable;
+    200: Agent;
 };
 
 export type UpdateAgentResponse = UpdateAgentResponses[keyof UpdateAgentResponses];
@@ -3774,7 +3592,7 @@ export type ListAgentRevisionsResponses = {
     /**
      * successful operation
      */
-    200: Array<RevisionMetadataReadable>;
+    200: Array<RevisionMetadata>;
 };
 
 export type ListAgentRevisionsResponse = ListAgentRevisionsResponses[keyof ListAgentRevisionsResponses];
@@ -3806,7 +3624,7 @@ export type ListCustomDomainsResponses = {
     /**
      * successful operation
      */
-    200: Array<CustomDomainReadable>;
+    200: Array<CustomDomain>;
 };
 
 export type ListCustomDomainsResponse = ListCustomDomainsResponses[keyof ListCustomDomainsResponses];
@@ -3822,7 +3640,7 @@ export type CreateCustomDomainResponses = {
     /**
      * successful operation
      */
-    200: CustomDomainReadable;
+    200: CustomDomain;
 };
 
 export type CreateCustomDomainResponse = CreateCustomDomainResponses[keyof CreateCustomDomainResponses];
@@ -3843,7 +3661,7 @@ export type DeleteCustomDomainResponses = {
     /**
      * successful operation
      */
-    200: CustomDomainReadable;
+    200: CustomDomain;
 };
 
 export type DeleteCustomDomainResponse = DeleteCustomDomainResponses[keyof DeleteCustomDomainResponses];
@@ -3864,7 +3682,7 @@ export type GetCustomDomainResponses = {
     /**
      * successful operation
      */
-    200: CustomDomainReadable;
+    200: CustomDomain;
 };
 
 export type GetCustomDomainResponse = GetCustomDomainResponses[keyof GetCustomDomainResponses];
@@ -3885,7 +3703,7 @@ export type UpdateCustomDomainResponses = {
     /**
      * successful operation
      */
-    200: CustomDomainReadable;
+    200: CustomDomain;
 };
 
 export type UpdateCustomDomainResponse = UpdateCustomDomainResponses[keyof UpdateCustomDomainResponses];
@@ -3906,7 +3724,7 @@ export type VerifyCustomDomainResponses = {
     /**
      * successful operation
      */
-    200: CustomDomainReadable;
+    200: CustomDomain;
 };
 
 export type VerifyCustomDomainResponse = VerifyCustomDomainResponses[keyof VerifyCustomDomainResponses];
@@ -3929,7 +3747,7 @@ export type ListDrivesResponses = {
     /**
      * successful operation
      */
-    200: Array<DriveReadable>;
+    200: Array<Drive>;
 };
 
 export type ListDrivesResponse = ListDrivesResponses[keyof ListDrivesResponses];
@@ -3952,7 +3770,7 @@ export type CreateDriveResponses = {
     /**
      * successful operation
      */
-    200: DriveReadable;
+    200: Drive;
 };
 
 export type CreateDriveResponse = CreateDriveResponses[keyof CreateDriveResponses];
@@ -4013,7 +3831,7 @@ export type GetDriveResponses = {
     /**
      * successful operation
      */
-    200: DriveReadable;
+    200: Drive;
 };
 
 export type GetDriveResponse = GetDriveResponses[keyof GetDriveResponses];
@@ -4042,7 +3860,7 @@ export type UpdateDriveResponses = {
     /**
      * successful operation
      */
-    200: DriveReadable;
+    200: Drive;
 };
 
 export type UpdateDriveResponse = UpdateDriveResponses[keyof UpdateDriveResponses];
@@ -4115,7 +3933,7 @@ export type ListAllEgressGatewaysResponses = {
     /**
      * successful operation
      */
-    200: Array<EgressGatewayReadable>;
+    200: Array<EgressGateway>;
 };
 
 export type ListAllEgressGatewaysResponse = ListAllEgressGatewaysResponses[keyof ListAllEgressGatewaysResponses];
@@ -4131,7 +3949,7 @@ export type ListAllEgressIpsResponses = {
     /**
      * successful operation
      */
-    200: Array<EgressIpReadable>;
+    200: Array<EgressIp>;
 };
 
 export type ListAllEgressIpsResponse = ListAllEgressIpsResponses[keyof ListAllEgressIpsResponses];
@@ -4184,12 +4002,7 @@ export type TestFeatureFlagData = {
          */
         featureKey: string;
     };
-    query?: {
-        /**
-         * Account ID to check feature flags for. When provided, evaluates the feature flag at the account level instead of the workspace level.
-         */
-        account?: string;
-    };
+    query?: never;
     url: '/features/{featureKey}';
 };
 
@@ -4255,7 +4068,7 @@ export type ListFunctionsResponses = {
     /**
      * successful operation
      */
-    200: Array<FunctionReadable>;
+    200: Array<_Function>;
 };
 
 export type ListFunctionsResponse = ListFunctionsResponses[keyof ListFunctionsResponses];
@@ -4296,7 +4109,7 @@ export type CreateFunctionResponses = {
     /**
      * successful operation
      */
-    200: FunctionReadable;
+    200: _Function;
 };
 
 export type CreateFunctionResponse = CreateFunctionResponses[keyof CreateFunctionResponses];
@@ -4338,7 +4151,7 @@ export type DeleteFunctionResponses = {
     /**
      * successful operation
      */
-    200: FunctionReadable;
+    200: _Function;
 };
 
 export type DeleteFunctionResponse = DeleteFunctionResponses[keyof DeleteFunctionResponses];
@@ -4385,7 +4198,7 @@ export type GetFunctionResponses = {
     /**
      * successful operation
      */
-    200: FunctionReadable;
+    200: _Function;
 };
 
 export type GetFunctionResponse = GetFunctionResponses[keyof GetFunctionResponses];
@@ -4431,7 +4244,7 @@ export type UpdateFunctionResponses = {
     /**
      * successful operation
      */
-    200: FunctionReadable;
+    200: _Function;
 };
 
 export type UpdateFunctionResponse = UpdateFunctionResponses[keyof UpdateFunctionResponses];
@@ -4452,7 +4265,7 @@ export type ListFunctionRevisionsResponses = {
     /**
      * successful operation
      */
-    200: Array<RevisionMetadataReadable>;
+    200: Array<RevisionMetadata>;
 };
 
 export type ListFunctionRevisionsResponse = ListFunctionRevisionsResponses[keyof ListFunctionRevisionsResponses];
@@ -4493,7 +4306,7 @@ export type ListImagesResponses = {
     /**
      * successful operation
      */
-    200: Array<ImageReadable>;
+    200: Array<Image>;
 };
 
 export type ListImagesResponse = ListImagesResponses[keyof ListImagesResponses];
@@ -4529,7 +4342,7 @@ export type DeleteImageResponses = {
     /**
      * successful operation
      */
-    200: ImageReadable;
+    200: Image;
 };
 
 export type DeleteImageResponse = DeleteImageResponses[keyof DeleteImageResponses];
@@ -4554,7 +4367,7 @@ export type GetImageResponses = {
     /**
      * successful operation
      */
-    200: ImageReadable;
+    200: Image;
 };
 
 export type GetImageResponse = GetImageResponses[keyof GetImageResponses];
@@ -4594,7 +4407,7 @@ export type DeleteImageTagResponses = {
     /**
      * successful operation
      */
-    200: ImageReadable;
+    200: Image;
 };
 
 export type DeleteImageTagResponse = DeleteImageTagResponses[keyof DeleteImageTagResponses];
@@ -4648,7 +4461,7 @@ export type ListIntegrationConnectionsResponses = {
     /**
      * successful operation
      */
-    200: Array<IntegrationConnectionReadable>;
+    200: Array<IntegrationConnection>;
 };
 
 export type ListIntegrationConnectionsResponse = ListIntegrationConnectionsResponses[keyof ListIntegrationConnectionsResponses];
@@ -4689,7 +4502,7 @@ export type CreateIntegrationConnectionResponses = {
     /**
      * successful operation
      */
-    200: IntegrationConnectionReadable;
+    200: IntegrationConnection;
 };
 
 export type CreateIntegrationConnectionResponse = CreateIntegrationConnectionResponses[keyof CreateIntegrationConnectionResponses];
@@ -4735,7 +4548,7 @@ export type DeleteIntegrationConnectionResponses = {
     /**
      * successful operation
      */
-    200: IntegrationConnectionReadable;
+    200: IntegrationConnection;
 };
 
 export type DeleteIntegrationConnectionResponse = DeleteIntegrationConnectionResponses[keyof DeleteIntegrationConnectionResponses];
@@ -4777,7 +4590,7 @@ export type GetIntegrationConnectionResponses = {
     /**
      * successful operation
      */
-    200: IntegrationConnectionReadable;
+    200: IntegrationConnection;
 };
 
 export type GetIntegrationConnectionResponse = GetIntegrationConnectionResponses[keyof GetIntegrationConnectionResponses];
@@ -4823,7 +4636,7 @@ export type UpdateIntegrationConnectionResponses = {
     /**
      * successful operation
      */
-    200: IntegrationConnectionReadable;
+    200: IntegrationConnection;
 };
 
 export type UpdateIntegrationConnectionResponse = UpdateIntegrationConnectionResponses[keyof UpdateIntegrationConnectionResponses];
@@ -4900,7 +4713,7 @@ export type ListJobsResponses = {
     /**
      * successful operation
      */
-    200: Array<JobReadable>;
+    200: Array<Job>;
 };
 
 export type ListJobsResponse = ListJobsResponses[keyof ListJobsResponses];
@@ -4916,7 +4729,7 @@ export type CreateJobResponses = {
     /**
      * successful operation
      */
-    200: JobReadable;
+    200: Job;
 };
 
 export type CreateJobResponse = CreateJobResponses[keyof CreateJobResponses];
@@ -4937,7 +4750,7 @@ export type DeleteJobResponses = {
     /**
      * successful operation
      */
-    200: JobReadable;
+    200: Job;
 };
 
 export type DeleteJobResponse = DeleteJobResponses[keyof DeleteJobResponses];
@@ -4963,7 +4776,7 @@ export type GetJobResponses = {
     /**
      * successful operation
      */
-    200: JobReadable;
+    200: Job;
 };
 
 export type GetJobResponse = GetJobResponses[keyof GetJobResponses];
@@ -4984,7 +4797,7 @@ export type UpdateJobResponses = {
     /**
      * successful operation
      */
-    200: JobReadable;
+    200: Job;
 };
 
 export type UpdateJobResponse = UpdateJobResponses[keyof UpdateJobResponses];
@@ -5025,7 +4838,7 @@ export type ListJobExecutionsResponses = {
     /**
      * successful operation
      */
-    200: Array<JobExecutionReadable>;
+    200: Array<JobExecution>;
 };
 
 export type ListJobExecutionsResponse = ListJobExecutionsResponses[keyof ListJobExecutionsResponses];
@@ -5097,7 +4910,7 @@ export type DeleteJobExecutionResponses = {
     /**
      * successful operation
      */
-    200: JobExecutionReadable;
+    200: JobExecution;
 };
 
 export type DeleteJobExecutionResponse = DeleteJobExecutionResponses[keyof DeleteJobExecutionResponses];
@@ -5137,7 +4950,7 @@ export type GetJobExecutionResponses = {
     /**
      * successful operation
      */
-    200: JobExecutionReadable;
+    200: JobExecution;
 };
 
 export type GetJobExecutionResponse = GetJobExecutionResponses[keyof GetJobExecutionResponses];
@@ -5158,7 +4971,7 @@ export type ListJobRevisionsResponses = {
     /**
      * successful operation
      */
-    200: Array<RevisionMetadataReadable>;
+    200: Array<RevisionMetadata>;
 };
 
 export type ListJobRevisionsResponse = ListJobRevisionsResponses[keyof ListJobRevisionsResponses];
@@ -5190,7 +5003,7 @@ export type ListMcpHubDefinitionsResponses = {
     /**
      * successful operation
      */
-    200: Array<McpDefinitionReadable>;
+    200: Array<McpDefinition>;
 };
 
 export type ListMcpHubDefinitionsResponse = ListMcpHubDefinitionsResponses[keyof ListMcpHubDefinitionsResponses];
@@ -5223,7 +5036,7 @@ export type ListModelsResponses = {
     /**
      * successful operation
      */
-    200: Array<ModelReadable>;
+    200: Array<Model>;
 };
 
 export type ListModelsResponse = ListModelsResponses[keyof ListModelsResponses];
@@ -5264,7 +5077,7 @@ export type CreateModelResponses = {
     /**
      * successful operation
      */
-    200: ModelReadable;
+    200: Model;
 };
 
 export type CreateModelResponse = CreateModelResponses[keyof CreateModelResponses];
@@ -5306,7 +5119,7 @@ export type DeleteModelResponses = {
     /**
      * successful operation
      */
-    200: ModelReadable;
+    200: Model;
 };
 
 export type DeleteModelResponse = DeleteModelResponses[keyof DeleteModelResponses];
@@ -5348,7 +5161,7 @@ export type GetModelResponses = {
     /**
      * successful operation
      */
-    200: ModelReadable;
+    200: Model;
 };
 
 export type GetModelResponse = GetModelResponses[keyof GetModelResponses];
@@ -5394,7 +5207,7 @@ export type UpdateModelResponses = {
     /**
      * successful operation
      */
-    200: ModelReadable;
+    200: Model;
 };
 
 export type UpdateModelResponse = UpdateModelResponses[keyof UpdateModelResponses];
@@ -5415,7 +5228,7 @@ export type ListModelRevisionsResponses = {
     /**
      * successful operation
      */
-    200: Array<RevisionMetadataReadable>;
+    200: Array<RevisionMetadata>;
 };
 
 export type ListModelRevisionsResponse = ListModelRevisionsResponses[keyof ListModelRevisionsResponses];
@@ -5431,7 +5244,7 @@ export type ListPoliciesResponses = {
     /**
      * successful operation
      */
-    200: Array<PolicyReadable>;
+    200: Array<Policy>;
 };
 
 export type ListPoliciesResponse = ListPoliciesResponses[keyof ListPoliciesResponses];
@@ -5447,7 +5260,7 @@ export type CreatePolicyResponses = {
     /**
      * successful operation
      */
-    200: PolicyReadable;
+    200: Policy;
 };
 
 export type CreatePolicyResponse = CreatePolicyResponses[keyof CreatePolicyResponses];
@@ -5468,7 +5281,7 @@ export type DeletePolicyResponses = {
     /**
      * successful operation
      */
-    200: PolicyReadable;
+    200: Policy;
 };
 
 export type DeletePolicyResponse = DeletePolicyResponses[keyof DeletePolicyResponses];
@@ -5489,7 +5302,7 @@ export type GetPolicyResponses = {
     /**
      * successful operation
      */
-    200: PolicyReadable;
+    200: Policy;
 };
 
 export type GetPolicyResponse = GetPolicyResponses[keyof GetPolicyResponses];
@@ -5510,7 +5323,7 @@ export type UpdatePolicyResponses = {
     /**
      * successful operation
      */
-    200: PolicyReadable;
+    200: Policy;
 };
 
 export type UpdatePolicyResponse = UpdatePolicyResponses[keyof UpdatePolicyResponses];
@@ -5580,7 +5393,7 @@ export type ListSandboxesResponses = {
     /**
      * successful operation
      */
-    200: Array<SandboxReadable>;
+    200: Array<Sandbox>;
 };
 
 export type ListSandboxesResponse = ListSandboxesResponses[keyof ListSandboxesResponses];
@@ -5626,7 +5439,7 @@ export type CreateSandboxResponses = {
     /**
      * successful operation
      */
-    200: SandboxReadable;
+    200: Sandbox;
 };
 
 export type CreateSandboxResponse = CreateSandboxResponses[keyof CreateSandboxResponses];
@@ -5668,7 +5481,7 @@ export type DeleteSandboxResponses = {
     /**
      * successful operation
      */
-    200: SandboxReadable;
+    200: Sandbox;
 };
 
 export type DeleteSandboxResponse = DeleteSandboxResponses[keyof DeleteSandboxResponses];
@@ -5715,7 +5528,7 @@ export type GetSandboxResponses = {
     /**
      * successful operation
      */
-    200: SandboxReadable;
+    200: Sandbox;
 };
 
 export type GetSandboxResponse = GetSandboxResponses[keyof GetSandboxResponses];
@@ -5761,7 +5574,7 @@ export type UpdateSandboxResponses = {
     /**
      * successful operation
      */
-    200: SandboxReadable;
+    200: Sandbox;
 };
 
 export type UpdateSandboxResponse = UpdateSandboxResponses[keyof UpdateSandboxResponses];
@@ -5782,7 +5595,7 @@ export type ListSandboxPreviewsResponses = {
     /**
      * successful operation
      */
-    200: Array<PreviewReadable>;
+    200: Array<Preview>;
 };
 
 export type ListSandboxPreviewsResponse = ListSandboxPreviewsResponses[keyof ListSandboxPreviewsResponses];
@@ -5803,7 +5616,7 @@ export type CreateSandboxPreviewResponses = {
     /**
      * successful operation
      */
-    200: PreviewReadable;
+    200: Preview;
 };
 
 export type CreateSandboxPreviewResponse = CreateSandboxPreviewResponses[keyof CreateSandboxPreviewResponses];
@@ -5828,7 +5641,7 @@ export type DeleteSandboxPreviewResponses = {
     /**
      * successful operation
      */
-    200: PreviewReadable;
+    200: Preview;
 };
 
 export type DeleteSandboxPreviewResponse = DeleteSandboxPreviewResponses[keyof DeleteSandboxPreviewResponses];
@@ -5853,7 +5666,7 @@ export type GetSandboxPreviewResponses = {
     /**
      * successful operation
      */
-    200: PreviewReadable;
+    200: Preview;
 };
 
 export type GetSandboxPreviewResponse = GetSandboxPreviewResponses[keyof GetSandboxPreviewResponses];
@@ -5878,7 +5691,7 @@ export type UpdateSandboxPreviewResponses = {
     /**
      * successful operation
      */
-    200: PreviewReadable;
+    200: Preview;
 };
 
 export type UpdateSandboxPreviewResponse = UpdateSandboxPreviewResponses[keyof UpdateSandboxPreviewResponses];
@@ -5903,7 +5716,7 @@ export type ListSandboxPreviewTokensResponses = {
     /**
      * successful operation
      */
-    200: Array<PreviewTokenReadable>;
+    200: Array<PreviewToken>;
 };
 
 export type ListSandboxPreviewTokensResponse = ListSandboxPreviewTokensResponses[keyof ListSandboxPreviewTokensResponses];
@@ -5928,7 +5741,7 @@ export type CreateSandboxPreviewTokenResponses = {
     /**
      * successful operation
      */
-    200: PreviewTokenReadable;
+    200: PreviewToken;
 };
 
 export type CreateSandboxPreviewTokenResponse = CreateSandboxPreviewTokenResponses[keyof CreateSandboxPreviewTokenResponses];
@@ -6163,7 +5976,7 @@ export type ListApiKeysForServiceAccountResponses = {
     /**
      * successful operation
      */
-    200: Array<ApiKeyReadable>;
+    200: Array<ApiKey>;
 };
 
 export type ListApiKeysForServiceAccountResponse = ListApiKeysForServiceAccountResponses[keyof ListApiKeysForServiceAccountResponses];
@@ -6193,7 +6006,7 @@ export type CreateApiKeyForServiceAccountResponses = {
     /**
      * successful operation
      */
-    200: ApiKeyReadable;
+    200: ApiKey;
 };
 
 export type CreateApiKeyForServiceAccountResponse = CreateApiKeyForServiceAccountResponses[keyof CreateApiKeyForServiceAccountResponses];
@@ -6301,7 +6114,7 @@ export type InviteWorkspaceUserResponses = {
     /**
      * successful operation
      */
-    200: PendingInvitationReadable;
+    200: PendingInvitation;
 };
 
 export type InviteWorkspaceUserResponse = InviteWorkspaceUserResponses[keyof InviteWorkspaceUserResponses];
@@ -6380,7 +6193,7 @@ export type ListVolumeTemplatesResponses = {
     /**
      * successful operation
      */
-    200: Array<VolumeTemplateReadable>;
+    200: Array<VolumeTemplate>;
 };
 
 export type ListVolumeTemplatesResponse = ListVolumeTemplatesResponses[keyof ListVolumeTemplatesResponses];
@@ -6405,7 +6218,7 @@ export type CreateVolumeTemplateResponses = {
     /**
      * successful operation
      */
-    200: VolumeTemplateReadable;
+    200: VolumeTemplate;
 };
 
 export type CreateVolumeTemplateResponse = CreateVolumeTemplateResponses[keyof CreateVolumeTemplateResponses];
@@ -6426,7 +6239,7 @@ export type DeleteVolumeTemplateResponses = {
     /**
      * successful operation
      */
-    200: VolumeTemplateReadable;
+    200: VolumeTemplate;
 };
 
 export type DeleteVolumeTemplateResponse = DeleteVolumeTemplateResponses[keyof DeleteVolumeTemplateResponses];
@@ -6447,7 +6260,7 @@ export type GetVolumeTemplateResponses = {
     /**
      * successful operation
      */
-    200: VolumeTemplateReadable;
+    200: VolumeTemplate;
 };
 
 export type GetVolumeTemplateResponse = GetVolumeTemplateResponses[keyof GetVolumeTemplateResponses];
@@ -6477,7 +6290,7 @@ export type UpdateVolumeTemplateResponses = {
     /**
      * successful operation
      */
-    200: VolumeTemplateReadable;
+    200: VolumeTemplate;
 };
 
 export type UpdateVolumeTemplateResponse = UpdateVolumeTemplateResponses[keyof UpdateVolumeTemplateResponses];
@@ -6515,7 +6328,7 @@ export type DeleteVolumeTemplateVersionResponses = {
      */
     200: {
         message?: string;
-        template?: VolumeTemplateReadable;
+        template?: VolumeTemplate;
     };
 };
 
@@ -6549,7 +6362,7 @@ export type ListVolumesResponses = {
     /**
      * successful operation
      */
-    200: Array<VolumeReadable>;
+    200: Array<Volume>;
 };
 
 export type ListVolumesResponse = ListVolumesResponses[keyof ListVolumesResponses];
@@ -6590,7 +6403,7 @@ export type CreateVolumeResponses = {
     /**
      * successful operation
      */
-    200: VolumeReadable;
+    200: Volume;
 };
 
 export type CreateVolumeResponse = CreateVolumeResponses[keyof CreateVolumeResponses];
@@ -6636,7 +6449,7 @@ export type DeleteVolumeResponses = {
     /**
      * successful operation
      */
-    200: VolumeReadable;
+    200: Volume;
 };
 
 export type DeleteVolumeResponse = DeleteVolumeResponses[keyof DeleteVolumeResponses];
@@ -6678,7 +6491,7 @@ export type GetVolumeResponses = {
     /**
      * successful operation
      */
-    200: VolumeReadable;
+    200: Volume;
 };
 
 export type GetVolumeResponse = GetVolumeResponses[keyof GetVolumeResponses];
@@ -6699,7 +6512,7 @@ export type UpdateVolumeResponses = {
     /**
      * successful operation
      */
-    200: VolumeReadable;
+    200: Volume;
 };
 
 export type UpdateVolumeResponse = UpdateVolumeResponses[keyof UpdateVolumeResponses];
@@ -6715,7 +6528,7 @@ export type ListVpcsResponses = {
     /**
      * successful operation
      */
-    200: Array<VpcReadable>;
+    200: Array<Vpc>;
 };
 
 export type ListVpcsResponse = ListVpcsResponses[keyof ListVpcsResponses];
@@ -6731,7 +6544,7 @@ export type CreateVpcResponses = {
     /**
      * successful operation
      */
-    200: VpcReadable;
+    200: Vpc;
 };
 
 export type CreateVpcResponse = CreateVpcResponses[keyof CreateVpcResponses];
@@ -6749,7 +6562,7 @@ export type DeleteVpcResponses = {
     /**
      * successful operation
      */
-    200: VpcReadable;
+    200: Vpc;
 };
 
 export type DeleteVpcResponse = DeleteVpcResponses[keyof DeleteVpcResponses];
@@ -6767,7 +6580,7 @@ export type GetVpcResponses = {
     /**
      * successful operation
      */
-    200: VpcReadable;
+    200: Vpc;
 };
 
 export type GetVpcResponse = GetVpcResponses[keyof GetVpcResponses];
@@ -6785,7 +6598,7 @@ export type ListEgressGatewaysResponses = {
     /**
      * successful operation
      */
-    200: Array<EgressGatewayReadable>;
+    200: Array<EgressGateway>;
 };
 
 export type ListEgressGatewaysResponse = ListEgressGatewaysResponses[keyof ListEgressGatewaysResponses];
@@ -6803,7 +6616,7 @@ export type CreateEgressGatewayResponses = {
     /**
      * successful operation
      */
-    200: EgressGatewayReadable;
+    200: EgressGateway;
 };
 
 export type CreateEgressGatewayResponse = CreateEgressGatewayResponses[keyof CreateEgressGatewayResponses];
@@ -6822,7 +6635,7 @@ export type DeleteEgressGatewayResponses = {
     /**
      * successful operation
      */
-    200: EgressGatewayReadable;
+    200: EgressGateway;
 };
 
 export type DeleteEgressGatewayResponse = DeleteEgressGatewayResponses[keyof DeleteEgressGatewayResponses];
@@ -6841,7 +6654,7 @@ export type GetEgressGatewayResponses = {
     /**
      * successful operation
      */
-    200: EgressGatewayReadable;
+    200: EgressGateway;
 };
 
 export type GetEgressGatewayResponse = GetEgressGatewayResponses[keyof GetEgressGatewayResponses];
@@ -6860,7 +6673,7 @@ export type ListEgressIpsResponses = {
     /**
      * successful operation
      */
-    200: Array<EgressIpReadable>;
+    200: Array<EgressIp>;
 };
 
 export type ListEgressIpsResponse = ListEgressIpsResponses[keyof ListEgressIpsResponses];
@@ -6879,7 +6692,7 @@ export type CreateEgressIpResponses = {
     /**
      * successful operation
      */
-    200: EgressIpReadable;
+    200: EgressIp;
 };
 
 export type CreateEgressIpResponse = CreateEgressIpResponses[keyof CreateEgressIpResponses];
@@ -6899,7 +6712,7 @@ export type DeleteEgressIpResponses = {
     /**
      * successful operation
      */
-    200: EgressIpReadable;
+    200: EgressIp;
 };
 
 export type DeleteEgressIpResponse = DeleteEgressIpResponses[keyof DeleteEgressIpResponses];
@@ -6919,7 +6732,7 @@ export type GetEgressIpResponses = {
     /**
      * successful operation
      */
-    200: EgressIpReadable;
+    200: EgressIp;
 };
 
 export type GetEgressIpResponse = GetEgressIpResponses[keyof GetEgressIpResponses];
@@ -6948,7 +6761,7 @@ export type ListWorkspacesResponses = {
     /**
      * successful operation
      */
-    200: Array<WorkspaceReadable>;
+    200: Array<Workspace>;
 };
 
 export type ListWorkspacesResponse = ListWorkspacesResponses[keyof ListWorkspacesResponses];
@@ -6989,7 +6802,7 @@ export type CreateWorkspaceResponses = {
     /**
      * successful operation
      */
-    200: WorkspaceReadable;
+    200: Workspace;
 };
 
 export type CreateWorkspaceResponse = CreateWorkspaceResponses[keyof CreateWorkspaceResponses];
@@ -7031,7 +6844,7 @@ export type DeleteWorkspaceResponses = {
     /**
      * successful operation
      */
-    200: WorkspaceReadable;
+    200: Workspace;
 };
 
 export type DeleteWorkspaceResponse = DeleteWorkspaceResponses[keyof DeleteWorkspaceResponses];
@@ -7073,7 +6886,7 @@ export type GetWorkspaceResponses = {
     /**
      * successful operation
      */
-    200: WorkspaceReadable;
+    200: Workspace;
 };
 
 export type GetWorkspaceResponse = GetWorkspaceResponses[keyof GetWorkspaceResponses];
@@ -7119,7 +6932,7 @@ export type UpdateWorkspaceResponses = {
     /**
      * successful operation
      */
-    200: WorkspaceReadable;
+    200: Workspace;
 };
 
 export type UpdateWorkspaceResponse = UpdateWorkspaceResponses[keyof UpdateWorkspaceResponses];
@@ -7140,7 +6953,7 @@ export type DeclineWorkspaceInvitationResponses = {
     /**
      * Invitation successfully declined
      */
-    200: PendingInvitationReadable;
+    200: PendingInvitation;
 };
 
 export type DeclineWorkspaceInvitationResponse = DeclineWorkspaceInvitationResponses[keyof DeclineWorkspaceInvitationResponses];
@@ -7168,7 +6981,7 @@ export type AcceptWorkspaceInvitationResponses = {
     /**
      * Invitation successfully accepted
      */
-    200: PendingInvitationAcceptReadable;
+    200: PendingInvitationAccept;
 };
 
 export type AcceptWorkspaceInvitationResponse = AcceptWorkspaceInvitationResponses[keyof AcceptWorkspaceInvitationResponses];
@@ -7196,7 +7009,7 @@ export type LeaveWorkspaceResponses = {
     /**
      * Workspace successfully left
      */
-    200: WorkspaceReadable;
+    200: Workspace;
 };
 
 export type LeaveWorkspaceResponse = LeaveWorkspaceResponses[keyof LeaveWorkspaceResponses];
