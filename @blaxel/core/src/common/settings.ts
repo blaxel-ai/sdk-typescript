@@ -213,8 +213,8 @@ class Settings {
     if (configValue !== null) {
       return configValue;
     }
-    // Default to true if neither is set
-    return true;
+    // Default to false (opt-in tracking)
+    return false;
   }
 
   get region() {
