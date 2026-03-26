@@ -7320,3 +7320,4 @@ export type CheckWorkspaceAvailabilityResponse = CheckWorkspaceAvailabilityRespo
 export type ClientOptions = {
     baseUrl: 'https://api.blaxel.ai/v0' | 'https://run.blaxel.ai' | (string & {});
 };
+export type DriveStateWritable = DriveState;

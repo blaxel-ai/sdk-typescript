@@ -41,6 +41,9 @@ sdk-controlplane:
 	sed -i.bak 's/export type Function =/export type _Function =/g' @blaxel/core/src/client/types.gen.ts
 	sed -i.bak 's/: Function;/: _Function;/g' @blaxel/core/src/client/types.gen.ts
 	sed -i.bak 's/<Function>/<_Function>/g' @blaxel/core/src/client/types.gen.ts
+	@# DriveWritable references DriveStateWritable which the codegen does not emit
+	echo '' >> @blaxel/core/src/client/types.gen.ts
+	echo 'export type DriveStateWritable = DriveState;' >> @blaxel/core/src/client/types.gen.ts
 	rm -f @blaxel/core/src/client/index.ts.bak
 	rm -f @blaxel/core/src/client/sdk.gen.ts.bak
 	rm -f @blaxel/core/src/client/types.gen.ts.bak
