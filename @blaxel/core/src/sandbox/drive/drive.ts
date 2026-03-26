@@ -107,7 +107,16 @@ export class SandboxDrive extends SandboxAction {
       throw new Error(`Failed to list drives: ${errorText}`);
     }
 
-    const data = await response.json() as DriveListResponse;
-    return data.mounts || [];
+    const data = await response.json() as any;
+    console.log("[drives.list] raw response:", JSON.stringify(data));
+    // Normalise whichever shape the API returns
+    const raw: any[] = Array.isArray(data)
+      ? data
+      : (data?.mounts ?? data?.drives ?? data?.data ?? []);
+    return raw.map((m: any) => ({
+      driveName:  m.driveName  ?? m.drive_name  ?? m.name ?? "",
+      mountPath:  m.mountPath  ?? m.mount_path  ?? "",
+      drivePath:  m.drivePath  ?? m.drive_path  ?? "/",
+    }));
   }
 }

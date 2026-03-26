@@ -269,7 +269,7 @@ export const listDrives = <ThrowOnError extends boolean = false>(options?: Optio
 
 /**
  * Create a drive
- * Creates a new drive in the workspace. Drives are backed by SeaweedFS buckets and can be mounted at runtime to sandboxes.
+ * Creates a new drive in the workspace. Drives can be buckets and can be mounted at runtime to sandboxes.
  */
 export const createDrive = <ThrowOnError extends boolean = false>(options: Options<CreateDriveData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateDriveResponse, unknown, ThrowOnError>({
@@ -345,7 +345,7 @@ export const updateDrive = <ThrowOnError extends boolean = false>(options: Optio
 
 /**
  * Create drive access token
- * Issues a short-lived JWT access token scoped to a specific drive. The token can be used as Bearer authentication for direct S3 operations against the drive's SeaweedFS bucket.
+ * Issues a short-lived JWT access token scoped to a specific drive. The token can be used as Bearer authentication for direct S3 operations against the drive's bucket.
  */
 export const createDriveAccessToken = <ThrowOnError extends boolean = false>(options: Options<CreateDriveAccessTokenData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateDriveAccessTokenResponse, unknown, ThrowOnError>({
@@ -362,7 +362,7 @@ export const createDriveAccessToken = <ThrowOnError extends boolean = false>(opt
 
 /**
  * Get drive token JWKS
- * Returns the JSON Web Key Set containing the Ed25519 public key used to verify drive access tokens. SeaweedFS or other S3-compatible storage can use this endpoint to validate Bearer tokens.
+ * Returns the JSON Web Key Set containing the Ed25519 public key used to verify drive access tokens. Other S3-compatible storage can use this endpoint to validate Bearer tokens.
  */
 export const getDriveJwks = <ThrowOnError extends boolean = false>(options?: Options<GetDriveJwksData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<GetDriveJwksResponse, unknown, ThrowOnError>({
