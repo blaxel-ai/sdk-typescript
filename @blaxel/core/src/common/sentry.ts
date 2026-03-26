@@ -222,14 +222,6 @@ export function initSentry() {
 
       // Node.js specific handlers
       if (typeof process !== "undefined" && typeof process.on === "function") {
-        // Flush Sentry on termination signals without calling process.exit(),
-        // so the host application retains control over its own shutdown lifecycle.
-        const signalHandler = () => {
-          flushSentry(500).catch(() => {
-            // Silently fail
-          });
-        };
-
         // Monitor uncaught exceptions to capture SDK errors without
         // preventing Node.js default crash behavior (print + exit).
         const uncaughtExceptionMonitorHandler = (error: Error) => {
@@ -238,8 +230,6 @@ export function initSentry() {
           }
         };
 
-        process.once("SIGTERM", signalHandler);
-        process.once("SIGINT", signalHandler);
         process.on("uncaughtExceptionMonitor", uncaughtExceptionMonitorHandler);
 
         // Intercept console.error to capture SDK errors that are caught and logged
