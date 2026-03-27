@@ -63,10 +63,15 @@ export type AgentSpec = {
      * When true, the agent is publicly accessible without authentication. Only available for mk3 generation.
      */
     public?: boolean;
+    /**
+     * Region where the agent should be deployed (e.g. us-pdx-1, eu-lon-1). Required when volumes are attached.
+     */
+    region?: string;
     repository?: Repository;
     revision?: RevisionConfiguration;
     runtime?: AgentRuntime;
     triggers?: Triggers;
+    volumes?: VolumeAttachments;
 };
 
 /**
@@ -82,10 +87,15 @@ export type AgentSpecWritable = {
      * When true, the agent is publicly accessible without authentication. Only available for mk3 generation.
      */
     public?: boolean;
+    /**
+     * Region where the agent should be deployed (e.g. us-pdx-1, eu-lon-1). Required when volumes are attached.
+     */
+    region?: string;
     repository?: Repository;
     revision?: RevisionConfiguration;
     runtime?: AgentRuntime;
     triggers?: TriggersWritable;
+    volumes?: VolumeAttachments;
 };
 
 /**
@@ -439,7 +449,7 @@ export type CustomDomainSpecWritable = {
 };
 
 /**
- * Drive providing persistent storage that can be attached to agents, functions, and sandboxes. Drives are backed by SeaweedFS buckets and can be mounted at runtime via the sbx API.
+ * Drive providing persistent storage that can be attached to agents, functions, and sandboxes. Drives can be mounted at runtime via the sbx API.
  */
 export type Drive = {
     events?: CoreEvents;
@@ -453,13 +463,13 @@ export type Drive = {
 };
 
 /**
- * Drive providing persistent storage that can be attached to agents, functions, and sandboxes. Drives are backed by SeaweedFS buckets and can be mounted at runtime via the sbx API.
+ * Drive providing persistent storage that can be attached to agents, functions, and sandboxes. Drives can be mounted at runtime via the sbx API.
  */
 export type DriveWritable = {
     events?: CoreEventsWritable;
     metadata: MetadataWritable;
     spec: DriveSpecWritable;
-    state?: DriveState;
+    state?: DriveStateWritable;
 };
 
 /**
@@ -502,6 +512,24 @@ export type DriveState = {
      * S3-compatible endpoint URL for accessing drive contents
      */
     readonly s3Url?: string;
+};
+
+/**
+ * Egress configuration for routing sandbox outbound traffic through a dedicated IP gateway
+ */
+export type EgressConfig = {
+    /**
+     * Name of the egress gateway to route traffic through. The gateway must exist in the default VPC.
+     */
+    gateway?: string;
+    /**
+     * Egress mode. Use 'dedicated' for a dedicated egress IP.
+     */
+    mode?: string;
+    /**
+     * Per-destination egress policies (not yet supported)
+     */
+    policies?: Array<EgressPolicy>;
 };
 
 /**
@@ -652,6 +680,24 @@ export type EgressIpSpecWritable = {
      * IP address family, either IPv4 or IPv6
      */
     ipFamily: 'IPv4' | 'IPv6';
+};
+
+/**
+ * Egress policy routing specific destinations through dedicated or shared gateways (not yet supported)
+ */
+export type EgressPolicy = {
+    /**
+     * Destination domains or IPs this policy applies to
+     */
+    destinations?: Array<string>;
+    /**
+     * Egress mode for these destinations (dedicated or shared)
+     */
+    mode?: string;
+    /**
+     * Name of this egress policy
+     */
+    name?: string;
 };
 
 /**
@@ -842,6 +888,10 @@ export type FunctionSpec = {
      * When true, the function is publicly accessible without authentication. Only available for mk3 generation.
      */
     public?: boolean;
+    /**
+     * Region where the function should be deployed (e.g. us-pdx-1, eu-lon-1). If not specified, the function is deployed based on policy locations.
+     */
+    region?: string;
     revision?: RevisionConfiguration;
     runtime?: FunctionRuntime;
     triggers?: Triggers;
@@ -861,9 +911,27 @@ export type FunctionSpecWritable = {
      * When true, the function is publicly accessible without authentication. Only available for mk3 generation.
      */
     public?: boolean;
+    /**
+     * Region where the function should be deployed (e.g. us-pdx-1, eu-lon-1). If not specified, the function is deployed based on policy locations.
+     */
+    region?: string;
     revision?: RevisionConfiguration;
     runtime?: FunctionRuntime;
     triggers?: TriggersWritable;
+};
+
+/**
+ * Mapping between an IdP group and a workspace role for directory sync
+ */
+export type GroupWorkspaceMapping = {
+    /**
+     * Name of the IdP group (e.g. "Engineering", "Platform")
+     */
+    groupName?: string;
+    /**
+     * Role to assign in this workspace (admin or member)
+     */
+    role?: 'admin' | 'member';
 };
 
 export type Image = {
@@ -1537,6 +1605,10 @@ export type JobExecutionTaskStatus = 'unspecified' | 'pending' | 'reconciling' |
  */
 export type JobRuntime = {
     /**
+     * Percentage of VM RAM allocated for disk storage (tmpfs overlay). Valid range 10-95, default 50. Only applies to mk3.1 (microVM) generation.
+     */
+    diskPercent?: number;
+    /**
      * Environment variables injected into job tasks. Supports Kubernetes EnvVar format with valueFrom references.
      */
     envs?: Array<Env>;
@@ -1879,6 +1951,16 @@ export type ModelSpec = {
 };
 
 /**
+ * Firewall configuration restricting which external domains the sandbox can access
+ */
+export type NetworkFirewall = {
+    /**
+     * List of allowed external domains. Supports wildcards (e.g. *.s3.amazonaws.com).
+     */
+    allowedDomains?: Array<string>;
+};
+
+/**
  * OAuth of the artifact
  */
 export type OAuth = {
@@ -1917,6 +1999,10 @@ export type PendingInvitation = TimeFields & OwnerFields & {
      */
     email?: string;
     /**
+     * The date and time when the invitation expires
+     */
+    expiresAt?: string;
+    /**
      * User sub
      */
     invitedBy?: string;
@@ -1938,6 +2024,10 @@ export type PendingInvitationWritable = TimeFields & OwnerFields & {
      * User email
      */
     email?: string;
+    /**
+     * The date and time when the invitation expires
+     */
+    expiresAt?: string;
     /**
      * User sub
      */
@@ -1982,6 +2072,10 @@ export type PendingInvitationRender = {
      * User email
      */
     email?: string;
+    /**
+     * The date and time when the invitation expires
+     */
+    expiresAt?: string;
     /**
      * Invitation date
      */
@@ -2409,6 +2503,48 @@ export type PrivateLocation = {
     name?: string;
 };
 
+/**
+ * Proxy configuration for routing sandbox HTTP traffic through the platform proxy with MITM inspection and per-destination header/body injection
+ */
+export type ProxyConfig = {
+    /**
+     * Domains that bypass the proxy entirely via the NO_PROXY directive. Traffic to these destinations goes direct, not through the CONNECT tunnel. Supports wildcards. Note that localhost, private ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16), 169.254.169.254, .local and .internal are always bypassed by default.
+     */
+    bypass?: Array<string>;
+    /**
+     * Per-destination routing rules with header/body injection and secrets. Use destinations ["*"] for global rules that apply to all destinations.
+     */
+    routing?: Array<ProxyTarget>;
+};
+
+/**
+ * Routing rule that injects headers and body fields into requests matching the given destinations. Use destinations ["*"] for a global rule that applies to all proxied traffic.
+ */
+export type ProxyTarget = {
+    /**
+     * Body fields to inject into matching requests. Values may contain {{SECRET:name}} references resolved from this rule's secrets.
+     */
+    body?: {
+        [key: string]: string;
+    };
+    /**
+     * Destination domains this rule applies to. Use ["*"] for a global rule that matches all destinations.
+     */
+    destinations?: Array<string>;
+    /**
+     * Headers to inject into matching requests. Values may contain {{SECRET:name}} references resolved from this rule's secrets.
+     */
+    headers?: {
+        [key: string]: string;
+    };
+    /**
+     * Named secret values for this routing rule, referenced in headers/body via {{SECRET:name}}. Stored encrypted at rest. Write-only: never returned in API responses.
+     */
+    secrets?: {
+        [key: string]: string;
+    };
+};
+
 export type PublicIp = {
     /**
      * Description of the region/location
@@ -2470,6 +2606,10 @@ export type Region = {
      * Region name
      */
     name?: string;
+    /**
+     * Proxy availability status - indicates if the proxy plane is configured for the region
+     */
+    proxyAvailable?: boolean;
 };
 
 /**
@@ -2570,6 +2710,124 @@ export type RevisionMetadataWritable = {
      * Percent of traffic to the revision
      */
     trafficPercent?: number;
+};
+
+/**
+ * SSO domain for SAML-based Single Sign-On
+ * An SSO domain links an email domain (e.g., acme.com) to a workspace so that
+ * users with that email domain are redirected to the workspace's
+ * SSO/SAML identity provider during login.
+ */
+export type SsoDomain = {
+    metadata: SsoDomainMetadata;
+    spec: SsoDomainSpec;
+};
+
+/**
+ * SSO domain for SAML-based Single Sign-On
+ * An SSO domain links an email domain (e.g., acme.com) to a workspace so that
+ * users with that email domain are redirected to the workspace's
+ * SSO/SAML identity provider during login.
+ */
+export type SsoDomainWritable = {
+    metadata: SsoDomainMetadataWritable;
+    spec: SsoDomainSpecWritable;
+};
+
+/**
+ * SSO domain metadata
+ */
+export type SsoDomainMetadata = TimeFields & OwnerFields & {
+    /**
+     * Account ID
+     */
+    accountId?: string;
+    /**
+     * Display name for the SSO domain
+     */
+    displayName?: string;
+    /**
+     * Domain name (e.g., "acme.com")
+     */
+    name?: string;
+};
+
+/**
+ * SSO domain metadata
+ */
+export type SsoDomainMetadataWritable = TimeFields & OwnerFields & {
+    /**
+     * Account ID
+     */
+    accountId?: string;
+    /**
+     * Display name for the SSO domain
+     */
+    displayName?: string;
+    /**
+     * Domain name (e.g., "acme.com")
+     */
+    name?: string;
+};
+
+/**
+ * SSO domain specification
+ */
+export type SsoDomainSpec = {
+    /**
+     * List of allowed login methods for this domain. When set, users with this email domain can only use the specified methods. Possible values are google, saml, email. Empty list means no restriction.
+     */
+    allowedAuthMethods?: Array<string>;
+    /**
+     * List of workspace names where users with this domain auto-join on login
+     */
+    autoJoinWorkspaces?: Array<string>;
+    /**
+     * The authentication method last used by a user with this domain (google, saml, email)
+     */
+    readonly lastUsedAuthMethod?: string;
+    /**
+     * Timestamp of when the last authentication method was used
+     */
+    readonly lastUsedAuthMethodAt?: string;
+    /**
+     * Last verification attempt timestamp
+     */
+    readonly lastVerifiedAt?: string;
+    /**
+     * Current verification status of the domain (pending, verified, failed)
+     */
+    status?: 'pending' | 'verified' | 'failed';
+    /**
+     * DNS TXT record name that must be created for verification
+     */
+    readonly txtRecordName?: string;
+    /**
+     * DNS TXT record value that must be set for verification
+     */
+    readonly txtRecordValue?: string;
+    /**
+     * Error message if verification failed
+     */
+    readonly verificationError?: string;
+};
+
+/**
+ * SSO domain specification
+ */
+export type SsoDomainSpecWritable = {
+    /**
+     * List of allowed login methods for this domain. When set, users with this email domain can only use the specified methods. Possible values are google, saml, email. Empty list means no restriction.
+     */
+    allowedAuthMethods?: Array<string>;
+    /**
+     * List of workspace names where users with this domain auto-join on login
+     */
+    autoJoinWorkspaces?: Array<string>;
+    /**
+     * Current verification status of the domain (pending, verified, failed)
+     */
+    status?: 'pending' | 'verified' | 'failed';
 };
 
 /**
@@ -2709,20 +2967,26 @@ export type SandboxLifecycle = {
      * List of expiration policies. Multiple policies can be combined; whichever condition is met first triggers the action.
      */
     expirationPolicies?: Array<ExpirationPolicy>;
+    /**
+     * Duration to keep the sandbox record after termination for log access (e.g., '1h', '24h', '7d'). Defaults to 5m. Subject to maximum quota limits.
+     */
+    terminatedRetention?: string;
 };
 
 /**
- * Network configuration for a sandbox including egress IP binding. All three fields (vpcName, egressGatewayName, egressIpName) must be specified together to assign a dedicated IP.
+ * Network configuration for a sandbox including domain filtering, egress IP binding, and proxy settings
  */
 export type SandboxNetwork = {
     /**
-     * Name of the egress gateway in the VPC. Must be specified together with vpcName and egressIpName.
+     * List of allowed external domains (allowlist). When set, only these domains are reachable. Supports wildcards (e.g. *.s3.amazonaws.com).
      */
-    egressGatewayName: string;
+    allowedDomains?: Array<string>;
+    egress?: EgressConfig;
     /**
-     * Name of the VPC where the egress gateway is provisioned. Must be specified together with egressGatewayName and egressIpName.
+     * List of forbidden external domains (denylist). When set, all domains except these are reachable. Supports wildcards (e.g. *.malware.com). If both allowedDomains and forbiddenDomains are set, allowedDomains takes precedence.
      */
-    vpcName: string;
+    forbiddenDomains?: Array<string>;
+    proxy?: ProxyConfig;
 };
 
 /**
@@ -3272,6 +3536,10 @@ export type Workspace = TimeFields & OwnerFields & {
      */
     displayName?: string;
     /**
+     * Group-to-role mappings for directory sync (SCIM) group membership
+     */
+    groupMappings?: Array<GroupWorkspaceMapping>;
+    /**
      * Autogenerated unique workspace id
      */
     readonly id?: string;
@@ -3307,6 +3575,10 @@ export type WorkspaceWritable = TimeFields & OwnerFields & {
      * Workspace display name
      */
     displayName?: string;
+    /**
+     * Group-to-role mappings for directory sync (SCIM) group membership
+     */
+    groupMappings?: Array<GroupWorkspaceMapping>;
     labels?: MetadataLabels;
     /**
      * Workspace name
@@ -3350,6 +3622,10 @@ export type WorkspaceUser = {
      */
     email_verified?: boolean;
     /**
+     * Whether the invitation has expired
+     */
+    expired?: boolean;
+    /**
      * Workspace user family name
      */
     family_name?: string;
@@ -3361,6 +3637,10 @@ export type WorkspaceUser = {
      * Workspace user role
      */
     role?: string;
+    /**
+     * Source of the user provisioning
+     */
+    source?: 'directory_sync' | 'invitation' | 'domain_capture';
     /**
      * Workspace user identifier
      */
@@ -4002,7 +4282,12 @@ export type TestFeatureFlagData = {
          */
         featureKey: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Account ID to check feature flags for. When provided, evaluates the feature flag at the account level instead of the workspace level.
+         */
+        account?: string;
+    };
     url: '/features/{featureKey}';
 };
 
@@ -7035,3 +7320,4 @@ export type CheckWorkspaceAvailabilityResponse = CheckWorkspaceAvailabilityRespo
 export type ClientOptions = {
     baseUrl: 'https://api.blaxel.ai/v0' | 'https://run.blaxel.ai' | (string & {});
 };
+export type DriveStateWritable = DriveState;
