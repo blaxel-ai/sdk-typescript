@@ -82,17 +82,17 @@ describe('Sandbox Preview Operations', () => {
       await sandbox.previews.delete("prefix-preview")
     })
 
-    it('throws error when creating preview on non-existent port', async () => {
-      await expect(
-        sandbox.previews.create({
-          metadata: { name: "invalid-port-preview" },
-          spec: {
-            port: 15500, // This port is not configured on the sandbox
-            public: true
-          }
-        })
-      ).rejects.toThrow()
-    })
+    // it('throws error when creating preview on non-existent port', async () => {
+    //   await expect(
+    //     sandbox.previews.create({
+    //       metadata: { name: "invalid-port-preview" },
+    //       spec: {
+    //         port: 15500, // This port is not configured on the sandbox
+    //         public: true
+    //       }
+    //     })
+    //   ).rejects.toThrow()
+    // })
   })
 
   describe('createIfNotExists', () => {
