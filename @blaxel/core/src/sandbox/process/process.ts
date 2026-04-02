@@ -37,7 +37,7 @@ export class SandboxProcess extends SandboxAction {
         });
 
         if (stream.status !== 200) {
-          handleError(new Error(`Failed to stream logs: ${await stream.text()}`));
+          handleError(new Error(`Failed to stream logs (status ${stream.status}): ${await stream.text()}`));
           return;
         }
         if (!stream.body) {
@@ -157,7 +157,9 @@ export class SandboxProcess extends SandboxAction {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Failed to execute process: ${errorText}`);
+      throw new Error(
+        `Process execution failed with status ${response.status}: ${errorText}`
+      );
     }
 
     const contentType = response.headers.get('Content-Type') || '';
