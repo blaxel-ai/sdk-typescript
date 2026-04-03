@@ -82,17 +82,102 @@ describe('Sandbox Preview Operations', () => {
       await sandbox.previews.delete("prefix-preview")
     })
 
-    // it('throws error when creating preview on non-existent port', async () => {
-    //   await expect(
-    //     sandbox.previews.create({
-    //       metadata: { name: "invalid-port-preview" },
-    //       spec: {
-    //         port: 15500, // This port is not configured on the sandbox
-    //         public: true
-    //       }
-    //     })
-    //   ).rejects.toThrow()
-    // })
+
+    it('creates preview on a non-declared port and reaches the server', async () => {
+      await sandbox.process.exec({
+        command: `node -e "require('http').createServer((req, res) => { res.writeHead(200, {'Content-Type':'text/plain'}); res.end('hello-undeclared'); }).listen(15500)"`,
+        waitForCompletion: false,
+      })
+
+      const check = await sandbox.process.exec({
+        command: 'node -e "const http = require(\'http\'); const r = http.get(\'http://localhost:15500\', res => { let d=\'\'; res.on(\'data\',c=>d+=c); res.on(\'end\',()=>console.log(d)); }); r.on(\'error\', e => { console.error(e.message); process.exit(1); })"',
+        waitForCompletion: true,
+      })
+      expect(check.exitCode).toBe(0)
+
+      let preview: Awaited<ReturnType<typeof sandbox.previews.create>>
+      try {
+        preview = await sandbox.previews.create({
+          metadata: { name: "undeclared-port-preview" },
+          spec: { port: 15500, public: true }
+        })
+      } catch (err: any) {
+        const msg = err?.error?.message || err?.message || JSON.stringify(err?.error || err)
+        throw new Error(`Preview creation on undeclared port 15500 rejected: ${msg}`)
+      }
+
+      expect(preview.metadata.name).toBe("undeclared-port-preview")
+      expect(preview.spec.url).toBeDefined()
+      expect(preview.spec.port).toBe(15500)
+
+      const response = await fetchWithRetry(preview.spec.url!, undefined, { retries: 5, delayMs: 1000 })
+      expect(response.status).toBe(200)
+      const body = await response.text()
+      expect(body).toBe("hello-undeclared")
+
+      await sandbox.previews.delete("undeclared-port-preview")
+    }, 30_000)
+
+    it('declared vs undeclared port preview latency comparison', async () => {
+      await sandbox.process.exec({
+        command: `node -e "require('http').createServer((req, res) => { res.writeHead(200); res.end('bench'); }).listen(15501)"`,
+        waitForCompletion: false,
+      })
+
+      const check = await sandbox.process.exec({
+        command: 'node -e "const http = require(\'http\'); const r = http.get(\'http://localhost:15501\', res => { let d=\'\'; res.on(\'data\',c=>d+=c); res.on(\'end\',()=>console.log(d)); }); r.on(\'error\', e => { console.error(e.message); process.exit(1); })"',
+        waitForCompletion: true,
+      })
+      expect(check.exitCode).toBe(0)
+
+      const declaredPreview = await sandbox.previews.create({
+        metadata: { name: "bench-declared" },
+        spec: { port: 3000, public: true }
+      })
+      let undeclaredPreview: Awaited<ReturnType<typeof sandbox.previews.create>>
+      try {
+        undeclaredPreview = await sandbox.previews.create({
+          metadata: { name: "bench-undeclared" },
+          spec: { port: 15501, public: true }
+        })
+      } catch (err: any) {
+        const msg = err?.error?.message || err?.message || JSON.stringify(err?.error || err)
+        throw new Error(`Preview creation on undeclared port 15501 rejected: ${msg}`)
+      }
+
+      await fetchWithRetry(declaredPreview.spec.url!, undefined, { retries: 3, delayMs: 500 })
+      await fetchWithRetry(undeclaredPreview.spec.url!, undefined, { retries: 3, delayMs: 500 })
+
+      const iterations = 5
+      const declaredTimes: number[] = []
+      const undeclaredTimes: number[] = []
+
+      for (let i = 0; i < iterations; i++) {
+        const dStart = Date.now()
+        const dResp = await fetch(declaredPreview.spec.url!)
+        declaredTimes.push(Date.now() - dStart)
+        expect(dResp.status).toBe(200)
+
+        const uStart = Date.now()
+        const uResp = await fetch(undeclaredPreview.spec.url!)
+        undeclaredTimes.push(Date.now() - uStart)
+        expect(uResp.status).toBe(200)
+      }
+
+      const avg = (arr: number[]) => arr.reduce((a, b) => a + b, 0) / arr.length
+      const declaredAvg = avg(declaredTimes)
+      const undeclaredAvg = avg(undeclaredTimes)
+      const diff = undeclaredAvg - declaredAvg
+
+      console.log(`[preview port bench] declared (3000) avg: ${declaredAvg.toFixed(0)}ms, samples: [${declaredTimes.join(', ')}]`)
+      console.log(`[preview port bench] undeclared (15501) avg: ${undeclaredAvg.toFixed(0)}ms, samples: [${undeclaredTimes.join(', ')}]`)
+      console.log(`[preview port bench] diff: ${diff.toFixed(0)}ms (${declaredAvg > 0 ? ((diff / declaredAvg) * 100).toFixed(1) : '?'}%)`)
+
+      expect(Math.abs(diff)).toBeLessThan(2000)
+
+      await sandbox.previews.delete("bench-declared")
+      await sandbox.previews.delete("bench-undeclared")
+    }, 60_000)
   })
 
   describe('createIfNotExists', () => {
