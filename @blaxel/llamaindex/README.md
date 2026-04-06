@@ -89,7 +89,7 @@ Here is an example of retrieving tool definitions from a Blaxel sandbox's MCP se
 import { SandboxInstance } from "@blaxel/core";
 import { blTools } from "@blaxel/llamaindex";
 
-// Create a new sandbox
+// Create a new sandbox (base-image is Alpine + Node.js 22 + git; no Python — use "blaxel/py-app:latest" for Python)
 const sandbox = await SandboxInstance.createIfNotExists({
   name: "my-sandbox",
   image: "blaxel/base-image:latest",
