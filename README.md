@@ -4,6 +4,34 @@
 
 This repository contains Blaxel's TypeScript SDK, which lets you create and manage sandboxes and other resources on Blaxel.
 
+## Prerequisites
+
+To use this SDK, you need a [Blaxel account](https://app.blaxel.ai) and the following environment variables:
+
+| Variable | Description |
+|---|---|
+| `BL_WORKSPACE` | Your Blaxel workspace name |
+| `BL_API_KEY` | Your Blaxel API key |
+
+You can create an API key from the [Blaxel console](https://app.blaxel.ai/profile/security). Your workspace name is visible in the URL when you log in to the console (e.g. `app.blaxel.ai/{workspace}`).
+
+Set them as environment variables:
+
+```bash
+export BL_WORKSPACE=my-workspace
+export BL_API_KEY=my-api-key
+```
+
+Or add them to a `.env` file at the root of your project.
+
+Alternatively, you can authenticate via the [Blaxel CLI](https://docs.blaxel.ai/cli-reference/introduction):
+
+```bash
+bl login YOUR-WORKSPACE
+```
+
+When you deploy on Blaxel, authentication is handled automatically.
+
 ## Installation
 
 ```bash
@@ -16,25 +44,6 @@ yarn add @blaxel/core
 # bun
 bun add @blaxel/core
 ```
-
-## Authentication
-
-The SDK authenticates with your Blaxel workspace using these sources (in priority order):
-
-1. Blaxel CLI, when logged in
-2. Environment variables in `.env` file (`BL_WORKSPACE`, `BL_API_KEY`)
-3. System environment variables
-4. Blaxel configuration file (`~/.blaxel/config.yaml`)
-
-When developing locally, the recommended method is to just log in to your workspace with the Blaxel CLI:
-
-```bash
-bl login YOUR-WORKSPACE
-```
-
-This allows you to run Blaxel SDK functions that will automatically connect to your workspace without additional setup. When you deploy on Blaxel, this connection persists automatically.
-
-When running Blaxel SDK from a remote server that is not Blaxel-hosted, we recommend using environment variables as described in the third option above.
 
 ## Usage
 
