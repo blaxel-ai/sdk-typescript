@@ -18,12 +18,24 @@ export class SandboxNetwork extends SandboxAction {
   async fetch(port: number, path = "/", init?: RequestInit): Promise<Response> {
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
     const url = `${this.url}/port/${port}${normalizedPath}`;
-    const headers = this.sandbox.forceUrl ? this.sandbox.headers : settings.headers;
+    const headers = (this.sandbox.forceUrl ? this.sandbox.headers : undefined) ?? settings.headers;
+    const initHeaders: Record<string, string> = {};
+    if (init?.headers) {
+      const entries =
+        init.headers instanceof Headers
+          ? init.headers.entries()
+          : Array.isArray(init.headers)
+            ? (init.headers as [string, string][]).values()
+            : Object.entries(init.headers as Record<string, string>).values();
+      for (const [key, value] of entries) {
+        initHeaders[key] = value;
+      }
+    }
     return this.h2Fetch(url, {
       ...init,
       headers: {
         ...headers,
-        ...init?.headers,
+        ...initHeaders,
       },
     });
   }
