@@ -260,8 +260,21 @@ export class SandboxProcess extends SandboxAction {
     // Flush the TextDecoder and process any remaining buffered data
     buffer += decoder.decode();
     if (buffer.trim()) {
+      let parsed: { type: string, data: string } | null = null;
       try {
-        const parsed = JSON.parse(buffer.trim()) as { type: string, data: string };
+        parsed = JSON.parse(buffer.trim()) as { type: string, data: string };
+      } catch {
+        // Not valid JSON — try legacy result: prefix format
+        if (buffer.startsWith('result:')) {
+          const jsonStr = buffer.slice(7);
+          try {
+            result = JSON.parse(jsonStr) as PostProcessResponse;
+          } catch {
+            throw new Error(`Failed to parse result JSON: ${jsonStr}`);
+          }
+        }
+      }
+      if (parsed) {
         switch (parsed.type) {
           case 'stdout':
             if (parsed.data) {
@@ -282,16 +295,6 @@ export class SandboxProcess extends SandboxAction {
               throw new Error(`Failed to parse result JSON: ${parsed.data}`);
             }
             break;
-        }
-      } catch {
-        // Fallback: try legacy result: prefix format
-        if (buffer.startsWith('result:')) {
-          const jsonStr = buffer.slice(7);
-          try {
-            result = JSON.parse(jsonStr) as PostProcessResponse;
-          } catch {
-            throw new Error(`Failed to parse result JSON: ${jsonStr}`);
-          }
         }
       }
     }
