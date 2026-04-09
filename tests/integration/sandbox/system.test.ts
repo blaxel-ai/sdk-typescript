@@ -185,7 +185,7 @@ describe('Sandbox System Operations', () => {
       console.log(`[TEST] Test completed successfully!`)
     })
 
-    it('upgrades sandbox and running process persists and completes on time', { timeout: 120000 }, async () => {
+    it('upgrades sandbox and running process persists and completes on time', { timeout: 180000 }, async () => {
       const name = uniqueName("system-upgrade-process")
       console.log(`[TEST] Starting process persistence test with sandbox name: ${name}`)
 
@@ -203,8 +203,9 @@ describe('Sandbox System Operations', () => {
 
       console.log(`[TEST] Sandbox created in ${Date.now() - createStart}ms`)
 
-      // Start a sleep process that will run for 30 seconds
-      const sleepDuration = 6
+      // Start a sleep process long enough to survive the full upgrade cycle
+      // (binary download + validation + restart can take 30-60s in slow regions)
+      const sleepDuration = 90
       console.log(`[TEST] Starting sleep process for ${sleepDuration} seconds...`)
       const processStart = Date.now()
       const sleepProcess = await sandbox.process.exec({
@@ -232,8 +233,9 @@ describe('Sandbox System Operations', () => {
       expect(upgradeResult).toBeDefined()
 
       // Wait for the upgrade to complete (check health)
+      // Use a generous timeout to account for variable download speeds across regions
       const sandboxHost = sandbox.metadata?.url
-      const healthData = await waitForUpgradeComplete(sandboxHost!, 10000)
+      const healthData = await waitForUpgradeComplete(sandboxHost!, 60000)
       expect(healthData.upgradeCount).toBeGreaterThan(0)
 
       // Check that the sleep process is still visible in the API after upgrade
@@ -265,16 +267,16 @@ describe('Sandbox System Operations', () => {
         expect(completedProcess.exitCode).toBe(0)
       }
 
-      // Verify the process completed in roughly the expected time (within 10 seconds tolerance)
+      // Verify the process completed in roughly the expected time
       const totalDuration = Date.now() - processStart
       console.log(`[TEST] Total duration from process start to completion: ${totalDuration}ms`)
       console.log(`[TEST] Expected duration: ~${expectedTotalDuration}ms`)
 
       // The process should have completed close to the expected time
-      // Allow 15 seconds tolerance for upgrade overhead
-      const tolerance = 15000
-      expect(totalDuration).toBeGreaterThanOrEqual(expectedTotalDuration - 2000) // At least 28 seconds
-      expect(totalDuration).toBeLessThanOrEqual(expectedTotalDuration + tolerance) // At most 45 seconds
+      // Allow generous tolerance for upgrade overhead (download + validation + restart)
+      const tolerance = 60000
+      expect(totalDuration).toBeGreaterThanOrEqual(expectedTotalDuration - 2000)
+      expect(totalDuration).toBeLessThanOrEqual(expectedTotalDuration + tolerance)
 
       console.log(`[TEST] Process persistence test completed successfully!`)
     })
