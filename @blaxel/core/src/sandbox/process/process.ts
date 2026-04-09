@@ -263,7 +263,7 @@ export class SandboxProcess extends SandboxAction {
       let parsed: { type: string, data: string } | null = null;
       try {
         parsed = JSON.parse(buffer.trim()) as { type: string, data: string };
-      } catch {
+      } catch (e) {
         // Not valid JSON — try legacy result: prefix format
         if (buffer.startsWith('result:')) {
           const jsonStr = buffer.slice(7);
@@ -272,6 +272,9 @@ export class SandboxProcess extends SandboxAction {
           } catch {
             throw new Error(`Failed to parse result JSON: ${jsonStr}`);
           }
+        } else {
+          // Not a legacy result line — surface the original parse error
+          throw e;
         }
       }
       if (parsed) {
