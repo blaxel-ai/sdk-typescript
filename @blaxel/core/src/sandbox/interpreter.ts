@@ -37,7 +37,7 @@ export class CodeInterpreter extends SandboxInstance {
 
   static async create(
     sandbox?: Sandbox | SandboxCreateConfiguration | Record<string, any> | null,
-    { safe = true }: { safe?: boolean } = {}
+    { safe = true, createIfNotExist = false }: { safe?: boolean; createIfNotExist?: boolean } = {}
   ): Promise<CodeInterpreter> {
     // Build a SandboxCreateConfiguration with CodeInterpreter defaults
     const defaults: SandboxCreateConfiguration = {
@@ -72,7 +72,7 @@ export class CodeInterpreter extends SandboxInstance {
       merged = defaults;
     }
 
-    const baseInstance = await super.create(merged, { safe });
+    const baseInstance = await super.create(merged, { safe, createIfNotExist });
 
     // Create config from the instance
     const config: SandboxConfiguration = {
