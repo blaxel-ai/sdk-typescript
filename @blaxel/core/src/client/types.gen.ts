@@ -63,10 +63,15 @@ export type AgentSpec = {
      * When true, the agent is publicly accessible without authentication. Only available for mk3 generation.
      */
     public?: boolean;
+    /**
+     * Region where the agent should be deployed (e.g. us-pdx-1, eu-lon-1). Required when volumes are attached.
+     */
+    region?: string;
     repository?: Repository;
     revision?: RevisionConfiguration;
     runtime?: AgentRuntime;
     triggers?: Triggers;
+    volumes?: VolumeAttachments;
 };
 
 /**
@@ -82,10 +87,15 @@ export type AgentSpecWritable = {
      * When true, the agent is publicly accessible without authentication. Only available for mk3 generation.
      */
     public?: boolean;
+    /**
+     * Region where the agent should be deployed (e.g. us-pdx-1, eu-lon-1). Required when volumes are attached.
+     */
+    region?: string;
     repository?: Repository;
     revision?: RevisionConfiguration;
     runtime?: AgentRuntime;
     triggers?: TriggersWritable;
+    volumes?: VolumeAttachments;
 };
 
 /**
@@ -439,7 +449,7 @@ export type CustomDomainSpecWritable = {
 };
 
 /**
- * Drive providing persistent storage that can be attached to agents, functions, and sandboxes. Drives are backed by SeaweedFS buckets and can be mounted at runtime via the sbx API.
+ * Drive providing persistent storage that can be attached to agents, functions, and sandboxes. Drives can be mounted at runtime via the sbx API.
  */
 export type Drive = {
     events?: CoreEvents;
@@ -453,7 +463,7 @@ export type Drive = {
 };
 
 /**
- * Drive providing persistent storage that can be attached to agents, functions, and sandboxes. Drives are backed by SeaweedFS buckets and can be mounted at runtime via the sbx API.
+ * Drive providing persistent storage that can be attached to agents, functions, and sandboxes. Drives can be mounted at runtime via the sbx API.
  */
 export type DriveWritable = {
     events?: CoreEventsWritable;
@@ -502,6 +512,24 @@ export type DriveState = {
      * S3-compatible endpoint URL for accessing drive contents
      */
     readonly s3Url?: string;
+};
+
+/**
+ * Egress configuration for routing sandbox outbound traffic through a dedicated IP gateway
+ */
+export type EgressConfig = {
+    /**
+     * Name of the egress gateway to route traffic through. The gateway must exist in the default VPC.
+     */
+    gateway?: string;
+    /**
+     * Egress mode. Use 'dedicated' for a dedicated egress IP.
+     */
+    mode?: string;
+    /**
+     * Per-destination egress policies (not yet supported)
+     */
+    policies?: Array<EgressPolicy>;
 };
 
 /**
@@ -652,6 +680,24 @@ export type EgressIpSpecWritable = {
      * IP address family, either IPv4 or IPv6
      */
     ipFamily: 'IPv4' | 'IPv6';
+};
+
+/**
+ * Egress policy routing specific destinations through dedicated or shared gateways (not yet supported)
+ */
+export type EgressPolicy = {
+    /**
+     * Destination domains or IPs this policy applies to
+     */
+    destinations?: Array<string>;
+    /**
+     * Egress mode for these destinations (dedicated or shared)
+     */
+    mode?: string;
+    /**
+     * Name of this egress policy
+     */
+    name?: string;
 };
 
 /**
@@ -842,6 +888,10 @@ export type FunctionSpec = {
      * When true, the function is publicly accessible without authentication. Only available for mk3 generation.
      */
     public?: boolean;
+    /**
+     * Region where the function should be deployed (e.g. us-pdx-1, eu-lon-1). If not specified, the function is deployed based on policy locations.
+     */
+    region?: string;
     revision?: RevisionConfiguration;
     runtime?: FunctionRuntime;
     triggers?: Triggers;
@@ -861,9 +911,37 @@ export type FunctionSpecWritable = {
      * When true, the function is publicly accessible without authentication. Only available for mk3 generation.
      */
     public?: boolean;
+    /**
+     * Region where the function should be deployed (e.g. us-pdx-1, eu-lon-1). If not specified, the function is deployed based on policy locations.
+     */
+    region?: string;
     revision?: RevisionConfiguration;
     runtime?: FunctionRuntime;
     triggers?: TriggersWritable;
+};
+
+/**
+ * Configuration for running GitHub Actions workflow jobs on Blaxel infrastructure. When repositories are configured, the job acts as a self-hosted GitHub Actions runner. Workflow jobs use runs-on with the Blaxel job name to target a specific runner.
+ */
+export type GithubRunnerConfig = {
+    /**
+     * Repositories in owner/repo format that this runner is associated with. The runner will pick up workflow jobs from any of these repositories. If non-empty, the runner is considered enabled.
+     */
+    repositories?: Array<string>;
+};
+
+/**
+ * Mapping between an IdP group and a workspace role for directory sync
+ */
+export type GroupWorkspaceMapping = {
+    /**
+     * Name of the IdP group (e.g. "Engineering", "Platform")
+     */
+    groupName?: string;
+    /**
+     * Role to assign in this workspace (admin or member)
+     */
+    role?: 'admin' | 'member';
 };
 
 export type Image = {
@@ -885,6 +963,7 @@ export type ImageMetadata = {
      * The display name of the image (registry/workspace/repository).
      */
     displayName?: string;
+    events?: CoreEvents;
     /**
      * The date and time when the image was last deployed (most recent across all tags).
      */
@@ -897,6 +976,11 @@ export type ImageMetadata = {
      * The resource type of the image.
      */
     resourceType?: string;
+    /**
+     * If this image is shared from another workspace, this field contains the name of the source workspace. Empty for non-shared images.
+     */
+    readonly sourceWorkspace?: string;
+    status?: Status;
     /**
      * The date and time when the image was last updated.
      */
@@ -912,6 +996,7 @@ export type ImageMetadataWritable = {
      * The display name of the image (registry/workspace/repository).
      */
     displayName?: string;
+    events?: CoreEventsWritable;
     /**
      * The name of the image (repository name).
      */
@@ -920,6 +1005,7 @@ export type ImageMetadataWritable = {
      * The resource type of the image.
      */
     resourceType?: string;
+    status?: Status;
 };
 
 export type ImageSpec = {
@@ -1537,6 +1623,10 @@ export type JobExecutionTaskStatus = 'unspecified' | 'pending' | 'reconciling' |
  */
 export type JobRuntime = {
     /**
+     * Percentage of VM RAM allocated for disk storage (tmpfs overlay). Valid range 10-95, default 50. Only applies to mk3.1 (microVM) generation.
+     */
+    diskPercent?: number;
+    /**
      * Environment variables injected into job tasks. Supports Kubernetes EnvVar format with valueFrom references.
      */
     envs?: Array<Env>;
@@ -1575,6 +1665,7 @@ export type JobSpec = {
      * When false, the job is disabled and new executions cannot be triggered
      */
     enabled?: boolean;
+    githubRunner?: GithubRunnerConfig;
     policies?: PoliciesList;
     /**
      * Region where the job should be created (e.g. us-was-1, eu-lon-1)
@@ -1583,6 +1674,7 @@ export type JobSpec = {
     revision?: RevisionConfiguration;
     runtime?: JobRuntime;
     triggers?: Triggers;
+    volumes?: JobVolumes;
 };
 
 /**
@@ -1593,6 +1685,7 @@ export type JobSpecWritable = {
      * When false, the job is disabled and new executions cannot be triggered
      */
     enabled?: boolean;
+    githubRunner?: GithubRunnerConfig;
     policies?: PoliciesList;
     /**
      * Region where the job should be created (e.g. us-was-1, eu-lon-1)
@@ -1601,7 +1694,36 @@ export type JobSpecWritable = {
     revision?: RevisionConfiguration;
     runtime?: JobRuntime;
     triggers?: TriggersWritable;
+    volumes?: JobVolumes;
 };
+
+/**
+ * Ephemeral volume for a job. Temporary disk-backed storage that is created when the job starts and destroyed when it completes.
+ */
+export type JobVolume = {
+    /**
+     * Absolute filesystem path where the volume will be mounted inside the container
+     */
+    mountPath: string;
+    /**
+     * Identifier for the volume, used to reference it internally
+     */
+    name: string;
+    /**
+     * If true, the volume is mounted read-only
+     */
+    readOnly?: boolean;
+    /**
+     * Storage capacity in megabytes
+     */
+    sizeMb: number;
+    /**
+     * Type of volume. Currently only "ephemeral" is supported.
+     */
+    type: 'ephemeral';
+};
+
+export type JobVolumes = Array<JobVolume>;
 
 /**
  * Location availability for policies
@@ -1879,6 +2001,16 @@ export type ModelSpec = {
 };
 
 /**
+ * Firewall configuration restricting which external domains the sandbox can access
+ */
+export type NetworkFirewall = {
+    /**
+     * List of allowed external domains. Supports wildcards (e.g. *.s3.amazonaws.com).
+     */
+    allowedDomains?: Array<string>;
+};
+
+/**
  * OAuth of the artifact
  */
 export type OAuth = {
@@ -1917,6 +2049,10 @@ export type PendingInvitation = TimeFields & OwnerFields & {
      */
     email?: string;
     /**
+     * The date and time when the invitation expires
+     */
+    expiresAt?: string;
+    /**
      * User sub
      */
     invitedBy?: string;
@@ -1938,6 +2074,10 @@ export type PendingInvitationWritable = TimeFields & OwnerFields & {
      * User email
      */
     email?: string;
+    /**
+     * The date and time when the invitation expires
+     */
+    expiresAt?: string;
     /**
      * User sub
      */
@@ -1978,10 +2118,15 @@ export type PendingInvitationAcceptWritable = {
  * Pending invitation in workspace
  */
 export type PendingInvitationRender = {
+    account?: PendingInvitationRenderAccount;
     /**
      * User email
      */
     email?: string;
+    /**
+     * The date and time when the invitation expires
+     */
+    expiresAt?: string;
     /**
      * Invitation date
      */
@@ -1991,8 +2136,26 @@ export type PendingInvitationRender = {
      * ACL role
      */
     role?: string;
+    /**
+     * Invitation type: "workspace" or "account_admin"
+     */
+    type?: string;
     workspace?: PendingInvitationRenderWorkspace;
     workspaceDetails?: PendingInvitationWorkspaceDetails;
+};
+
+/**
+ * Account info in pending invitation render (for account_admin type)
+ */
+export type PendingInvitationRenderAccount = {
+    /**
+     * Account display name or owner email
+     */
+    displayName?: string;
+    /**
+     * Account ID
+     */
+    id?: string;
 };
 
 /**
@@ -2409,6 +2572,48 @@ export type PrivateLocation = {
     name?: string;
 };
 
+/**
+ * Proxy configuration for routing sandbox HTTP traffic through the platform proxy with MITM inspection and per-destination header/body injection
+ */
+export type ProxyConfig = {
+    /**
+     * Domains that bypass the proxy entirely via the NO_PROXY directive. Traffic to these destinations goes direct, not through the CONNECT tunnel. Supports wildcards. Note that localhost, private ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16), 169.254.169.254, .local and .internal are always bypassed by default.
+     */
+    bypass?: Array<string>;
+    /**
+     * Per-destination routing rules with header/body injection and secrets. Use destinations ["*"] for global rules that apply to all destinations.
+     */
+    routing?: Array<ProxyTarget>;
+};
+
+/**
+ * Routing rule that injects headers and body fields into requests matching the given destinations. Use destinations ["*"] for a global rule that applies to all proxied traffic.
+ */
+export type ProxyTarget = {
+    /**
+     * Body fields to inject into matching requests. Values may contain {{SECRET:name}} references resolved from this rule's secrets.
+     */
+    body?: {
+        [key: string]: string;
+    };
+    /**
+     * Destination domains this rule applies to. Use ["*"] for a global rule that matches all destinations.
+     */
+    destinations?: Array<string>;
+    /**
+     * Headers to inject into matching requests. Values may contain {{SECRET:name}} references resolved from this rule's secrets.
+     */
+    headers?: {
+        [key: string]: string;
+    };
+    /**
+     * Named secret values for this routing rule, referenced in headers/body via {{SECRET:name}}. Stored encrypted at rest. Write-only: never returned in API responses.
+     */
+    secrets?: {
+        [key: string]: string;
+    };
+};
+
 export type PublicIp = {
     /**
      * Description of the region/location
@@ -2470,6 +2675,10 @@ export type Region = {
      * Region name
      */
     name?: string;
+    /**
+     * Proxy availability status - indicates if the proxy plane is configured for the region
+     */
+    proxyAvailable?: boolean;
 };
 
 /**
@@ -2573,6 +2782,124 @@ export type RevisionMetadataWritable = {
 };
 
 /**
+ * SSO domain for SAML-based Single Sign-On
+ * An SSO domain links an email domain (e.g., acme.com) to a workspace so that
+ * users with that email domain are redirected to the workspace's
+ * SSO/SAML identity provider during login.
+ */
+export type SsoDomain = {
+    metadata: SsoDomainMetadata;
+    spec: SsoDomainSpec;
+};
+
+/**
+ * SSO domain for SAML-based Single Sign-On
+ * An SSO domain links an email domain (e.g., acme.com) to a workspace so that
+ * users with that email domain are redirected to the workspace's
+ * SSO/SAML identity provider during login.
+ */
+export type SsoDomainWritable = {
+    metadata: SsoDomainMetadataWritable;
+    spec: SsoDomainSpecWritable;
+};
+
+/**
+ * SSO domain metadata
+ */
+export type SsoDomainMetadata = TimeFields & OwnerFields & {
+    /**
+     * Account ID
+     */
+    accountId?: string;
+    /**
+     * Display name for the SSO domain
+     */
+    displayName?: string;
+    /**
+     * Domain name (e.g., "acme.com")
+     */
+    name?: string;
+};
+
+/**
+ * SSO domain metadata
+ */
+export type SsoDomainMetadataWritable = TimeFields & OwnerFields & {
+    /**
+     * Account ID
+     */
+    accountId?: string;
+    /**
+     * Display name for the SSO domain
+     */
+    displayName?: string;
+    /**
+     * Domain name (e.g., "acme.com")
+     */
+    name?: string;
+};
+
+/**
+ * SSO domain specification
+ */
+export type SsoDomainSpec = {
+    /**
+     * List of allowed login methods for this domain. When set, users with this email domain can only use the specified methods. Possible values are google, saml, email. Empty list means no restriction.
+     */
+    allowedAuthMethods?: Array<string>;
+    /**
+     * List of workspace names where users with this domain auto-join on login
+     */
+    autoJoinWorkspaces?: Array<string>;
+    /**
+     * The authentication method last used by a user with this domain (google, saml, email)
+     */
+    readonly lastUsedAuthMethod?: string;
+    /**
+     * Timestamp of when the last authentication method was used
+     */
+    readonly lastUsedAuthMethodAt?: string;
+    /**
+     * Last verification attempt timestamp
+     */
+    readonly lastVerifiedAt?: string;
+    /**
+     * Current verification status of the domain (pending, verified, failed)
+     */
+    status?: 'pending' | 'verified' | 'failed';
+    /**
+     * DNS TXT record name that must be created for verification
+     */
+    readonly txtRecordName?: string;
+    /**
+     * DNS TXT record value that must be set for verification
+     */
+    readonly txtRecordValue?: string;
+    /**
+     * Error message if verification failed
+     */
+    readonly verificationError?: string;
+};
+
+/**
+ * SSO domain specification
+ */
+export type SsoDomainSpecWritable = {
+    /**
+     * List of allowed login methods for this domain. When set, users with this email domain can only use the specified methods. Possible values are google, saml, email. Empty list means no restriction.
+     */
+    allowedAuthMethods?: Array<string>;
+    /**
+     * List of workspace names where users with this domain auto-join on login
+     */
+    autoJoinWorkspaces?: Array<string>;
+    /**
+     * Current verification status of the domain (pending, verified, failed)
+     */
+    status?: 'pending' | 'verified' | 'failed';
+};
+
+/**
  * Lightweight virtual machine for secure AI code execution. Sandboxes resume from standby in under 25ms and automatically scale to zero after inactivity, preserving memory state including running processes and filesystem.
  */
 export type Sandbox = {
@@ -2587,6 +2914,10 @@ export type Sandbox = {
     readonly lastUsedAt?: string;
     metadata: Metadata;
     spec: SandboxSpec;
+    /**
+     * Current state of the sandbox (read-only, managed by the system)
+     */
+    state?: 'RUNNING' | 'STANDBY';
     status?: Status;
 };
 
@@ -2597,6 +2928,10 @@ export type SandboxWritable = {
     events?: CoreEventsWritable;
     metadata: MetadataWritable;
     spec: SandboxSpec;
+    /**
+     * Current state of the sandbox (read-only, managed by the system)
+     */
+    state?: 'RUNNING' | 'STANDBY';
     status?: Status;
 };
 
@@ -2709,20 +3044,26 @@ export type SandboxLifecycle = {
      * List of expiration policies. Multiple policies can be combined; whichever condition is met first triggers the action.
      */
     expirationPolicies?: Array<ExpirationPolicy>;
+    /**
+     * Duration to keep the sandbox record after termination for log access (e.g., '1h', '24h', '7d'). Defaults to 5m. Subject to maximum quota limits.
+     */
+    terminatedRetention?: string;
 };
 
 /**
- * Network configuration for a sandbox including egress IP binding. All three fields (vpcName, egressGatewayName, egressIpName) must be specified together to assign a dedicated IP.
+ * Network configuration for a sandbox including domain filtering, egress IP binding, and proxy settings
  */
 export type SandboxNetwork = {
     /**
-     * Name of the egress gateway in the VPC. Must be specified together with vpcName and egressIpName.
+     * List of allowed external domains (allowlist). When set, only these domains are reachable. Supports wildcards (e.g. *.s3.amazonaws.com).
      */
-    egressGatewayName: string;
+    allowedDomains?: Array<string>;
+    egress?: EgressConfig;
     /**
-     * Name of the VPC where the egress gateway is provisioned. Must be specified together with egressGatewayName and egressIpName.
+     * List of forbidden external domains (denylist). When set, all domains except these are reachable. Supports wildcards (e.g. *.malware.com). If both allowedDomains and forbiddenDomains are set, allowedDomains takes precedence.
      */
-    vpcName: string;
+    forbiddenDomains?: Array<string>;
+    proxy?: ProxyConfig;
 };
 
 /**
@@ -2773,7 +3114,7 @@ export type SandboxSpec = {
 /**
  * Deployment status of a resource deployed on Blaxel
  */
-export type Status = 'DELETING' | 'TERMINATED' | 'FAILED' | 'DEACTIVATED' | 'DEACTIVATING' | 'UPLOADING' | 'BUILDING' | 'DEPLOYING' | 'DEPLOYED';
+export type Status = 'DELETING' | 'TERMINATED' | 'FAILED' | 'DEACTIVATED' | 'DEACTIVATING' | 'UPLOADING' | 'BUILDING' | 'DEPLOYING' | 'DEPLOYED' | 'BUILT';
 
 /**
  * Blaxel template
@@ -3052,7 +3393,7 @@ export type VolumeWritable = {
 };
 
 /**
- * Configuration for attaching a volume to a sandbox at a specific filesystem path
+ * Configuration for attaching a persistent volume to a sandbox at a specific filesystem path
  */
 export type VolumeAttachment = {
     /**
@@ -3272,6 +3613,10 @@ export type Workspace = TimeFields & OwnerFields & {
      */
     displayName?: string;
     /**
+     * Group-to-role mappings for directory sync (SCIM) group membership
+     */
+    groupMappings?: Array<GroupWorkspaceMapping>;
+    /**
      * Autogenerated unique workspace id
      */
     readonly id?: string;
@@ -3307,6 +3652,10 @@ export type WorkspaceWritable = TimeFields & OwnerFields & {
      * Workspace display name
      */
     displayName?: string;
+    /**
+     * Group-to-role mappings for directory sync (SCIM) group membership
+     */
+    groupMappings?: Array<GroupWorkspaceMapping>;
     labels?: MetadataLabels;
     /**
      * Workspace name
@@ -3350,6 +3699,10 @@ export type WorkspaceUser = {
      */
     email_verified?: boolean;
     /**
+     * Whether the invitation has expired
+     */
+    expired?: boolean;
+    /**
      * Workspace user family name
      */
     family_name?: string;
@@ -3361,6 +3714,10 @@ export type WorkspaceUser = {
      * Workspace user role
      */
     role?: string;
+    /**
+     * Source of the user provisioning
+     */
+    source?: 'directory_sync' | 'invitation' | 'domain_capture';
     /**
      * Workspace user identifier
      */
@@ -4002,7 +4359,12 @@ export type TestFeatureFlagData = {
          */
         featureKey: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Account ID to check feature flags for. When provided, evaluates the feature flag at the account level instead of the workspace level.
+         */
+        account?: string;
+    };
     url: '/features/{featureKey}';
 };
 
@@ -4311,6 +4673,63 @@ export type ListImagesResponses = {
 
 export type ListImagesResponse = ListImagesResponses[keyof ListImagesResponses];
 
+export type CreateImageData = {
+    body: {
+        /**
+         * Runtime generation (e.g., mk3). Defaults to mk3 if not specified.
+         */
+        generation?: string;
+        /**
+         * A pre-built Docker image reference (e.g., docker.io/myorg/myimage:latest). When provided, the build step is skipped and the image is used directly as the source for the resource runtime.
+         */
+        image?: string;
+        /**
+         * Name of the image to build
+         */
+        name: string;
+        /**
+         * Resource type (agent, function, sandbox, job)
+         */
+        resourceType: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/images';
+};
+
+export type CreateImageErrors = {
+    /**
+     * invalid request
+     */
+    400: unknown;
+};
+
+export type CreateImageResponses = {
+    /**
+     * successful operation
+     */
+    200: {
+        /**
+         * The registered image reference (only present when image was provided in request)
+         */
+        image?: string;
+        /**
+         * Status message
+         */
+        message?: string;
+        /**
+         * Name of the image
+         */
+        name?: string;
+        /**
+         * Resource type
+         */
+        resourceType?: string;
+    };
+};
+
+export type CreateImageResponse = CreateImageResponses[keyof CreateImageResponses];
+
 export type DeleteImageData = {
     body?: never;
     path: {
@@ -4371,6 +4790,115 @@ export type GetImageResponses = {
 };
 
 export type GetImageResponse = GetImageResponses[keyof GetImageResponses];
+
+export type ListImageSharesData = {
+    body?: never;
+    path: {
+        /**
+         * Resource type (agents, functions, sandboxes, jobs)
+         */
+        resourceType: string;
+        /**
+         * Name of the container image repository
+         */
+        imageName: string;
+    };
+    query?: never;
+    url: '/images/{resourceType}/{imageName}/share';
+};
+
+export type ListImageSharesErrors = {
+    /**
+     * image not found
+     */
+    404: unknown;
+};
+
+export type ListImageSharesResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<string>;
+};
+
+export type ListImageSharesResponse = ListImageSharesResponses[keyof ListImageSharesResponses];
+
+export type ShareImageData = {
+    body: {
+        /**
+         * Name of the workspace to share the image with
+         */
+        targetWorkspace: string;
+    };
+    path: {
+        /**
+         * Resource type (agents, functions, sandboxes, jobs)
+         */
+        resourceType: string;
+        /**
+         * Name of the container image repository
+         */
+        imageName: string;
+    };
+    query?: never;
+    url: '/images/{resourceType}/{imageName}/share';
+};
+
+export type ShareImageErrors = {
+    /**
+     * invalid request
+     */
+    400: unknown;
+    /**
+     * image not found
+     */
+    404: unknown;
+};
+
+export type ShareImageResponses = {
+    /**
+     * successful operation
+     */
+    200: Image;
+};
+
+export type ShareImageResponse = ShareImageResponses[keyof ShareImageResponses];
+
+export type UnshareImageData = {
+    body?: never;
+    path: {
+        /**
+         * Resource type (agents, functions, sandboxes, jobs)
+         */
+        resourceType: string;
+        /**
+         * Name of the container image repository
+         */
+        imageName: string;
+        /**
+         * Name of the target workspace to revoke sharing from
+         */
+        targetWorkspace: string;
+    };
+    query?: never;
+    url: '/images/{resourceType}/{imageName}/share/{targetWorkspace}';
+};
+
+export type UnshareImageErrors = {
+    /**
+     * image or share not found
+     */
+    404: unknown;
+};
+
+export type UnshareImageResponses = {
+    /**
+     * successful operation
+     */
+    200: Image;
+};
+
+export type UnshareImageResponse = UnshareImageResponses[keyof UnshareImageResponses];
 
 export type DeleteImageTagData = {
     body?: never;

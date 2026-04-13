@@ -274,9 +274,6 @@ export class SandboxInstance {
           throw new Error("Sandbox name is required");
         }
 
-        // Brief delay to handle parallel-creation race condition
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
         // Get the existing sandbox to check its status
         const sandboxInstance = await this.get(name);
 
