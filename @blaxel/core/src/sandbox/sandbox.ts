@@ -80,6 +80,17 @@ export class SandboxInstance {
     return this.sandbox.expiresIn;
   }
 
+  /**
+   * Fetch a resource served on a sandbox port.
+   *
+   * @param port - The port number inside the sandbox
+   * @param path - Optional path appended after the port (default: "/")
+   * @param init - Standard RequestInit options forwarded to fetch
+   */
+  async fetch(port: number, path = "/", init?: RequestInit): Promise<Response> {
+    return this.network.fetch(port, path, init);
+  }
+
   /* eslint-disable */
   async wait({maxWait = 60000, interval = 1000}: {maxWait?: number, interval?: number} = {}) {
     logger.warn("⚠️  Warning: sandbox.wait() is deprecated. You don't need to wait for the sandbox to be deployed anymore.");
@@ -263,6 +274,7 @@ export class SandboxInstance {
     const instance = new SandboxInstance(data);
     return SandboxInstance.attachH2Session(instance);
   }
+
 
   static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration) {
     try {

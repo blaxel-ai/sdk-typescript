@@ -2,7 +2,7 @@ import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { SandboxInstance } from "@blaxel/core"
 import { uniqueName, defaultImage, defaultLabels, sleep } from './helpers.js'
 
-let SKIP_KEEP_ALIVE = true
+const SKIP_KEEP_ALIVE = true
 
 describe('Sandbox Process Operations', () => {
   let sandbox: SandboxInstance
@@ -538,45 +538,11 @@ describe('Sandbox Process Operations', () => {
   })
 })
 
-describe('Sandbox Process waitForPorts', () => {
-  let sandbox: SandboxInstance
-  const sandboxName = uniqueName("waitforports")
+describe('Sandbox Process waitForPorts at scale', () => {
+  const SANDBOX_COUNT = 20
+  const sandboxes: { name: string; instance: SandboxInstance; runtime: "node" | "python" }[] = []
 
-  beforeAll(async () => {
-    sandbox = await SandboxInstance.create({
-      name: sandboxName,
-      image: "blaxel/node:latest",
-      memory: 2048,
-      ports: [
-        { target: 3000, protocol: "HTTP" }
-      ],
-      labels: defaultLabels,
-    })
-  })
-
-  afterAll(async () => {
-    try {
-      await sandbox.delete()
-    } catch {
-      // Ignore
-    }
-  })
-
-  it('waits for port to be ready before returning', async () => {
-    const preview = await sandbox.previews.createIfNotExists({
-      metadata: {
-        name: "waitforports-preview"
-      },
-      spec: {
-        port: 3000,
-        public: true
-      }
-    })
-
-    const previewUrl = preview.spec.url
-    expect(previewUrl).toBeDefined()
-
-    const nodeServerCommand = `sleep 2 && node -e "
+  const nodeServerCommand = `sleep 2 && node -e "
 const http = require('http');
 const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -585,15 +551,76 @@ const server = http.createServer((req, res) => {
 server.listen(3000);
 "`
 
-    await sandbox.process.exec({
-      name: "node-server",
-      command: nodeServerCommand,
-      waitForPorts: [3000]
+  const pythonServerCommand = `sleep 2 && python3 -c "
+from http.server import HTTPServer, BaseHTTPRequestHandler
+
+class H(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(b'OK')
+    def log_message(self, *args):
+        pass
+
+HTTPServer(('', 3000), H).serve_forever()
+"`
+
+  beforeAll(async () => {
+    const createPromises = Array.from({ length: SANDBOX_COUNT }, async (_, i) => {
+      const runtime = i % 2 === 0 ? "node" as const : "python" as const
+      const image = runtime === "node" ? "blaxel/node:latest" : "blaxel/py-app:latest"
+      const name = uniqueName(`wfp-${runtime}-${i}`)
+      const instance = await SandboxInstance.create({
+        name,
+        image,
+        memory: 2048,
+        ports: [{ target: 3000, protocol: "HTTP" }],
+        labels: defaultLabels,
+      })
+      return { name, instance, runtime }
     })
 
-    const response = await fetch(previewUrl!)
-    expect(response.status).toBe(200)
-    const body = await response.text()
-    expect(body).toBe("OK")
-  })
+    const results = await Promise.all(createPromises)
+    sandboxes.push(...results)
+  }, 5 * 60 * 1000)
+
+  afterAll(async () => {
+    await Promise.allSettled(
+      sandboxes.map(({ instance }) => instance.delete().catch(() => {}))
+    )
+  }, 5 * 60 * 1000)
+
+  it('waits for port to be ready on all sandboxes concurrently', async () => {
+    const results = await Promise.allSettled(
+      sandboxes.map(async ({ name, instance, runtime }, i) => {
+        const command = runtime === "node" ? nodeServerCommand : pythonServerCommand
+
+        await instance.process.exec({
+          name: `server-${i}`,
+          command,
+          waitForPorts: [3000],
+        })
+
+        const response = await instance.fetch(3000)
+        expect(response.status).toBe(200)
+        const body = await response.text()
+        expect(body).toBe("OK")
+
+        return { sandbox: name, runtime, success: true }
+      })
+    )
+
+    const fulfilled = results.filter((r) => r.status === "fulfilled")
+    const rejected = results.filter((r) => r.status === "rejected")
+
+    if (rejected.length > 0) {
+      const errors = rejected.map((r, i) =>
+        `Sandbox #${i}: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`
+      )
+      console.error("Failed sandboxes:\n" + errors.join("\n"))
+    }
+
+    expect(fulfilled.length).toBe(SANDBOX_COUNT)
+  }, 5 * 60 * 1000)
 })

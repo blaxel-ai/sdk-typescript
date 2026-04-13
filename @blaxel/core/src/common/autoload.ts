@@ -49,7 +49,30 @@ if (isNode && !isBrowser) {
   }
 }
 
-// Allow to set custom configuration for browser environment
+/**
+ * Configure the SDK programmatically at runtime, instead of relying on
+ * environment variables or config files.
+ *
+ * @example
+ * // With an API key
+ * initialize({ workspace: 'my-workspace', apiKey: 'bl_...' });
+ *
+ * @example
+ * // With client credentials (object form)
+ * initialize({
+ *   workspace: 'my-workspace',
+ *   clientCredentials: { clientId: '...', clientSecret: '...' },
+ * });
+ * await authenticate();
+ *
+ * @example
+ * // With client credentials (pre-encoded Base64 string)
+ * initialize({
+ *   workspace: 'my-workspace',
+ *   clientCredentials: 'base64-encoded-string',
+ * });
+ * await authenticate();
+ */
 export function initialize(config: Config) {
   settings.setConfig(config);
   client.setConfig({

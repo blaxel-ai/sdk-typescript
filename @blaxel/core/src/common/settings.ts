@@ -1,13 +1,34 @@
 import yaml from 'yaml';
+import { ApiKey } from "../authentication/apikey.js";
+import { ClientCredentials } from "../authentication/clientcredentials.js";
 import { Credentials } from "../authentication/credentials.js";
 import { authentication } from "../authentication/index.js";
 import { env } from "../common/env.js";
 import { fs, os, path } from "../common/node.js";
 
+/**
+ * Client credentials as a `{ clientId, clientSecret }` pair.
+ * The SDK will Base64-encode them automatically.
+ */
+export type ClientCredentialsPair = {
+  clientId: string;
+  clientSecret: string;
+}
+
 export type Config = {
   proxy?: string;
   apikey?: string;
   workspace?: string;
+  /**
+   * Client credentials for OAuth2 client_credentials flow.
+   *
+   * Accepts either:
+   * - A pre-encoded Base64 string (`btoa("clientId:clientSecret")`)
+   * - An object `{ clientId, clientSecret }` (the SDK encodes it for you)
+   */
+  clientCredentials?: string | ClientCredentialsPair;
+  /** API key for bearer token authentication */
+  apiKey?: string;
 }
 
 // Build info - these placeholders are replaced at build time by build:replace-imports
@@ -99,6 +120,20 @@ class Settings {
 
   setConfig(config: Config) {
     this.config = config;
+    if (config.apiKey) {
+      this.credentials = new ApiKey({
+        apiKey: config.apiKey,
+        workspace: config.workspace,
+      });
+    } else if (config.clientCredentials) {
+      const encoded = typeof config.clientCredentials === 'string'
+        ? config.clientCredentials
+        : btoa(`${config.clientCredentials.clientId}:${config.clientCredentials.clientSecret}`);
+      this.credentials = new ClientCredentials({
+        clientCredentials: encoded,
+        workspace: config.workspace,
+      });
+    }
   }
 
   get env() {
@@ -213,8 +248,8 @@ class Settings {
     if (configValue !== null) {
       return configValue;
     }
-    // Default to true if neither is set
-    return true;
+    // Default to false (opt-in tracking)
+    return false;
   }
 
   get region() {

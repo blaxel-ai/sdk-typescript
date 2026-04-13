@@ -27,7 +27,23 @@ export class SandboxProcess extends SandboxAction {
       }
     };
 
+    const processLine = (line: string) => {
+      if (line.startsWith("[keepalive]")) {
+        return;
+      }
+      if (line.startsWith('stdout:')) {
+        options.onStdout?.(line.slice(7));
+        options.onLog?.(line.slice(7));
+      } else if (line.startsWith('stderr:')) {
+        options.onStderr?.(line.slice(7));
+        options.onLog?.(line.slice(7));
+      } else {
+        options.onLog?.(line);
+      }
+    };
+
     const done = (async () => {
+      let buffer = '';
       try {
         const headers = this.sandbox.forceUrl ? this.sandbox.headers : settings.headers;
         const stream = await this.h2Fetch(`${this.url}/process/${identifier}/logs/stream`, {
@@ -47,7 +63,6 @@ export class SandboxProcess extends SandboxAction {
 
         const reader = stream.body.getReader();
         const decoder = new TextDecoder();
-        let buffer = '';
         while (true) {
           const result = await reader.read();
           if (result.done) break;
@@ -57,22 +72,20 @@ export class SandboxProcess extends SandboxAction {
           const lines = buffer.split(/\r?\n/);
           buffer = lines.pop()!;
           for (const line of lines) {
-            if (line.startsWith("[keepalive]")) {
-              continue;
-            }
-            if (line.startsWith('stdout:')) {
-              options.onStdout?.(line.slice(7));
-              options.onLog?.(line.slice(7));
-            } else if (line.startsWith('stderr:')) {
-              options.onStderr?.(line.slice(7));
-              options.onLog?.(line.slice(7));
-            } else {
-              options.onLog?.(line);
-            }
+            processLine(line);
           }
+        }
+        // Flush the TextDecoder and process any remaining buffered data
+        buffer += decoder.decode();
+        if (buffer.trim()) {
+          processLine(buffer);
         }
       } catch (err: unknown) {
         if (err && typeof err === 'object' && 'name' in err && err.name === 'AbortError') {
+          // Process remaining buffer before returning on abort
+          if (buffer.trim()) {
+            processLine(buffer);
+          }
           return;
         }
         handleError(err instanceof Error ? err : new Error('Unknown stream error'));
@@ -244,14 +257,47 @@ export class SandboxProcess extends SandboxAction {
       }
     }
 
-    // Process any remaining buffer
+    // Flush the TextDecoder and process any remaining buffered data
+    buffer += decoder.decode();
     if (buffer.trim()) {
-      if (buffer.startsWith('result:')) {
-        const jsonStr = buffer.slice(7);
-        try {
-          result = JSON.parse(jsonStr) as PostProcessResponse;
-        } catch {
-          throw new Error(`Failed to parse result JSON: ${jsonStr}`);
+      let parsed: { type: string, data: string } | null = null;
+      try {
+        parsed = JSON.parse(buffer.trim()) as { type: string, data: string };
+      } catch (e) {
+        // Not valid JSON — try legacy result: prefix format
+        if (buffer.startsWith('result:')) {
+          const jsonStr = buffer.slice(7);
+          try {
+            result = JSON.parse(jsonStr) as PostProcessResponse;
+          } catch {
+            throw new Error(`Failed to parse result JSON: ${jsonStr}`);
+          }
+        } else {
+          // Not a legacy result line — surface the original parse error
+          throw e;
+        }
+      }
+      if (parsed) {
+        switch (parsed.type) {
+          case 'stdout':
+            if (parsed.data) {
+              options.onStdout?.(parsed.data);
+              options.onLog?.(parsed.data);
+            }
+            break;
+          case 'stderr':
+            if (parsed.data) {
+              options.onStderr?.(parsed.data);
+              options.onLog?.(parsed.data);
+            }
+            break;
+          case 'result':
+            try {
+              result = JSON.parse(parsed.data) as PostProcessResponse;
+            } catch {
+              throw new Error(`Failed to parse result JSON: ${parsed.data}`);
+            }
+            break;
         }
       }
     }
