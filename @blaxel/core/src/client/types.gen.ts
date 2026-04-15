@@ -921,6 +921,16 @@ export type FunctionSpecWritable = {
 };
 
 /**
+ * Configuration for running GitHub Actions workflow jobs on Blaxel infrastructure. When repositories are configured, the job acts as a self-hosted GitHub Actions runner. Workflow jobs use runs-on with the Blaxel job name to target a specific runner.
+ */
+export type GithubRunnerConfig = {
+    /**
+     * Repositories in owner/repo format that this runner is associated with. The runner will pick up workflow jobs from any of these repositories. If non-empty, the runner is considered enabled.
+     */
+    repositories?: Array<string>;
+};
+
+/**
  * Mapping between an IdP group and a workspace role for directory sync
  */
 export type GroupWorkspaceMapping = {
@@ -953,6 +963,7 @@ export type ImageMetadata = {
      * The display name of the image (registry/workspace/repository).
      */
     displayName?: string;
+    events?: CoreEvents;
     /**
      * The date and time when the image was last deployed (most recent across all tags).
      */
@@ -965,6 +976,11 @@ export type ImageMetadata = {
      * The resource type of the image.
      */
     resourceType?: string;
+    /**
+     * If this image is shared from another workspace, this field contains the name of the source workspace. Empty for non-shared images.
+     */
+    readonly sourceWorkspace?: string;
+    status?: Status;
     /**
      * The date and time when the image was last updated.
      */
@@ -980,6 +996,7 @@ export type ImageMetadataWritable = {
      * The display name of the image (registry/workspace/repository).
      */
     displayName?: string;
+    events?: CoreEventsWritable;
     /**
      * The name of the image (repository name).
      */
@@ -988,6 +1005,7 @@ export type ImageMetadataWritable = {
      * The resource type of the image.
      */
     resourceType?: string;
+    status?: Status;
 };
 
 export type ImageSpec = {
@@ -1621,10 +1639,6 @@ export type JobRuntime = {
      */
     image?: string;
     /**
-     * Maximum number of tasks that can run simultaneously within a single execution
-     */
-    maxConcurrentTasks?: number;
-    /**
      * Number of automatic retry attempts for failed tasks before marking as failed
      */
     maxRetries?: number;
@@ -1647,6 +1661,7 @@ export type JobSpec = {
      * When false, the job is disabled and new executions cannot be triggered
      */
     enabled?: boolean;
+    githubRunner?: GithubRunnerConfig;
     policies?: PoliciesList;
     /**
      * Region where the job should be created (e.g. us-was-1, eu-lon-1)
@@ -1655,6 +1670,7 @@ export type JobSpec = {
     revision?: RevisionConfiguration;
     runtime?: JobRuntime;
     triggers?: Triggers;
+    volumes?: JobVolumes;
 };
 
 /**
@@ -1665,6 +1681,7 @@ export type JobSpecWritable = {
      * When false, the job is disabled and new executions cannot be triggered
      */
     enabled?: boolean;
+    githubRunner?: GithubRunnerConfig;
     policies?: PoliciesList;
     /**
      * Region where the job should be created (e.g. us-was-1, eu-lon-1)
@@ -1673,7 +1690,36 @@ export type JobSpecWritable = {
     revision?: RevisionConfiguration;
     runtime?: JobRuntime;
     triggers?: TriggersWritable;
+    volumes?: JobVolumes;
 };
+
+/**
+ * Ephemeral volume for a job. Temporary disk-backed storage that is created when the job starts and destroyed when it completes.
+ */
+export type JobVolume = {
+    /**
+     * Absolute filesystem path where the volume will be mounted inside the container
+     */
+    mountPath: string;
+    /**
+     * Identifier for the volume, used to reference it internally
+     */
+    name: string;
+    /**
+     * If true, the volume is mounted read-only
+     */
+    readOnly?: boolean;
+    /**
+     * Storage capacity in megabytes
+     */
+    sizeMb: number;
+    /**
+     * Type of volume. Currently only "ephemeral" is supported.
+     */
+    type: 'ephemeral';
+};
+
+export type JobVolumes = Array<JobVolume>;
 
 /**
  * Location availability for policies
@@ -2068,6 +2114,7 @@ export type PendingInvitationAcceptWritable = {
  * Pending invitation in workspace
  */
 export type PendingInvitationRender = {
+    account?: PendingInvitationRenderAccount;
     /**
      * User email
      */
@@ -2085,8 +2132,26 @@ export type PendingInvitationRender = {
      * ACL role
      */
     role?: string;
+    /**
+     * Invitation type: "workspace" or "account_admin"
+     */
+    type?: string;
     workspace?: PendingInvitationRenderWorkspace;
     workspaceDetails?: PendingInvitationWorkspaceDetails;
+};
+
+/**
+ * Account info in pending invitation render (for account_admin type)
+ */
+export type PendingInvitationRenderAccount = {
+    /**
+     * Account display name or owner email
+     */
+    displayName?: string;
+    /**
+     * Account ID
+     */
+    id?: string;
 };
 
 /**
@@ -2845,6 +2910,10 @@ export type Sandbox = {
     readonly lastUsedAt?: string;
     metadata: Metadata;
     spec: SandboxSpec;
+    /**
+     * Current state of the sandbox (read-only, managed by the system)
+     */
+    state?: 'RUNNING' | 'STANDBY';
     status?: Status;
 };
 
@@ -2855,6 +2924,10 @@ export type SandboxWritable = {
     events?: CoreEventsWritable;
     metadata: MetadataWritable;
     spec: SandboxSpec;
+    /**
+     * Current state of the sandbox (read-only, managed by the system)
+     */
+    state?: 'RUNNING' | 'STANDBY';
     status?: Status;
 };
 
@@ -3037,7 +3110,7 @@ export type SandboxSpec = {
 /**
  * Deployment status of a resource deployed on Blaxel
  */
-export type Status = 'DELETING' | 'TERMINATED' | 'FAILED' | 'DEACTIVATED' | 'DEACTIVATING' | 'UPLOADING' | 'BUILDING' | 'DEPLOYING' | 'DEPLOYED';
+export type Status = 'DELETING' | 'TERMINATED' | 'FAILED' | 'DEACTIVATED' | 'DEACTIVATING' | 'UPLOADING' | 'BUILDING' | 'DEPLOYING' | 'DEPLOYED' | 'BUILT';
 
 /**
  * Blaxel template
@@ -3316,7 +3389,7 @@ export type VolumeWritable = {
 };
 
 /**
- * Configuration for attaching a volume to a sandbox at a specific filesystem path
+ * Configuration for attaching a persistent volume to a sandbox at a specific filesystem path
  */
 export type VolumeAttachment = {
     /**
@@ -4596,6 +4669,63 @@ export type ListImagesResponses = {
 
 export type ListImagesResponse = ListImagesResponses[keyof ListImagesResponses];
 
+export type CreateImageData = {
+    body: {
+        /**
+         * Runtime generation (e.g., mk3). Defaults to mk3 if not specified.
+         */
+        generation?: string;
+        /**
+         * A pre-built Docker image reference (e.g., docker.io/myorg/myimage:latest). When provided, the build step is skipped and the image is used directly as the source for the resource runtime.
+         */
+        image?: string;
+        /**
+         * Name of the image to build
+         */
+        name: string;
+        /**
+         * Resource type (agent, function, sandbox, job)
+         */
+        resourceType: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/images';
+};
+
+export type CreateImageErrors = {
+    /**
+     * invalid request
+     */
+    400: unknown;
+};
+
+export type CreateImageResponses = {
+    /**
+     * successful operation
+     */
+    200: {
+        /**
+         * The registered image reference (only present when image was provided in request)
+         */
+        image?: string;
+        /**
+         * Status message
+         */
+        message?: string;
+        /**
+         * Name of the image
+         */
+        name?: string;
+        /**
+         * Resource type
+         */
+        resourceType?: string;
+    };
+};
+
+export type CreateImageResponse = CreateImageResponses[keyof CreateImageResponses];
+
 export type DeleteImageData = {
     body?: never;
     path: {
@@ -4656,6 +4786,115 @@ export type GetImageResponses = {
 };
 
 export type GetImageResponse = GetImageResponses[keyof GetImageResponses];
+
+export type ListImageSharesData = {
+    body?: never;
+    path: {
+        /**
+         * Resource type (agents, functions, sandboxes, jobs)
+         */
+        resourceType: string;
+        /**
+         * Name of the container image repository
+         */
+        imageName: string;
+    };
+    query?: never;
+    url: '/images/{resourceType}/{imageName}/share';
+};
+
+export type ListImageSharesErrors = {
+    /**
+     * image not found
+     */
+    404: unknown;
+};
+
+export type ListImageSharesResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<string>;
+};
+
+export type ListImageSharesResponse = ListImageSharesResponses[keyof ListImageSharesResponses];
+
+export type ShareImageData = {
+    body: {
+        /**
+         * Name of the workspace to share the image with
+         */
+        targetWorkspace: string;
+    };
+    path: {
+        /**
+         * Resource type (agents, functions, sandboxes, jobs)
+         */
+        resourceType: string;
+        /**
+         * Name of the container image repository
+         */
+        imageName: string;
+    };
+    query?: never;
+    url: '/images/{resourceType}/{imageName}/share';
+};
+
+export type ShareImageErrors = {
+    /**
+     * invalid request
+     */
+    400: unknown;
+    /**
+     * image not found
+     */
+    404: unknown;
+};
+
+export type ShareImageResponses = {
+    /**
+     * successful operation
+     */
+    200: Image;
+};
+
+export type ShareImageResponse = ShareImageResponses[keyof ShareImageResponses];
+
+export type UnshareImageData = {
+    body?: never;
+    path: {
+        /**
+         * Resource type (agents, functions, sandboxes, jobs)
+         */
+        resourceType: string;
+        /**
+         * Name of the container image repository
+         */
+        imageName: string;
+        /**
+         * Name of the target workspace to revoke sharing from
+         */
+        targetWorkspace: string;
+    };
+    query?: never;
+    url: '/images/{resourceType}/{imageName}/share/{targetWorkspace}';
+};
+
+export type UnshareImageErrors = {
+    /**
+     * image or share not found
+     */
+    404: unknown;
+};
+
+export type UnshareImageResponses = {
+    /**
+     * successful operation
+     */
+    200: Image;
+};
+
+export type UnshareImageResponse = UnshareImageResponses[keyof UnshareImageResponses];
 
 export type DeleteImageTagData = {
     body?: never;

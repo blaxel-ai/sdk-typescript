@@ -38,6 +38,39 @@ export type Directory = {
     subdirectories: Array<Subdirectory>;
 };
 
+export type DriveListResponse = {
+    mounts?: Array<DriveMountInfo>;
+};
+
+export type DriveMountInfo = {
+    driveName?: string;
+    drivePath?: string;
+    mountPath?: string;
+};
+
+export type DriveMountRequest = {
+    driveName: string;
+    /**
+     * Optional, defaults to "/"
+     */
+    drivePath?: string;
+    mountPath: string;
+};
+
+export type DriveMountResponse = {
+    driveName?: string;
+    drivePath?: string;
+    message?: string;
+    mountPath?: string;
+    success?: boolean;
+};
+
+export type DriveUnmountResponse = {
+    message?: string;
+    mountPath?: string;
+    success?: boolean;
+};
+
 export type ErrorResponse = {
     error: string;
 };
@@ -394,6 +427,97 @@ export type GetCodegenRerankingByPathResponses = {
 };
 
 export type GetCodegenRerankingByPathResponse = GetCodegenRerankingByPathResponses[keyof GetCodegenRerankingByPathResponses];
+
+export type GetDrivesMountData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/drives/mount';
+};
+
+export type GetDrivesMountErrors = {
+    /**
+     * Internal Server Error
+     */
+    500: ErrorResponse;
+};
+
+export type GetDrivesMountError = GetDrivesMountErrors[keyof GetDrivesMountErrors];
+
+export type GetDrivesMountResponses = {
+    /**
+     * OK
+     */
+    200: DriveListResponse;
+};
+
+export type GetDrivesMountResponse = GetDrivesMountResponses[keyof GetDrivesMountResponses];
+
+export type PostDrivesMountData = {
+    /**
+     * Drive attachment parameters
+     */
+    body: DriveMountRequest;
+    path?: never;
+    query?: never;
+    url: '/drives/mount';
+};
+
+export type PostDrivesMountErrors = {
+    /**
+     * Bad Request
+     */
+    400: ErrorResponse;
+    /**
+     * Internal Server Error
+     */
+    500: ErrorResponse;
+};
+
+export type PostDrivesMountError = PostDrivesMountErrors[keyof PostDrivesMountErrors];
+
+export type PostDrivesMountResponses = {
+    /**
+     * OK
+     */
+    200: DriveMountResponse;
+};
+
+export type PostDrivesMountResponse = PostDrivesMountResponses[keyof PostDrivesMountResponses];
+
+export type DeleteDrivesMountByMountPathData = {
+    body?: never;
+    path: {
+        /**
+         * Mount path to detach (must start with /, e.g. /mnt/test)
+         */
+        mountPath: string;
+    };
+    query?: never;
+    url: '/drives/mount/{mountPath}';
+};
+
+export type DeleteDrivesMountByMountPathErrors = {
+    /**
+     * Bad Request
+     */
+    400: ErrorResponse;
+    /**
+     * Internal Server Error
+     */
+    500: ErrorResponse;
+};
+
+export type DeleteDrivesMountByMountPathError = DeleteDrivesMountByMountPathErrors[keyof DeleteDrivesMountByMountPathErrors];
+
+export type DeleteDrivesMountByMountPathResponses = {
+    /**
+     * OK
+     */
+    200: DriveUnmountResponse;
+};
+
+export type DeleteDrivesMountByMountPathResponse = DeleteDrivesMountByMountPathResponses[keyof DeleteDrivesMountByMountPathResponses];
 
 export type GetFilesystemContentSearchByPathData = {
     body?: never;

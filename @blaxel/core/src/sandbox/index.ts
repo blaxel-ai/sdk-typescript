@@ -8,6 +8,9 @@ export {
 } from "./client/index.js";
 export * from "./filesystem/index.js";
 export * from "./codegen/index.js";
+export { SandboxDrive, type DriveMountRequest, type DriveMountResponse, type DriveMountInfo, type DriveUnmountResponse } from "./drive/index.js";
+export * from "./preview.js";
+export * from "./session.js";
 export * from "./sandbox.js";
 export * from "./system.js";
 export * from "./types.js";
