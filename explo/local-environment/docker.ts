@@ -302,6 +302,7 @@ class LocalDrives {
       driveName: request.driveName,
       mountPath: request.mountPath,
       drivePath: request.drivePath ?? "/",
+      readOnly: request.readOnly ?? false,
     };
     this.mounts.push(info);
     return {
