@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { createSandbox, deleteSandbox, getSandbox, listSandboxes, SandboxLifecycle, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
+import { createSandbox, deleteSandbox, getSandbox, listSandboxes, SandboxLifecycle, SandboxNetwork as SandboxNetworkConfig, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
 import { SandboxCodegen } from "./codegen/index.js";
@@ -274,6 +274,17 @@ export class SandboxInstance {
     return SandboxInstance.attachH2Session(instance);
   }
 
+  static async updateNetwork(sandboxName: string, network: SandboxNetworkConfig) {
+    const sandbox = await SandboxInstance.get(sandboxName);
+    const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, network } } as SandboxModel
+    const { data } = await updateSandbox({
+      path: { sandboxName },
+      body,
+      throwOnError: true,
+    });
+    const instance = new SandboxInstance(data);
+    return SandboxInstance.attachH2Session(instance);
+  }
 
   static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration) {
     try {
