@@ -1,3 +1,5 @@
+import { client } from "../client/client.gen.js";
+import { client as clientSandbox } from "../sandbox/client/client.gen.js";
 import { initSentry } from "./sentry.js";
 import { settings } from "./settings.js";
 
@@ -5,8 +7,13 @@ let autoloaded = false;
 
 /**
  * Perform the observable side-effects that the SDK needs for error
- * reporting and low-latency sandbox sessions:
+ * reporting, low-latency sandbox sessions, and correct environment
+ * routing:
  *
+ *   - Resolve credentials (which reads `~/.blaxel/config.yaml` once and
+ *     populates `BL_ENV` if the user has a dev workspace configured).
+ *   - Re-apply the control-plane and sandbox clients' `baseUrl` so they
+ *     target the now-env-aware endpoint.
  *   - Initialize the lightweight Sentry client (registers
  *     `uncaughtExceptionMonitor` and patches `console.error` in Node).
  *   - Pre-warm the edge H2 connection pool for `settings.region`.
@@ -19,6 +26,18 @@ let autoloaded = false;
 export function ensureAutoloaded(): void {
   if (autoloaded) return;
   autoloaded = true;
+
+  // Trigger lazy credential resolution. This may read `~/.blaxel/config.yaml`
+  // and set `process.env.BL_ENV` if the user has a dev workspace configured,
+  // which in turn affects `settings.baseUrl`.
+  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+  settings.credentials;
+
+  // Keep the clients' baseUrl in sync with the now-resolved env. Without
+  // this, the module-load `client.setConfig({ baseUrl })` would be stuck on
+  // the prod default for users who rely on `config.yaml` (no env vars).
+  client.setConfig({ baseUrl: settings.baseUrl });
+  clientSandbox.setConfig({ baseUrl: settings.baseUrl });
 
   // Initialize Sentry for SDK error tracking.
   initSentry();
