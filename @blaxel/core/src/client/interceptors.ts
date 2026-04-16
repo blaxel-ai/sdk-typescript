@@ -19,10 +19,6 @@ export const interceptors: Interceptor[] = [
     // client baseUrl sync, Sentry init, H2 warming) on the first actual SDK
     // use, rather than at module-import time.
     ensureAutoloaded();
-    if (options.authenticated === false) {
-      return request;
-    }
-    await settings.authenticate();
 
     // If lazy env resolution just moved the effective baseUrl off the
     // module-load default (e.g. a user with `env: dev` in config.yaml but
@@ -30,6 +26,12 @@ export const interceptors: Interceptor[] = [
     // stale prod URL. Rebase it to the correct environment. Subsequent
     // requests use the updated `client.setConfig()` applied in
     // `ensureAutoloaded()`, so this branch only fires once.
+    //
+    // This must happen before the `authenticated === false` early return:
+    // the OAuth token request issued by `ClientCredentials.authenticate()`
+    // itself is unauthenticated, and if the user calls `authenticate()`
+    // before any other SDK call it is the very first request and also
+    // needs to be rebased to the correct environment.
     const correctBase = settings.baseUrl;
     if (
       correctBase !== DEFAULT_CONTROLPLANE_BASE_URL &&
@@ -40,6 +42,11 @@ export const interceptors: Interceptor[] = [
         request.url.slice(DEFAULT_CONTROLPLANE_BASE_URL.length);
       request = new Request(newUrl, request);
     }
+
+    if (options.authenticated === false) {
+      return request;
+    }
+    await settings.authenticate();
 
     for (const header in settings.headers) {
       request.headers.set(header, settings.headers[header]);
