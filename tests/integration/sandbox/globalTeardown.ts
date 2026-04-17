@@ -13,6 +13,9 @@ export default function globalSetup() {
     try {
       const sandboxes = await SandboxInstance.list()
       for (const sb of sandboxes) {
+        if (sb.status === "TERMINATED") {
+          continue
+        }
         const labels = sb.metadata.labels || {}
         if (labels["env"] === "integration-test") {
           try {
