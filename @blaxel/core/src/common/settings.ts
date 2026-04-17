@@ -128,7 +128,7 @@ class Settings {
     return this._credentials;
   }
 
-  set credentials(value: Credentials) {
+  set credentials(value: Credentials | null) {
     this._credentials = value;
   }
 

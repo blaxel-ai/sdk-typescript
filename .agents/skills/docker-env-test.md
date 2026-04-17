@@ -95,7 +95,11 @@ Write `~/.claude/secrets/test-credentials.json` with all acquired values. This f
 
 ```javascript
 import fs from "fs";
-fs.writeFileSync("~/.claude/secrets/test-credentials.json", JSON.stringify({
+import os from "os";
+import path from "path";
+const credPath = path.join(os.homedir(), ".claude/secrets/test-credentials.json");
+fs.mkdirSync(path.dirname(credPath), { recursive: true });
+fs.writeFileSync(credPath, JSON.stringify({
   workspace,
   apiKey,
   saClientId: sa.data.client_id,
