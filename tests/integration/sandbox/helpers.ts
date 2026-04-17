@@ -57,7 +57,10 @@ export async function waitForSandboxDeletion(sandboxName: string, maxAttempts: n
 
   while (attempts < maxAttempts) {
     try {
-      await SandboxInstance.get(sandboxName)
+      let sbx = await SandboxInstance.get(sandboxName)
+      if (sbx.status === "TERMINATED") {
+        return true
+      }
       // If we get here, sandbox still exists, wait and try again
       await sleep(1000)
       attempts++

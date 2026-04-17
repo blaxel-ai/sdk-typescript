@@ -539,7 +539,7 @@ describe('Sandbox Process Operations', () => {
 })
 
 describe('Sandbox Process waitForPorts at scale', () => {
-  const SANDBOX_COUNT = 20
+  const SANDBOX_COUNT = 5 // Do not put to high number for this kind of test or we reach rate limit
   const sandboxes: { name: string; instance: SandboxInstance; runtime: "node" | "python" }[] = []
 
   const nodeServerCommand = `sleep 2 && node -e "
@@ -603,6 +603,7 @@ HTTPServer(('', 3000), H).serve_forever()
         })
 
         const response = await instance.fetch(3000)
+        console.log(response)
         expect(response.status).toBe(200)
         const body = await response.text()
         expect(body).toBe("OK")
