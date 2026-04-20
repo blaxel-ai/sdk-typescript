@@ -46,6 +46,7 @@ export type DriveMountInfo = {
     driveName?: string;
     drivePath?: string;
     mountPath?: string;
+    readOnly?: boolean;
 };
 
 export type DriveMountRequest = {
@@ -55,6 +56,10 @@ export type DriveMountRequest = {
      */
     drivePath?: string;
     mountPath: string;
+    /**
+     * Optional, defaults to false
+     */
+    readOnly?: boolean;
 };
 
 export type DriveMountResponse = {
@@ -62,6 +67,7 @@ export type DriveMountResponse = {
     drivePath?: string;
     message?: string;
     mountPath?: string;
+    readOnly?: boolean;
     success?: boolean;
 };
 
