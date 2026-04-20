@@ -10,7 +10,7 @@ type EstablishFn = (hostname: string) => Promise<http2.ClientHttp2Session>;
  *   an in-flight warming, or establishes a fresh one.
  * - Closed / destroyed sessions are automatically evicted.
  */
-class H2Pool {
+export class H2Pool {
   private sessions = new Map<string, http2.ClientHttp2Session>();
   private inflight = new Map<string, Promise<http2.ClientHttp2Session | null>>();
   private _establish: EstablishFn | null = null;
@@ -18,13 +18,36 @@ class H2Pool {
   /**
    * Lazily resolve the establish function so the http2 / tls / dns modules
    * are only imported in Node.js environments.
+   *
+   * Wires up self-healing eviction: the session is removed from the cache
+   * as soon as it emits `goaway`, `error`, or `close`, so `tryGet()` never
+   * returns a dead session. This replaces the old behavior of papering
+   * over session failures at the fetch layer.
    */
   private async establish(domain: string): Promise<http2.ClientHttp2Session> {
     if (!this._establish) {
       const { establishH2 } = await import("./h2warm.js");
       this._establish = establishH2;
     }
-    return this._establish(domain);
+    const session = await this._establish(domain);
+    this.attachEvictionListeners(domain, session);
+    return session;
+  }
+
+  private attachEvictionListeners(
+    domain: string,
+    session: http2.ClientHttp2Session,
+  ): void {
+    const evict = () => {
+      // Only evict if this specific session is still the cached one.
+      // A newer session may have taken its place after reconnect.
+      if (this.sessions.get(domain) === session) {
+        this.sessions.delete(domain);
+      }
+    };
+    session.on("goaway", evict);
+    session.on("error", evict);
+    session.on("close", evict);
   }
 
   /**
