@@ -106,11 +106,14 @@ function getOsArch(): string {
 }
 
 class Settings {
-  credentials: Credentials;
+  private _credentials: Credentials | null;
   config: Config;
 
   constructor() {
-    this.credentials = authentication();
+    // `credentials` are resolved lazily on first access so that simply
+    // importing `@blaxel/core` does not read `~/.blaxel/config.yaml`
+    // or mutate `process.env.BL_ENV`. See the `credentials` getter.
+    this._credentials = null;
     this.config = {
       proxy: "",
       apikey: "",
@@ -118,10 +121,21 @@ class Settings {
     };
   }
 
+  get credentials(): Credentials {
+    if (this._credentials === null) {
+      this._credentials = authentication();
+    }
+    return this._credentials;
+  }
+
+  set credentials(value: Credentials | null) {
+    this._credentials = value;
+  }
+
   setConfig(config: Config) {
     this.config = config;
     if (config.apiKey) {
-      this.credentials = new ApiKey({
+      this._credentials = new ApiKey({
         apiKey: config.apiKey,
         workspace: config.workspace,
       });
@@ -129,7 +143,7 @@ class Settings {
       const encoded = typeof config.clientCredentials === 'string'
         ? config.clientCredentials
         : btoa(`${config.clientCredentials.clientId}:${config.clientCredentials.clientSecret}`);
-      this.credentials = new ClientCredentials({
+      this._credentials = new ClientCredentials({
         clientCredentials: encoded,
         workspace: config.workspace,
       });
