@@ -1,12 +1,13 @@
 import http2 from "http2";
 import type { h2Pool as H2PoolType } from "./h2pool.js";
 
-const H2_REQUEST_TIMEOUT_MS = 10_000;
-
 /**
  * Creates a fetch()-compatible function that sends requests over an existing
- * HTTP/2 session. Falls back to global fetch() if the session is closed,
- * destroyed, or if the H2 request times out.
+ * HTTP/2 session. Falls back to globalThis.fetch() only when the session is
+ * closed/destroyed at call time (pre-flight, nothing sent on the wire).
+ *
+ * Any failure after session.request() succeeds propagates to the caller:
+ * this transport never retries. Retry and timeout policy are caller concerns.
  */
 export function createH2Fetch(
   session: http2.ClientHttp2Session,
@@ -86,7 +87,8 @@ export function h2RequestDirect(
       body = Buffer.from(init.body.buffer, init.body.byteOffset, init.body.byteLength);
     } else {
       // FormData, ReadableStream, Blob, etc. can't be serialized to Buffer
-      // for manual H2 framing — fall back to regular fetch.
+      // for manual H2 framing — fall back to regular fetch (pre-flight,
+      // nothing has been sent on the wire yet).
       return globalThis.fetch(url, init);
     }
     if (!h2Headers["content-length"]) {
@@ -140,43 +142,51 @@ function _h2Send(
   fallbackInit?: RequestInit,
 ): Promise<Response> {
   return new Promise<Response>((resolve, reject) => {
+    let settled = false;
+    let responded = false;
+    let streamController: ReadableStreamDefaultController<Uint8Array> | null = null;
+    let streamClosed = false;
+
     let req: http2.ClientHttp2Stream;
     try {
       req = session.request(h2Headers);
     } catch {
-      return globalThis.fetch(fallbackUrl, fallbackInit).then(resolve, reject);
+      // Pre-flight fallback: session.request() threw synchronously, so no
+      // H2 frames were sent. Safe to retry over globalThis.fetch.
+      globalThis.fetch(fallbackUrl, fallbackInit).then(resolve, reject);
+      return;
     }
 
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
+    const abort = () => {
       req.close();
-      globalThis.fetch(fallbackUrl, fallbackInit).then(resolve, reject);
-    }, H2_REQUEST_TIMEOUT_MS);
+      const abortError = new DOMException("The operation was aborted.", "AbortError");
+      if (!responded) {
+        if (!settled) {
+          settled = true;
+          reject(abortError);
+        }
+        return;
+      }
+      if (!streamClosed) {
+        streamClosed = true;
+        streamController?.error(abortError);
+      }
+    };
 
     if (signal) {
       if (signal.aborted) {
-        clearTimeout(timer);
         req.close();
+        settled = true;
         reject(new DOMException("The operation was aborted.", "AbortError"));
         return;
       }
-      signal.addEventListener("abort", () => {
-        clearTimeout(timer);
-        req.close();
-        if (!settled) {
-          settled = true;
-          reject(new DOMException("The operation was aborted.", "AbortError"));
-        }
-      }, { once: true });
+      signal.addEventListener("abort", abort, { once: true });
     }
 
-    let settled = false;
-
     req.on("response", (headers) => {
-      clearTimeout(timer);
       if (settled) return;
       settled = true;
+      responded = true;
 
       const status = (headers[":status"] as number) ?? 200;
       const resHeaders = new Headers();
@@ -186,35 +196,33 @@ function _h2Send(
         resHeaders.set(k, Array.isArray(v) ? v.join(", ") : String(v));
       }
 
-      let streamClosed = false;
       const readable = new ReadableStream<Uint8Array>({
         start(controller) {
+          streamController = controller;
           req.on("data", (chunk: Buffer) => {
             if (!streamClosed) controller.enqueue(new Uint8Array(chunk));
           });
           req.on("end", () => {
-            if (!streamClosed) { streamClosed = true; controller.close(); }
-          });
-          req.on("error", (err) => {
-            if (!streamClosed) { streamClosed = true; controller.error(err); }
-          });
-          signal?.addEventListener("abort", () => {
-            req.close();
             if (!streamClosed) {
               streamClosed = true;
-              controller.error(new DOMException("The operation was aborted.", "AbortError"));
+              controller.close();
             }
-          }, { once: true });
+          });
+          req.on("error", (err) => {
+            if (!streamClosed) {
+              streamClosed = true;
+              controller.error(err);
+            }
+          });
         },
       });
       resolve(new Response(readable, { status, headers: resHeaders }));
     });
 
-    req.on("error", () => {
-      clearTimeout(timer);
+    req.on("error", (err: Error) => {
       if (settled) return;
       settled = true;
-      globalThis.fetch(fallbackUrl, fallbackInit).then(resolve, reject);
+      reject(err);
     });
 
     if (body) {
