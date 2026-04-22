@@ -97,7 +97,7 @@ export class SandboxInstance {
     return this;
   }
 
-  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = false }: { safe?: boolean } = {}) {
+  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = false, createIfNotExist = false }: { safe?: boolean; createIfNotExist?: boolean } = {}) {
     const defaultName = `sandbox-${uuidv4().replace(/-/g, '').substring(0, 8)}`
     const defaultImage = `blaxel/base-image:latest`
     const defaultMemory = 4096
@@ -188,6 +188,7 @@ export class SandboxInstance {
       createSandbox({
         body: sandbox,
         throwOnError: true,
+        ...(createIfNotExist ? { query: { createIfNotExist: true } } : {}),
       }),
       edgeDomain ? import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.get(edgeDomain)).catch(() => null) : Promise.resolve(null),
     ]);
@@ -277,7 +278,7 @@ export class SandboxInstance {
 
   static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration) {
     try {
-      return await this.create(sandbox);
+      return await this.create(sandbox, { createIfNotExist: true });
     } catch (e) {
       if (typeof e === "object" && e !== null && "code" in e && (e.code === 409 || e.code === 'SANDBOX_ALREADY_EXISTS')) {
         const name = 'name' in sandbox ? sandbox.name : (sandbox as SandboxModel).metadata.name
@@ -291,7 +292,7 @@ export class SandboxInstance {
           // If the sandbox is TERMINATED, treat it as not existing
           if (sandboxInstance.status === "TERMINATED") {
             // Create a new sandbox - backend will handle cleanup of the terminated one
-            return await this.create(sandbox);
+            return await this.create(sandbox, { createIfNotExist: true });
           }
 
         // Otherwise return the existing running sandbox
