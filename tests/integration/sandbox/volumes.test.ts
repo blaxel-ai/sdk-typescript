@@ -344,7 +344,7 @@ describe('Sandbox Volume Operations', () => {
           waitForCompletion: true,
         })
         usagePercent2 = parseInt(diskCheck2.logs.trim())
-        if (usagePercent2 < usagePercent1) {
+        if (!isNaN(usagePercent2) && usagePercent2 < usagePercent1) {
           break
         }
         await sleep(5000)
