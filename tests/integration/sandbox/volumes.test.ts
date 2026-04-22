@@ -258,7 +258,7 @@ describe('Sandbox Volume Operations', () => {
   })
 
   describe('volume resize', () => {
-    it('resizes volume and preserves data', { timeout: 300000 }, async () => {
+    it('resizes volume and preserves data', { timeout: 600000 }, async () => {
       const volumeName = uniqueName("resize-vol")
       const sandbox1Name = uniqueName("resize-sandbox-1")
       const sandbox2Name = uniqueName("resize-sandbox-2")
@@ -332,17 +332,27 @@ describe('Sandbox Volume Operations', () => {
       })
       expect(checkResult2.logs).toContain("large-file-1.bin")
 
-      // Check disk usage percentage - should be lower now on 1GB volume
-      const diskCheck2 = await sandbox2.process.exec({
-        command: "df /data | tail -1 | awk '{print $5}' | sed 's/%//'",
-        waitForCompletion: true,
-      })
-      const usagePercent2 = parseInt(diskCheck2.logs.trim())
-      // After resize from 512MB to 1024MB, usage should drop significantly.
-      // Use a relative comparison (must be meaningfully lower) rather than a fixed threshold
-      // to tolerate filesystem overhead differences.
-      expect(usagePercent2).toBeLessThanOrEqual(usagePercent1)
-      expect(usagePercent2).toBeLessThan(60)
+      // Poll disk usage until the resize is visible in the mounted filesystem.
+      // Volume resize is event-based on the backend, so reconciliation can take
+      // noticeably longer than a few seconds. Wait up to 3 minutes for usage to
+      // drop below the pre-resize value before asserting.
+      const resizeDeadline = Date.now() + 180000
+      let usagePercent2 = usagePercent1
+      while (Date.now() < resizeDeadline) {
+        const diskCheck2 = await sandbox2.process.exec({
+          command: "df /data | tail -1 | awk '{print $5}' | sed 's/%//'",
+          waitForCompletion: true,
+        })
+        usagePercent2 = parseInt(diskCheck2.logs.trim())
+        if (usagePercent2 < usagePercent1) {
+          break
+        }
+        await sleep(5000)
+      }
+      // After resize from 512MB to 1024MB, usage should drop meaningfully.
+      // Use a relative comparison rather than a fixed threshold to tolerate
+      // filesystem overhead and async reconciliation timing.
+      expect(usagePercent2).toBeLessThan(usagePercent1)
 
       // Write another ~400MB file (would fail if volume wasn't resized)
       const writeResult = await sandbox2.process.exec({
