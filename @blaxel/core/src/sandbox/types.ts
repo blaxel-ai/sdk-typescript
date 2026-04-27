@@ -52,6 +52,7 @@ export type SandboxCreateConfiguration = {
   network?: SandboxNetwork;
   snapshotEnabled?: boolean;
   labels?: Record<string, string>;
+  extraArgs?: Record<string, string>;
 }
 
 export function normalizePorts(ports?: (Port | Record<string, any>)[]): Port[] | undefined {

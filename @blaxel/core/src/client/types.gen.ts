@@ -1008,6 +1008,33 @@ export type ImageMetadataWritable = {
     status?: Status;
 };
 
+export type ImageShareTarget = {
+    /**
+     * ID of the account that owns the target workspace.
+     */
+    accountId: string;
+    /**
+     * Email of the account owner for the target workspace (when available).
+     */
+    accountOwnerEmail?: string;
+    /**
+     * ID of the pending share record when status is "pending".
+     */
+    pendingShareId?: string;
+    /**
+     * "active" when the share is applied in the target workspace, "pending" when it is awaiting accept on a cross-account share.
+     */
+    status: string;
+    /**
+     * The workspace the image is shared with.
+     */
+    workspace: string;
+    /**
+     * Display name of the target workspace.
+     */
+    workspaceDisplayName?: string;
+};
+
 export type ImageSpec = {
     /**
      * The size of the image in bytes.
@@ -2034,6 +2061,152 @@ export type OwnerFields = {
      * The user or service account who updated the resource
      */
     readonly updatedBy?: string;
+};
+
+/**
+ * Pending cross-account image share awaiting approval from the destination workspace
+ */
+export type PendingImageShare = TimeFields & OwnerFields & {
+    /**
+     * The date and time when the pending share expires
+     */
+    expiresAt?: string;
+    /**
+     * Unique identifier for the pending image share
+     */
+    id?: string;
+    /**
+     * Image name (repository)
+     */
+    imageName?: string;
+    /**
+     * Resource type (agent, function, sandbox, job)
+     */
+    resourceType?: string;
+    /**
+     * User sub who initiated the share
+     */
+    sharedBy?: string;
+    /**
+     * Source account ID
+     */
+    sourceAccountId?: string;
+    /**
+     * Source workspace name
+     */
+    sourceWorkspace?: string;
+    /**
+     * Target account ID
+     */
+    targetAccountId?: string;
+    /**
+     * Target workspace name
+     */
+    targetWorkspace?: string;
+};
+
+/**
+ * Pending cross-account image share awaiting approval from the destination workspace
+ */
+export type PendingImageShareWritable = TimeFields & OwnerFields & {
+    /**
+     * The date and time when the pending share expires
+     */
+    expiresAt?: string;
+    /**
+     * Unique identifier for the pending image share
+     */
+    id?: string;
+    /**
+     * Image name (repository)
+     */
+    imageName?: string;
+    /**
+     * Resource type (agent, function, sandbox, job)
+     */
+    resourceType?: string;
+    /**
+     * User sub who initiated the share
+     */
+    sharedBy?: string;
+    /**
+     * Source account ID
+     */
+    sourceAccountId?: string;
+    /**
+     * Source workspace name
+     */
+    sourceWorkspace?: string;
+    /**
+     * Target account ID
+     */
+    targetAccountId?: string;
+    /**
+     * Target workspace name
+     */
+    targetWorkspace?: string;
+};
+
+/**
+ * Rendered pending image share with source/target workspace metadata
+ */
+export type PendingImageShareRender = {
+    /**
+     * Creation date
+     */
+    createdAt?: string;
+    /**
+     * Expiration date
+     */
+    expiresAt?: string;
+    /**
+     * Whether the target workspace already has an image with the same name (potential conflict)
+     */
+    hasConflict?: boolean;
+    /**
+     * Unique identifier for the pending image share
+     */
+    id?: string;
+    /**
+     * Image name (repository)
+     */
+    imageName?: string;
+    /**
+     * Resource type (agent, function, sandbox, job)
+     */
+    resourceType?: string;
+    /**
+     * User sub who initiated the share
+     */
+    sharedBy?: string;
+    /**
+     * Email of the user who initiated the share
+     */
+    sharedByEmail?: string;
+    /**
+     * Source account ID
+     */
+    sourceAccountId?: string;
+    /**
+     * Source workspace name
+     */
+    sourceWorkspace?: string;
+    /**
+     * Source workspace display name
+     */
+    sourceWorkspaceDisplayName?: string;
+    /**
+     * Target account ID
+     */
+    targetAccountId?: string;
+    /**
+     * Target workspace name
+     */
+    targetWorkspace?: string;
+    /**
+     * Target workspace display name
+     */
+    targetWorkspaceDisplayName?: string;
 };
 
 /**
@@ -3075,6 +3248,12 @@ export type SandboxRuntime = {
      */
     expires?: string;
     /**
+     * Extra arguments for sandbox kernel selection. Supported keys: 'iptables', 'nvme'. Values: 'enabled' or 'disabled'. Determines which kernel variant the sandbox runs on. Immutable after creation.
+     */
+    extraArgs?: {
+        [key: string]: string;
+    };
+    /**
      * Sandbox image to use. Can be a public Blaxel image (e.g., blaxel/base-image:latest) or a custom template image built with 'bl deploy'.
      */
     image?: string;
@@ -3083,6 +3262,10 @@ export type SandboxRuntime = {
      */
     memory?: number;
     ports?: Ports;
+    /**
+     * Duration in seconds the pod needs to terminate gracefully. Defaults to 0 for immediate termination.
+     */
+    terminationGracePeriodSeconds?: number;
     /**
      * Time-to-live duration after which the sandbox is automatically deleted (e.g., '30m', '24h', '7d')
      */
@@ -3666,6 +3849,24 @@ export type WorkspaceWritable = TimeFields & OwnerFields & {
      * Workspace status (created, account_binded, account_configured, workspace_configured, ready, error)
      */
     status?: 'created' | 'account_binded' | 'account_configured' | 'workspace_configured' | 'ready' | 'error';
+};
+
+/**
+ * Result of a workspace-name availability check.
+ */
+export type WorkspaceAvailability = {
+    /**
+     * Whether the requested workspace name is available.
+     */
+    available?: boolean;
+    /**
+     * Human-readable explanation suitable for display in the UI. Empty when available.
+     */
+    message?: string;
+    /**
+     * Machine-readable reason explaining why the name is unavailable. Empty when available.
+     */
+    reason?: 'taken' | 'forbidden_reserved' | 'forbidden_blaxel' | 'forbidden_v_prefix';
 };
 
 /**
@@ -4814,13 +5015,17 @@ export type ListImageSharesResponses = {
     /**
      * successful operation
      */
-    200: Array<string>;
+    200: Array<ImageShareTarget>;
 };
 
 export type ListImageSharesResponse = ListImageSharesResponses[keyof ListImageSharesResponses];
 
 export type ShareImageData = {
     body: {
+        /**
+         * Account ID of the target workspace. Required when the target workspace belongs to a different account than the source workspace (anti-spam).
+         */
+        targetAccountId?: string;
         /**
          * Name of the workspace to share the image with
          */
@@ -4849,13 +5054,21 @@ export type ShareImageErrors = {
      * image not found
      */
     404: unknown;
+    /**
+     * image conflict in target workspace
+     */
+    409: unknown;
 };
 
 export type ShareImageResponses = {
     /**
-     * successful operation
+     * successful operation (same-account share, applied immediately)
      */
     200: Image;
+    /**
+     * pending approval from target workspace admin
+     */
+    202: PendingImageShare;
 };
 
 export type ShareImageResponse = ShareImageResponses[keyof ShareImageResponses];
@@ -5756,6 +5969,104 @@ export type ListModelRevisionsResponses = {
 };
 
 export type ListModelRevisionsResponse = ListModelRevisionsResponses[keyof ListModelRevisionsResponses];
+
+export type ListPendingImageSharesData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Direction of pending shares: "incoming" (default) or "outgoing"
+         */
+        direction?: 'incoming' | 'outgoing';
+    };
+    url: '/pending-image-shares';
+};
+
+export type ListPendingImageSharesResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<PendingImageShareRender>;
+};
+
+export type ListPendingImageSharesResponse = ListPendingImageSharesResponses[keyof ListPendingImageSharesResponses];
+
+export type AcceptImageShareData = {
+    body?: never;
+    path: {
+        /**
+         * ID of the pending image share
+         */
+        pendingShareId: string;
+    };
+    query?: {
+        /**
+         * When true, overwrite conflicting tags in the target workspace instead of returning 409.
+         */
+        force?: boolean;
+    };
+    url: '/pending-image-shares/{pendingShareId}/accept';
+};
+
+export type AcceptImageShareErrors = {
+    /**
+     * forbidden
+     */
+    403: unknown;
+    /**
+     * pending image share not found
+     */
+    404: unknown;
+    /**
+     * image conflict in target workspace
+     */
+    409: unknown;
+    /**
+     * pending image share expired
+     */
+    410: unknown;
+};
+
+export type AcceptImageShareResponses = {
+    /**
+     * successful operation
+     */
+    200: Image;
+};
+
+export type AcceptImageShareResponse = AcceptImageShareResponses[keyof AcceptImageShareResponses];
+
+export type DeclineImageShareData = {
+    body?: never;
+    path: {
+        /**
+         * ID of the pending image share
+         */
+        pendingShareId: string;
+    };
+    query?: never;
+    url: '/pending-image-shares/{pendingShareId}/decline';
+};
+
+export type DeclineImageShareErrors = {
+    /**
+     * forbidden
+     */
+    403: unknown;
+    /**
+     * pending image share not found
+     */
+    404: unknown;
+};
+
+export type DeclineImageShareResponses = {
+    /**
+     * successfully declined
+     */
+    204: void;
+};
+
+export type DeclineImageShareResponse = DeclineImageShareResponses[keyof DeclineImageShareResponses];
 
 export type ListPoliciesData = {
     body?: never;
@@ -7543,7 +7854,12 @@ export type CheckWorkspaceAvailabilityData = {
         name: string;
     };
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * When true, return a structured WorkspaceAvailability object with a machine-readable reason and human-readable message instead of a bare boolean. Defaults to false for backwards compatibility.
+         */
+        withReason?: boolean;
+    };
     url: '/workspaces/availability';
 };
 
@@ -7551,7 +7867,7 @@ export type CheckWorkspaceAvailabilityResponses = {
     /**
      * successful operation
      */
-    200: boolean;
+    200: boolean | WorkspaceAvailability;
 };
 
 export type CheckWorkspaceAvailabilityResponse = CheckWorkspaceAvailabilityResponses[keyof CheckWorkspaceAvailabilityResponses];
