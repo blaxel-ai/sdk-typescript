@@ -114,7 +114,8 @@ export class SandboxInstance {
       'lifecycle' in sandbox ||
       'network' in sandbox ||
       'snapshotEnabled' in sandbox ||
-      'labels' in sandbox
+      'labels' in sandbox ||
+      'extraArgs' in sandbox
     ) {
       if (!sandbox) sandbox = {} as SandboxCreateConfiguration
       if (!sandbox.name) sandbox.name = defaultName
@@ -136,6 +137,7 @@ export class SandboxInstance {
       const lifecycle = sandbox.lifecycle;
       const network = sandbox.network;
       const snapshotEnabled = sandbox.snapshotEnabled;
+      const extraArgs = sandbox.extraArgs;
 
       sandbox = {
         metadata: { name: sandbox.name, labels: sandbox.labels },
@@ -148,6 +150,7 @@ export class SandboxInstance {
             envs: envs,
             generation: "mk3",
             snapshotEnabled,
+            extraArgs,
           },
           volumes: volumes,
           lifecycle: lifecycle,
