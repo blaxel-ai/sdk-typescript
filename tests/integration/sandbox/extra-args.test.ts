@@ -87,8 +87,8 @@ describe('Sandbox extraArgs (kernel selection)', () => {
     })
     createdSandboxes.push(name)
 
-    // Update the sandbox (extraArgs should be preserved, not overwritten)
-    await SandboxInstance.update(name, { labels: { ...defaultLabels, updated: "true" } })
+    // Update the sandbox metadata (extraArgs should be preserved, not overwritten)
+    await SandboxInstance.updateMetadata(name, { labels: { ...defaultLabels, updated: "true" } })
 
     const retrieved = await SandboxInstance.get(name)
     expect(retrieved.spec.runtime?.extraArgs?.["iptables"]).toBe("enabled")
