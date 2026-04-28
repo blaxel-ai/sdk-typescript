@@ -35,6 +35,7 @@ export type Config = {
 const BUILD_VERSION = "__BUILD_VERSION__";
 const BUILD_COMMIT = "__BUILD_COMMIT__";
 const BUILD_SENTRY_DSN = "__BUILD_SENTRY_DSN__";
+const BLAXEL_API_VERSION = "2026-04-16";
 
 // Cache for config.yaml tracking value
 let configTrackingValue: boolean | null = null;
@@ -211,11 +212,16 @@ class Settings {
     return BUILD_SENTRY_DSN || "";
   }
 
+  get apiVersion(): string {
+    return env.BL_API_VERSION || BLAXEL_API_VERSION;
+  }
+
   get headers(): Record<string, string> {
     const osArch = getOsArch();
     return {
       "x-blaxel-authorization": this.authorization,
       "x-blaxel-workspace": this.workspace || "",
+      "Blaxel-Version": this.apiVersion,
       "User-Agent": `blaxel/sdk/typescript/${this.version} (${osArch}) blaxel/${this.commit}`,
     };
   }
