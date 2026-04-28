@@ -168,45 +168,46 @@ describe("package manager install benchmarks", () => {
   for (const pm of packageManagers) {
     getSandboxKey(pm, true)
     const noVolumeKey = getSandboxKey(pm, false)
+    const volumeKey = getSandboxKey(pm, true)
 
     // Volume does not work great currently testing all of those
-    // bench(
-    //   `${pm} install (with volume)`,
-    //   async () => {
-    //     const config = sandboxConfigs[volumeKey]
-    //     const { sandbox, workingDir } = config
+    bench(
+      `${pm} install (with volume)`,
+      async () => {
+        const config = sandboxConfigs[volumeKey]
+        const { sandbox, workingDir } = config
 
-    //     const processName = `${pm}-install-bench-${Date.now()}`
-    //     await sandbox.process.exec({
-    //       name: processName,
-    //       command: `cd ${workingDir} && ${getInstallCommand(pm)}`,
-    //       waitForCompletion: true,
-    //       onLog: (log) => {
-    //       },
-    //     })
+        const processName = `${pm}-install-bench-${Date.now()}`
+        await sandbox.process.exec({
+          name: processName,
+          command: `cd ${workingDir} && ${getInstallCommand(pm)}`,
+          waitForCompletion: true,
+          onLog: (log) => {
+          },
+        })
 
-    //     const process = await sandbox.process.wait(processName, { maxWait: 1800000, interval: 100 })
-    //     if (process.exitCode !== 0) {
-    //       throw new Error(`${pm} install failed with exit code: ${process.exitCode}`)
-    //     }
-    //     console.log(`${pm} install completed`)
-    //   },
-    //   {
-    //     iterations: 1,
-    //     warmupIterations: 0,
-    //     setup: async () => {
-    //       // Wait for sandbox to be ready
-    //       sandboxConfigs[volumeKey] = await sandboxPromises[volumeKey]
-    //       const { sandbox, workingDir } = sandboxConfigs[volumeKey]
-    //       const lockFile = getLockFile(pm)
-    //       // Clear node_modules and lock file before run
-    //       await sandbox.process.exec({
-    //         command: `rm -rf ${workingDir}/node_modules ${workingDir}/${lockFile}`,
-    //         waitForCompletion: true,
-    //       })
-    //     },
-    //   }
-    // )
+        const process = await sandbox.process.wait(processName, { maxWait: 1800000, interval: 100 })
+        if (process.exitCode !== 0) {
+          throw new Error(`${pm} install failed with exit code: ${process.exitCode}`)
+        }
+        console.log(`${pm} install completed`)
+      },
+      {
+        iterations: 1,
+        warmupIterations: 0,
+        setup: async () => {
+          // Wait for sandbox to be ready
+          sandboxConfigs[volumeKey] = await sandboxPromises[volumeKey]
+          const { sandbox, workingDir } = sandboxConfigs[volumeKey]
+          const lockFile = getLockFile(pm)
+          // Clear node_modules and lock file before run
+          await sandbox.process.exec({
+            command: `rm -rf ${workingDir}/node_modules ${workingDir}/${lockFile}`,
+            waitForCompletion: true,
+          })
+        },
+      }
+    )
 
     bench(
       `${pm} install (no volume)`,
