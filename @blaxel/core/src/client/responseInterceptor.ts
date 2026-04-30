@@ -23,6 +23,10 @@ export const gatewayErrorInterceptor: ResponseInterceptor = async (
     return response;
   }
 
+  if (response.ok) {
+    return response;
+  }
+
   const cloned = response.clone();
   let errorObj: Record<string, unknown> = {};
   try {
