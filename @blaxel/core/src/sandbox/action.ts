@@ -1,11 +1,12 @@
 import { createClient, type Client } from "@hey-api/client-fetch";
+import { GatewayError } from "../client/gatewayError.js";
 import { interceptors } from "../client/interceptors.js";
 import { responseInterceptors } from "../client/responseInterceptor.js";
 import { createH2Fetch, h2RequestDirect } from "../common/h2fetch.js";
 import { getForcedUrl, getGlobalUniqueHash } from "../common/internal.js";
 import { settings } from "../common/settings.js";
 import { client as defaultClient } from "./client/client.gen.js";
-import { SandboxConfiguration } from "./types.js";
+import type { SandboxConfiguration } from "./types.js";
 
 export class ResponseError extends Error {
   constructor(public response: Response, public data: unknown, public error: unknown) {
@@ -112,6 +113,25 @@ export class SandboxAction {
 
   handleResponseError(response: Response, data: unknown, error: unknown) {
     if (!response.ok || !data) {
+      if (response.headers.get("X-Blaxel-Source") === "platform") {
+        const errorObj =
+          data && typeof data === "object" && "error" in data
+            ? (data as Record<string, unknown>).error as Record<string, unknown> | undefined
+            : undefined;
+        throw new GatewayError({
+          errorCode: response.headers.get("X-Blaxel-Error-Code") ?? "",
+          message:
+            typeof errorObj?.message === "string"
+              ? errorObj.message
+              : response.statusText,
+          statusCode: response.status,
+          retryable: Boolean(errorObj?.retryable),
+          action: typeof errorObj?.action === "string" ? errorObj.action : "",
+          doNot: typeof errorObj?.do_not === "string" ? errorObj.do_not : undefined,
+          docsUrl: typeof errorObj?.docs_url === "string" ? errorObj.docs_url : undefined,
+          response,
+        });
+      }
       throw new ResponseError(response, data, error);
     }
   }

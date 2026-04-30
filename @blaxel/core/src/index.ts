@@ -1,6 +1,8 @@
 import './common/autoload';
 export * from "./agents/index.js";
 export * from "./client/client.js";
+export * from "./client/errorCodes.js";
+export * from "./client/gatewayError.js";
 export * from "./common/autoload.js";
 export * from "./common/env.js";
 export * from "./common/node.js";

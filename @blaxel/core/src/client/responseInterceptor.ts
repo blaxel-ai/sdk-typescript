@@ -1,11 +1,53 @@
 /**
- * Response interceptor that enhances authentication error messages (401/403)
- * with a link to the authentication documentation.
+ * Response interceptors for the Blaxel SDK.
+ *
+ * - Gateway error interceptor: detects gateway-synthesized errors and throws GatewayError
+ * - Authentication error interceptor: enhances 401/403 messages with doc links
  */
+
+import { GatewayError } from "./gatewayError.js";
 
 type ResponseInterceptor = (
   response: Response
 ) => Promise<Response>;
+
+/**
+ * Intercepts HTTP responses from the Blaxel gateway proxy and throws a
+ * {@link GatewayError} when the response was synthesized by the gateway
+ * (identified by the `X-Blaxel-Source: platform` header).
+ */
+export const gatewayErrorInterceptor: ResponseInterceptor = async (
+  response: Response
+) => {
+  if (response.headers.get("X-Blaxel-Source") !== "platform") {
+    return response;
+  }
+
+  const cloned = response.clone();
+  let errorObj: Record<string, unknown> = {};
+  try {
+    const body: unknown = await cloned.json();
+    if (body && typeof body === "object" && "error" in (body as Record<string, unknown>)) {
+      const raw = (body as Record<string, unknown>).error;
+      if (raw && typeof raw === "object") {
+        errorObj = raw as Record<string, unknown>;
+      }
+    }
+  } catch {
+    // body is not JSON — proceed with empty errorObj
+  }
+
+  throw new GatewayError({
+    errorCode: response.headers.get("X-Blaxel-Error-Code") ?? "",
+    message: typeof errorObj.message === "string" ? errorObj.message : response.statusText,
+    statusCode: response.status,
+    retryable: Boolean(errorObj.retryable),
+    action: typeof errorObj.action === "string" ? errorObj.action : "",
+    doNot: typeof errorObj.do_not === "string" ? errorObj.do_not : undefined,
+    docsUrl: typeof errorObj.docs_url === "string" ? errorObj.docs_url : undefined,
+    response,
+  });
+};
 
 /**
  * Intercepts HTTP responses and adds authentication documentation
@@ -58,6 +100,7 @@ export const authenticationErrorInterceptor: ResponseInterceptor = async (
 };
 
 export const responseInterceptors: ResponseInterceptor[] = [
+  gatewayErrorInterceptor,
   authenticationErrorInterceptor,
 ];
 
