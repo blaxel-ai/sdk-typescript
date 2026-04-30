@@ -174,7 +174,10 @@ export class SandboxPreviews {
           throwOnError: true,
         });
       } catch (e) {
-        if (e instanceof BlaxelAPIError && e.code === 404) {
+        if (
+          (e instanceof BlaxelAPIError && e.code === 404) ||
+          (typeof e === "object" && e !== null && "code" in e && (e as Record<string, unknown>).code === 404)
+        ) {
           return;
         }
         throw e;
