@@ -29,6 +29,15 @@ export type Config = {
   clientCredentials?: string | ClientCredentialsPair;
   /** API key for bearer token authentication */
   apiKey?: string;
+  /**
+   * When `true` (the default), the SDK throws a {@link BlaxelAPIError} for
+   * every HTTP 4xx/5xx response from the control-plane API, matching the
+   * Go SDK's auto-raise behaviour.
+   *
+   * Set to `false` to restore the previous behaviour where callers inspect
+   * the returned `{ data, error }` tuple instead.
+   */
+  throwOnError?: boolean;
 }
 
 // Build info - these placeholders are replaced at build time by build:replace-imports
@@ -274,6 +283,10 @@ class Settings {
 
   get region() {
     return env.BL_REGION || undefined;
+  }
+
+  get throwOnError(): boolean {
+    return this.config.throwOnError !== false;
   }
 
   async authenticate() {

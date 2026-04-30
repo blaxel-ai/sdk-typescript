@@ -36,6 +36,33 @@ This allows you to run Blaxel SDK functions that will automatically connect to y
 
 When running Blaxel SDK from a remote server that is not Blaxel-hosted, we recommend using environment variables as described in the third option above.
 
+## Error handling
+
+By default the SDK throws a `BlaxelAPIError` for every HTTP 4xx/5xx response from the Blaxel API, matching the Go SDK's auto-raise behaviour:
+
+```typescript
+import { BlaxelAPIError, getAgent } from "@blaxel/core";
+
+try {
+  const { data } = await getAgent({ path: { agentName: "my-agent" } });
+} catch (err) {
+  if (err instanceof BlaxelAPIError) {
+    console.error(err.statusCode);   // e.g. 404
+    console.error(err.errorBody);     // parsed JSON body from the API
+    console.error(err.errorCode);     // e.g. "not_found" (when present)
+    console.error(err.response);      // raw Response object
+  }
+}
+```
+
+To opt out and return error tuples instead, set `throwOnError: false` when initialising:
+
+```typescript
+import { initialize } from "@blaxel/core";
+
+initialize({ workspace: "my-workspace", apiKey: "bl_...", throwOnError: false });
+```
+
 ## Usage
 
 ### Sandboxes
