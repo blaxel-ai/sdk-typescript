@@ -1,4 +1,5 @@
 import { createClient, type Client } from "@hey-api/client-fetch";
+import { BlaxelAPIError } from "../client/errors.js";
 import { interceptors } from "../client/interceptors.js";
 import { responseInterceptors } from "../client/responseInterceptor.js";
 import { createH2Fetch, h2RequestDirect } from "../common/h2fetch.js";
@@ -7,8 +8,11 @@ import { settings } from "../common/settings.js";
 import { client as defaultClient } from "./client/client.gen.js";
 import { SandboxConfiguration } from "./types.js";
 
-export class ResponseError extends Error {
-  constructor(public response: Response, public data: unknown, public error: unknown) {
+export class ResponseError extends BlaxelAPIError {
+  public data: unknown;
+  public error: unknown;
+
+  constructor(response: Response, data: unknown, error: unknown) {
     let dataError: Record<string, unknown> = {}
     if (data && typeof data === 'object' && 'error' in data) {
       dataError = data;
@@ -22,7 +26,18 @@ export class ResponseError extends Error {
     if (response.statusText) {
       dataError['statusText'] = response.statusText;
     }
-    super(JSON.stringify(dataError));
+
+    const errorCode = typeof dataError['code'] === 'string'
+      ? dataError['code']
+      : typeof dataError['error_code'] === 'string'
+        ? dataError['error_code']
+        : undefined;
+
+    super(response.status, dataError, response, errorCode);
+    this.name = "ResponseError";
+    this.message = JSON.stringify(dataError);
+    this.data = data;
+    this.error = error;
   }
 }
 

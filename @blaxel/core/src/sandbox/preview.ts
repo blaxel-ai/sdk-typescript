@@ -1,3 +1,4 @@
+import { BlaxelAPIError } from "../client/errors.js";
 import { createSandboxPreview, createSandboxPreviewToken, deleteSandboxPreview, deleteSandboxPreviewToken, getSandboxPreview, listSandboxPreviews, listSandboxPreviewTokens, Preview, PreviewToken, Sandbox } from "../client/index.js";
 
 export class SandboxPreviewToken {
@@ -160,24 +161,29 @@ export class SandboxPreviews {
 
   private async waitForDeletion(previewName: string, timeoutMs: number = 10000): Promise<void> {
     console.log(`Waiting for preview deletion: ${previewName}`);
-    const pollInterval = 500; // Poll every 500ms
+    const pollInterval = 500;
     const startTime = Date.now();
 
     while (Date.now() - startTime < timeoutMs) {
-
-      const {response} = await getSandboxPreview({
-        path: {
-          sandboxName: this.sandboxName,
-          previewName,
-        },
-      });
-      if (response.status === 404) {
-        return;
+      try {
+        await getSandboxPreview({
+          path: {
+            sandboxName: this.sandboxName,
+            previewName,
+          },
+          throwOnError: true,
+        });
+      } catch (e) {
+        if (
+          (e instanceof BlaxelAPIError && e.code === 404) ||
+          (typeof e === "object" && e !== null && "code" in e && (e as Record<string, unknown>).code === 404)
+        ) {
+          return;
+        }
+        throw e;
       }
-      // Preview still exists, wait and retry
       await new Promise(resolve => setTimeout(resolve, pollInterval));
     }
-    // Timeout reached, but deletion was initiated
     throw new Error(`Preview deletion timeout: ${previewName} is still in DELETING state after ${timeoutMs}ms`);
   }
 

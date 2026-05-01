@@ -1,7 +1,13 @@
 /**
- * Response interceptor that enhances authentication error messages (401/403)
- * with a link to the authentication documentation.
+ * Response interceptors for the Blaxel SDK client.
+ *
+ * Interceptors run in order:
+ *  1. {@link authenticationErrorInterceptor} — enriches 401/403 bodies
+ *  2. {@link apiErrorInterceptor} — throws {@link BlaxelAPIError} on 4xx/5xx
  */
+
+import { settings } from "../common/settings.js";
+import { BlaxelAPIError } from "./errors.js";
 
 type ResponseInterceptor = (
   response: Response
@@ -57,7 +63,48 @@ export const authenticationErrorInterceptor: ResponseInterceptor = async (
   }
 };
 
+/**
+ * Throws {@link BlaxelAPIError} for every HTTP 4xx/5xx response,
+ * matching the Go SDK's auto-raise behaviour.
+ *
+ * Gated by `settings.throwOnError` (default `true`). When disabled the
+ * response passes through unchanged and callers can inspect `{ data, error }`
+ * tuples as before.
+ */
+export const apiErrorInterceptor: ResponseInterceptor = async (
+  response: Response
+) => {
+  if (!settings.throwOnError || response.status < 400) {
+    return response;
+  }
+
+  const clonedResponse = response.clone();
+
+  let errorBody: unknown;
+  let errorCode: string | undefined;
+
+  try {
+    const bodyText = await clonedResponse.text();
+    try {
+      const parsed = JSON.parse(bodyText) as Record<string, unknown>;
+      errorBody = parsed;
+      if (typeof parsed.code === "string") {
+        errorCode = parsed.code;
+      } else if (typeof parsed.error_code === "string") {
+        errorCode = parsed.error_code;
+      }
+    } catch {
+      errorBody = bodyText;
+    }
+  } catch {
+    errorBody = undefined;
+  }
+
+  throw new BlaxelAPIError(response.status, errorBody, response, errorCode);
+};
+
 export const responseInterceptors: ResponseInterceptor[] = [
   authenticationErrorInterceptor,
+  apiErrorInterceptor,
 ];
 
