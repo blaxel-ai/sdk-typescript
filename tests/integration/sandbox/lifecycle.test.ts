@@ -392,6 +392,48 @@ describe('Sandbox Lifecycle and Expiration', () => {
     })
   })
 
+  describe('updateNetwork preserves sandbox state', () => {
+    it('updateNetwork does not recreate sandbox - files are preserved', async () => {
+      const name = uniqueName("update-network")
+      const testFilePath = "/tmp/network-test-file.txt"
+      const testContent = `network-content-${Date.now()}`
+
+      // Create sandbox with initial proxy config
+      const sandbox = await SandboxInstance.create({
+        name,
+        image: defaultImage,
+        network: {
+          proxy: {
+            routing: [{ destinations: ["httpbin.org"], headers: { "X-Test": "initial" } }],
+          },
+        },
+        labels: defaultLabels,
+      })
+      createdSandboxes.push(name)
+
+      // Write a file to the sandbox
+      await sandbox.fs.write(testFilePath, testContent)
+      const contentBefore = await sandbox.fs.read(testFilePath)
+      expect(contentBefore).toBe(testContent)
+
+      // Update network config
+      await SandboxInstance.updateNetwork(name, {
+        proxy: {
+          routing: [{ destinations: ["httpbin.org"], headers: { "X-Test": "updated" } }],
+          bypass: ["*.internal.company.io"],
+        },
+      })
+
+      await waitForSandboxDeployed(name)
+      const updatedSandbox = await SandboxInstance.get(name)
+      expect(updatedSandbox.metadata.name).toBe(name)
+
+      // CRITICAL: File should still exist (no pod recreation)
+      const contentAfter = await updatedSandbox.fs.read(testFilePath)
+      expect(contentAfter).toBe(testContent)
+    })
+  })
+
   describe('updateSandbox with envs triggers reboot and clears ephemeral state', () => {
     it('updating environment variables reboots sandbox and clears files', async () => {
       const name = uniqueName("update-envs")
