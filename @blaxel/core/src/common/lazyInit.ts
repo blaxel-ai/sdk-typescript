@@ -44,7 +44,11 @@ export function ensureAutoloaded(): void {
 	initSentry();
 
 	// Track SDK installation (fires once per new version)
-	trackSDKInstalled();
+	try {
+		trackSDKInstalled();
+	} catch {
+		// Silently ignore - telemetry should never break the SDK
+	}
 
 	// Background H2 connection warming (Node.js only)
 	const isNode =
