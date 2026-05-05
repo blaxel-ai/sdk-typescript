@@ -65,8 +65,8 @@ function loadTelemetryState(): TelemetryState {
 		const data = fs.readFileSync(telemetryPath, "utf8");
 		const parsed = JSON.parse(data) as TelemetryState;
 		telemetryState = {
+			...parsed,
 			distinct_id: parsed.distinct_id || "",
-			cli: parsed.cli,
 			sdks: parsed.sdks || {},
 		};
 	} catch {
