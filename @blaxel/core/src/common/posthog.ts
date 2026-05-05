@@ -22,7 +22,7 @@ let telemetryState: TelemetryState | null = null;
 function getPosthogKey(): string {
 	const key = BUILD_POSTHOG_KEY;
 	// If the placeholder was not replaced, treat as empty
-	if (!key || key === "__BUILD_POSTHOG_KEY__") {
+	if (!key || key.startsWith("__BUILD_")) {
 		return "";
 	}
 	return key;
