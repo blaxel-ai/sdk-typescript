@@ -1,6 +1,10 @@
 import http2 from "http2";
 import type { H2Pool } from "./h2pool.js";
 
+type H2SendOptions = {
+  onH2RequestCreated?: () => void;
+};
+
 /**
  * Creates a fetch()-compatible function that sends requests over an existing
  * HTTP/2 session. Falls back to globalThis.fetch() only when the session is
@@ -34,10 +38,17 @@ export function createPoolBackedH2Fetch(
   return async (input: Request): Promise<Response> => {
     const session = await pool.get(domain);
     if (session) {
+      let h2RequestCreated = false;
       try {
-        return await _h2Request(session, input);
+        return await _h2Request(session, input, {
+          onH2RequestCreated: () => {
+            h2RequestCreated = true;
+          },
+        });
       } catch (err) {
-        pool.evictSession(domain, session);
+        if (h2RequestCreated) {
+          pool.evictSession(domain, session);
+        }
         throw err;
       }
     }
@@ -53,10 +64,17 @@ export async function h2RequestDirectFromPool(
 ): Promise<Response> {
   const session = await pool.get(domain);
   if (session) {
+    let h2RequestCreated = false;
     try {
-      return await h2RequestDirect(session, url, init);
+      return await h2RequestDirectInternal(session, url, init, {
+        onH2RequestCreated: () => {
+          h2RequestCreated = true;
+        },
+      });
     } catch (err) {
-      pool.evictSession(domain, session);
+      if (h2RequestCreated) {
+        pool.evictSession(domain, session);
+      }
       throw err;
     }
   }
@@ -71,6 +89,15 @@ export function h2RequestDirect(
   session: http2.ClientHttp2Session,
   url: string,
   init?: RequestInit,
+): Promise<Response> {
+  return h2RequestDirectInternal(session, url, init);
+}
+
+function h2RequestDirectInternal(
+  session: http2.ClientHttp2Session,
+  url: string,
+  init?: RequestInit,
+  options?: H2SendOptions,
 ): Promise<Response> {
   if (session.closed || session.destroyed) {
     return globalThis.fetch(url, init);
@@ -118,12 +145,13 @@ export function h2RequestDirect(
     }
   }
 
-  return _h2Send(session, h2Headers, body, init?.signal ?? null, url, init);
+  return _h2Send(session, h2Headers, body, init?.signal ?? null, url, init, options);
 }
 
 async function _h2Request(
   session: http2.ClientHttp2Session,
   input: Request,
+  options?: H2SendOptions,
 ): Promise<Response> {
   const url = new URL(input.url);
   const method = input.method || "GET";
@@ -147,12 +175,20 @@ async function _h2Request(
     }
   }
 
-  return _h2Send(session, h2Headers, body, input.signal, input.url, {
-    method,
-    headers: input.headers,
+  return _h2Send(
+    session,
+    h2Headers,
     body,
-    signal: input.signal,
-  });
+    input.signal,
+    input.url,
+    {
+      method,
+      headers: input.headers,
+      body,
+      signal: input.signal,
+    },
+    options,
+  );
 }
 
 function _h2Send(
@@ -162,6 +198,7 @@ function _h2Send(
   signal: AbortSignal | null,
   fallbackUrl: string,
   fallbackInit?: RequestInit,
+  options?: H2SendOptions,
 ): Promise<Response> {
   return new Promise<Response>((resolve, reject) => {
     let settled = false;
@@ -178,6 +215,7 @@ function _h2Send(
       globalThis.fetch(fallbackUrl, fallbackInit).then(resolve, reject);
       return;
     }
+    options?.onH2RequestCreated?.();
 
     const cleanupBeforeResponseListeners = () => {
       session.off("close", onSessionClose);

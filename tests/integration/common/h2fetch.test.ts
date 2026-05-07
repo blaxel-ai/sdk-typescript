@@ -3,6 +3,7 @@ import type http2 from 'http2';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createH2Fetch,
+  createPoolBackedH2Fetch,
   h2RequestDirectFromPool,
   h2RequestDirect,
 } from '../../../@blaxel/core/src/common/h2fetch.js';
@@ -447,6 +448,48 @@ describe('h2pool: self-healing eviction on session events', () => {
     const fresh = await pool.get('edge.example.com');
     expect(fresh).toBe(sessions[1]);
     expect(sessions[0].closed).toBe(true);
+  });
+
+  it('keeps a pooled session when pre-flight fallback fetch fails', async () => {
+    const pool = new H2Pool();
+    const session = new MockSession();
+    vi.spyOn(session, 'request').mockImplementation(() => {
+      throw new Error('max concurrent streams');
+    });
+    (pool as unknown as { _establish: (d: string) => Promise<MockSession> })._establish =
+      () => Promise.resolve(session);
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('fallback failed'));
+
+    await expect(
+      h2RequestDirectFromPool(
+        pool,
+        'edge.example.com',
+        'http://example.com/resource',
+      ),
+    ).rejects.toThrow('fallback failed');
+
+    expect(pool.tryGet('edge.example.com')).toBe(session);
+    expect(session.closed).toBe(false);
+  });
+
+  it('keeps a pooled fetch session when pre-flight fallback fetch fails', async () => {
+    const pool = new H2Pool();
+    const session = new MockSession();
+    vi.spyOn(session, 'request').mockImplementation(() => {
+      throw new Error('max concurrent streams');
+    });
+    (pool as unknown as { _establish: (d: string) => Promise<MockSession> })._establish =
+      () => Promise.resolve(session);
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('fallback failed'));
+
+    const h2fetch = createPoolBackedH2Fetch(pool, 'edge.example.com');
+
+    await expect(
+      h2fetch(new Request('http://example.com/resource')),
+    ).rejects.toThrow('fallback failed');
+
+    expect(pool.tryGet('edge.example.com')).toBe(session);
+    expect(session.closed).toBe(false);
   });
 });
 
