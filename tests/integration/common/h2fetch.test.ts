@@ -193,6 +193,24 @@ describe('h2fetch: no silent retry after session.request()', () => {
     await expect(promise).rejects.toThrow('HTTP/2 session sent GOAWAY before response');
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it('raises the session listener budget for concurrent request lifecycle listeners', async () => {
+    const session = new MockSession();
+
+    const promise = h2RequestDirect(
+      asSession(session),
+      'http://example.com/resource',
+      { method: 'POST', body: 'payload' },
+    );
+
+    expect(session.getMaxListeners()).toBeGreaterThan(10);
+
+    session.lastStream!.emit('response', { ':status': 200 });
+    session.lastStream!.emit('end');
+
+    const response = await promise;
+    expect(response.status).toBe(200);
+  });
 });
 
 describe('h2fetch: pre-flight fallback still works', () => {

@@ -211,7 +211,10 @@ export class SandboxInstance {
     if (safe) {
       try {
         await instance.fs.ls('/')
-      } catch {}
+      } catch (err) {
+        await SandboxInstance.delete(instance.metadata.name!).catch(() => {});
+        throw err;
+      }
     }
     return instance;
   }

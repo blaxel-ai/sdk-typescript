@@ -5,6 +5,9 @@ type H2SendOptions = {
   onH2RequestCreated?: () => void;
 };
 
+const MIN_H2_SESSION_MAX_LISTENERS = 64;
+const sessionsWithListenerBudget = new WeakSet<http2.ClientHttp2Session>();
+
 /**
  * Creates a fetch()-compatible function that sends requests over an existing
  * HTTP/2 session. Falls back to globalThis.fetch() only when the session is
@@ -216,6 +219,7 @@ function _h2Send(
       return;
     }
     options?.onH2RequestCreated?.();
+    ensureH2SessionListenerBudget(session);
 
     const cleanupBeforeResponseListeners = () => {
       session.off("close", onSessionClose);
@@ -325,4 +329,14 @@ function _h2Send(
       req.end();
     }
   });
+}
+
+function ensureH2SessionListenerBudget(session: http2.ClientHttp2Session): void {
+  if (sessionsWithListenerBudget.has(session)) return;
+  sessionsWithListenerBudget.add(session);
+
+  const currentMax = session.getMaxListeners();
+  if (currentMax > 0 && currentMax < MIN_H2_SESSION_MAX_LISTENERS) {
+    session.setMaxListeners(MIN_H2_SESSION_MAX_LISTENERS);
+  }
 }
