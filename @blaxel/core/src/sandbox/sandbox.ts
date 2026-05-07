@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
+import type http2 from "http2";
 import { createSandbox, deleteSandbox, getSandbox, listSandboxes, SandboxLifecycle, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
@@ -21,8 +22,7 @@ export class SandboxInstance {
   codegen: SandboxCodegen;
   system: SandboxSystem;
   drives: SandboxDrive;
-  /* eslint-disable @typescript-eslint/no-explicit-any */
-  h2Session: any;
+  h2Session: http2.ClientHttp2Session | null;
 
   constructor(private sandbox: SandboxConfiguration) {
     this.process = new SandboxProcess(sandbox);
@@ -56,24 +56,33 @@ export class SandboxInstance {
     return this.sandbox.lastUsedAt;
   }
 
+  get h2Domain() {
+    return this.sandbox.h2Domain ?? null;
+  }
+
   /**
    * Warm and attach an H2 session based on the sandbox's region.
    * Shared by create(), get(), list(), and update helpers.
    */
   private static async attachH2Session(instance: SandboxInstance): Promise<SandboxInstance> {
-    const region = instance.spec?.region;
-    if (!region) return instance;
-    const edgeSuffix = settings.env === "prod" ? "bl.run" : "runv2.blaxel.dev";
-    const edgeDomain = `any.${region}.${edgeSuffix}`;
+    const edgeDomain = SandboxInstance.edgeDomainForRegion(instance.spec?.region);
+    if (!edgeDomain || settings.disableH2) return instance;
     try {
       const { h2Pool } = await import("../common/h2pool.js");
       const h2Session = await h2Pool.get(edgeDomain);
       instance.h2Session = h2Session;
       instance.sandbox.h2Session = h2Session;
+      instance.sandbox.h2Domain = edgeDomain;
     } catch {
       // H2 warming is best-effort; fall back to regular fetch
     }
     return instance;
+  }
+
+  private static edgeDomainForRegion(region?: string): string | null {
+    if (!region) return null;
+    const edgeSuffix = settings.env === "prod" ? "bl.run" : "runv2.blaxel.dev";
+    return `any.${region}.${edgeSuffix}`;
   }
 
   get expiresIn() {
@@ -179,11 +188,10 @@ export class SandboxInstance {
     sandbox.spec.runtime.image = sandbox.spec.runtime.image || defaultImage;
     sandbox.spec.runtime.memory = sandbox.spec.runtime.memory || defaultMemory;
 
-    const edgeSuffix = settings.env === "prod" ? "bl.run" : "runv2.blaxel.dev";
-    const edgeDomain = sandbox.spec?.region ? `any.${sandbox.spec.region}.${edgeSuffix}` : null;
+    const edgeDomain = SandboxInstance.edgeDomainForRegion(sandbox.spec?.region);
 
     // Kick off warming so h2Pool.get() can join it during the API call
-    if (edgeDomain) {
+    if (edgeDomain && !settings.disableH2) {
       import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.warm(edgeDomain)).catch(() => {});
     }
 
@@ -192,10 +200,10 @@ export class SandboxInstance {
         body: sandbox,
         throwOnError: true,
       }),
-      edgeDomain ? import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.get(edgeDomain)).catch(() => null) : Promise.resolve(null),
+      edgeDomain && !settings.disableH2 ? import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.get(edgeDomain)).catch(() => null) : Promise.resolve(null),
     ]);
     // Inject the H2 session into the config so subsystems can use it
-    const config = { ...data, h2Session } as SandboxConfiguration;
+    const config = { ...data, h2Session, h2Domain: settings.disableH2 ? null : edgeDomain } as SandboxConfiguration;
     const instance = new SandboxInstance(config);
     instance.h2Session = h2Session;
     // Note: H2 session already attached via Promise.all above, no need for attachH2Session()
@@ -238,6 +246,8 @@ export class SandboxInstance {
   async delete() {
     // Don't close the H2 session — it's shared via h2Pool
     this.h2Session = null;
+    this.sandbox.h2Session = null;
+    this.sandbox.h2Domain = null;
     return await SandboxInstance.delete(this.metadata.name!);
   }
 

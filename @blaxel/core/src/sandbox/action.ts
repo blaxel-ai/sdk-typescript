@@ -1,7 +1,8 @@
 import { createClient, type Client } from "@hey-api/client-fetch";
 import { interceptors } from "../client/interceptors.js";
 import { responseInterceptors } from "../client/responseInterceptor.js";
-import { createH2Fetch, h2RequestDirect } from "../common/h2fetch.js";
+import { createPoolBackedH2Fetch, h2RequestDirectFromPool } from "../common/h2fetch.js";
+import { h2Pool } from "../common/h2pool.js";
 import { getForcedUrl, getGlobalUniqueHash } from "../common/internal.js";
 import { settings } from "../common/settings.js";
 import { client as defaultClient } from "./client/client.gen.js";
@@ -28,6 +29,7 @@ export class ResponseError extends Error {
 
 export class SandboxAction {
   private _h2Client: Client | null = null;
+  private _h2ClientDomain: string | null = null;
 
   constructor(protected sandbox: SandboxConfiguration) {}
 
@@ -59,12 +61,13 @@ export class SandboxAction {
       })
     }
 
-    const session = this.sandbox.h2Session;
-    if (session && !session.closed && !session.destroyed) {
-      if (!this._h2Client) {
+    const h2Domain = this.sandbox.h2Domain;
+    if (h2Domain) {
+      if (!this._h2Client || this._h2ClientDomain !== h2Domain) {
         this._h2Client = createClient({
-          fetch: createH2Fetch(session),
+          fetch: createPoolBackedH2Fetch(h2Pool, h2Domain),
         });
+        this._h2ClientDomain = h2Domain;
         for (const interceptor of interceptors) {
           // @ts-expect-error - Interceptor is not typed
           this._h2Client.interceptors.request.use(interceptor);
@@ -76,8 +79,9 @@ export class SandboxAction {
       return this._h2Client;
     }
 
-    // Invalidate cached H2 client when session is no longer usable
+    // Invalidate cached H2 client when the sandbox no longer has an H2 domain.
     this._h2Client = null;
+    this._h2ClientDomain = null;
 
     return defaultClient
   }
@@ -87,9 +91,9 @@ export class SandboxAction {
    * globalThis.fetch. Uses a direct H2 path that avoids Request allocation.
    */
   protected h2Fetch(input: string | URL, init?: RequestInit): Promise<Response> {
-    const session = this.sandbox.h2Session;
-    if (session && !session.closed && !session.destroyed) {
-      return h2RequestDirect(session, input.toString(), init);
+    const h2Domain = this.sandbox.h2Domain;
+    if (h2Domain) {
+      return h2RequestDirectFromPool(h2Pool, h2Domain, input.toString(), init);
     }
     return globalThis.fetch(input, init);
   }

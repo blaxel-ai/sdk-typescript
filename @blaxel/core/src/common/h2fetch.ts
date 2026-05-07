@@ -1,5 +1,5 @@
 import http2 from "http2";
-import type { h2Pool as H2PoolType } from "./h2pool.js";
+import type { H2Pool } from "./h2pool.js";
 
 /**
  * Creates a fetch()-compatible function that sends requests over an existing
@@ -23,22 +23,44 @@ export function createH2Fetch(
 /**
  * Creates a fetch()-compatible function backed by the H2 session pool.
  *
- * Non-blocking: checks the pool cache synchronously. If a warm session is
- * available it's used immediately; otherwise the request goes through
- * regular fetch with zero delay (the pool keeps warming in the background
- * so subsequent calls get H2).
+ * The pool validates idle sessions before reuse. If no usable H2 session is
+ * available, the request falls back to regular fetch before any H2 frames
+ * are sent.
  */
 export function createPoolBackedH2Fetch(
-  pool: typeof H2PoolType,
+  pool: H2Pool,
   domain: string,
 ): (input: Request) => Promise<Response> {
-  return (input: Request): Promise<Response> => {
-    const session = pool.tryGet(domain);
+  return async (input: Request): Promise<Response> => {
+    const session = await pool.get(domain);
     if (session) {
-      return _h2Request(session, input);
+      try {
+        return await _h2Request(session, input);
+      } catch (err) {
+        pool.evictSession(domain, session);
+        throw err;
+      }
     }
     return globalThis.fetch(input);
   };
+}
+
+export async function h2RequestDirectFromPool(
+  pool: H2Pool,
+  domain: string,
+  url: string,
+  init?: RequestInit,
+): Promise<Response> {
+  const session = await pool.get(domain);
+  if (session) {
+    try {
+      return await h2RequestDirect(session, url, init);
+    } catch (err) {
+      pool.evictSession(domain, session);
+      throw err;
+    }
+  }
+  return globalThis.fetch(url, init);
 }
 
 /**
@@ -146,8 +168,8 @@ function _h2Send(
     let responded = false;
     let streamController: ReadableStreamDefaultController<Uint8Array> | null = null;
     let streamClosed = false;
+    let req: http2.ClientHttp2Stream | null = null;
 
-    let req: http2.ClientHttp2Stream;
     try {
       req = session.request(h2Headers);
     } catch {
@@ -157,12 +179,41 @@ function _h2Send(
       return;
     }
 
+    const cleanupBeforeResponseListeners = () => {
+      session.off("close", onSessionClose);
+      session.off("goaway", onSessionGoaway);
+      session.off("error", onSessionError);
+    };
+
+    const rejectBeforeResponse = (err: Error) => {
+      if (settled) return;
+      settled = true;
+      cleanupBeforeResponseListeners();
+      req?.close();
+      reject(err);
+    };
+
+    const onSessionClose = () => {
+      rejectBeforeResponse(new Error("HTTP/2 session closed before response"));
+    };
+    const onSessionGoaway = () => {
+      rejectBeforeResponse(new Error("HTTP/2 session sent GOAWAY before response"));
+    };
+    const onSessionError = (err: Error) => {
+      rejectBeforeResponse(err);
+    };
+
+    session.once("close", onSessionClose);
+    session.once("goaway", onSessionGoaway);
+    session.once("error", onSessionError);
+
     const abort = () => {
-      req.close();
+      req?.close();
       const abortError = new DOMException("The operation was aborted.", "AbortError");
       if (!responded) {
         if (!settled) {
           settled = true;
+          cleanupBeforeResponseListeners();
           reject(abortError);
         }
         return;
@@ -176,6 +227,7 @@ function _h2Send(
     if (signal) {
       if (signal.aborted) {
         req.close();
+        cleanupBeforeResponseListeners();
         settled = true;
         reject(new DOMException("The operation was aborted.", "AbortError"));
         return;
@@ -187,6 +239,7 @@ function _h2Send(
       if (settled) return;
       settled = true;
       responded = true;
+      cleanupBeforeResponseListeners();
 
       const status = (headers[":status"] as number) ?? 200;
       const resHeaders = new Headers();
@@ -205,12 +258,14 @@ function _h2Send(
           req.on("end", () => {
             if (!streamClosed) {
               streamClosed = true;
+              signal?.removeEventListener("abort", abort);
               controller.close();
             }
           });
           req.on("error", (err) => {
             if (!streamClosed) {
               streamClosed = true;
+              signal?.removeEventListener("abort", abort);
               controller.error(err);
             }
           });
@@ -222,6 +277,7 @@ function _h2Send(
     req.on("error", (err: Error) => {
       if (settled) return;
       settled = true;
+      cleanupBeforeResponseListeners();
       reject(err);
     });
 
