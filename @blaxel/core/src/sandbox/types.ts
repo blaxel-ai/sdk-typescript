@@ -31,6 +31,7 @@ export type SandboxConfiguration = {
   headers?: Record<string, string>;
   params?: Record<string, string>;
   h2Session?: http2.ClientHttp2Session | null;
+  h2Domain?: string | null;
 } & Sandbox;
 
 export type SandboxUpdateMetadata = {

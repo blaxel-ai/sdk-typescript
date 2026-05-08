@@ -3,9 +3,12 @@ import type http2 from 'http2';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createH2Fetch,
+  createPoolBackedH2Fetch,
+  h2RequestDirectFromPool,
   h2RequestDirect,
 } from '../../../@blaxel/core/src/common/h2fetch.js';
-import { H2Pool } from '../../../@blaxel/core/src/common/h2pool.js';
+import { H2Pool, h2Pool } from '../../../@blaxel/core/src/common/h2pool.js';
+import { SandboxAction } from '../../../@blaxel/core/src/sandbox/action.js';
 
 /**
  * Minimal ClientHttp2Stream stand-in. Supports the subset of the API that
@@ -18,7 +21,7 @@ class MockStream extends EventEmitter {
     this.closed = true;
   }
 
-  end(_chunk?: unknown): void {
+  end(): void {
     // no-op; tests drive the response lifecycle by emitting events directly
   }
 }
@@ -31,16 +34,36 @@ class MockSession extends EventEmitter {
   public closed = false;
   public destroyed = false;
   public lastStream: MockStream | null = null;
+  public pingMode: 'ok' | 'fail' | 'hang' = 'ok';
 
-  request(_headers: http2.OutgoingHttpHeaders): MockStream {
+  request(): MockStream {
     const stream = new MockStream();
     this.lastStream = stream;
     return stream;
+  }
+
+  close(): void {
+    this.closed = true;
+    this.emit('close');
+  }
+
+  ping(callback: (err?: Error | null) => void): boolean {
+    if (this.pingMode === 'hang') return true;
+    setImmediate(() => {
+      callback(this.pingMode === 'fail' ? new Error('ping failed') : null);
+    });
+    return true;
   }
 }
 
 function asSession(mock: MockSession): http2.ClientHttp2Session {
   return mock as unknown as http2.ClientHttp2Session;
+}
+
+class H2ProbeAction extends SandboxAction {
+  fetchWithH2(input: string): Promise<Response> {
+    return this.h2Fetch(input);
+  }
 }
 
 describe('h2fetch: no silent retry after session.request()', () => {
@@ -132,6 +155,62 @@ describe('h2fetch: no silent retry after session.request()', () => {
       vi.useRealTimers();
     }
   });
+
+  it('rejects when the session closes before a response arrives', async () => {
+    const session = new MockSession();
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('from fetch'));
+
+    const promise = h2RequestDirect(
+      asSession(session),
+      'http://example.com/resource',
+      { method: 'POST', body: 'payload' },
+    );
+
+    expect(session.lastStream).not.toBeNull();
+    session.emit('close');
+
+    await expect(promise).rejects.toThrow('HTTP/2 session closed before response');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('rejects when the session sends GOAWAY before a response arrives', async () => {
+    const session = new MockSession();
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('from fetch'));
+
+    const promise = h2RequestDirect(
+      asSession(session),
+      'http://example.com/resource',
+      { method: 'POST', body: 'payload' },
+    );
+
+    expect(session.lastStream).not.toBeNull();
+    session.emit('goaway');
+
+    await expect(promise).rejects.toThrow('HTTP/2 session sent GOAWAY before response');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('raises the session listener budget for concurrent request lifecycle listeners', async () => {
+    const session = new MockSession();
+
+    const promise = h2RequestDirect(
+      asSession(session),
+      'http://example.com/resource',
+      { method: 'POST', body: 'payload' },
+    );
+
+    expect(session.getMaxListeners()).toBeGreaterThan(10);
+
+    session.lastStream!.emit('response', { ':status': 200 });
+    session.lastStream!.emit('end');
+
+    const response = await promise;
+    expect(response.status).toBe(200);
+  });
 });
 
 describe('h2fetch: pre-flight fallback still works', () => {
@@ -213,7 +292,7 @@ describe('h2pool: self-healing eviction on session events', () => {
   function installMockEstablish(
     pool: H2Pool,
   ): (domain: string) => Promise<MockSession> {
-    const establish = vi.fn(async (_domain: string) => new MockSession());
+    const establish = vi.fn(() => Promise.resolve(new MockSession()));
     // Access the private lazy-load slot via a cast; the eviction listeners
     // are wired inside establish() wrapper, which preserves this behavior.
     (pool as unknown as { _establish: typeof establish })._establish = establish;
@@ -261,10 +340,10 @@ describe('h2pool: self-healing eviction on session events', () => {
     const pool = new H2Pool();
     const sessions: MockSession[] = [];
     (pool as unknown as { _establish: (d: string) => Promise<MockSession> })._establish =
-      async (_domain: string) => {
+      () => {
         const s = new MockSession();
         sessions.push(s);
-        return s;
+        return Promise.resolve(s);
       };
 
     const first = await pool.get('edge.example.com');
@@ -288,5 +367,187 @@ describe('h2pool: self-healing eviction on session events', () => {
     // Emitting a stale event on the *old* session must not touch the fresh one.
     sessions[0].emit('close');
     expect(pool.tryGet('edge.example.com')).toBe(sessions[1]);
+  });
+
+  it('pings an idle cached session before reusing it', async () => {
+    let now = 0;
+    const pool = new H2Pool({
+      maxIdleMs: 5,
+      now: () => now,
+    });
+    installMockEstablish(pool);
+
+    const session = await pool.get('edge.example.com');
+    expect(session).not.toBeNull();
+
+    now = 10;
+    const reused = await pool.get('edge.example.com');
+
+    expect(reused).toBe(session);
+  });
+
+  it('evicts an idle cached session when ping fails and opens a fresh one', async () => {
+    let now = 0;
+    const pool = new H2Pool({
+      maxIdleMs: 5,
+      now: () => now,
+    });
+    const sessions: MockSession[] = [];
+    (pool as unknown as { _establish: (d: string) => Promise<MockSession> })._establish =
+      () => {
+        const s = new MockSession();
+        sessions.push(s);
+        return Promise.resolve(s);
+      };
+
+    const first = await pool.get('edge.example.com');
+    expect(first).toBe(sessions[0]);
+
+    sessions[0].pingMode = 'fail';
+    now = 10;
+
+    const fresh = await pool.get('edge.example.com');
+
+    expect(fresh).toBe(sessions[1]);
+    expect(sessions[0].closed).toBe(true);
+    expect(pool.tryGet('edge.example.com')).toBe(sessions[1]);
+  });
+
+  it('evicts an idle cached session when ping times out', async () => {
+    let now = 0;
+    const pool = new H2Pool({
+      maxIdleMs: 5,
+      pingTimeoutMs: 1,
+      now: () => now,
+    });
+    const sessions: MockSession[] = [];
+    (pool as unknown as { _establish: (d: string) => Promise<MockSession> })._establish =
+      () => {
+        const s = new MockSession();
+        sessions.push(s);
+        return Promise.resolve(s);
+      };
+
+    const first = await pool.get('edge.example.com');
+    expect(first).toBe(sessions[0]);
+
+    sessions[0].pingMode = 'hang';
+    now = 10;
+
+    const fresh = await pool.get('edge.example.com');
+
+    expect(fresh).toBe(sessions[1]);
+    expect(sessions[0].closed).toBe(true);
+  });
+
+  it('evicts a pooled session when an H2 request errors before response', async () => {
+    const pool = new H2Pool();
+    const sessions: MockSession[] = [];
+    (pool as unknown as { _establish: (d: string) => Promise<MockSession> })._establish =
+      () => {
+        const s = new MockSession();
+        sessions.push(s);
+        return Promise.resolve(s);
+      };
+
+    const promise = h2RequestDirectFromPool(
+      pool,
+      'edge.example.com',
+      'http://example.com/resource',
+      { method: 'POST', body: 'payload' },
+    );
+
+    await new Promise((r) => setImmediate(r));
+    expect(sessions[0].lastStream).not.toBeNull();
+    sessions[0].lastStream!.emit('error', new Error('stream dead'));
+
+    await expect(promise).rejects.toThrow('stream dead');
+
+    const fresh = await pool.get('edge.example.com');
+    expect(fresh).toBe(sessions[1]);
+    expect(sessions[0].closed).toBe(true);
+  });
+
+  it('keeps a pooled session when pre-flight fallback fetch fails', async () => {
+    const pool = new H2Pool();
+    const session = new MockSession();
+    vi.spyOn(session, 'request').mockImplementation(() => {
+      throw new Error('max concurrent streams');
+    });
+    (pool as unknown as { _establish: (d: string) => Promise<MockSession> })._establish =
+      () => Promise.resolve(session);
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('fallback failed'));
+
+    await expect(
+      h2RequestDirectFromPool(
+        pool,
+        'edge.example.com',
+        'http://example.com/resource',
+      ),
+    ).rejects.toThrow('fallback failed');
+
+    expect(pool.tryGet('edge.example.com')).toBe(session);
+    expect(session.closed).toBe(false);
+  });
+
+  it('keeps a pooled fetch session when pre-flight fallback fetch fails', async () => {
+    const pool = new H2Pool();
+    const session = new MockSession();
+    vi.spyOn(session, 'request').mockImplementation(() => {
+      throw new Error('max concurrent streams');
+    });
+    (pool as unknown as { _establish: (d: string) => Promise<MockSession> })._establish =
+      () => Promise.resolve(session);
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('fallback failed'));
+
+    const h2fetch = createPoolBackedH2Fetch(pool, 'edge.example.com');
+
+    await expect(
+      h2fetch(new Request('http://example.com/resource')),
+    ).rejects.toThrow('fallback failed');
+
+    expect(pool.tryGet('edge.example.com')).toBe(session);
+    expect(session.closed).toBe(false);
+  });
+});
+
+describe('sandbox actions: pool-backed H2 routing', () => {
+  afterEach(() => {
+    h2Pool.closeAll();
+    vi.restoreAllMocks();
+  });
+
+  it('does not reuse the raw session attached at sandbox creation', async () => {
+    const staleAttachedSession = new MockSession();
+    const staleRequestSpy = vi.spyOn(staleAttachedSession, 'request');
+    const freshSession = new MockSession();
+    const freshRequestSpy = vi.spyOn(freshSession, 'request');
+
+    h2Pool.closeAll();
+    (h2Pool as unknown as { _establish: (d: string) => Promise<MockSession> })._establish =
+      () => Promise.resolve(freshSession);
+
+    const action = new H2ProbeAction({
+      metadata: {
+        name: 'sandbox-test',
+        url: 'http://example.com',
+      },
+      spec: {},
+      h2Session: asSession(staleAttachedSession),
+      h2Domain: 'edge.example.com',
+    });
+
+    const responsePromise = action.fetchWithH2('http://example.com/resource');
+    await new Promise((r) => setImmediate(r));
+
+    expect(staleRequestSpy).not.toHaveBeenCalled();
+    expect(freshRequestSpy).toHaveBeenCalledTimes(1);
+    expect(freshSession.lastStream).not.toBeNull();
+
+    freshSession.lastStream!.emit('response', { ':status': 200 });
+    freshSession.lastStream!.emit('end');
+
+    const response = await responsePromise;
+    expect(response.status).toBe(200);
   });
 });

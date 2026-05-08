@@ -47,7 +47,7 @@ export function ensureAutoloaded(): void {
   /* eslint-disable */
   const isBrowser = typeof globalThis !== "undefined" && (globalThis as any)?.window !== undefined;
 
-  if (isNode && !isBrowser) {
+  if (isNode && !isBrowser && !settings.disableH2) {
     try {
       // Pre-warm edge H2 for the configured region so the first
       // SandboxInstance.create() gets an instant session via the pool.

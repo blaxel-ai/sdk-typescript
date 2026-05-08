@@ -19,6 +19,7 @@ export type Config = {
   proxy?: string;
   apikey?: string;
   workspace?: string;
+  disableH2?: boolean;
   /**
    * Client credentials for OAuth2 client_credentials flow.
    *
@@ -274,6 +275,15 @@ class Settings {
 
   get region() {
     return env.BL_REGION || undefined;
+  }
+
+  get disableH2(): boolean {
+    if (typeof this.config.disableH2 === "boolean") {
+      return this.config.disableH2;
+    }
+    const value = env.BL_DISABLE_H2;
+    if (!value) return false;
+    return ["1", "true", "yes", "on"].includes(value.toLowerCase());
   }
 
   async authenticate() {

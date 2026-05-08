@@ -1,5 +1,6 @@
 import { Port, Sandbox, SandboxLifecycle } from "../client/types.gen.js";
-import { h2RequestDirect } from "../common/h2fetch.js";
+import { h2RequestDirectFromPool } from "../common/h2fetch.js";
+import { h2Pool } from "../common/h2pool.js";
 import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
 import { SandboxInstance } from "./sandbox.js";
@@ -31,6 +32,7 @@ export class CodeInterpreter extends SandboxInstance {
       status: base.status,
       events: base.events,
       h2Session: base.h2Session,
+      h2Domain: base.h2Domain,
     };
     return new CodeInterpreter(config);
   }
@@ -81,6 +83,7 @@ export class CodeInterpreter extends SandboxInstance {
       status: baseInstance.status,
       events: baseInstance.events,
       h2Session: baseInstance.h2Session,
+      h2Domain: baseInstance.h2Domain,
     };
     // Preserve forceUrl, headers, and params from input if provided
     if (sandbox && typeof sandbox === "object" && !Array.isArray(sandbox)) {
@@ -106,9 +109,9 @@ export class CodeInterpreter extends SandboxInstance {
   }
 
   private _fetch(input: string | URL, init?: RequestInit): Promise<Response> {
-    const session = this._sandboxConfig.h2Session;
-    if (session && !session.closed && !session.destroyed) {
-      return h2RequestDirect(session, input.toString(), init);
+    const h2Domain = this._sandboxConfig.h2Domain;
+    if (h2Domain) {
+      return h2RequestDirectFromPool(h2Pool, h2Domain, input.toString(), init);
     }
     return globalThis.fetch(input, init);
   }
@@ -524,4 +527,3 @@ export class CodeInterpreter extends SandboxInstance {
     }
   }
 }
-
