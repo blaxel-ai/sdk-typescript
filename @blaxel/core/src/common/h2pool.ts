@@ -190,35 +190,12 @@ export class H2Pool {
     return cached.session;
   }
 
-  async getFresh(domain: string): Promise<http2.ClientHttp2Session | null> {
-    const session = await this.validateEntry(domain, this.sessions.get(domain));
-    if (session) return session;
-    return this.get(domain);
-  }
-
-  markSessionUsed(domain: string, session: http2.ClientHttp2Session): void {
-    this.markUsed(domain, session);
-  }
-
   isUsable(session: http2.ClientHttp2Session): boolean {
     return !this.isClosed(session);
   }
 
   evictSession(domain: string, session: http2.ClientHttp2Session): void {
     this.evict(domain, session);
-  }
-
-  async validateSession(
-    domain: string,
-    session: http2.ClientHttp2Session,
-  ): Promise<http2.ClientHttp2Session | null> {
-    const cached = this.sessions.get(domain);
-    if (cached?.session === session) {
-      return this.validateEntry(domain, cached);
-    }
-    if (this.isClosed(session)) return null;
-    if (await this.ping(session)) return session;
-    return null;
   }
 
   /**
