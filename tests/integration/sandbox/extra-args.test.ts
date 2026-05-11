@@ -1,6 +1,6 @@
 import { SandboxInstance } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
-import { defaultImage, defaultLabels, uniqueName } from './helpers.js'
+import { defaultImage, defaultLabels, defaultRegion, uniqueName } from './helpers.js'
 
 describe('Sandbox extraArgs (kernel selection)', () => {
   const createdSandboxes: string[] = []
@@ -22,6 +22,7 @@ describe('Sandbox extraArgs (kernel selection)', () => {
     const sandbox = await SandboxInstance.create({
       name,
       image: defaultImage,
+      region: defaultRegion,
       extraArgs: { iptables: "enabled" },
       labels: defaultLabels,
     })
@@ -37,6 +38,7 @@ describe('Sandbox extraArgs (kernel selection)', () => {
     const sandbox = await SandboxInstance.create({
       name,
       image: defaultImage,
+      region: defaultRegion,
       extraArgs: { nvme: "enabled" },
       labels: defaultLabels,
     })
@@ -52,6 +54,7 @@ describe('Sandbox extraArgs (kernel selection)', () => {
     const sandbox = await SandboxInstance.create({
       name,
       image: defaultImage,
+      region: defaultRegion,
       extraArgs: { iptables: "enabled", nvme: "enabled" },
       labels: defaultLabels,
     })
@@ -67,6 +70,7 @@ describe('Sandbox extraArgs (kernel selection)', () => {
     const sandbox = await SandboxInstance.create({
       name,
       image: defaultImage,
+      region: defaultRegion,
       labels: defaultLabels,
     })
     createdSandboxes.push(name)
@@ -82,6 +86,7 @@ describe('Sandbox extraArgs (kernel selection)', () => {
     await SandboxInstance.create({
       name,
       image: defaultImage,
+      region: defaultRegion,
       extraArgs: { iptables: "enabled" },
       labels: defaultLabels,
     })

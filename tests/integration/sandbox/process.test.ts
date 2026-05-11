@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { SandboxInstance } from "@blaxel/core"
-import { uniqueName, defaultImage, defaultLabels, sleep } from './helpers.js'
+import { uniqueName, defaultImage, defaultLabels, defaultRegion, sleep } from './helpers.js'
 
 const SKIP_KEEP_ALIVE = true
 
@@ -12,6 +12,7 @@ describe('Sandbox Process Operations', () => {
     sandbox = await SandboxInstance.create({
       name: sandboxName,
       image: defaultImage,
+      region: defaultRegion,
       memory: 2048,
       labels: defaultLabels,
     })
@@ -574,6 +575,7 @@ HTTPServer(('', 3000), H).serve_forever()
       const instance = await SandboxInstance.create({
         name,
         image,
+        region: defaultRegion,
         memory: 2048,
         ports: [{ target: 3000, protocol: "HTTP" }],
         labels: defaultLabels,

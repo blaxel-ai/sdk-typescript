@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll } from 'vitest'
 import { SandboxInstance, updateSandbox, Sandbox } from "@blaxel/core"
-import { uniqueName, defaultImage, defaultLabels, sleep, waitForSandboxDeployed, retry } from './helpers.js'
+import { uniqueName, defaultImage, defaultLabels, defaultRegion, sleep, waitForSandboxDeployed, retry } from './helpers.js'
 
 describe('Sandbox Lifecycle and Expiration', () => {
   const createdSandboxes: string[] = []
@@ -27,6 +27,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       const firstSandbox = await SandboxInstance.create({
         name,
         image: defaultImage,
+        region: defaultRegion,
         ttl: "1s",
         labels: defaultLabels,
       })
@@ -43,7 +44,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       expect(retrievedSandbox.status).toBe("TERMINATED")
 
       // Create a new sandbox with the same name
-      const secondSandbox = await SandboxInstance.create({name, labels: defaultLabels})
+      const secondSandbox = await SandboxInstance.create({name, region: defaultRegion, labels: defaultLabels})
       expect(secondSandbox.metadata.name).toBe(name)
       createdSandboxes.push(name)
 
@@ -61,6 +62,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       const firstSandbox = await SandboxInstance.create({
         name,
         image: defaultImage,
+        region: defaultRegion,
         expires: expiresAt,
         labels: defaultLabels,
       })
@@ -77,7 +79,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       expect(retrievedSandbox.status).toBe("TERMINATED")
 
       // Create a new sandbox with the same name
-      const secondSandbox = await SandboxInstance.create({name, labels: defaultLabels})
+      const secondSandbox = await SandboxInstance.create({name, region: defaultRegion, labels: defaultLabels})
       expect(secondSandbox.metadata.name).toBe(name)
       createdSandboxes.push(name)
 
@@ -93,6 +95,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       const firstSandbox = await SandboxInstance.create({
         name,
         image: defaultImage,
+        region: defaultRegion,
         lifecycle: {
           expirationPolicies: [
             { type: "ttl-max-age", value: "1s", action: "delete" }
@@ -113,7 +116,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       expect(retrievedSandbox.status).toBe("TERMINATED")
 
       // Create a new sandbox with the same name
-      const secondSandbox = await SandboxInstance.create({name, labels: defaultLabels})
+      const secondSandbox = await SandboxInstance.create({name, region: defaultRegion, labels: defaultLabels})
       expect(secondSandbox.metadata.name).toBe(name)
       createdSandboxes.push(name)
 
@@ -129,6 +132,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       const firstSandbox = await SandboxInstance.create({
         name,
         image: defaultImage,
+        region: defaultRegion,
         lifecycle: {
           expirationPolicies: [
             { type: "ttl-idle", value: "5s", action: "delete" }
@@ -149,7 +153,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       expect(retrievedSandbox.status).toBe("TERMINATED")
 
       // Create a new sandbox with the same name
-      const secondSandbox = await SandboxInstance.create({name, labels: defaultLabels})
+      const secondSandbox = await SandboxInstance.create({name, region: defaultRegion, labels: defaultLabels})
       expect(secondSandbox.metadata.name).toBe(name)
       createdSandboxes.push(name)
 
@@ -167,6 +171,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       const firstSandbox = await SandboxInstance.create({
         name,
         image: defaultImage,
+        region: defaultRegion,
         lifecycle: {
           expirationPolicies: [
             { type: "date", value: expirationDate.toISOString(), action: "delete" }
@@ -187,7 +192,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       expect(retrievedSandbox.status).toBe("TERMINATED")
 
       // Create a new sandbox with the same name
-      const secondSandbox = await SandboxInstance.create({name, labels: defaultLabels})
+      const secondSandbox = await SandboxInstance.create({name, region: defaultRegion, labels: defaultLabels})
       expect(secondSandbox.metadata.name).toBe(name)
       createdSandboxes.push(name)
 
@@ -202,6 +207,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       const sandbox = await SandboxInstance.create({
         name,
         image: defaultImage,
+        region: defaultRegion,
         snapshotEnabled: true,
         labels: defaultLabels,
       })
@@ -215,6 +221,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       const sandbox = await SandboxInstance.create({
         name,
         image: defaultImage,
+        region: defaultRegion,
         snapshotEnabled: false,
         labels: defaultLabels,
       })
@@ -234,6 +241,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       const sandbox = await SandboxInstance.create({
         name,
         image: defaultImage,
+        region: defaultRegion,
         ttl: "10m",
         labels: defaultLabels,
       })
@@ -272,6 +280,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       const sandbox = await SandboxInstance.create({
         name,
         image: defaultImage,
+        region: defaultRegion,
         ttl: "5m",
         labels: defaultLabels,
       })
@@ -314,6 +323,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       const sandbox = await SandboxInstance.create({
         name,
         image: defaultImage,
+        region: defaultRegion,
         lifecycle: {
           expirationPolicies: [
             { type: "ttl-max-age", value: "10m", action: "delete" }
@@ -361,6 +371,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       const sandbox = await SandboxInstance.create({
         name,
         image: defaultImage,
+        region: defaultRegion,
         lifecycle: {
           expirationPolicies: [
             { type: "ttl-idle", value: "5m", action: "delete" }
@@ -402,6 +413,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       const sandbox = await SandboxInstance.create({
         name,
         image: defaultImage,
+        region: defaultRegion,
         envs: [
           { name: "TEST_VAR", value: "initial_value" }
         ],

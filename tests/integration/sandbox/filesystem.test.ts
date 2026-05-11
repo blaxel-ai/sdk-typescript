@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { SandboxInstance } from "@blaxel/core"
-import { uniqueName, defaultImage, defaultLabels, sleep } from './helpers.js'
+import { uniqueName, defaultImage, defaultLabels, defaultRegion, sleep } from './helpers.js'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import { stat, readFile } from 'fs/promises'
@@ -17,6 +17,7 @@ describe('Sandbox Filesystem Operations', () => {
     sandbox = await SandboxInstance.create({
       name: sandboxName,
       image: defaultImage,
+      region: defaultRegion,
       memory: 2048,
       labels: defaultLabels,
     })
