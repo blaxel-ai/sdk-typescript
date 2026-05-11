@@ -1,6 +1,6 @@
 import { SandboxInstance } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
-import { defaultImage, defaultLabels, uniqueName } from './helpers.js'
+import { defaultImage, defaultLabels, defaultRegion, uniqueName } from './helpers.js'
 
 describe('Fast Sandbox Operations', () => {
   const createdSandboxes: string[] = []
@@ -24,6 +24,7 @@ describe('Fast Sandbox Operations', () => {
     const sandbox = await SandboxInstance.create({
       name,
       image: defaultImage,
+      region: defaultRegion,
       labels: defaultLabels,
     })
     const createTime = Date.now() - startTime
@@ -52,6 +53,7 @@ describe('Fast Sandbox Operations', () => {
       const sandbox = await SandboxInstance.create({
         name,
         image: defaultImage,
+        region: defaultRegion,
         labels: defaultLabels,
       })
       const createTime = Date.now() - createStart
@@ -82,6 +84,7 @@ describe('Fast Sandbox Operations', () => {
       const sandbox = await SandboxInstance.create({
         name: `${name}-${i}`,
         image: defaultImage,
+        region: defaultRegion,
         labels: defaultLabels,
       })
 
