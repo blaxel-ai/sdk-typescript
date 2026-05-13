@@ -85,10 +85,56 @@ export function parseJsonOutput(logs: string | undefined): any {
   return JSON.parse(trimmed.slice(jsonStart, jsonEnd))
 }
 
+export function parseJsonObjectOutput<T extends object>(logs: string | undefined): T {
+  return parseJsonOutput(logs) as T
+}
+
 export function lowercaseKeys(obj: Record<string, string>): Record<string, string> {
   return Object.fromEntries(
     Object.entries(obj).map(([k, v]) => [k.toLowerCase(), v])
   )
+}
+
+type Sandbox = Awaited<ReturnType<typeof SandboxInstance.create>>
+type ExecResult = Awaited<ReturnType<Sandbox["process"]["exec"]>>
+
+export async function execProxyCommandWithRetry(
+  sandbox: Sandbox,
+  command: string,
+  { retries = 10, delayMs = 2000 }: { retries?: number; delayMs?: number } = {},
+): Promise<ExecResult> {
+  let result: ExecResult | undefined
+  for (let i = 0; i <= retries; i++) {
+    result = await sandbox.process.exec({ command, waitForCompletion: true })
+    if (result.exitCode === 0) return result
+    if (i < retries) await new Promise(resolve => setTimeout(resolve, delayMs))
+  }
+  return result!
+}
+
+export async function createReadyProxySandbox(
+  createSandbox: () => Promise<{ name: string; sandbox: Sandbox }>,
+  createdSandboxes: string[],
+  readyCommand: string,
+  isReady: (result: ExecResult) => boolean = (result) => result.exitCode === 0,
+  { attempts = 3, retries = 10, delayMs = 2000 }: { attempts?: number; retries?: number; delayMs?: number } = {},
+): Promise<Sandbox> {
+  let lastResult: ExecResult | undefined
+  for (let i = 0; i < attempts; i++) {
+    const { name, sandbox } = await createSandbox()
+    createdSandboxes.push(name)
+    await sandbox.fs.write("/tmp/proxy-test.js", proxyHelperScript)
+
+    lastResult = await execProxyCommandWithRetry(sandbox, readyCommand, { retries, delayMs })
+    if (isReady(lastResult)) return sandbox
+
+    try { await SandboxInstance.delete(name) } catch {
+      // Best-effort cleanup for a sandbox that never became proxy-ready.
+    }
+    if (i < attempts - 1) await new Promise(resolve => setTimeout(resolve, delayMs))
+  }
+
+  throw new Error(`Proxy sandbox did not become ready after ${attempts} attempts. Last exitCode=${lastResult?.exitCode}; logs=${lastResult?.logs ?? ""}`)
 }
 
 export function proxyCleanup(createdSandboxes: string[]) {
@@ -100,7 +146,9 @@ export function proxyCleanup(createdSandboxes: string[]) {
     }
     await Promise.all(
       createdSandboxes.map(async (name) => {
-        try { await SandboxInstance.delete(name) } catch {}
+        try { await SandboxInstance.delete(name) } catch {
+          // Best-effort cleanup: another test cleanup path may already have removed it.
+        }
       })
     )
   }

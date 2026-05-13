@@ -7,6 +7,7 @@ import {
   h2RequestDirectFromPool,
   h2RequestDirect,
 } from '../../../@blaxel/core/src/common/h2fetch.js';
+import { markH2SessionIdleUnref } from '../../../@blaxel/core/src/common/h2ref.js';
 import { H2Pool, h2Pool } from '../../../@blaxel/core/src/common/h2pool.js';
 import { SandboxAction } from '../../../@blaxel/core/src/sandbox/action.js';
 
@@ -34,17 +35,31 @@ class MockSession extends EventEmitter {
   public closed = false;
   public destroyed = false;
   public lastStream: MockStream | null = null;
+  public streams: MockStream[] = [];
   public pingMode: 'ok' | 'fail' | 'hang' = 'ok';
+  public refCalls = 0;
+  public unrefCalls = 0;
 
   request(): MockStream {
     const stream = new MockStream();
     this.lastStream = stream;
+    this.streams.push(stream);
     return stream;
   }
 
   close(): void {
     this.closed = true;
     this.emit('close');
+  }
+
+  ref(): this {
+    this.refCalls++;
+    return this;
+  }
+
+  unref(): this {
+    this.unrefCalls++;
+    return this;
   }
 
   ping(callback: (err?: Error | null) => void): boolean {
@@ -210,6 +225,147 @@ describe('h2fetch: no silent retry after session.request()', () => {
 
     const response = await promise;
     expect(response.status).toBe(200);
+  });
+
+  it('does not ref caller-owned sessions that were not marked idle-unref', async () => {
+    const session = new MockSession();
+
+    const promise = h2RequestDirect(
+      asSession(session),
+      'http://example.com/resource',
+      { method: 'POST', body: 'payload' },
+    );
+
+    expect(session.refCalls).toBe(0);
+    expect(session.unrefCalls).toBe(0);
+
+    session.lastStream!.emit('response', { ':status': 200 });
+    const response = await promise;
+    session.lastStream!.emit('end');
+
+    await expect(response.text()).resolves.toBe('');
+    expect(session.refCalls).toBe(0);
+    expect(session.unrefCalls).toBe(0);
+  });
+
+  it('refs an idle-unref H2 session while the response body is active', async () => {
+    const session = new MockSession();
+    markH2SessionIdleUnref(asSession(session));
+
+    const promise = h2RequestDirect(
+      asSession(session),
+      'http://example.com/resource',
+      { method: 'POST', body: 'payload' },
+    );
+
+    expect(session.refCalls).toBe(1);
+    expect(session.unrefCalls).toBe(1);
+
+    session.lastStream!.emit('response', { ':status': 200 });
+    const response = await promise;
+
+    expect(response.status).toBe(200);
+    expect(session.unrefCalls).toBe(1);
+
+    session.lastStream!.emit('data', Buffer.from('ok'));
+    session.lastStream!.emit('end');
+
+    await expect(response.text()).resolves.toBe('ok');
+    expect(session.unrefCalls).toBe(2);
+  });
+
+  it('keeps an idle-unref H2 session refed until all concurrent responses finish', async () => {
+    const session = new MockSession();
+    markH2SessionIdleUnref(asSession(session));
+
+    const firstPromise = h2RequestDirect(
+      asSession(session),
+      'http://example.com/first',
+      { method: 'POST', body: 'first' },
+    );
+    const firstStream = session.lastStream!;
+
+    const secondPromise = h2RequestDirect(
+      asSession(session),
+      'http://example.com/second',
+      { method: 'POST', body: 'second' },
+    );
+    const secondStream = session.lastStream!;
+
+    expect(session.refCalls).toBe(1);
+    expect(session.unrefCalls).toBe(1);
+    expect(session.streams).toHaveLength(2);
+
+    firstStream.emit('response', { ':status': 200 });
+    secondStream.emit('response', { ':status': 200 });
+    const firstResponse = await firstPromise;
+    const secondResponse = await secondPromise;
+
+    firstStream.emit('data', Buffer.from('one'));
+    firstStream.emit('end');
+    await expect(firstResponse.text()).resolves.toBe('one');
+
+    expect(session.unrefCalls).toBe(1);
+
+    secondStream.emit('data', Buffer.from('two'));
+    secondStream.emit('end');
+    await expect(secondResponse.text()).resolves.toBe('two');
+
+    expect(session.unrefCalls).toBe(2);
+  });
+
+  it('restores idle-unref when the request fails before response', async () => {
+    const session = new MockSession();
+    markH2SessionIdleUnref(asSession(session));
+
+    const promise = h2RequestDirect(
+      asSession(session),
+      'http://example.com/resource',
+      { method: 'POST', body: 'payload' },
+    );
+
+    expect(session.refCalls).toBe(1);
+    session.lastStream!.emit('error', new Error('stream dead'));
+
+    await expect(promise).rejects.toThrow('stream dead');
+    expect(session.unrefCalls).toBe(2);
+  });
+
+  it('restores idle-unref when the request is aborted before response', async () => {
+    const session = new MockSession();
+    markH2SessionIdleUnref(asSession(session));
+    const controller = new AbortController();
+
+    const promise = h2RequestDirect(
+      asSession(session),
+      'http://example.com/resource',
+      { method: 'POST', body: 'payload', signal: controller.signal },
+    );
+
+    expect(session.refCalls).toBe(1);
+    controller.abort();
+
+    await expect(promise).rejects.toThrow('The operation was aborted.');
+    expect(session.unrefCalls).toBe(2);
+  });
+
+  it('restores idle-unref when the response body is cancelled', async () => {
+    const session = new MockSession();
+    markH2SessionIdleUnref(asSession(session));
+
+    const promise = h2RequestDirect(
+      asSession(session),
+      'http://example.com/resource',
+      { method: 'POST', body: 'payload' },
+    );
+
+    session.lastStream!.emit('response', { ':status': 200 });
+    const response = await promise;
+
+    await response.body?.cancel();
+
+    expect(session.unrefCalls).toBe(2);
+    expect(session.lastStream!.closed).toBe(true);
   });
 });
 
