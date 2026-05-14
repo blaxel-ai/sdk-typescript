@@ -19,12 +19,11 @@ export class SandboxFileSystem extends SandboxAction {
 
   async mkdir(path: string, permissions: string = "0755"): Promise<SuccessResponse> {
     path = this.formatPath(path);
-    const { response, data, error } = await putFilesystemByPath({
+    const { response, data, error } = await putFilesystemByPath(this.withClient({
       path: { path },
       body: { isDirectory: true, permissions },
       baseUrl: this.url,
-      client: this.client,
-    });
+    }));
     this.handleResponseError(response, data, error);
     return data as SuccessResponse;
   }
@@ -42,12 +41,11 @@ export class SandboxFileSystem extends SandboxAction {
     }
 
     // Use regular upload for small files
-    const { response, data, error } = await putFilesystemByPath({
+    const { response, data, error } = await putFilesystemByPath(this.withClient({
       path: { path },
       body: { content },
       baseUrl: this.url,
-      client: this.client,
-    });
+    }));
     this.handleResponseError(response, data, error);
     return data as SuccessResponse;
   }
@@ -132,7 +130,6 @@ export class SandboxFileSystem extends SandboxAction {
         }, {} as Record<string, string>),
       },
       baseUrl: this.url,
-      client: this.client,
     }
     const path = this.formatPath(destinationPath ?? "")
     const { response, data, error } = await this.client.put<Directory, PutFilesystemByPathError>({
@@ -148,11 +145,10 @@ export class SandboxFileSystem extends SandboxAction {
 
   async read(path: string): Promise<string> {
     path = this.formatPath(path);
-    const { response, data, error } = await getFilesystemByPath({
+    const { response, data, error } = await getFilesystemByPath(this.withClient({
       path: { path },
       baseUrl: this.url,
-      client: this.client,
-    });
+    }));
     this.handleResponseError(response, data, error);
     if (data && 'content' in data) {
       return data.content;
@@ -162,14 +158,13 @@ export class SandboxFileSystem extends SandboxAction {
 
   async readBinary(path: string): Promise<Blob> {
     path = this.formatPath(path);
-    const { response, data, error } = await getFilesystemByPath({
+    const { response, data, error } = await getFilesystemByPath(this.withClient({
       path: { path },
       baseUrl: this.url,
-      client: this.client,
       headers: {
         'Accept': 'application/octet-stream',
       },
-    });
+    }));
     this.handleResponseError(response, data, error);
     if (typeof data === 'string') {
       return new Blob([data]);
@@ -189,23 +184,21 @@ export class SandboxFileSystem extends SandboxAction {
 
   async rm(path: string, recursive: boolean = false): Promise<SuccessResponse> {
     path = this.formatPath(path);
-    const { response, data, error } = await deleteFilesystemByPath({
+    const { response, data, error } = await deleteFilesystemByPath(this.withClient({
       path: { path },
       query: { recursive },
       baseUrl: this.url,
-      client: this.client,
-    });
+    }));
     this.handleResponseError(response, data, error);
     return data as SuccessResponse;
   }
 
   async ls(path: string): Promise<Directory> {
     path = this.formatPath(path);
-    const { response, data, error } = await getFilesystemByPath({
+    const { response, data, error } = await getFilesystemByPath(this.withClient({
       path: { path },
       baseUrl: this.url,
-      client: this.client,
-    });
+    }));
     this.handleResponseError(response, data, error);
     if (!data || !('files' in data || 'subdirectories' in data)) {
       throw new Error(JSON.stringify({ error: "Directory not found" }));
@@ -240,12 +233,11 @@ export class SandboxFileSystem extends SandboxAction {
       queryParams.excludeHidden = options.excludeHidden;
     }
 
-    const result = await getFilesystemSearchByPath({
+    const result = await getFilesystemSearchByPath(this.withClient({
       path: { path: formattedPath },
       query: queryParams,
       baseUrl: this.url,
-      client: this.client,
-    });
+    }));
 
     this.handleResponseError(result.response, result.data, result.error);
     return result.data as FuzzySearchResponse;
@@ -281,12 +273,11 @@ export class SandboxFileSystem extends SandboxAction {
       queryParams.excludeHidden = options.excludeHidden;
     }
 
-    const result = await getFilesystemFindByPath({
+    const result = await getFilesystemFindByPath(this.withClient({
       path: { path: formattedPath },
       query: queryParams,
       baseUrl: this.url,
-      client: this.client,
-    });
+    }));
     this.handleResponseError(result.response, result.data, result.error);
     return result.data as FindResponse;
   }
@@ -325,12 +316,11 @@ export class SandboxFileSystem extends SandboxAction {
       queryParams.excludeDirs = options.excludeDirs.join(',');
     }
 
-    const result = await getFilesystemContentSearchByPath({
+    const result = await getFilesystemContentSearchByPath(this.withClient({
       path: { path: formattedPath },
       query: queryParams,
       baseUrl: this.url,
-      client: this.client,
-    });
+    }));
 
     this.handleResponseError(result.response, result.data, result.error);
     return result.data as ContentSearchResponse;
@@ -369,14 +359,13 @@ export class SandboxFileSystem extends SandboxAction {
       if (options?.ignore) {
         query.ignore = options.ignore.join(",");
       }
-      const { response, data, error } = await getWatchFilesystemByPath({
-        client: this.client,
+      const { response, data, error } = await getWatchFilesystemByPath(this.withClient({
         path: { path },
         query,
         baseUrl: this.url,
         parseAs: 'stream',
         signal: controller.signal,
-      });
+      }));
       if (error) throw new Error(error instanceof Error ? error.message : JSON.stringify(error));
       const stream: ReadableStream | null = (data as unknown as ReadableStream) ?? response.body;
       if (!stream) throw new Error('No stream returned');
@@ -447,47 +436,43 @@ export class SandboxFileSystem extends SandboxAction {
   private async initiateMultipartUpload(path: string, permissions: string = "0644"): Promise<MultipartInitiateResponse> {
     path = this.formatPath(path);
 
-    const { data } = await postFilesystemMultipartInitiateByPath({
+    const { data } = await postFilesystemMultipartInitiateByPath(this.withClient({
       path: { path },
       body: { permissions },
       baseUrl: this.url,
-      client: this.client,
       throwOnError: true,
-    });
+    }));
     return data;
   }
 
   private async uploadPart(uploadId: string, partNumber: number, fileBlob: Blob): Promise<MultipartUploadPartResponse> {
 
-    const { data } = await putFilesystemMultipartByUploadIdPart({
+    const { data } = await putFilesystemMultipartByUploadIdPart(this.withClient({
       path: { uploadId },
       query: { partNumber },
       body: { file: fileBlob },
       baseUrl: this.url,
-      client: this.client,
       throwOnError: true,
-    });
+    }));
     return data;
   }
 
   private async completeMultipartUpload(uploadId: string, parts: Array<MultipartPartInfo>): Promise<SuccessResponse> {
-    const { data } = await postFilesystemMultipartByUploadIdComplete({
+    const { data } = await postFilesystemMultipartByUploadIdComplete(this.withClient({
       path: { uploadId },
       body: { parts },
       baseUrl: this.url,
-      client: this.client,
       throwOnError: true,
-    });
+    }));
     return data;
   }
 
   private async abortMultipartUpload(uploadId: string): Promise<SuccessResponse> {
-    const { data } = await deleteFilesystemMultipartByUploadIdAbort({
+    const { data } = await deleteFilesystemMultipartByUploadIdAbort(this.withClient({
       path: { uploadId },
       baseUrl: this.url,
-      client: this.client,
       throwOnError: true,
-    });
+    }));
     return data;
   }
 

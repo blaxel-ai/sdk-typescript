@@ -107,6 +107,11 @@ function getOsArch(): string {
   return "browser/unknown";
 }
 
+function isDenoRuntime(): boolean {
+  const runtime = globalThis as typeof globalThis & { Deno?: unknown };
+  return typeof runtime.Deno !== "undefined";
+}
+
 class Settings {
   private _credentials: Credentials | null;
   config: Config;
@@ -282,8 +287,10 @@ class Settings {
       return this.config.disableH2;
     }
     const value = env.BL_DISABLE_H2;
-    if (!value) return false;
-    return ["1", "true", "yes", "on"].includes(value.toLowerCase());
+    if (value) {
+      return ["1", "true", "yes", "on"].includes(value.toLowerCase());
+    }
+    return isDenoRuntime();
   }
 
   async authenticate() {

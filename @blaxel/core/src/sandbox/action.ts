@@ -62,7 +62,7 @@ export class SandboxAction {
     }
 
     const h2Domain = this.sandbox.h2Domain;
-    if (h2Domain) {
+    if (h2Domain && !settings.disableH2) {
       if (!this._h2Client || this._h2ClientDomain !== h2Domain) {
         this._h2Client = createClient({
           fetch: createPoolBackedH2Fetch(h2Pool, h2Domain),
@@ -86,13 +86,23 @@ export class SandboxAction {
     return defaultClient
   }
 
+  protected withClient<T extends object>(options: T): T & { client: Client } {
+    const requestOptions = { ...options } as T & { client: Client };
+    Object.defineProperty(requestOptions, 'client', {
+      value: this.client,
+      enumerable: false,
+      configurable: true,
+    });
+    return requestOptions;
+  }
+
   /**
    * Routes through the H2 session when available, falling back to
    * globalThis.fetch. Uses a direct H2 path that avoids Request allocation.
    */
   protected h2Fetch(input: string | URL, init?: RequestInit): Promise<Response> {
     const h2Domain = this.sandbox.h2Domain;
-    if (h2Domain) {
+    if (h2Domain && !settings.disableH2) {
       return h2RequestDirectFromPool(h2Pool, h2Domain, input.toString(), init);
     }
     return globalThis.fetch(input, init);
