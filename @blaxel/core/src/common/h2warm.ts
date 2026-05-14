@@ -1,6 +1,7 @@
 import dns from "dns/promises";
 import http2 from "http2";
 import tls from "tls";
+import { markH2SessionIdleUnref } from "./h2ref.js";
 
 export async function establishH2(sniHostname: string): Promise<http2.ClientHttp2Session> {
   let timedOut = false;
@@ -42,7 +43,7 @@ async function _establishH2(sniHostname: string): Promise<http2.ClientHttp2Sessi
     session.on("error", (err) => {
       // Ensure the TLS socket is cleaned up on connection error
       if (!tlsSocket.destroyed) tlsSocket.destroy();
-      reject(err);
+      reject(err instanceof Error ? err : new Error(String(err)));
     });
   });
 
@@ -50,8 +51,8 @@ async function _establishH2(sniHostname: string): Promise<http2.ClientHttp2Sessi
   // protocol overhead. This RTT is hidden by the parallel createSandbox() call.
   await new Promise<void>((resolve) => session.ping(() => resolve()));
 
-  // Unref so the session doesn't prevent process exit
-  session.unref();
+  // Unref so the idle session doesn't prevent process exit.
+  markH2SessionIdleUnref(session);
 
   return session;
 }

@@ -1,5 +1,6 @@
 import http2 from "http2";
 import type { H2Pool } from "./h2pool.js";
+import { refH2SessionForActiveRequest } from "./h2ref.js";
 
 type H2SendOptions = {
   onH2RequestCreated?: () => void;
@@ -209,6 +210,8 @@ function _h2Send(
     let streamController: ReadableStreamDefaultController<Uint8Array> | null = null;
     let streamClosed = false;
     let req: http2.ClientHttp2Stream | null = null;
+    let releaseSessionRef = () => {};
+    let abort: (() => void) | null = null;
 
     try {
       req = session.request(h2Headers);
@@ -218,6 +221,7 @@ function _h2Send(
       globalThis.fetch(fallbackUrl, fallbackInit).then(resolve, reject);
       return;
     }
+    releaseSessionRef = refH2SessionForActiveRequest(session);
     options?.onH2RequestCreated?.();
     ensureH2SessionListenerBudget(session);
 
@@ -227,10 +231,16 @@ function _h2Send(
       session.off("error", onSessionError);
     };
 
+    const cleanupActiveRequest = () => {
+      if (abort) signal?.removeEventListener("abort", abort);
+      releaseSessionRef();
+    };
+
     const rejectBeforeResponse = (err: Error) => {
       if (settled) return;
       settled = true;
       cleanupBeforeResponseListeners();
+      cleanupActiveRequest();
       req?.close();
       reject(err);
     };
@@ -249,19 +259,21 @@ function _h2Send(
     session.once("goaway", onSessionGoaway);
     session.once("error", onSessionError);
 
-    const abort = () => {
+    abort = () => {
       req?.close();
       const abortError = new DOMException("The operation was aborted.", "AbortError");
       if (!responded) {
         if (!settled) {
           settled = true;
           cleanupBeforeResponseListeners();
+          cleanupActiveRequest();
           reject(abortError);
         }
         return;
       }
       if (!streamClosed) {
         streamClosed = true;
+        cleanupActiveRequest();
         streamController?.error(abortError);
       }
     };
@@ -271,6 +283,7 @@ function _h2Send(
         req.close();
         cleanupBeforeResponseListeners();
         settled = true;
+        cleanupActiveRequest();
         reject(new DOMException("The operation was aborted.", "AbortError"));
         return;
       }
@@ -294,23 +307,29 @@ function _h2Send(
       const readable = new ReadableStream<Uint8Array>({
         start(controller) {
           streamController = controller;
+          const finishStream = (
+            finish: () => void,
+          ) => {
+            if (streamClosed) return;
+            streamClosed = true;
+            cleanupActiveRequest();
+            finish();
+          };
           req.on("data", (chunk: Buffer) => {
             if (!streamClosed) controller.enqueue(new Uint8Array(chunk));
           });
           req.on("end", () => {
-            if (!streamClosed) {
-              streamClosed = true;
-              signal?.removeEventListener("abort", abort);
-              controller.close();
-            }
+            finishStream(() => controller.close());
           });
           req.on("error", (err) => {
-            if (!streamClosed) {
-              streamClosed = true;
-              signal?.removeEventListener("abort", abort);
-              controller.error(err);
-            }
+            finishStream(() => controller.error(err));
           });
+        },
+        cancel() {
+          req?.close();
+          if (streamClosed) return;
+          streamClosed = true;
+          cleanupActiveRequest();
         },
       });
       resolve(new Response(readable, { status, headers: resHeaders }));
@@ -320,6 +339,7 @@ function _h2Send(
       if (settled) return;
       settled = true;
       cleanupBeforeResponseListeners();
+      cleanupActiveRequest();
       reject(err);
     });
 

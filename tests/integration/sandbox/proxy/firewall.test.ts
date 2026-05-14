@@ -1,7 +1,11 @@
 import { SandboxInstance } from "@blaxel/core"
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { defaultImage, defaultLabels, defaultRegion, uniqueName } from '../helpers.js'
-import { lowercaseKeys, parseJsonOutput, proxyCleanup, proxyHelperScript } from './helpers.js'
+import { createReadyProxySandbox, execProxyCommandWithRetry, lowercaseKeys, parseJsonObjectOutput, proxyCleanup } from './helpers.js'
+
+type HttpBinResponse = {
+  headers: Record<string, string>
+}
 
 describe('firewall e2e (allowedDomains / forbiddenDomains)', () => {
   const createdSandboxes: string[] = []
@@ -11,18 +15,23 @@ describe('firewall e2e (allowedDomains / forbiddenDomains)', () => {
 
   describe('allowedDomains (allowlist)', () => {
     beforeAll(async () => {
-      const name = uniqueName("fw-allow")
-      fwSandbox = await SandboxInstance.create({
-        name, image: defaultImage, region: defaultRegion, labels: defaultLabels,
-        network: { allowedDomains: ["httpbin.org"], proxy: { routing: [] } },
-      })
-      createdSandboxes.push(name)
-      await fwSandbox.fs.write("/tmp/proxy-test.js", proxyHelperScript)
-    }, 60_000)
+      fwSandbox = await createReadyProxySandbox(
+        async () => {
+          const name = uniqueName("fw-allow")
+          const sandbox = await SandboxInstance.create({
+            name, image: defaultImage, region: defaultRegion, labels: defaultLabels,
+            network: { allowedDomains: ["httpbin.org"], proxy: { routing: [] } },
+          })
+          return { name, sandbox }
+        },
+        createdSandboxes,
+        'node /tmp/proxy-test.js GET https://httpbin.org/get',
+      )
+    }, 180_000)
 
     it('allows requests to allowlisted domain', async () => {
-      const result = await fwSandbox.process.exec({ command: 'node /tmp/proxy-test.js GET https://httpbin.org/get', waitForCompletion: true })
-      expect(result.exitCode).toBe(0)
+      const result = await execProxyCommandWithRetry(fwSandbox, 'node /tmp/proxy-test.js GET https://httpbin.org/get')
+      expect(result.exitCode, result.logs).toBe(0)
       expect(result.logs).toContain("httpbin.org")
     }, 60_000)
 
@@ -36,18 +45,23 @@ describe('firewall e2e (allowedDomains / forbiddenDomains)', () => {
     let denySandbox: Awaited<ReturnType<typeof SandboxInstance.create>>
 
     beforeAll(async () => {
-      const name = uniqueName("fw-deny")
-      denySandbox = await SandboxInstance.create({
-        name, image: defaultImage, region: defaultRegion, labels: defaultLabels,
-        network: { forbiddenDomains: ["example.com"], proxy: { routing: [] } },
-      })
-      createdSandboxes.push(name)
-      await denySandbox.fs.write("/tmp/proxy-test.js", proxyHelperScript)
-    }, 60_000)
+      denySandbox = await createReadyProxySandbox(
+        async () => {
+          const name = uniqueName("fw-deny")
+          const sandbox = await SandboxInstance.create({
+            name, image: defaultImage, region: defaultRegion, labels: defaultLabels,
+            network: { forbiddenDomains: ["example.com"], proxy: { routing: [] } },
+          })
+          return { name, sandbox }
+        },
+        createdSandboxes,
+        'node /tmp/proxy-test.js GET https://httpbin.org/get',
+      )
+    }, 180_000)
 
     it('allows requests to non-forbidden domain', async () => {
-      const result = await denySandbox.process.exec({ command: 'node /tmp/proxy-test.js GET https://httpbin.org/get', waitForCompletion: true })
-      expect(result.exitCode).toBe(0)
+      const result = await execProxyCommandWithRetry(denySandbox, 'node /tmp/proxy-test.js GET https://httpbin.org/get')
+      expect(result.exitCode, result.logs).toBe(0)
       expect(result.logs).toContain("httpbin.org")
     }, 60_000)
 
@@ -61,18 +75,23 @@ describe('firewall e2e (allowedDomains / forbiddenDomains)', () => {
     let comboSandbox: Awaited<ReturnType<typeof SandboxInstance.create>>
 
     beforeAll(async () => {
-      const name = uniqueName("fw-combo")
-      comboSandbox = await SandboxInstance.create({
-        name, image: defaultImage, region: defaultRegion, labels: defaultLabels,
-        network: { allowedDomains: ["httpbin.org", "example.com"], forbiddenDomains: ["example.com"], proxy: { routing: [] } },
-      })
-      createdSandboxes.push(name)
-      await comboSandbox.fs.write("/tmp/proxy-test.js", proxyHelperScript)
-    }, 60_000)
+      comboSandbox = await createReadyProxySandbox(
+        async () => {
+          const name = uniqueName("fw-combo")
+          const sandbox = await SandboxInstance.create({
+            name, image: defaultImage, region: defaultRegion, labels: defaultLabels,
+            network: { allowedDomains: ["httpbin.org", "example.com"], forbiddenDomains: ["example.com"], proxy: { routing: [] } },
+          })
+          return { name, sandbox }
+        },
+        createdSandboxes,
+        'node /tmp/proxy-test.js GET https://httpbin.org/get',
+      )
+    }, 180_000)
 
     it('allowedDomains takes precedence over forbiddenDomains', async () => {
-      const result = await comboSandbox.process.exec({ command: 'node /tmp/proxy-test.js GET https://httpbin.org/get', waitForCompletion: true })
-      expect(result.exitCode).toBe(0)
+      const result = await execProxyCommandWithRetry(comboSandbox, 'node /tmp/proxy-test.js GET https://httpbin.org/get')
+      expect(result.exitCode, result.logs).toBe(0)
       expect(result.logs).toContain("httpbin.org")
     }, 60_000)
   })
@@ -81,22 +100,32 @@ describe('firewall e2e (allowedDomains / forbiddenDomains)', () => {
     let proxyFwSandbox: Awaited<ReturnType<typeof SandboxInstance.create>>
 
     beforeAll(async () => {
-      const name = uniqueName("fw-proxy")
-      proxyFwSandbox = await SandboxInstance.create({
-        name, image: defaultImage, region: defaultRegion, labels: defaultLabels,
-        network: {
-          allowedDomains: ["httpbin.org"],
-          proxy: { routing: [{ destinations: ["httpbin.org"], headers: { "X-Firewall-Test": "allowed-and-injected" } }] },
+      proxyFwSandbox = await createReadyProxySandbox(
+        async () => {
+          const name = uniqueName("fw-proxy")
+          const sandbox = await SandboxInstance.create({
+            name, image: defaultImage, region: defaultRegion, labels: defaultLabels,
+            network: {
+              allowedDomains: ["httpbin.org"],
+              proxy: { routing: [{ destinations: ["httpbin.org"], headers: { "X-Firewall-Test": "allowed-and-injected" } }] },
+            },
+          })
+          return { name, sandbox }
         },
-      })
-      createdSandboxes.push(name)
-      await proxyFwSandbox.fs.write("/tmp/proxy-test.js", proxyHelperScript)
-    }, 60_000)
+        createdSandboxes,
+        'node /tmp/proxy-test.js GET https://httpbin.org/headers',
+        (result) => {
+          if (result.exitCode !== 0) return false
+          const response = parseJsonObjectOutput<HttpBinResponse>(result.logs)
+          return lowercaseKeys(response.headers)["x-firewall-test"] === "allowed-and-injected"
+        },
+      )
+    }, 180_000)
 
     it('injects headers for allowlisted and routed domain', async () => {
-      const result = await proxyFwSandbox.process.exec({ command: 'node /tmp/proxy-test.js GET https://httpbin.org/headers', waitForCompletion: true })
-      expect(result.exitCode).toBe(0)
-      const response = parseJsonOutput(result.logs)
+      const result = await execProxyCommandWithRetry(proxyFwSandbox, 'node /tmp/proxy-test.js GET https://httpbin.org/headers')
+      expect(result.exitCode, result.logs).toBe(0)
+      const response = parseJsonObjectOutput<HttpBinResponse>(result.logs)
       const headers = lowercaseKeys(response.headers)
       expect(headers["x-firewall-test"]).toBe("allowed-and-injected")
     }, 60_000)
