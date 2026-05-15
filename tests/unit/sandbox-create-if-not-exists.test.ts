@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { SandboxInstance } from "@blaxel/core";
+import { CodeInterpreter, SandboxInstance } from "@blaxel/core";
 
 const conflict = () => Object.assign(new Error("already exists"), { code: 409 });
 
@@ -96,5 +96,38 @@ describe("SandboxInstance.createIfNotExists retry handling", () => {
     await expect(
       SandboxInstance.createIfNotExists({ name: "stuck" }),
     ).rejects.toThrow("Unable to create sandbox after 3 attempts.");
+  });
+
+  it("forwards createIfNotExist through CodeInterpreter.create", async () => {
+    const create = vi.spyOn(SandboxInstance, "create").mockResolvedValueOnce(
+      sandbox("interpreter", "DEPLOYED"),
+    );
+
+    await expect(
+      CodeInterpreter.create(
+        { name: "interpreter" },
+        { safe: false, createIfNotExist: true },
+      ),
+    ).resolves.toBeInstanceOf(CodeInterpreter);
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "interpreter" }),
+      { safe: false, createIfNotExist: true },
+    );
+  });
+
+  it("uses the server-side createIfNotExist parameter for CodeInterpreter.createIfNotExists", async () => {
+    const create = vi.spyOn(SandboxInstance, "create").mockResolvedValueOnce(
+      sandbox("interpreter-existing", "DEPLOYED"),
+    );
+
+    await expect(
+      CodeInterpreter.createIfNotExists({ name: "interpreter-existing" }),
+    ).resolves.toBeInstanceOf(CodeInterpreter);
+
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "interpreter-existing" }),
+      { safe: true, createIfNotExist: true },
+    );
   });
 });
