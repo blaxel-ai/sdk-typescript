@@ -13,6 +13,14 @@ import { SandboxSessions } from "./session.js";
 import { SandboxSystem } from "./system.js";
 import { normalizeEnvs, normalizePorts, normalizeVolumes, SandboxConfiguration, SandboxCreateConfiguration, SandboxUpdateMetadata, SessionWithToken } from "./types.js";
 
+const NON_REUSABLE_SANDBOX_STATUSES = new Set([
+  "FAILED",
+  "TERMINATED",
+  "TERMINATING",
+  "DELETING",
+  "DEACTIVATING",
+]);
+
 export class SandboxInstance {
   fs: SandboxFileSystem;
   network: SandboxNetwork;
@@ -306,8 +314,8 @@ export class SandboxInstance {
           // Get the existing sandbox to check its status
           const sandboxInstance = await this.get(name);
 
-          // If the sandbox is TERMINATED, treat it as not existing and retry creation
-          if (sandboxInstance.status !== "TERMINATED") {
+          // Recreate instead of returning sandbox records that cannot be reused.
+          if (!NON_REUSABLE_SANDBOX_STATUSES.has(sandboxInstance.status ?? "")) {
             return sandboxInstance;
           }
 
@@ -317,7 +325,7 @@ export class SandboxInstance {
         throw e;
       }
     }
-    throw new Error(`Unable to create sandbox after ${ATTEMPTS} retries.`);
+    throw new Error(`Unable to create sandbox after ${ATTEMPTS} attempts.`);
   }
 
   /* eslint-disable */
