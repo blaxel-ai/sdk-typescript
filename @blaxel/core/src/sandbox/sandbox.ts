@@ -13,6 +13,14 @@ import { SandboxSessions } from "./session.js";
 import { SandboxSystem } from "./system.js";
 import { normalizeEnvs, normalizePorts, normalizeVolumes, SandboxConfiguration, SandboxCreateConfiguration, SandboxUpdateMetadata, SessionWithToken } from "./types.js";
 
+const NON_REUSABLE_SANDBOX_STATUSES = new Set([
+  "FAILED",
+  "TERMINATED",
+  "TERMINATING",
+  "DELETING",
+  "DEACTIVATING",
+]);
+
 export class SandboxInstance {
   fs: SandboxFileSystem;
   network: SandboxNetwork;
@@ -101,12 +109,12 @@ export class SandboxInstance {
   }
 
   /* eslint-disable */
-  async wait({maxWait = 60000, interval = 1000}: {maxWait?: number, interval?: number} = {}) {
+  async wait({ maxWait = 60000, interval = 1000 }: { maxWait?: number, interval?: number } = {}) {
     logger.warn("⚠️  Warning: sandbox.wait() is deprecated. You don't need to wait for the sandbox to be deployed anymore.");
     return this;
   }
 
-  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = false }: { safe?: boolean } = {}) {
+  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = false, createIfNotExist = false }: { safe?: boolean, createIfNotExist?: boolean } = {}) {
     const defaultName = `sandbox-${uuidv4().replace(/-/g, '').substring(0, 8)}`
     const defaultImage = `blaxel/base-image:latest`
     const defaultMemory = 4096
@@ -192,12 +200,13 @@ export class SandboxInstance {
 
     // Kick off warming so h2Pool.get() can join it during the API call
     if (edgeDomain && !settings.disableH2) {
-      import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.warm(edgeDomain)).catch(() => {});
+      import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.warm(edgeDomain)).catch(() => { });
     }
 
     const [{ data }, h2Session] = await Promise.all([
       createSandbox({
         body: sandbox,
+        query: createIfNotExist ? { createIfNotExist } : undefined,
         throwOnError: true,
       }),
       edgeDomain && !settings.disableH2 ? import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.get(edgeDomain)).catch(() => null) : Promise.resolve(null),
@@ -212,7 +221,7 @@ export class SandboxInstance {
       try {
         await instance.fs.ls('/')
       } catch (err) {
-        await SandboxInstance.delete(instance.metadata.name!).catch(() => {});
+        await SandboxInstance.delete(instance.metadata.name!).catch(() => { });
         throw err;
       }
     }
@@ -231,7 +240,7 @@ export class SandboxInstance {
   }
 
   static async list() {
-    const { data } = await listSandboxes({throwOnError: true}) as { response: Response; data: SandboxModel[] };
+    const { data } = await listSandboxes({ throwOnError: true }) as { response: Response; data: SandboxModel[] };
     const instances = data.map((sandbox) => new SandboxInstance(sandbox));
     return Promise.all(instances.map((instance) => SandboxInstance.attachH2Session(instance)));
   }
@@ -292,29 +301,32 @@ export class SandboxInstance {
 
 
   static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration) {
-    try {
-      return await this.create(sandbox);
-    } catch (e) {
-      if (typeof e === "object" && e !== null && "code" in e && (e.code === 409 || e.code === 'SANDBOX_ALREADY_EXISTS')) {
-        const name = 'name' in sandbox ? sandbox.name : (sandbox as SandboxModel).metadata.name
-        if (!name) {
-          throw new Error("Sandbox name is required");
-        }
-
-        // Get the existing sandbox to check its status
-        const sandboxInstance = await this.get(name);
-
-          // If the sandbox is TERMINATED, treat it as not existing
-          if (sandboxInstance.status === "TERMINATED") {
-            // Create a new sandbox - backend will handle cleanup of the terminated one
-            return await this.create(sandbox);
+    const ATTEMPTS = 3;
+    for (let i = 0; i < ATTEMPTS; ++i) {
+      try {
+        return await this.create(sandbox, { createIfNotExist: true });
+      } catch (e) {
+        if (typeof e === "object" && e !== null && "code" in e && (e.code === 409 || e.code === 'SANDBOX_ALREADY_EXISTS')) {
+          const name = 'name' in sandbox ? sandbox.name : (sandbox as SandboxModel).metadata.name
+          if (!name) {
+            throw new Error("Sandbox name is required");
           }
 
-        // Otherwise return the existing running sandbox
-        return sandboxInstance;
+          // Get the existing sandbox to check its status
+          const sandboxInstance = await this.get(name);
+
+          // Recreate instead of returning sandbox records that cannot be reused.
+          if (!NON_REUSABLE_SANDBOX_STATUSES.has(sandboxInstance.status ?? "")) {
+            return sandboxInstance;
+          }
+
+          // Retry creation. We want the same error handling on the retry as creates can race.
+          continue;
+        }
+        throw e;
       }
-      throw e;
     }
+    throw new Error(`Unable to create sandbox after ${ATTEMPTS} attempts.`);
   }
 
   /* eslint-disable */
