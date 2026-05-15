@@ -15,14 +15,34 @@ describe("SandboxInstance.createIfNotExists retry handling", () => {
     vi.restoreAllMocks();
   });
 
+  it("uses the server-side createIfNotExist parameter first", async () => {
+    const existing = sandbox("existing", "DEPLOYED");
+    const create = vi.spyOn(SandboxInstance, "create").mockResolvedValueOnce(existing);
+    const get = vi.spyOn(SandboxInstance, "get");
+
+    await expect(
+      SandboxInstance.createIfNotExists({ name: "existing" }),
+    ).resolves.toBe(existing);
+
+    expect(create).toHaveBeenCalledWith(
+      { name: "existing" },
+      { createIfNotExist: true },
+    );
+    expect(get).not.toHaveBeenCalled();
+  });
+
   it("returns the existing reusable sandbox after a create conflict", async () => {
     const existing = sandbox("existing", "DEPLOYED");
-    vi.spyOn(SandboxInstance, "create").mockRejectedValueOnce(conflict());
+    const create = vi.spyOn(SandboxInstance, "create").mockRejectedValueOnce(conflict());
     vi.spyOn(SandboxInstance, "get").mockResolvedValueOnce(existing);
 
     await expect(
       SandboxInstance.createIfNotExists({ name: "existing" }),
     ).resolves.toBe(existing);
+    expect(create).toHaveBeenCalledWith(
+      { name: "existing" },
+      { createIfNotExist: true },
+    );
   });
 
   it.each([
@@ -42,6 +62,16 @@ describe("SandboxInstance.createIfNotExists retry handling", () => {
       SandboxInstance.createIfNotExists({ name: "stale" }),
     ).resolves.toBe(replacement);
     expect(create).toHaveBeenCalledTimes(2);
+    expect(create).toHaveBeenNthCalledWith(
+      1,
+      { name: "stale" },
+      { createIfNotExist: true },
+    );
+    expect(create).toHaveBeenNthCalledWith(
+      2,
+      { name: "stale" },
+      { createIfNotExist: true },
+    );
   });
 
   it("handles a recreate race after first seeing a terminated sandbox", async () => {

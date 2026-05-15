@@ -114,7 +114,7 @@ export class SandboxInstance {
     return this;
   }
 
-  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = false }: { safe?: boolean } = {}) {
+  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = false, createIfNotExist = false }: { safe?: boolean, createIfNotExist?: boolean } = {}) {
     const defaultName = `sandbox-${uuidv4().replace(/-/g, '').substring(0, 8)}`
     const defaultImage = `blaxel/base-image:latest`
     const defaultMemory = 4096
@@ -206,6 +206,7 @@ export class SandboxInstance {
     const [{ data }, h2Session] = await Promise.all([
       createSandbox({
         body: sandbox,
+        query: createIfNotExist ? { createIfNotExist } : undefined,
         throwOnError: true,
       }),
       edgeDomain && !settings.disableH2 ? import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.get(edgeDomain)).catch(() => null) : Promise.resolve(null),
@@ -303,7 +304,7 @@ export class SandboxInstance {
     const ATTEMPTS = 3;
     for (let i = 0; i < ATTEMPTS; ++i) {
       try {
-        return await this.create(sandbox);
+        return await this.create(sandbox, { createIfNotExist: true });
       } catch (e) {
         if (typeof e === "object" && e !== null && "code" in e && (e.code === 409 || e.code === 'SANDBOX_ALREADY_EXISTS')) {
           const name = 'name' in sandbox ? sandbox.name : (sandbox as SandboxModel).metadata.name
