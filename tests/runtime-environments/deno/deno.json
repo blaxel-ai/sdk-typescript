@@ -1,12 +1,22 @@
 {
   "compilerOptions": {
-    "allowJs": true,
     "lib": ["deno.window"],
     "strict": true
   },
-  "nodeModulesDir": "auto",
+  "nodeModulesDir": "manual",
+  "imports": {
+    "buffer": "node:buffer",
+    "crypto": "node:crypto",
+    "dns/promises": "node:dns/promises",
+    "fs": "node:fs",
+    "fs/promises": "node:fs/promises",
+    "http2": "node:http2",
+    "os": "node:os",
+    "path": "node:path",
+    "tls": "node:tls"
+  },
   "tasks": {
-    "test": "deno run --allow-net --allow-read --allow-env --allow-sys src/index.ts",
-    "dev": "deno run --allow-net --allow-read --allow-env --allow-sys --watch src/index.ts"
+    "test": "deno install --node-modules-dir=manual && deno run --allow-net --allow-read --allow-env --allow-sys src/index.ts",
+    "dev": "deno install --node-modules-dir=manual && deno run --allow-net --allow-read --allow-env --allow-sys --watch src/index.ts"
   }
 }

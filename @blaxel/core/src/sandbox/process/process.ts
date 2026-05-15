@@ -124,11 +124,10 @@ export class SandboxProcess extends SandboxAction {
     if (shouldWaitForCompletion && (onLog || onStdout || onStderr)) {
       return await this.execWithStreaming(process, { onLog, onStdout, onStderr });
     } else {
-      const { response, data, error } = await postProcess({
+      const { response, data, error } = await postProcess(this.withClient({
         body: process,
         baseUrl: this.url,
-        client: this.client,
-      });
+      }));
       this.handleResponseError(response, data, error);
       const result = data as PostProcessResponse;
       if (onLog || onStdout || onStderr) {
@@ -332,50 +331,45 @@ export class SandboxProcess extends SandboxAction {
   }
 
   async get(identifier: string): Promise<GetProcessByIdentifierResponse> {
-    const { response, data, error } = await getProcessByIdentifier({
+    const { response, data, error } = await getProcessByIdentifier(this.withClient({
       path: { identifier },
       baseUrl: this.url,
-      client: this.client,
-    });
+    }));
     this.handleResponseError(response, data, error);
     return data as GetProcessByIdentifierResponse;
   }
 
   async list(): Promise<GetProcessResponse> {
-    const { response, data, error } = await getProcess({
+    const { response, data, error } = await getProcess(this.withClient({
       baseUrl: this.url,
-      client: this.client,
-    });
+    }));
     this.handleResponseError(response, data, error);
     return data as GetProcessResponse;
   }
 
   async stop(identifier: string): Promise<DeleteProcessByIdentifierResponse> {
-    const { response, data, error } = await deleteProcessByIdentifier({
+    const { response, data, error } = await deleteProcessByIdentifier(this.withClient({
       path: { identifier },
       baseUrl: this.url,
-      client: this.client,
-    });
+    }));
     this.handleResponseError(response, data, error);
     return data as DeleteProcessByIdentifierResponse;
   }
 
   async kill(identifier: string): Promise<DeleteProcessByIdentifierKillResponse> {
-    const { response, data, error } = await deleteProcessByIdentifierKill({
+    const { response, data, error } = await deleteProcessByIdentifierKill(this.withClient({
       path: { identifier },
       baseUrl: this.url,
-      client: this.client,
-    });
+    }));
     this.handleResponseError(response, data, error);
     return data as DeleteProcessByIdentifierKillResponse;
   }
 
   async logs(identifier: string, type: "stdout" | "stderr" | "all" = "all"): Promise<string> {
-    const { response, data, error } = await getProcessByIdentifierLogs({
+    const { response, data, error } = await getProcessByIdentifierLogs(this.withClient({
       path: { identifier },
       baseUrl: this.url,
-      client: this.client,
-    });
+    }));
     this.handleResponseError(response, data, error);
     if (type === "all") {
       return data?.logs || "";
@@ -387,4 +381,3 @@ export class SandboxProcess extends SandboxAction {
     throw new Error("Unsupported log type");
   }
 }
-
