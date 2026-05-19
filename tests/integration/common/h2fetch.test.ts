@@ -367,6 +367,26 @@ describe('h2fetch: no silent retry after session.request()', () => {
     expect(session.unrefCalls).toBe(2);
     expect(session.lastStream!.closed).toBe(true);
   });
+
+  it('restores idle-unref when the response body errors', async () => {
+    const session = new MockSession();
+    markH2SessionIdleUnref(asSession(session));
+
+    const promise = h2RequestDirect(
+      asSession(session),
+      'http://example.com/resource',
+      { method: 'POST', body: 'payload' },
+    );
+
+    expect(session.refCalls).toBe(1);
+    session.lastStream!.emit('response', { ':status': 200 });
+    const response = await promise;
+
+    session.lastStream!.emit('error', new Error('body broke'));
+
+    await expect(response.text()).rejects.toThrow('body broke');
+    expect(session.unrefCalls).toBe(2);
+  });
 });
 
 describe('h2fetch: pre-flight fallback still works', () => {
@@ -440,6 +460,32 @@ describe('h2fetch: pre-flight fallback still works', () => {
 
     expect(requestSpy).not.toHaveBeenCalled();
     expect(fetchSpy).toHaveBeenCalledTimes(1);
+    await expect(response.text()).resolves.toBe('fallback');
+  });
+
+  it('falls back before creating an H2 stream for unsupported pooled direct bodies', async () => {
+    const pool = new H2Pool();
+    const session = new MockSession();
+    const requestSpy = vi.spyOn(session, 'request');
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('fallback'));
+    (pool as unknown as { _establish: (d: string) => Promise<MockSession> })._establish =
+      () => Promise.resolve(session);
+
+    const form = new FormData();
+    form.append('file', new Blob(['payload']), 'payload.txt');
+
+    const response = await h2RequestDirectFromPool(
+      pool,
+      'edge.example.com',
+      'http://example.com/resource',
+      { method: 'PUT', body: form },
+    );
+
+    expect(requestSpy).not.toHaveBeenCalled();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(pool.tryGet('edge.example.com')).toBe(session);
     await expect(response.text()).resolves.toBe('fallback');
   });
 });
@@ -705,5 +751,42 @@ describe('sandbox actions: pool-backed H2 routing', () => {
 
     const response = await responsePromise;
     expect(response.status).toBe(200);
+  });
+
+  it('uses global fetch when BL_DISABLE_H2 is set', async () => {
+    const previousDisableH2 = process.env.BL_DISABLE_H2;
+    process.env.BL_DISABLE_H2 = '1';
+
+    try {
+      const session = new MockSession();
+      const requestSpy = vi.spyOn(session, 'request');
+      const fetchSpy = vi
+        .spyOn(globalThis, 'fetch')
+        .mockResolvedValue(new Response('fallback'));
+      (h2Pool as unknown as { _establish: (d: string) => Promise<MockSession> })._establish =
+        () => Promise.resolve(session);
+
+      const action = new H2ProbeAction({
+        metadata: {
+          name: 'sandbox-test',
+          url: 'http://example.com',
+        },
+        spec: {},
+        h2Session: asSession(session),
+        h2Domain: 'edge.example.com',
+      });
+
+      const response = await action.fetchWithH2('http://example.com/resource');
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(requestSpy).not.toHaveBeenCalled();
+      await expect(response.text()).resolves.toBe('fallback');
+    } finally {
+      if (previousDisableH2 === undefined) {
+        delete process.env.BL_DISABLE_H2;
+      } else {
+        process.env.BL_DISABLE_H2 = previousDisableH2;
+      }
+    }
   });
 });
