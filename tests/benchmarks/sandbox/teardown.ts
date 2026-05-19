@@ -6,7 +6,7 @@ export default function globalSetup() {
     console.log("\n🧹 Global cleanup: looking for benchmark sandboxes...")
 
     try {
-      const sandboxes = await SandboxInstance.list()
+      const sandboxes = await (await SandboxInstance.list()).autoPagingToArray({ limit: 10000 })
       const benchSandboxes = sandboxes.filter(
         (s) =>
           s.metadata.labels?.env === "benchmark" &&
