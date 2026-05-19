@@ -1,0 +1,35 @@
+name: Check NPM Token
+
+on:
+  schedule:
+    # Run weekly on Mondays at 09:00 UTC
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+jobs:
+  check-token:
+    name: Validate NPM Token
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [staging, production]
+    environment: ${{ matrix.environment }}
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 23
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Validate NPM_TOKEN
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "Checking NPM token validity for environment: ${{ matrix.environment }}"
+          if ! npm whoami 2>/dev/null; then
+            echo "::error::NPM_TOKEN is invalid or expired in the '${{ matrix.environment }}' environment. Please rotate it immediately."
+            echo "::error::Go to npmjs.com → Account Settings → Access Tokens → Generate a new Automation token (no expiry or max expiry)."
+            echo "::error::Then update the NPM_TOKEN secret in GitHub repo Settings → Environments → ${{ matrix.environment }}"
+            exit 1
+          fi
+          echo "✓ NPM token is valid. Authenticated as: $(npm whoami)"
