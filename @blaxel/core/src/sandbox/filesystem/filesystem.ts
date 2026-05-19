@@ -9,7 +9,7 @@ import { CopyResponse, FilesystemFindOptions, FilesystemGrepOptions, FilesystemS
 // Multipart upload constants
 const MULTIPART_THRESHOLD = 5 * 1024 * 1024; // 5MB
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB per part
-const MAX_PARALLEL_UPLOADS = 20; // Number of parallel part uploads
+const MAX_PARALLEL_UPLOADS = 3; // Number of parallel part uploads
 
 export class SandboxFileSystem extends SandboxAction {
   constructor(sandbox: Sandbox, private process: SandboxProcess) {
