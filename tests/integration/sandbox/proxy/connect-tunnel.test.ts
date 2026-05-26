@@ -114,14 +114,22 @@ except urllib3.exceptions.HTTPError as e:
 
     it('HTTP_PROXY and HTTPS_PROXY env vars are set in sandbox', async () => {
       const result = await sandbox.process.exec({
-        command: 'echo "HTTPS_PROXY=${HTTPS_PROXY}"; echo "HTTP_PROXY=${HTTP_PROXY}"; echo "SSL_CERT_FILE=${SSL_CERT_FILE}"',
+        command: [
+          'test -n "$HTTPS_PROXY" && echo "HTTPS_PROXY_SET=1"',
+          'case "$HTTPS_PROXY" in https://*) echo "HTTPS_PROXY_SCHEME=https" ;; esac',
+          'test -n "$HTTP_PROXY" && echo "HTTP_PROXY_SET=1"',
+          'case "$HTTP_PROXY" in https://*) echo "HTTP_PROXY_SCHEME=https" ;; esac',
+          'test -n "$SSL_CERT_FILE" && test -f "$SSL_CERT_FILE" && echo "SSL_CERT_FILE_SET=1"',
+        ].join(' ; '),
         waitForCompletion: true,
       })
       expect(result.exitCode).toBe(0)
       const out = result.logs || ""
-      expect(out, `proxy env vars missing in sandbox:\n${out}`).toMatch(/HTTPS_PROXY=https:\/\/\S+/)
-      expect(out).toMatch(/HTTP_PROXY=https:\/\/\S+/)
-      expect(out).toMatch(/SSL_CERT_FILE=\/\S+/)
+      expect(out).toContain("HTTPS_PROXY_SET=1")
+      expect(out).toContain("HTTPS_PROXY_SCHEME=https")
+      expect(out).toContain("HTTP_PROXY_SET=1")
+      expect(out).toContain("HTTP_PROXY_SCHEME=https")
+      expect(out).toContain("SSL_CERT_FILE_SET=1")
     }, 30_000)
 
     it('installs a package from PyPI using HTTPS_PROXY only', async () => {
@@ -197,7 +205,7 @@ except urllib3.exceptions.HTTPError as e:
         'export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa-key.json',
         // No --client-protocol=http1 here: gcsfuse will default to HTTP/2 over
         // the proxy's CONNECT tunnel, exercising end-to-end h2 ALPN through MITM.
-        `gcsfuse --foreground=false --debug_fuse --debug_gcs --log-severity=trace ${bucket} /mnt/gcs`,
+        `gcsfuse --foreground=false --log-severity=warning ${bucket} /mnt/gcs`,
         'sleep 2',
         // List bucket root and verify mountpoint is live.
         'ls -la /mnt/gcs | head -20',
@@ -210,7 +218,7 @@ except urllib3.exceptions.HTTPError as e:
         command: mountCmd + ' 2>&1',
         waitForCompletion: true,
       })
-      expect(result.exitCode, `gcsfuse without --client-protocol=http1 failed. logs=${result.logs?.slice(0, 3000)}`).toBe(0)
+      expect(result.exitCode, `gcsfuse without --client-protocol=http1 failed with exitCode=${result.exitCode}`).toBe(0)
       expect(result.logs || '').toContain('is a mountpoint')
     }, 300_000)
   })
