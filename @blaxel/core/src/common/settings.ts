@@ -21,6 +21,16 @@ export type Config = {
   workspace?: string;
   disableH2?: boolean;
   /**
+   * Maximum number of concurrent in-flight HTTP/2 requests across the shared
+   * H2 session pool. `0` or `undefined` means unlimited (current behavior).
+   */
+  maxConcurrentH2Requests?: number;
+  /**
+   * Number of retry attempts for transient resets on multipart part uploads.
+   * `0` or `undefined` disables retry (current behavior).
+   */
+  fsPartRetries?: number;
+  /**
    * Client credentials for OAuth2 client_credentials flow.
    *
    * Accepts either:
@@ -291,6 +301,34 @@ class Settings {
       return ["1", "true", "yes", "on"].includes(value.toLowerCase());
     }
     return isDenoRuntime();
+  }
+
+  get maxConcurrentH2Requests(): number {
+    if (typeof this.config.maxConcurrentH2Requests === "number") {
+      return this.config.maxConcurrentH2Requests;
+    }
+    const value = env.BL_MAX_H2_INFLIGHT;
+    if (value) {
+      const parsed = parseInt(value, 10);
+      if (!Number.isNaN(parsed)) {
+        return parsed;
+      }
+    }
+    return 0;
+  }
+
+  get fsPartRetries(): number {
+    if (typeof this.config.fsPartRetries === "number") {
+      return this.config.fsPartRetries;
+    }
+    const value = env.BL_FS_PART_RETRIES;
+    if (value) {
+      const parsed = parseInt(value, 10);
+      if (!Number.isNaN(parsed)) {
+        return parsed;
+      }
+    }
+    return 0;
   }
 
   async authenticate() {

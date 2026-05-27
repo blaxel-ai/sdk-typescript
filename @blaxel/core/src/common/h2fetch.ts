@@ -1,4 +1,5 @@
 import http2 from "http2";
+import { settings } from "./settings.js";
 import type { H2Pool } from "./h2pool.js";
 import { refH2SessionForActiveRequest } from "./h2ref.js";
 
@@ -8,6 +9,83 @@ type H2SendOptions = {
 
 const MIN_H2_SESSION_MAX_LISTENERS = 64;
 const sessionsWithListenerBudget = new WeakSet<http2.ClientHttp2Session>();
+
+/**
+ * Per-domain async semaphore that bounds the number of in-flight HTTP/2
+ * requests against a single edge domain (one H2 session). The cap is keyed
+ * by domain so throttling one sandbox's uploads never blocks requests to an
+ * unrelated sandbox served by a different edge.
+ *
+ * When `settings.maxConcurrentH2Requests` is `0`/unset the gate is a no-op
+ * (current default behavior: unlimited concurrency).
+ */
+
+// Safety timeout for a held slot. A request that never resolves (no response,
+// no error, no abort) would otherwise hold its slot forever and starve every
+// queued request for the same domain. After this window we release the slot
+// and let the underlying request continue or reject on its own; we never
+// cancel the in-flight request here, we only stop it from blocking the queue.
+// Kept deliberately conservative (well above any realistic part-upload time)
+// so it does not interfere with legitimately slow but healthy requests.
+const H2_SLOT_TIMEOUT_MS = 120_000;
+
+type H2DomainGate = {
+  active: number;
+  queue: Array<() => void>;
+};
+
+const h2GatesByDomain = new Map<string, H2DomainGate>();
+
+function getH2Gate(domain: string): H2DomainGate {
+  let gate = h2GatesByDomain.get(domain);
+  if (!gate) {
+    gate = { active: 0, queue: [] };
+    h2GatesByDomain.set(domain, gate);
+  }
+  return gate;
+}
+
+/**
+ * Acquire an in-flight slot for `domain`. Resolves with a release function
+ * that is idempotent and FIFO-fair: releasing wakes the longest-waiting
+ * queued caller for the same domain. A safety timer also releases the slot
+ * if the caller never does, preventing per-domain starvation.
+ */
+async function acquireH2Slot(domain: string): Promise<() => void> {
+  const max = settings.maxConcurrentH2Requests; // 0/undefined = unlimited
+  if (!max || max <= 0) return () => {};
+
+  const gate = getH2Gate(domain);
+  while (gate.active >= max) {
+    await new Promise<void>((resolve) => gate.queue.push(resolve));
+  }
+  gate.active++;
+
+  let released = false;
+  // Holder so `release` can clear the safety timer that is created after it.
+  const timer: { handle?: ReturnType<typeof setTimeout> } = {};
+  const release = () => {
+    if (released) return;
+    released = true;
+    if (timer.handle !== undefined) clearTimeout(timer.handle);
+    gate.active--;
+    const next = gate.queue.shift();
+    if (next) {
+      next();
+    } else if (gate.active === 0 && gate.queue.length === 0) {
+      // No active requests and nothing waiting: drop the empty gate so the
+      // Map does not grow unbounded across many short-lived domains.
+      h2GatesByDomain.delete(domain);
+    }
+  };
+
+  timer.handle = setTimeout(release, H2_SLOT_TIMEOUT_MS);
+  // unref() so a pending safety timer never keeps the process alive. Guarded
+  // because not every runtime's timer handle exposes unref().
+  (timer.handle as unknown as { unref?: () => void }).unref?.();
+
+  return release;
+}
 
 /**
  * Creates a fetch()-compatible function that sends requests over an existing
@@ -40,11 +118,44 @@ export function createPoolBackedH2Fetch(
   domain: string,
 ): (input: Request) => Promise<Response> {
   return async (input: Request): Promise<Response> => {
+    const rel = await acquireH2Slot(domain);
+    try {
+      const session = await pool.get(domain);
+      if (session) {
+        let h2RequestCreated = false;
+        try {
+          return await _h2Request(session, input, {
+            onH2RequestCreated: () => {
+              h2RequestCreated = true;
+            },
+          });
+        } catch (err) {
+          if (h2RequestCreated) {
+            pool.evictSession(domain, session);
+          }
+          throw err;
+        }
+      }
+      return await globalThis.fetch(input);
+    } finally {
+      rel();
+    }
+  };
+}
+
+export async function h2RequestDirectFromPool(
+  pool: H2Pool,
+  domain: string,
+  url: string,
+  init?: RequestInit,
+): Promise<Response> {
+  const rel = await acquireH2Slot(domain);
+  try {
     const session = await pool.get(domain);
     if (session) {
       let h2RequestCreated = false;
       try {
-        return await _h2Request(session, input, {
+        return await h2RequestDirectInternal(session, url, init, {
           onH2RequestCreated: () => {
             h2RequestCreated = true;
           },
@@ -56,33 +167,10 @@ export function createPoolBackedH2Fetch(
         throw err;
       }
     }
-    return globalThis.fetch(input);
-  };
-}
-
-export async function h2RequestDirectFromPool(
-  pool: H2Pool,
-  domain: string,
-  url: string,
-  init?: RequestInit,
-): Promise<Response> {
-  const session = await pool.get(domain);
-  if (session) {
-    let h2RequestCreated = false;
-    try {
-      return await h2RequestDirectInternal(session, url, init, {
-        onH2RequestCreated: () => {
-          h2RequestCreated = true;
-        },
-      });
-    } catch (err) {
-      if (h2RequestCreated) {
-        pool.evictSession(domain, session);
-      }
-      throw err;
-    }
+    return await globalThis.fetch(url, init);
+  } finally {
+    rel();
   }
-  return globalThis.fetch(url, init);
 }
 
 /**
