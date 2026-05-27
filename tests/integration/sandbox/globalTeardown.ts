@@ -11,7 +11,7 @@ export default function globalSetup() {
 
     // Clean up sandboxes with test labels
     try {
-      const sandboxes = await SandboxInstance.list()
+      const sandboxes = await (await SandboxInstance.list()).autoPagingToArray({ limit: 10000 })
       for (const sb of sandboxes) {
         if (sb.status === "TERMINATED") {
           continue
@@ -31,7 +31,7 @@ export default function globalSetup() {
 
     // Clean up volumes with test labels
     try {
-      const volumes = await VolumeInstance.list()
+      const volumes = await (await VolumeInstance.list()).autoPagingToArray({ limit: 10000 })
       for (const vol of volumes) {
         const labels = vol.metadata.labels || {}
         if (labels["env"] === "integration-test") {

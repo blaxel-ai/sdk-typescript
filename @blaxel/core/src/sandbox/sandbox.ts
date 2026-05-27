@@ -1,7 +1,8 @@
 import { v4 as uuidv4 } from "uuid";
 import type http2 from "http2";
-import { createSandbox, deleteSandbox, getSandbox, listSandboxes, SandboxLifecycle, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
+import { createSandbox, deleteSandbox, getSandbox, listSandboxes, type ListSandboxesData, type SandboxLifecycle, type Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
+import { createPaginatedList } from "../common/pagination.js";
 import { settings } from "../common/settings.js";
 import { SandboxCodegen } from "./codegen/index.js";
 import { SandboxDrive } from "./drive/index.js";
@@ -20,6 +21,8 @@ const NON_REUSABLE_SANDBOX_STATUSES = new Set([
   "DELETING",
   "DEACTIVATING",
 ]);
+
+export type SandboxListQuery = NonNullable<ListSandboxesData["query"]>;
 
 export class SandboxInstance {
   fs: SandboxFileSystem;
@@ -239,10 +242,46 @@ export class SandboxInstance {
     return SandboxInstance.attachH2Session(instance);
   }
 
-  static async list() {
-    const { data } = await listSandboxes({ throwOnError: true }) as { response: Response; data: SandboxModel[] };
-    const instances = data.map((sandbox) => new SandboxInstance(sandbox));
-    return Promise.all(instances.map((instance) => SandboxInstance.attachH2Session(instance)));
+  /**
+   * List one page of sandboxes.
+   *
+   * The returned page exposes `data` for the current page, `meta` for cursor
+   * metadata, and helpers to fetch more pages only when you need them.
+   *
+   * @example
+   * ```ts
+   * const page = await SandboxInstance.list({ limit: 50 });
+   *
+   * for (const sandbox of page.data) {
+   *   console.log(sandbox.metadata.name);
+   * }
+   *
+   * const nextPage = await page.nextPage();
+   * ```
+   *
+   * @example
+   * ```ts
+   * const page = await SandboxInstance.list({ limit: 100 });
+   *
+   * for await (const sandbox of page) {
+   *   console.log(sandbox.metadata.name);
+   * }
+   * ```
+   */
+  static async list(query?: SandboxListQuery) {
+    const fetchPage = async (pageQuery?: SandboxListQuery) => {
+      const { data } = await listSandboxes({
+        query: pageQuery,
+        throwOnError: true,
+      });
+      return data;
+    };
+    return createPaginatedList({
+      response: await fetchPage(query),
+      fetchPage,
+      mapItem: (sandbox) => SandboxInstance.attachH2Session(new SandboxInstance(sandbox)),
+      query,
+    });
   }
 
   static async delete(sandboxName: string) {

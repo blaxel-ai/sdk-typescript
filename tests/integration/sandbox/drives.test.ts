@@ -88,9 +88,9 @@ describe('Drive Operations', () => {
       createdDrives.push(name)
 
       const drives = await DriveInstance.list()
-      expect(Array.isArray(drives)).toBe(true)
+      expect(Array.isArray(drives.data)).toBe(true)
 
-      const found = drives.find(d => d.name === name)
+      const found = drives.data.find(d => d.name === name)
       expect(found).toBeDefined()
     })
 
