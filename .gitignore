@@ -12,3 +12,4 @@ sqlite.db
 test-volume-template/
 reports
 tmp
+*.tgz
