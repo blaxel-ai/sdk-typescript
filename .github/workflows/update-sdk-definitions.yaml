@@ -33,14 +33,10 @@ jobs:
         run: bun install
 
       - name: Regenerate sandbox SDK client
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Downloading sandbox definition from blaxel-ai/sandbox"
-          curl -sf -H "Authorization: token ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github.v3.raw" \
-            -o ./definition.yml \
-            "https://api.github.com/repos/blaxel-ai/sandbox/contents/sandbox-api/docs/openapi.yml?ref=main"
+          curl -sf -o ./definition.yml \
+            "https://raw.githubusercontent.com/blaxel-ai/sandbox/refs/heads/main/sandbox-api/docs/openapi.yml"
 
           rm -rf @blaxel/core/src/sandbox/client/types.gen.ts @blaxel/core/src/sandbox/client/sdk.gen.ts
           npx @hey-api/openapi-ts@0.66.0 -i ./definition.yml -o ./tmp/ -c @hey-api/client-fetch
@@ -51,14 +47,10 @@ jobs:
           rm -rf ./tmp definition.yml
 
       - name: Regenerate controlplane SDK client
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Downloading controlplane definition from blaxel-ai/controlplane"
-          curl -sf -H "Authorization: token ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github.v3.raw" \
-            -o ./definition.yml \
-            "https://api.github.com/repos/blaxel-ai/controlplane/contents/api/api/definitions/controlplane.yml?ref=main"
+          curl -sf -o ./definition.yml \
+            "https://api.blaxel.ai/v0/openapi/controlplane.yml"
 
           rm -rf @blaxel/core/src/client/types.gen.ts @blaxel/core/src/client/sdk.gen.ts
           npx @hey-api/openapi-ts@0.66.0 -i ./definition.yml -o ./tmp/ -c @hey-api/client-fetch
