@@ -94,7 +94,7 @@ jobs:
         if: steps.diff.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v7
         with:
-          token: ${{ secrets.GH_CONTROLPLANE_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           branch: automated/update-sdk-definitions
           commit-message: "chore: update SDK definitions from upstream OpenAPI specs"
           title: "chore: update SDK definitions from upstream OpenAPI specs"
