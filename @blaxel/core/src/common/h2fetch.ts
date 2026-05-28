@@ -5,6 +5,17 @@ import { refH2SessionForActiveRequest } from "./h2ref.js";
 
 type H2SendOptions = {
   onH2RequestCreated?: () => void;
+  /**
+   * Release the per-domain concurrency slot acquired by the pool-backed
+   * wrappers. The H2 send path owns this once a request is handed to it: the
+   * slot is held for the OPEN-STREAM lifetime (the same lifetime as the h2ref
+   * active-request ref) and freed from `cleanupActiveRequest()` on every
+   * terminal path, or — for a pre-flight fallback that never opens a stream on
+   * the shared session — released immediately before falling back to
+   * `globalThis.fetch`. Idempotent (see `acquireH2Slot`); defaults to a no-op
+   * for the non-pool transports (`createH2Fetch` / `h2RequestDirect`).
+   */
+  releaseSlot?: () => void;
 };
 
 const MIN_H2_SESSION_MAX_LISTENERS = 64;
@@ -20,14 +31,21 @@ const sessionsWithListenerBudget = new WeakSet<http2.ClientHttp2Session>();
  * (current default behavior: unlimited concurrency).
  */
 
-// Safety timeout for a held slot. A request that never resolves (no response,
-// no error, no abort) would otherwise hold its slot forever and starve every
-// queued request for the same domain. After this window we release the slot
-// and let the underlying request continue or reject on its own; we never
-// cancel the in-flight request here, we only stop it from blocking the queue.
-// Kept deliberately conservative (well above any realistic part-upload time)
-// so it does not interfere with legitimately slow but healthy requests.
-const H2_SLOT_TIMEOUT_MS = 120_000;
+// Last-resort leak guard for a held slot. The slot is now released on the real
+// stream terminal (end / error / abort / cancel / pre-response reject), which
+// always fires, so this timer is a pure backstop for the one residual case: a
+// request that never opens a stream AND never settles (no response, no error,
+// no abort) — it must not pin a slot forever and starve the per-domain queue.
+//
+// When it fires it ONLY frees the queue slot. It NEVER aborts or cancels the
+// underlying request or its response stream: `release` does not touch `req` or
+// the body stream, so a long-lived streaming response keeps flowing. Raised
+// well beyond any legitimate stream lifetime so it cannot interfere with a
+// healthy long-open stream (process.streamLogs / execWithStreaming / port
+// proxy). RESIDUAL: a stream that outlives this backstop would have its slot
+// freed early (the queue could then admit one extra stream); acceptable as a
+// pure backstop, since the slot is otherwise tied to the true stream terminal.
+const H2_SLOT_TIMEOUT_MS = 1_800_000; // 30 minutes
 
 type H2DomainGate = {
   active: number;
@@ -46,10 +64,14 @@ function getH2Gate(domain: string): H2DomainGate {
 }
 
 /**
- * Acquire an in-flight slot for `domain`. Resolves with a release function
- * that is idempotent and FIFO-fair: releasing wakes the longest-waiting
- * queued caller for the same domain. A safety timer also releases the slot
- * if the caller never does, preventing per-domain starvation.
+ * Acquire an OPEN-STREAM slot for `domain`. Resolves with a release function
+ * that is idempotent and FIFO-fair: releasing wakes the longest-waiting queued
+ * caller for the same domain. The slot is held for the lifetime of an OPEN H2
+ * stream — the send path releases it on the stream terminal — so the gate
+ * bounds true concurrent streams on the one shared session, not merely requests
+ * awaiting headers (ENG-2678). A backstop timer releases the slot if a request
+ * neither opens a stream nor ever settles, preventing per-domain starvation;
+ * it never aborts the underlying request (see `H2_SLOT_TIMEOUT_MS`).
  */
 async function acquireH2Slot(domain: string): Promise<() => void> {
   const max = settings.maxConcurrentH2Requests; // 0/undefined = unlimited
@@ -118,6 +140,12 @@ export function createPoolBackedH2Fetch(
   domain: string,
 ): (input: Request) => Promise<Response> {
   return async (input: Request): Promise<Response> => {
+    // Acquire the slot here, but hand its release to the send path: it is held
+    // for the OPEN-STREAM lifetime and freed on the stream terminal. Paths that
+    // never open a stream on the shared session (fetch fallbacks go over a
+    // different connection) release it immediately so they do not count against
+    // the open-stream budget. `rel` is idempotent, so the explicit releases
+    // below are safe even though the send path may also release.
     const rel = await acquireH2Slot(domain);
     try {
       const session = await pool.get(domain);
@@ -128,6 +156,7 @@ export function createPoolBackedH2Fetch(
             onH2RequestCreated: () => {
               h2RequestCreated = true;
             },
+            releaseSlot: rel,
           });
         } catch (err) {
           if (h2RequestCreated) {
@@ -136,9 +165,15 @@ export function createPoolBackedH2Fetch(
           throw err;
         }
       }
-      return await globalThis.fetch(input);
-    } finally {
+      // No usable session: this fetch does not open a stream on the shared
+      // session, so free the slot before falling back.
       rel();
+      return await globalThis.fetch(input);
+    } catch (err) {
+      // Pre-send throw (e.g. pool.get() or Request body read): release the slot
+      // so a failed request never pins it. Idempotent if already released.
+      rel();
+      throw err;
     }
   };
 }
@@ -149,6 +184,9 @@ export async function h2RequestDirectFromPool(
   url: string,
   init?: RequestInit,
 ): Promise<Response> {
+  // See createPoolBackedH2Fetch: the slot is held for the OPEN-STREAM lifetime
+  // and released by the send path on the stream terminal; non-stream fallbacks
+  // release it immediately. `rel` is idempotent.
   const rel = await acquireH2Slot(domain);
   try {
     const session = await pool.get(domain);
@@ -159,6 +197,7 @@ export async function h2RequestDirectFromPool(
           onH2RequestCreated: () => {
             h2RequestCreated = true;
           },
+          releaseSlot: rel,
         });
       } catch (err) {
         if (h2RequestCreated) {
@@ -167,9 +206,12 @@ export async function h2RequestDirectFromPool(
         throw err;
       }
     }
-    return await globalThis.fetch(url, init);
-  } finally {
+    // No usable session: fetch over a different connection, no stream opened.
     rel();
+    return await globalThis.fetch(url, init);
+  } catch (err) {
+    rel();
+    throw err;
   }
 }
 
@@ -192,6 +234,9 @@ function h2RequestDirectInternal(
   options?: H2SendOptions,
 ): Promise<Response> {
   if (session.closed || session.destroyed) {
+    // Pre-flight fallback (session unusable): no stream opens on the shared
+    // session, so free any held slot before going over globalThis.fetch.
+    options?.releaseSlot?.();
     return globalThis.fetch(url, init);
   }
 
@@ -229,7 +274,9 @@ function h2RequestDirectInternal(
     } else {
       // FormData, ReadableStream, Blob, etc. can't be serialized to Buffer
       // for manual H2 framing — fall back to regular fetch (pre-flight,
-      // nothing has been sent on the wire yet).
+      // nothing has been sent on the wire yet). No stream opens on the shared
+      // session, so free any held slot before falling back.
+      options?.releaseSlot?.();
       return globalThis.fetch(url, init);
     }
     if (!h2Headers["content-length"]) {
@@ -299,13 +346,19 @@ function _h2Send(
     let streamClosed = false;
     let req: http2.ClientHttp2Stream | null = null;
     let releaseSessionRef = () => {};
+    // The per-domain open-stream slot (idempotent; no-op for the non-pool
+    // transports). Held for the OPEN-STREAM lifetime and released alongside the
+    // session ref from cleanupActiveRequest() on every terminal path.
+    const releaseSlot = options?.releaseSlot ?? (() => {});
     let abort: (() => void) | null = null;
 
     try {
       req = session.request(h2Headers);
     } catch {
       // Pre-flight fallback: session.request() threw synchronously, so no
-      // H2 frames were sent. Safe to retry over globalThis.fetch.
+      // H2 frames were sent. No stream opened on the shared session, so free
+      // the slot before retrying over globalThis.fetch.
+      releaseSlot();
       globalThis.fetch(fallbackUrl, fallbackInit).then(resolve, reject);
       return;
     }
@@ -321,7 +374,13 @@ function _h2Send(
 
     const cleanupActiveRequest = () => {
       if (abort) signal?.removeEventListener("abort", abort);
+      // Slot and session-ref share the OPEN-STREAM lifetime but stay
+      // independent and each idempotent (PM-2160). Every terminal path funnels
+      // through here exactly once: pre-response reject (close/goaway/error),
+      // abort-before-response, abort-during-stream, stream end, stream error,
+      // and ReadableStream cancel — so the slot is freed once on each.
       releaseSessionRef();
+      releaseSlot();
     };
 
     const rejectBeforeResponse = (err: Error) => {

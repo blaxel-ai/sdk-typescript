@@ -73,6 +73,17 @@ export type FaultCommand = {
    * The hold is bounded and the timer is tracked by `close()`, so it never leaks.
    */
   respondThenHoldBodyMs?: number;
+  /**
+   * Send 200 headers + a first body chunk immediately, then HOLD the response
+   * stream open until the test calls `releaseHeldStreams()`. Unlike
+   * `respondThenHoldBodyMs` this has NO wall-clock timer: it models a long-lived
+   * streaming response (process.streamLogs / port proxy) whose body stays open
+   * indefinitely while headers have already arrived. Used by ENG-2678 to keep a
+   * stream OPEN deterministically so open-stream accounting can be asserted
+   * without timing. Any still-held streams are ended by `close()`, so it never
+   * leaks the listening handle.
+   */
+  holdStreamOpenUntilRelease?: boolean;
 };
 
 export type StartH2FaultServerOptions = {
@@ -88,6 +99,21 @@ export type H2FaultServer = {
   connectClient: () => http2.ClientHttp2Session;
   /** Every request the server has received, in arrival order. */
   requests: RecordedRequest[];
+  /** Number of server-side streams currently open (response not yet ended). */
+  concurrentStreams: () => number;
+  /**
+   * Highest number of server-side streams that were ever open at the same time
+   * over the server's lifetime. With a client-side open-stream cap of N this
+   * must never exceed N; the pre-ENG-2678 release-at-headers gate let it climb
+   * past N for long-lived streaming responses.
+   */
+  peakConcurrentStreams: () => number;
+  /**
+   * End every stream currently held open by `holdStreamOpenUntilRelease`,
+   * closing those response bodies. Deterministic, no timers: pairs with the
+   * `holdStreamOpenUntilRelease` command to open then close a stream on demand.
+   */
+  releaseHeldStreams: () => void;
   /** Replace the active fault command (applies to subsequent requests). */
   command: (cmd: FaultCommand) => void;
   /** Clear fault state and the recorded-request log back to baseline echo. */
@@ -135,6 +161,14 @@ export async function startH2FaultServer(
   const requests: RecordedRequest[] = [];
   let activeCommand: FaultCommand = opts.command ?? {};
   let streamsOpened = 0;
+  // Live open-stream accounting. `concurrentStreams` is incremented when a
+  // stream is created and decremented when it closes; `peak` records the high
+  // water mark so a test can assert a client-side cap was actually enforced.
+  let concurrentStreams = 0;
+  let peakConcurrentStreams = 0;
+  // Streams parked open by `holdStreamOpenUntilRelease`, ended on demand by
+  // `releaseHeldStreams()` (or by `close()` so nothing leaks).
+  const heldStreams = new Set<http2.ServerHttp2Stream>();
   // Track pending timers so close() can clear them and never leak handles.
   const pendingTimers = new Set<ReturnType<typeof setTimeout>>();
 
@@ -168,6 +202,18 @@ export async function startH2FaultServer(
     streamsOpened += 1;
     const myStreamOrdinal = streamsOpened;
     const cmd = activeCommand;
+
+    // Open-stream accounting: a stream is "open" from creation until it closes.
+    // This mirrors true HTTP/2 stream concurrency on the one shared session,
+    // which is exactly what ENG-2678's client-side gate must bound.
+    concurrentStreams += 1;
+    if (concurrentStreams > peakConcurrentStreams) {
+      peakConcurrentStreams = concurrentStreams;
+    }
+    stream.once("close", () => {
+      concurrentStreams -= 1;
+      heldStreams.delete(stream);
+    });
 
     const method = String(headers[HTTP2_HEADER_METHOD] ?? "GET");
     const path = String(headers[HTTP2_HEADER_PATH] ?? "/");
@@ -214,6 +260,23 @@ export async function startH2FaultServer(
       // Destroy the socket mid-flight (models an abrupt connection drop).
       if (cmd.destroySocketMid) {
         stream.session?.destroy();
+        return;
+      }
+
+      // Stream headers + a first body chunk, then HOLD open with no timer until
+      // releaseHeldStreams() ends it. Models a long-lived streaming response
+      // whose body stays open after headers; lets a test keep a stream OPEN
+      // deterministically.
+      if (cmd.holdStreamOpenUntilRelease) {
+        if (stream.closed || stream.destroyed) return;
+        stream.respond({
+          [HTTP2_HEADER_STATUS]: 200,
+          "content-type": "text/plain; charset=utf-8",
+          "x-echo-method": method,
+          "x-echo-path": path,
+        });
+        stream.write("chunk-1");
+        heldStreams.add(stream);
         return;
       }
 
@@ -296,12 +359,21 @@ export async function startH2FaultServer(
   const reset = (): void => {
     activeCommand = {};
     streamsOpened = 0;
+    peakConcurrentStreams = 0;
     requests.length = 0;
+  };
+
+  const releaseHeldStreams = (): void => {
+    for (const stream of heldStreams) {
+      if (!stream.closed && !stream.destroyed) stream.end("chunk-2");
+    }
+    heldStreams.clear();
   };
 
   const close = async (): Promise<void> => {
     for (const timer of pendingTimers) clearTimeout(timer);
     pendingTimers.clear();
+    releaseHeldStreams();
     for (const session of clientSessions) {
       if (!session.closed && !session.destroyed) session.destroy();
     }
@@ -321,6 +393,9 @@ export async function startH2FaultServer(
     address,
     connectClient,
     requests,
+    concurrentStreams: () => concurrentStreams,
+    peakConcurrentStreams: () => peakConcurrentStreams,
+    releaseHeldStreams,
     command,
     reset,
     close,
