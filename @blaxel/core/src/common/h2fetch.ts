@@ -129,90 +129,115 @@ export function createH2Fetch(
 }
 
 /**
- * Creates a fetch()-compatible function backed by the H2 session pool.
+ * The single HTTP/2 request gateway (ENG-2679).
  *
- * The pool validates idle sessions before reuse. If no usable H2 session is
- * available, the request falls back to regular fetch before any H2 frames
- * are sent.
+ * Every pool-backed request funnels through here, no matter which entry point
+ * it came from: the generated client's fetch (`createPoolBackedH2Fetch`),
+ * `SandboxAction.h2Fetch`, and the interpreter's direct path (both via
+ * `h2RequestDirectFromPool`). It owns the shared request lifecycle in one place:
+ *   1. take a per-domain open-stream slot,
+ *   2. get a live session from the pool,
+ *   3. send the request on it,
+ *   4. evict the session if the send fails after a stream was opened,
+ *   5. fall back to globalThis.fetch when the pool has no usable session.
+ *
+ * This is the chokepoint where reliability behavior that must protect EVERY
+ * consumer belongs: the open-stream concurrency limit today, and retry,
+ * timeouts, typed errors, and observability in later phases. Adding it once here
+ * (instead of re-implementing it per entry point) is what stops the recurring
+ * "fixed on one path, still broken on another" regressions.
+ *
+ * `send` performs the actual wire send on a live session; the caller supplies it
+ * so the gateway stays agnostic to the `Request` vs `(url, init)` call shapes,
+ * and it receives the slot-release and request-created hooks. `fallback` runs
+ * only when the pool has no usable session (a fresh connection, no shared
+ * stream is opened).
  */
-export function createPoolBackedH2Fetch(
+async function h2GatewayRequest(
   pool: H2Pool,
   domain: string,
-): (input: Request) => Promise<Response> {
-  return async (input: Request): Promise<Response> => {
-    // Acquire the slot here, but hand its release to the send path: it is held
-    // for the OPEN-STREAM lifetime and freed on the stream terminal. Paths that
-    // never open a stream on the shared session (fetch fallbacks go over a
-    // different connection) release it immediately so they do not count against
-    // the open-stream budget. `rel` is idempotent, so the explicit releases
-    // below are safe even though the send path may also release.
-    const rel = await acquireH2Slot(domain);
-    try {
-      const session = await pool.get(domain);
-      if (session) {
-        let h2RequestCreated = false;
-        try {
-          return await _h2Request(session, input, {
-            onH2RequestCreated: () => {
-              h2RequestCreated = true;
-            },
-            releaseSlot: rel,
-          });
-        } catch (err) {
-          if (h2RequestCreated) {
-            pool.evictSession(domain, session);
-          }
-          throw err;
-        }
-      }
-      // No usable session: this fetch does not open a stream on the shared
-      // session, so free the slot before falling back.
-      rel();
-      return await globalThis.fetch(input);
-    } catch (err) {
-      // Pre-send throw (e.g. pool.get() or Request body read): release the slot
-      // so a failed request never pins it. Idempotent if already released.
-      rel();
-      throw err;
-    }
-  };
-}
-
-export async function h2RequestDirectFromPool(
-  pool: H2Pool,
-  domain: string,
-  url: string,
-  init?: RequestInit,
+  send: (
+    session: http2.ClientHttp2Session,
+    options: H2SendOptions,
+  ) => Promise<Response>,
+  fallback: () => Promise<Response>,
 ): Promise<Response> {
-  // See createPoolBackedH2Fetch: the slot is held for the OPEN-STREAM lifetime
-  // and released by the send path on the stream terminal; non-stream fallbacks
-  // release it immediately. `rel` is idempotent.
+  // Take the slot here, but hand its release to the send path: it is held for
+  // the OPEN-STREAM lifetime and freed on the stream terminal (ENG-2678). A
+  // request that never opens a stream on the shared session (the fallback goes
+  // over a different connection) releases it immediately so it does not count
+  // against the open-stream budget. `rel` is idempotent, so releasing here when
+  // the send path may also release is safe.
   const rel = await acquireH2Slot(domain);
   try {
     const session = await pool.get(domain);
     if (session) {
       let h2RequestCreated = false;
       try {
-        return await h2RequestDirectInternal(session, url, init, {
+        return await send(session, {
           onH2RequestCreated: () => {
             h2RequestCreated = true;
           },
           releaseSlot: rel,
         });
       } catch (err) {
+        // A failure AFTER a stream opened means the session is suspect: drop it
+        // so the next caller gets a fresh one.
         if (h2RequestCreated) {
           pool.evictSession(domain, session);
         }
         throw err;
       }
     }
-    // No usable session: fetch over a different connection, no stream opened.
+    // No usable session: free the slot before falling back over a different
+    // connection (no stream opens on the shared session).
     rel();
-    return await globalThis.fetch(url, init);
+    return await fallback();
   } catch (err) {
+    // Pre-send throw (pool.get(), Request body read, or the fallback itself):
+    // release the slot so a failed request never pins it. Idempotent.
     rel();
     throw err;
   }
+}
+
+/**
+ * Creates a fetch()-compatible function backed by the H2 session pool, routed
+ * through the single gateway. Used as the generated client's `fetch`.
+ *
+ * If no usable H2 session is available, the request falls back to regular fetch
+ * before any H2 frames are sent.
+ */
+export function createPoolBackedH2Fetch(
+  pool: H2Pool,
+  domain: string,
+): (input: Request) => Promise<Response> {
+  return (input: Request): Promise<Response> =>
+    h2GatewayRequest(
+      pool,
+      domain,
+      (session, options) => _h2Request(session, input, options),
+      () => globalThis.fetch(input),
+    );
+}
+
+/**
+ * Pool-backed H2 request taking raw url + init (skips Request allocation),
+ * routed through the same single gateway. Used by `SandboxAction.h2Fetch` and
+ * the code interpreter.
+ */
+export function h2RequestDirectFromPool(
+  pool: H2Pool,
+  domain: string,
+  url: string,
+  init?: RequestInit,
+): Promise<Response> {
+  return h2GatewayRequest(
+    pool,
+    domain,
+    (session, options) => h2RequestDirectInternal(session, url, init, options),
+    () => globalThis.fetch(url, init),
+  );
 }
 
 /**
