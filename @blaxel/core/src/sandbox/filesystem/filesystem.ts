@@ -1,6 +1,7 @@
 import { Sandbox } from "../../client/types.gen.js";
 import { fs } from "../../common/node.js";
 import { settings } from "../../common/settings.js";
+import { withUploadSlot } from "../../common/h2fetch.js";
 import { SandboxAction } from "../action.js";
 import { ContentSearchResponse, deleteFilesystemByPath, deleteFilesystemMultipartByUploadIdAbort, Directory, FindResponse, FuzzySearchResponse, getFilesystemByPath, getFilesystemContentSearchByPath, getFilesystemFindByPath, getFilesystemSearchByPath, getWatchFilesystemByPath, MultipartInitiateResponse, MultipartPartInfo, MultipartUploadPartResponse, postFilesystemMultipartByUploadIdComplete, postFilesystemMultipartInitiateByPath, putFilesystemByPath, PutFilesystemByPathError, putFilesystemMultipartByUploadIdPart, SuccessResponse } from "../client/index.js";
 import { SandboxProcess } from "../process/index.js";
@@ -63,7 +64,11 @@ function collectErrorText(error: unknown): { messages: string[]; codes: string[]
   return { messages, codes };
 }
 
-function isTransientUploadError(error: unknown): boolean {
+// Exported for the real-transport fault-injection tests (not re-exported through
+// the package barrel, so this is not part of the public API): they assert that
+// errors produced by an ACTUAL node:http2 RST_STREAM/GOAWAY/socket-drop are
+// classified transient, bridging the synthetic-error unit tests to reality.
+export function isTransientUploadError(error: unknown): boolean {
   if (!error || typeof error !== "object") {
     return false;
   }
@@ -92,8 +97,12 @@ function nextRetryDelayMs(attempt: number): number {
   return base + jitter;
 }
 
-async function retryOnTransient<T>(fn: () => Promise<T>): Promise<T> {
-  const retries = settings.fsPartRetries; // 0 = off (current default behavior)
+// Exported for the real-transport fault-injection tests (not part of the public
+// API; see isTransientUploadError above). This is the exact wrapper the upload
+// paths use, so driving it over a real faulting H2 server proves the retry loop
+// actually fires for production fault shapes, not just synthetic ones.
+export async function retryOnTransient<T>(fn: () => Promise<T>): Promise<T> {
+  const retries = settings.fsPartRetries; // default 3 (ENG-2680); 0 disables
   let attempt = 0;
   for (;;) {
     try {
@@ -192,32 +201,41 @@ export class SandboxFileSystem extends SandboxAction {
       return await this.uploadWithMultipart(path, fileBlob, "0644");
     }
 
-    // Use regular upload for small files
-    const formData = new FormData();
-    formData.append("file", fileBlob, "test-binary.bin");
-    formData.append("permissions", "0644");
-    formData.append("path", path);
-
-    // Build URL
+    // Use regular upload for small files. Run the PUT under the same upload
+    // reliability wrapper as multipart parts: bound concurrency (ENG-2680) and
+    // retry transient connection resets (ECONNRESET/GOAWAY/ENHANCE_YOUR_CALM). A
+    // PUT of the same bytes to the same path is idempotent, so retry is safe.
+    // The FormData is rebuilt per attempt so a retried request has a fresh body.
     let url = `${this.url}/filesystem/${path}`;
     if (this.forcedUrl) {
       url = `${this.forcedUrl.toString()}/filesystem/${path}`;
     }
 
-    const response = await this.h2Fetch(url, {
-      method: 'PUT',
-      headers: {
-        ...settings.headers,
-      },
-      body: formData,
-    });
+    const h2Domain = this.sandbox?.h2Domain;
+    const putOnce = async (): Promise<SuccessResponse> => {
+      const formData = new FormData();
+      formData.append("file", fileBlob, "test-binary.bin");
+      formData.append("permissions", "0644");
+      formData.append("path", path);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to write binary: ${response.status} ${errorText}`);
-    }
+      const response = await this.h2Fetch(url, {
+        method: 'PUT',
+        headers: {
+          ...settings.headers,
+        },
+        body: formData,
+      });
 
-    return await response.json() as SuccessResponse;
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to write binary: ${response.status} ${errorText}`);
+      }
+
+      return await response.json() as SuccessResponse;
+    };
+
+    const doPut = () => retryOnTransient(putOnce);
+    return h2Domain ? withUploadSlot(h2Domain, doPut) : doPut();
   }
 
   async writeTree(files: SandboxFilesystemFile[], destinationPath: string | null = null) {
@@ -591,6 +609,13 @@ export class SandboxFileSystem extends SandboxAction {
       const numParts = Math.ceil(size / CHUNK_SIZE);
       const parts: Array<MultipartPartInfo> = [];
 
+      // Bound concurrent upload-part streams on the shared H2 connection so many
+      // parts (within and across files) cannot burst past the server's
+      // rapid-reset limit (ENG-2680). Scoped to uploads; default cap is 2. With
+      // no h2Domain the parts go over globalThis.fetch on separate connections,
+      // so the shared-connection cap does not apply.
+      const h2Domain = this.sandbox?.h2Domain;
+
       // Upload parts in batches for parallel processing
       for (let i = 0; i < numParts; i += MAX_PARALLEL_UPLOADS) {
         const batch: Array<Promise<MultipartUploadPartResponse>> = [];
@@ -601,8 +626,8 @@ export class SandboxFileSystem extends SandboxAction {
           const end = Math.min(start + CHUNK_SIZE, size);
           const chunk = blob.slice(start, end);
 
-
-          batch.push(retryOnTransient(() => this.uploadPart(uploadId, partNumber, chunk)));
+          const uploadOne = () => retryOnTransient(() => this.uploadPart(uploadId, partNumber, chunk));
+          batch.push(h2Domain ? withUploadSlot(h2Domain, uploadOne) : uploadOne());
         }
 
         // Wait for batch to complete
