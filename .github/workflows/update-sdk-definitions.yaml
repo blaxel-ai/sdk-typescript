@@ -34,7 +34,7 @@ jobs:
 
       - name: Regenerate sandbox SDK client
         env:
-          GH_TOKEN: ${{ secrets.GH_CONTROLPLANE_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Downloading sandbox definition from blaxel-ai/sandbox"
           curl -sf -H "Authorization: token ${GH_TOKEN}" \
@@ -52,7 +52,7 @@ jobs:
 
       - name: Regenerate controlplane SDK client
         env:
-          GH_TOKEN: ${{ secrets.GH_CONTROLPLANE_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Downloading controlplane definition from blaxel-ai/controlplane"
           curl -sf -H "Authorization: token ${GH_TOKEN}" \
