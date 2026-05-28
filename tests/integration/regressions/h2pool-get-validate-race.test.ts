@@ -1,33 +1,26 @@
-// Regression: ENG-2676 — TRIPWIRE for a KNOWN bug (generation pinning)
+// Regression: ENG-2676 — H2Pool get/validate eviction race (FIXED).
 //
-// There is a real get/validate race in H2Pool. `validateEntry` does:
-//     const { session } = entry;            // h2pool.ts:139  (captures session)
+// `validateEntry` does:
+//     const { session } = entry;            // h2pool.ts  (captures session)
 //     ...
-//     if (await this.ping(session)) {       // h2pool.ts:148  (awaits — yields!)
-//       this.markUsed(domain, session);     // h2pool.ts:149
-//       return session;                     // h2pool.ts:150  (returns CAPTURED session)
+//     if (await this.ping(session)) {       // awaits — yields!
+//       ...
+//       return session;                     // would return the CAPTURED session
 //     }
 // If an eviction listener (goaway/error/close -> attachEvictionListeners,
 // h2pool.ts:61-75) deletes the entry from the map DURING the `await this.ping`,
-// `validateEntry` still returns the now-stale `session` it captured before the
-// await. `markUsed` is a no-op once the entry is gone (it only updates when
-// `entry?.session === session`, h2pool.ts:92-97), but the stale session is
-// returned to the caller regardless. That is the zombie ENG-2422 tried to kill,
-// re-entering through the validate race. The durable fix is generation/identity
-// pinning (ENG-2676): re-check the map after the ping and refuse a session that
-// is no longer the cached generation.
+// the pre-fix code still returned the now-stale `session` it captured before the
+// await — the zombie ENG-2422 tried to kill, re-entering through the validate
+// race. The fix (generation/identity pinning, ENG-2676) re-checks the map after
+// the ping and refuses a session that is no longer the cached generation, so the
+// caller falls through to establish a fresh one.
 //
 // This test drives the REAL H2Pool with a controllable MockSession whose
 // `ping(cb)` HOLDS the callback, so we deterministically interleave a `goaway`
-// eviction into the middle of the ping await.
-//
-// FINDING: ENG-2676. The assertion below is written for the CORRECT (post-fix)
-// behavior: get() must NOT resolve to the evicted session. Because the current
-// code IS buggy (it returns the stale session — verified empirically), this is a
-// LIVE TRIPWIRE using `it.fails`: it passes ONLY while the bug is present.
-//   >>> When ENG-2676 (generation pinning) lands, flip `it.fails` -> `it`. <<<
-// At that point get() will return null / a fresh session, the inner assertion
-// will pass, and `it.fails` will start FAILING — which is the signal to flip it.
+// eviction into the middle of the ping await, then assert get() does NOT hand
+// back the evicted session. (Before ENG-2676 this was a live `it.fails`
+// tripwire that passed only while the bug was present; it now asserts the
+// correct post-fix behavior directly.)
 import { EventEmitter } from "events";
 import type http2 from "http2";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -79,10 +72,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("ENG-2676: H2Pool get/validate race (TRIPWIRE)", () => {
-  // TRIPWIRE: passes ONLY while the bug exists. When ENG-2676 generation
-  // pinning lands, change `it.fails(` to `it(` — see the file header.
-  it.fails(
+describe("ENG-2676: H2Pool get/validate race", () => {
+  it(
     "get() must NOT return a session evicted (goaway) during the ping await",
     async () => {
       let now = 1_000;
@@ -122,10 +113,9 @@ describe("ENG-2676: H2Pool get/validate race (TRIPWIRE)", () => {
 
       const got = await getPromise;
 
-      // CORRECT post-ENG-2676 behavior: the evicted session must not be handed
-      // out. Today's buggy code returns `stale`, so this assertion throws and
-      // `it.fails` records the test as PASSING. When the fix lands, this passes
-      // and `it.fails` flips to failing — flip it.fails -> it then.
+      // Post-ENG-2676: the evicted session must not be handed out. get() falls
+      // through past the pinned (now-evicted) entry and establishes a fresh
+      // session, so `got` is the fresh one — never the evicted `stale`.
       expect(got === (stale as unknown)).toBe(false);
     },
   );
