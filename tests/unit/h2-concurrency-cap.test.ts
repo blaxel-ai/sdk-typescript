@@ -1,5 +1,4 @@
 import { EventEmitter } from "events";
-import type http2 from "http2";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createPoolBackedH2Fetch,
@@ -53,10 +52,6 @@ class MockSession extends EventEmitter {
   }
 }
 
-function asSession(mock: MockSession): http2.ClientHttp2Session {
-  return mock as unknown as http2.ClientHttp2Session;
-}
-
 /**
  * Build a pool whose establish() always returns the supplied session for any
  * domain, so each domain gets its own cached session without real network.
@@ -74,9 +69,24 @@ function tick(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
-function resolveStream(stream: MockStream, status = 200): void {
+/**
+ * Emit ONLY the response headers, leaving the body stream OPEN. Post-ENG-2678
+ * the concurrency slot is tied to the OPEN-STREAM lifetime, so headers alone
+ * must NOT free the slot — only a stream terminal does.
+ */
+function respondHeaders(stream: MockStream, status = 200): void {
   stream.emit("response", { ":status": status });
+}
+
+/** Emit the stream terminal (`end`), which closes the body and frees the slot. */
+function endStream(stream: MockStream): void {
   stream.emit("end");
+}
+
+/** Headers + immediate end: a full, instantly-closed stream (slot freed). */
+function resolveStream(stream: MockStream, status = 200): void {
+  respondHeaders(stream, status);
+  endStream(stream);
 }
 
 describe("h2fetch per-domain concurrency cap", () => {
@@ -91,7 +101,10 @@ describe("h2fetch per-domain concurrency cap", () => {
     vi.restoreAllMocks();
   });
 
-  it("releases the slot after an H2 success so the next request can proceed", async () => {
+  it("holds the slot until the OPEN stream terminates (not at headers) so the next request waits for the body to end", async () => {
+    // ENG-2678: the slot is tied to the OPEN-STREAM lifetime. Headers arriving
+    // (the first request's promise resolving with a streaming Response) must NOT
+    // free the slot — only the stream terminal (`end`) does.
     const session = new MockSession();
     const pool = poolReturning(() => session);
     const h2fetch = createPoolBackedH2Fetch(pool, "edge.a.example.com");
@@ -106,10 +119,16 @@ describe("h2fetch per-domain concurrency cap", () => {
     await tick();
     expect(session.streams).toHaveLength(1);
 
-    resolveStream(firstStream);
+    // Headers arrive and `first` resolves with a (still-open) streaming Response,
+    // but the slot stays HELD: the second request still must not open a stream.
+    respondHeaders(firstStream);
     await first;
+    await tick();
+    expect(session.streams).toHaveLength(1);
 
-    // First slot released: the second request now opens its own stream.
+    // The first stream terminates (body ends): NOW the slot frees and the second
+    // request opens its own stream.
+    endStream(firstStream);
     await tick();
     expect(session.streams).toHaveLength(2);
     resolveStream(session.lastStream!);
@@ -129,6 +148,8 @@ describe("h2fetch per-domain concurrency cap", () => {
     await tick();
     expect(session.streams).toHaveLength(1);
 
+    // A stream error is a stream terminal (here, pre-response), so it frees the
+    // slot via the same cleanup path as a normal stream end.
     firstStream.emit("error", new Error("stream dead"));
     await expect(first).rejects.toThrow("stream dead");
 
@@ -258,10 +279,16 @@ describe("h2fetch per-domain concurrency cap", () => {
     // Only the first request has opened a stream so far.
     expect(session.streams).toHaveLength(1);
 
-    // Release in sequence; each release should let exactly the next queued
-    // request (in arrival order) open its stream.
-    resolveStream(holdingStream);
+    // ENG-2678 timing: the holder's headers arriving do not advance the queue —
+    // its slot is held until the OPEN stream terminates.
+    respondHeaders(holdingStream);
     await p1;
+    await tick();
+    expect(session.streams).toHaveLength(1);
+
+    // Release in sequence by terminating each stream; each terminal should let
+    // exactly the next queued request (in arrival order) open its stream.
+    endStream(holdingStream);
     await tick();
     expect(session.streams).toHaveLength(2);
 
@@ -301,9 +328,13 @@ describe("h2fetch per-domain concurrency cap", () => {
     resolveStream(sessionB.lastStream!);
     await expect(b1).resolves.toBeInstanceOf(Response);
 
-    // Now drain domain A.
-    resolveStream(a1Stream);
+    // Now drain domain A. Headers alone do not free A's slot (open-stream
+    // timing); a2 only opens once a1's stream terminates.
+    respondHeaders(a1Stream);
     await a1;
+    await tick();
+    expect(sessionA.streams).toHaveLength(1);
+    endStream(a1Stream);
     await tick();
     expect(sessionA.streams).toHaveLength(2);
     resolveStream(sessionA.streams[1]);
