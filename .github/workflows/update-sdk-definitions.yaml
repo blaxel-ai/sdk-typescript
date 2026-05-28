@@ -86,7 +86,7 @@ jobs:
         if: steps.diff.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.BOT_PAT }}
           branch: automated/update-sdk-definitions
           commit-message: "chore: update SDK definitions from upstream OpenAPI specs"
           title: "chore: update SDK definitions from upstream OpenAPI specs"
