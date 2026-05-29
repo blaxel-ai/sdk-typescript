@@ -1,10 +1,27 @@
 import yaml from 'yaml';
 import { ApiKey } from "../authentication/apikey.js";
 import { ClientCredentials } from "../authentication/clientcredentials.js";
-import { Credentials } from "../authentication/credentials.js";
+import { Credentials, MissingCredentials } from "../authentication/credentials.js";
 import { authentication } from "../authentication/index.js";
 import { env } from "../common/env.js";
+import { CredentialsError } from "../common/errors.js";
 import { fs, os, path } from "../common/node.js";
+
+/**
+ * Build an actionable "credentials missing" message naming exactly which piece
+ * is absent, based on the env vars currently set.
+ */
+function missingCredentialsMessage(): string {
+  const hasWorkspace = !!env.BL_WORKSPACE;
+  const hasApiKey = !!env.BL_API_KEY;
+  if (hasWorkspace && !hasApiKey) {
+    return "Blaxel API key is missing. Set the BL_API_KEY environment variable, or run `bl login`, to authenticate (BL_WORKSPACE is already set).";
+  }
+  if (hasApiKey && !hasWorkspace) {
+    return "Blaxel workspace is missing. Set the BL_WORKSPACE environment variable, or run `bl login`, to authenticate (BL_API_KEY is already set).";
+  }
+  return "No Blaxel credentials found. Set the BL_API_KEY and BL_WORKSPACE environment variables, or run `bl login`.";
+}
 
 /**
  * Client credentials as a `{ clientId, clientSecret }` pair.
@@ -233,6 +250,7 @@ class Settings {
   }
 
   get headers(): Record<string, string> {
+    this.assertCredentials();
     const osArch = getOsArch();
     return {
       "x-blaxel-authorization": this.authorization,
@@ -331,7 +349,32 @@ class Settings {
     return 0;
   }
 
+  /**
+   * Fail fast with a clear, actionable error when credentials are missing or
+   * incomplete, instead of sending empty workspace/authorization headers and
+   * surfacing a misleading server-side "workspace is required". Skipped for
+   * `forceUrl` sandbox sessions, which carry their own headers and never read
+   * `settings.headers`. Leaves `workspace` itself non-throwing so telemetry
+   * tagging stays safe.
+   */
+  private assertCredentials() {
+    const hasConfigCredentials = !!(
+      this.config.apikey ||
+      this.config.apiKey ||
+      this.config.clientCredentials
+    );
+    if (!hasConfigCredentials && this.credentials instanceof MissingCredentials) {
+      throw new CredentialsError(missingCredentialsMessage());
+    }
+    if (!this.workspace) {
+      throw new CredentialsError(
+        "Blaxel workspace is missing. Set the BL_WORKSPACE environment variable, or run `bl login`, to authenticate your requests."
+      );
+    }
+  }
+
   async authenticate() {
+    this.assertCredentials();
     await this.credentials.authenticate();
   }
 }
