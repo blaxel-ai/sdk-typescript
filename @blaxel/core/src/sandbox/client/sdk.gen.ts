@@ -106,7 +106,7 @@ export const getDrivesMount = <ThrowOnError extends boolean = false>(options?: O
 
 /**
  * Attach a drive to a local path
- * Mounts an agent drive using the blfs binary to a local path, optionally mounting a subpath within the drive
+ * Mounts an agent drive using the blfs binary to a local path, optionally mounting a subpath within the drive. Supports optional UID/GID mapping to remap file ownership between the local sandbox and the filer (always mapped to filer UID/GID 0). Mapping values can be set per-request via uidMap/gidMap fields, or globally via BLFS_UID_MAP/BLFS_GID_MAP environment variables (request values take precedence).
  */
 export const postDrivesMount = <ThrowOnError extends boolean = false>(options: Options<PostDrivesMountData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<PostDrivesMountResponse, PostDrivesMountError, ThrowOnError>({
