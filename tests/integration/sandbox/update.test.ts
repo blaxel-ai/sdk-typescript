@@ -1,4 +1,4 @@
-import { SandboxInstance, updateSandbox, Sandbox as SandboxModel } from "@blaxel/core"
+import { SandboxInstance, Sandbox as SandboxModel } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
 import { defaultImage, defaultLabels, defaultRegion, sleep, uniqueName, waitForSandboxDeployed } from './helpers.js'
 
@@ -114,20 +114,11 @@ describe('Sandbox Update Operations', () => {
     )
   })
 
-  async function rawUpdate(name: string, specPatch: Partial<SandboxModel['spec']>) {
-    const current = await SandboxInstance.get(name)
-    const body = {
-      metadata: current.metadata,
-      spec: { ...current.spec, ...specPatch },
-    } as SandboxModel
-    const { data } = await updateSandbox({
-      path: { sandboxName: name },
-      body,
-      throwOnError: true,
-    })
+  async function updateNetwork(name: string, network: SandboxModel['spec']['network']) {
+    const instance = await SandboxInstance.updateNetwork(name, { network })
     const deployed = await waitForSandboxDeployed(name, 60)
     expect(deployed).toBe(true)
-    return data
+    return instance
   }
 
   describe('update network config in-place', () => {
@@ -159,9 +150,7 @@ describe('Sandbox Update Operations', () => {
     })
 
     it('updates the sandbox to remove forbiddenDomains', async () => {
-      const updated = await rawUpdate(name, {
-        network: {},
-      })
+      const updated = await updateNetwork(name, {})
 
       expect(updated.metadata?.name).toBe(name)
       expect(updated.spec?.network?.forbiddenDomains).toBeUndefined()
@@ -208,16 +197,14 @@ describe('Sandbox Update Operations', () => {
     })
 
     it('adds proxy routing via update', async () => {
-      const updated = await rawUpdate(name, {
-        network: {
-          proxy: {
-            routing: [
-              {
-                destinations: ["httpbin.org"],
-                headers: { "X-Added-Via-Update": "true" },
-              },
-            ],
-          },
+      const updated = await updateNetwork(name, {
+        proxy: {
+          routing: [
+            {
+              destinations: ["httpbin.org"],
+              headers: { "X-Added-Via-Update": "true" },
+            },
+          ],
         },
       })
 
@@ -234,9 +221,7 @@ describe('Sandbox Update Operations', () => {
     })
 
     it('removes proxy routing via update', async () => {
-      const updated = await rawUpdate(name, {
-        network: {},
-      })
+      const updated = await updateNetwork(name, {})
 
       expect(updated.metadata?.name).toBe(name)
       expect(updated.spec?.network?.proxy).toBeUndefined()
@@ -272,10 +257,8 @@ describe('Sandbox Update Operations', () => {
     })
 
     it('replaces forbiddenDomains with allowedDomains in one update', async () => {
-      const updated = await rawUpdate(name, {
-        network: {
-          allowedDomains: ["httpbin.org", "example.com"],
-        },
+      const updated = await updateNetwork(name, {
+        allowedDomains: ["httpbin.org", "example.com"],
       })
 
       expect(updated.metadata?.name).toBe(name)
@@ -312,17 +295,15 @@ describe('Sandbox Update Operations', () => {
 
     it('adds proxy routing while keeping allowedDomains', async () => {
       const current = await SandboxInstance.get(name)
-      const updated = await rawUpdate(name, {
-        network: {
-          allowedDomains: current.spec.network?.allowedDomains,
-          proxy: {
-            routing: [
-              {
-                destinations: ["httpbin.org"],
-                headers: { "X-Combo-Test": "injected" },
-              },
-            ],
-          },
+      const updated = await updateNetwork(name, {
+        allowedDomains: current.spec.network?.allowedDomains,
+        proxy: {
+          routing: [
+            {
+              destinations: ["httpbin.org"],
+              headers: { "X-Combo-Test": "injected" },
+            },
+          ],
         },
       })
 
@@ -331,18 +312,16 @@ describe('Sandbox Update Operations', () => {
     })
 
     it('expands allowedDomains and adds bypass in one update', async () => {
-      const updated = await rawUpdate(name, {
-        network: {
-          allowedDomains: ["httpbin.org", "api.github.com"],
-          proxy: {
-            routing: [
-              {
-                destinations: ["httpbin.org"],
-                headers: { "X-Combo-Test": "injected" },
-              },
-            ],
-            bypass: ["*.s3.amazonaws.com"],
-          },
+      const updated = await updateNetwork(name, {
+        allowedDomains: ["httpbin.org", "api.github.com"],
+        proxy: {
+          routing: [
+            {
+              destinations: ["httpbin.org"],
+              headers: { "X-Combo-Test": "injected" },
+            },
+          ],
+          bypass: ["*.s3.amazonaws.com"],
         },
       })
 
@@ -352,9 +331,7 @@ describe('Sandbox Update Operations', () => {
     })
 
     it('strips everything back to no network config', async () => {
-      const updated = await rawUpdate(name, {
-        network: undefined,
-      })
+      const updated = await updateNetwork(name, undefined)
 
       expect(updated.metadata?.name).toBe(name)
       expect(updated.spec?.network?.allowedDomains).toBeUndefined()
@@ -378,16 +355,16 @@ describe('Sandbox Update Operations', () => {
 
       await sandbox.fs.write(MARKER_PATH, 'round-0')
 
-      const configs: Array<Partial<SandboxModel['spec']>> = [
-        { network: { forbiddenDomains: ["evil.com"] } },
-        { network: { allowedDomains: ["httpbin.org"] } },
-        { network: { allowedDomains: ["httpbin.org"], proxy: { routing: [{ destinations: ["httpbin.org"], headers: { "X-Round": "3" } }] } } },
-        { network: { proxy: { bypass: ["*.s3.amazonaws.com"] } } },
-        { network: {} },
+      const configs: Array<SandboxModel['spec']['network']> = [
+        { forbiddenDomains: ["evil.com"] },
+        { allowedDomains: ["httpbin.org"] },
+        { allowedDomains: ["httpbin.org"], proxy: { routing: [{ destinations: ["httpbin.org"], headers: { "X-Round": "3" } }] } },
+        { proxy: { bypass: ["*.s3.amazonaws.com"] } },
+        {},
       ]
 
       for (let i = 0; i < configs.length; i++) {
-        const updated = await rawUpdate(name, configs[i])
+        const updated = await updateNetwork(name, configs[i])
         expect(updated.metadata?.name).toBe(name)
 
         const sb = await SandboxInstance.get(name)
@@ -436,9 +413,7 @@ describe('Sandbox Update Operations', () => {
     }, 60_000)
 
     it('removes forbiddenDomains via update', async () => {
-      const updated = await rawUpdate(name, {
-        network: { proxy: { routing: [] } },
-      })
+      const updated = await updateNetwork(name, { proxy: { routing: [] } })
       expect(updated.spec?.network?.forbiddenDomains).toBeUndefined()
       sandbox = await SandboxInstance.get(name)
     })
@@ -498,11 +473,9 @@ describe('Sandbox Update Operations', () => {
     }, 60_000)
 
     it('expands allowedDomains to include example.com', async () => {
-      const updated = await rawUpdate(name, {
-        network: {
-          allowedDomains: ["httpbin.org", "example.com"],
-          proxy: { routing: [] },
-        },
+      const updated = await updateNetwork(name, {
+        allowedDomains: ["httpbin.org", "example.com"],
+        proxy: { routing: [] },
       })
       expect(updated.spec?.network?.allowedDomains).toEqual(["httpbin.org", "example.com"])
       sandbox = await SandboxInstance.get(name)
@@ -568,22 +541,20 @@ describe('Sandbox Update Operations', () => {
     }, 60_000)
 
     it('updates routing rule with new header and secret', async () => {
-      const updated = await rawUpdate(name, {
-        network: {
-          proxy: {
-            routing: [
-              {
-                destinations: ["httpbin.org"],
-                headers: {
-                  "X-Update-Test": "changed-via-update",
-                  "X-Api-Key": "{{SECRET:test-key}}",
-                },
-                secrets: {
-                  "test-key": "secret-value-42",
-                },
+      const updated = await updateNetwork(name, {
+        proxy: {
+          routing: [
+            {
+              destinations: ["httpbin.org"],
+              headers: {
+                "X-Update-Test": "changed-via-update",
+                "X-Api-Key": "{{SECRET:test-key}}",
               },
-            ],
-          },
+              secrets: {
+                "test-key": "secret-value-42",
+              },
+            },
+          ],
         },
       })
       expect(updated.spec?.network?.proxy?.routing).toHaveLength(1)
@@ -604,18 +575,16 @@ describe('Sandbox Update Operations', () => {
     }, 60_000)
 
     it('updates again — drops secret, changes header value', async () => {
-      await rawUpdate(name, {
-        network: {
-          proxy: {
-            routing: [
-              {
-                destinations: ["httpbin.org"],
-                headers: {
-                  "X-Update-Test": "third-value",
-                },
+      await updateNetwork(name, {
+        proxy: {
+          routing: [
+            {
+              destinations: ["httpbin.org"],
+              headers: {
+                "X-Update-Test": "third-value",
               },
-            ],
-          },
+            },
+          ],
         },
       })
       sandbox = await SandboxInstance.get(name)

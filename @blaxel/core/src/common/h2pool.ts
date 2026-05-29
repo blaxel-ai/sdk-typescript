@@ -146,6 +146,14 @@ export class H2Pool {
       return session;
     }
     if (await this.ping(session)) {
+      // ENG-2676 generation/identity pin: `await this.ping` yields, and during
+      // that await an eviction listener (goaway/error/close ->
+      // attachEvictionListeners, see above) may have deleted or replaced this
+      // entry. `entry` is the exact object held in the map, so if it is no
+      // longer the cached generation, refuse the now-stale session instead of
+      // handing back a zombie — the ENG-2422 failure re-entering through the
+      // validate race. The caller falls through to establish a fresh session.
+      if (this.sessions.get(domain) !== entry) return null;
       this.markUsed(domain, session);
       return session;
     }

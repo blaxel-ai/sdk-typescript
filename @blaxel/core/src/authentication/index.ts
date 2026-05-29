@@ -4,7 +4,7 @@ import { env } from "../common/env.js";
 import { fs, os, path } from "../common/node.js";
 import { ApiKey } from "./apikey.js";
 import { ClientCredentials } from "./clientcredentials.js";
-import { Credentials } from "./credentials.js";
+import { Credentials, MissingCredentials } from "./credentials.js";
 import { DeviceMode } from "./deviceMode.js";
 import { CredentialsType } from "./types.js";
 
@@ -69,7 +69,9 @@ function getCredentials(): CredentialsType | null {
 export function authentication() {
   const credentials = getCredentials();
   if (!credentials) {
-    return new Credentials();
+    // Never silently fall back to empty headers: a marker that triggers a
+    // clear CredentialsError when an authenticated request is attempted.
+    return new MissingCredentials();
   }
 
   if (credentials.apiKey) {

@@ -649,7 +649,9 @@ export type EgressGatewaySpec = {
 /**
  * Sandboxes currently bound to each egress gateway. Returned by GET /egressgateways/usage so the egress-IPs UI can render attachment counts without fetching the sandboxes listing full. Keys are gateway names; values are sandbox names.
  */
-export type EgressGatewayUsage = unknown;
+export type EgressGatewayUsage = {
+    [key: string]: Array<string>;
+};
 
 /**
  * An individual IP address allocated from an egress gateway for dedicated outbound traffic
@@ -4230,6 +4232,56 @@ export type WorkspaceAvailability = {
 };
 
 /**
+ * HIPAA compliance state for a workspace. `accountEnabled` mirrors the account-level `hipaa_compliance` addon (set server-side from operator tooling and Stripe billing events). `unsafe` records a per-workspace opt-out toggled from workspace settings; absent when the account does not have the addon.
+ */
+export type WorkspaceHipaaInfo = {
+    /**
+     * True when the parent account has the HIPAA compliance addon active. Set server-side from operator tooling and Stripe billing events; cannot be changed from workspace settings.
+     */
+    accountEnabled?: boolean;
+    unsafe?: WorkspaceHipaaUnsafe;
+};
+
+/**
+ * HIPAA compliance state for a workspace. `accountEnabled` mirrors the account-level `hipaa_compliance` addon (set server-side from operator tooling and Stripe billing events). `unsafe` records a per-workspace opt-out toggled from workspace settings; absent when the account does not have the addon.
+ */
+export type WorkspaceHipaaInfoWritable = {
+    /**
+     * True when the parent account has the HIPAA compliance addon active. Set server-side from operator tooling and Stripe billing events; cannot be changed from workspace settings.
+     */
+    accountEnabled?: boolean;
+    unsafe?: WorkspaceHipaaUnsafeWritable;
+};
+
+/**
+ * Per-workspace HIPAA opt-out record. Toggled from workspace settings; the backend stamps `updatedBy` and `updatedAt`.
+ */
+export type WorkspaceHipaaUnsafe = {
+    /**
+     * True marks this workspace as HIPAA-unsafe (NOT compliant), overriding the account-level addon. False marks the workspace as HIPAA compliant.
+     */
+    enabled?: boolean;
+    /**
+     * RFC3339 timestamp when the opt-out was last toggled. Stamped server-side.
+     */
+    readonly updatedAt?: string;
+    /**
+     * User id (sub) of the actor that last toggled this opt-out. Stamped server-side.
+     */
+    readonly updatedBy?: string;
+};
+
+/**
+ * Per-workspace HIPAA opt-out record. Toggled from workspace settings; the backend stamps `updatedBy` and `updatedAt`.
+ */
+export type WorkspaceHipaaUnsafeWritable = {
+    /**
+     * True marks this workspace as HIPAA-unsafe (NOT compliant), overriding the account-level addon. False marks the workspace as HIPAA compliant.
+     */
+    enabled?: boolean;
+};
+
+/**
  * Runtime configuration for the workspace infrastructure
  */
 export type WorkspaceRuntime = {
@@ -4287,6 +4339,11 @@ export type WorkspaceUser = {
 export type BlaxelVersion = string;
 
 /**
+ * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+ */
+export type PaginationAnchor = 'end';
+
+/**
  * Opaque cursor returned by a previous response's meta.nextCursor. Only valid for the same query (workspace + filters); the server rejects cursors bound to a different query or older than 24h. Omit on the first page.
  */
 export type PaginationCursor = string;
@@ -4326,6 +4383,10 @@ export type ListAgentsData = {
          * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
          */
         q?: string;
+        /**
+         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         */
+        anchor?: 'end';
     };
     url: '/agents';
 };
@@ -4705,6 +4766,10 @@ export type ListDrivesData = {
          * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
          */
         q?: string;
+        /**
+         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         */
+        anchor?: 'end';
     };
     url: '/drives';
 };
@@ -5054,6 +5119,10 @@ export type ListFunctionsData = {
          * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
          */
         q?: string;
+        /**
+         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         */
+        anchor?: 'end';
     };
     url: '/functions';
 };
@@ -5911,6 +5980,10 @@ export type ListJobsData = {
          * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
          */
         q?: string;
+        /**
+         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         */
+        anchor?: 'end';
     };
     url: '/jobs';
 };
@@ -6303,6 +6376,10 @@ export type ListModelsData = {
          * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
          */
         q?: string;
+        /**
+         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         */
+        anchor?: 'end';
     };
     url: '/models';
 };
@@ -6643,6 +6720,10 @@ export type ListPoliciesData = {
          * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
          */
         q?: string;
+        /**
+         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         */
+        anchor?: 'end';
     };
     url: '/policies';
 };
@@ -6817,6 +6898,10 @@ export type ListSandboxesData = {
          * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
          */
         q?: string;
+        /**
+         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         */
+        anchor?: 'end';
     };
     url: '/sandboxes';
 };
@@ -7057,7 +7142,12 @@ export type CreateSandboxPreviewData = {
          */
         sandboxName: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Force creation by deleting conflicting previews that use the same custom domain prefix URL
+         */
+        force?: boolean;
+    };
     url: '/sandboxes/{sandboxName}/previews';
 };
 
@@ -7803,6 +7893,10 @@ export type ListVolumesData = {
          * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
          */
         q?: string;
+        /**
+         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         */
+        anchor?: 'end';
     };
     url: '/volumes';
 };
