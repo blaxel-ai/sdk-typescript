@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { createVolume, deleteVolume, getVolume, listVolumes, updateVolume, Volume } from "../client/index.js";
+import { normalizeList } from "../common/list.js";
 import { settings } from "../common/settings.js";
 
 export interface VolumeCreateConfiguration {
@@ -110,7 +111,9 @@ export class VolumeInstance {
 
   static async list() {
     const { data } = await listVolumes({ throwOnError: true });
-    return data.map((volume) => new VolumeInstance(volume));
+    return normalizeList(data).map(
+      (volume) => new VolumeInstance(volume as Volume),
+    );
   }
 
   static async delete(volumeName: string) {

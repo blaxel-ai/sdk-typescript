@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import type http2 from "http2";
 import { createSandbox, deleteSandbox, getSandbox, listSandboxes, SandboxLifecycle, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
+import { normalizeList } from "../common/list.js";
 import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
 import { SandboxCodegen } from "./codegen/index.js";
@@ -240,8 +241,8 @@ export class SandboxInstance {
   }
 
   static async list() {
-    const { data } = await listSandboxes({ throwOnError: true }) as { response: Response; data: SandboxModel[] };
-    const instances = data.map((sandbox) => new SandboxInstance(sandbox));
+    const { data } = await listSandboxes({ throwOnError: true });
+    const instances = normalizeList<SandboxModel>(data).map((sandbox) => new SandboxInstance(sandbox));
     return Promise.all(instances.map((instance) => SandboxInstance.attachH2Session(instance)));
   }
 

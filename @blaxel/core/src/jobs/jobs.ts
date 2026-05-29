@@ -6,6 +6,7 @@ import {
   JobExecution,
   listJobExecutions,
 } from "../client/index.js";
+import { normalizeList } from "../common/list.js";
 import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
 import { startSpan } from "../telemetry/telemetry.js";
@@ -120,7 +121,7 @@ class BlJob {
       throwOnError: true,
     });
 
-    return data ?? [];
+    return normalizeList<JobExecution>(data);
   }
 
   /**

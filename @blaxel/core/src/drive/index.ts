@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { createDrive, deleteDrive, getDrive, listDrives, updateDrive, Drive } from "../client/index.js";
+import { normalizeList } from "../common/list.js";
 import { settings } from "../common/settings.js";
 
 export interface DriveCreateConfiguration {
@@ -108,7 +109,7 @@ export class DriveInstance {
 
   static async list() {
     const { data } = await listDrives({ throwOnError: true });
-    return data.map((drive) => new DriveInstance(drive));
+    return normalizeList(data).map((drive) => new DriveInstance(drive));
   }
 
   static async delete(driveName: string) {
