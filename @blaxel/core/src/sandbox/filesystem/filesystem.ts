@@ -9,7 +9,106 @@ import { CopyResponse, FilesystemFindOptions, FilesystemGrepOptions, FilesystemS
 // Multipart upload constants
 const MULTIPART_THRESHOLD = 5 * 1024 * 1024; // 5MB
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB per part
-const MAX_PARALLEL_UPLOADS = 20; // Number of parallel part uploads
+const MAX_PARALLEL_UPLOADS = 3; // Number of parallel part uploads
+
+// Base backoff between part-upload retries, in milliseconds. Grows linearly
+// per attempt and is jittered to avoid synchronized retries (thundering herd)
+// when several parallel parts fail against the same edge at the same time.
+const RETRY_BASE_DELAY_MS = 200;
+
+// Markers that, when present anywhere in the error chain, are unambiguous
+// signals of a transient HTTP/2 stream reset or connection drop. These are
+// protocol/transport level codes, not application payloads, so substring
+// matching them does not over-match a server-sent error body. Each entry is
+// matched case-sensitively against the error message and its cause.
+//
+// Deliberately excluded: bare "INTERNAL_ERROR" and "fetch failed". Both are
+// too generic on their own (an application 500 body or any failed fetch would
+// match), so we only treat them as transient when paired with a transport
+// error code on the cause (see isTransientUploadError).
+const TRANSIENT_RESET_MARKERS = [
+  "ENHANCE_YOUR_CALM", // H2 flow-control backpressure reset
+  "NGHTTP2_INTERNAL_ERROR", // H2 internal stream error (qualified form)
+  "ERR_HTTP2", // node http2 error code family
+  "GOAWAY", // peer is draining the connection
+  "HTTP/2 session closed before response", // thrown by our own h2 transport
+  "HTTP/2 session sent GOAWAY before response",
+];
+
+// Node-level error codes (from `error.code` / `error.cause.code`) that mean
+// the connection itself dropped mid-flight and the request never completed.
+// These are safe to retry for an idempotent part upload.
+const TRANSIENT_ERROR_CODES = new Set([
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "ETIMEDOUT",
+  "EPIPE",
+  "ERR_HTTP2_STREAM_ERROR",
+  "ERR_HTTP2_GOAWAY_SESSION",
+  "ERR_HTTP2_SESSION_ERROR",
+]);
+
+function collectErrorText(error: unknown): { messages: string[]; codes: string[] } {
+  const messages: string[] = [];
+  const codes: string[] = [];
+  // Walk the error -> cause chain (bounded) so a transport error wrapped by a
+  // higher-level "fetch failed" is still classified correctly.
+  let current: unknown = error;
+  for (let depth = 0; depth < 5 && current && typeof current === "object"; depth++) {
+    const node = current as { message?: unknown; code?: unknown; cause?: unknown };
+    if (typeof node.message === "string") messages.push(node.message);
+    if (typeof node.code === "string") codes.push(node.code);
+    current = node.cause;
+  }
+  return { messages, codes };
+}
+
+function isTransientUploadError(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+  const { messages, codes } = collectErrorText(error);
+
+  // 1. An explicit transient transport error code anywhere in the chain.
+  if (codes.some((code) => TRANSIENT_ERROR_CODES.has(code))) {
+    return true;
+  }
+
+  // 2. An unambiguous protocol-level reset marker in any message.
+  if (messages.some((text) =>
+    TRANSIENT_RESET_MARKERS.some((marker) => text.includes(marker)),
+  )) {
+    return true;
+  }
+
+  return false;
+}
+
+function nextRetryDelayMs(attempt: number): number {
+  // Linear backoff (200ms, 400ms, ...) plus up to one extra base delay of
+  // random jitter so concurrent part retries do not all fire on the same tick.
+  const base = RETRY_BASE_DELAY_MS * attempt;
+  const jitter = Math.floor(Math.random() * RETRY_BASE_DELAY_MS);
+  return base + jitter;
+}
+
+async function retryOnTransient<T>(fn: () => Promise<T>): Promise<T> {
+  const retries = settings.fsPartRetries; // 0 = off (current default behavior)
+  let attempt = 0;
+  for (;;) {
+    try {
+      return await fn();
+    } catch (error) {
+      attempt++;
+      if (retries <= 0 || attempt > retries || !isTransientUploadError(error)) {
+        throw error;
+      }
+      await new Promise<void>((resolve) =>
+        setTimeout(resolve, nextRetryDelayMs(attempt)),
+      );
+    }
+  }
+}
 
 export class SandboxFileSystem extends SandboxAction {
   constructor(sandbox: Sandbox, private process: SandboxProcess) {
@@ -503,7 +602,7 @@ export class SandboxFileSystem extends SandboxAction {
           const chunk = blob.slice(start, end);
 
 
-          batch.push(this.uploadPart(uploadId, partNumber, chunk));
+          batch.push(retryOnTransient(() => this.uploadPart(uploadId, partNumber, chunk)));
         }
 
         // Wait for batch to complete

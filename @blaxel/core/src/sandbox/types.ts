@@ -39,6 +39,10 @@ export type SandboxUpdateMetadata = {
   displayName?: string;
 }
 
+export type SandboxUpdateNetwork = {
+  network?: SandboxNetwork;
+}
+
 export type SandboxCreateConfiguration = {
   name?: string;
   image?: string;

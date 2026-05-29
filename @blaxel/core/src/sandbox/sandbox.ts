@@ -12,7 +12,7 @@ import { SandboxPreviews } from "./preview.js";
 import { SandboxProcess } from "./process/index.js";
 import { SandboxSessions } from "./session.js";
 import { SandboxSystem } from "./system.js";
-import { normalizeEnvs, normalizePorts, normalizeVolumes, SandboxConfiguration, SandboxCreateConfiguration, SandboxUpdateMetadata, SessionWithToken } from "./types.js";
+import { normalizeEnvs, normalizePorts, normalizeVolumes, SandboxConfiguration, SandboxCreateConfiguration, SandboxUpdateMetadata, SandboxUpdateNetwork, SessionWithToken } from "./types.js";
 
 const NON_REUSABLE_SANDBOX_STATUSES = new Set([
   "FAILED",
@@ -338,6 +338,18 @@ export class SandboxInstance {
     return SandboxInstance.attachH2Session(instance);
   }
 
+
+  static async updateNetwork(sandboxName: string, network: SandboxUpdateNetwork) {
+    const sandbox = await SandboxInstance.get(sandboxName);
+    const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, network: network.network } } as SandboxModel
+    const { data } = await updateSandbox({
+      path: { sandboxName },
+      body,
+      throwOnError: true,
+    });
+    const instance = new SandboxInstance(data);
+    return SandboxInstance.attachH2Session(instance);
+  }
 
   static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration) {
     const ATTEMPTS = 3;

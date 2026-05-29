@@ -81,6 +81,31 @@ jobs:
             timeout 120s bun run test
           fi
 
+  h2-reliability-tests:
+    name: H2 reliability tests (no creds)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: bun install
+
+      # In-process HTTP/2 fault-injection + regression suite. No network, no
+      # API key: a self-signed cert is generated at runtime and tests drive a
+      # loopback node:http2 server. Imports SDK source directly, so no build.
+      - name: Run H2 fault-injection + regression tests
+        run: npx vitest run --config tests/integration/fault-injection/vitest.faultharness.config.ts
+
   integration-test:
     name: Integration Tests
     runs-on: ubuntu-latest
