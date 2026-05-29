@@ -108,7 +108,7 @@ export class SandboxPreviews {
   }
 
   async create(preview: Preview, force?: boolean) {
-    const query = {}
+    const query: Record<string, string> = {}
     if (force) {
       query['force'] = 'true'
     }
