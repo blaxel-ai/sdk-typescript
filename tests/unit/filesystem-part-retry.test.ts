@@ -147,15 +147,27 @@ describe("SandboxFileSystem part-upload retry", () => {
   });
 
   describe("retry budget", () => {
-    it("is disabled by default (fsPartRetries unset = 0, no retries)", async () => {
-      // No settings.config.fsPartRetries set.
+    it("is on by default (fsPartRetries unset = 3) so transient resets self-heal", async () => {
+      // No settings.config.fsPartRetries set -> the default (3) applies.
       const { harness, part2Attempts } = harnessFailingPart2(
         Object.assign(new Error("reset"), { code: "ECONNRESET" }),
       );
       await expect(
         harness.uploadWithMultipart("/tmp/f.bin", multiPartBlob()),
       ).rejects.toThrow("reset");
-      // Default-off: exactly one attempt for the failing part, no retry.
+      // 1 initial attempt + 3 default retries = 4 total for the failing part.
+      expect(part2Attempts()).toBe(4);
+    });
+
+    it("can be turned off (fsPartRetries = 0, no retries)", async () => {
+      settings.config.fsPartRetries = 0;
+      const { harness, part2Attempts } = harnessFailingPart2(
+        Object.assign(new Error("reset"), { code: "ECONNRESET" }),
+      );
+      await expect(
+        harness.uploadWithMultipart("/tmp/f.bin", multiPartBlob()),
+      ).rejects.toThrow("reset");
+      // Exactly one attempt for the failing part, no retry.
       expect(part2Attempts()).toBe(1);
     });
 

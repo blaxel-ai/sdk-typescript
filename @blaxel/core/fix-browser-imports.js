@@ -79,8 +79,8 @@ function replaceH2FilesWithStubs(buildDir) {
     },
     {
       name: 'h2fetch',
-      js: `// Browser stub - H2 fetch is Node.js only, falls back to global fetch\nexport function createH2Fetch(session) { return (input) => globalThis.fetch(input); }\nexport function createPoolBackedH2Fetch(pool, domain) { return (input) => globalThis.fetch(input); }\nexport function h2RequestDirect(session, url, init) { return globalThis.fetch(url, init); }\nexport function h2RequestDirectFromPool(pool, domain, url, init) { return globalThis.fetch(url, init); }\n`,
-      dts: `export declare function createH2Fetch(session: any): (input: Request) => Promise<Response>;\nexport declare function createPoolBackedH2Fetch(pool: any, domain: string): (input: Request) => Promise<Response>;\nexport declare function h2RequestDirect(session: any, url: string, init?: RequestInit): Promise<Response>;\nexport declare function h2RequestDirectFromPool(pool: any, domain: string, url: string, init?: RequestInit): Promise<Response>;\n`,
+      js: `// Browser stub - H2 fetch is Node.js only, falls back to global fetch\nexport function createH2Fetch(session) { return (input) => globalThis.fetch(input); }\nexport function createPoolBackedH2Fetch(pool, domain) { return (input) => globalThis.fetch(input); }\nexport function h2RequestDirect(session, url, init) { return globalThis.fetch(url, init); }\nexport function h2RequestDirectFromPool(pool, domain, url, init) { return globalThis.fetch(url, init); }\nexport async function withUploadSlot(domain, fn) { return fn(); }\n`,
+      dts: `export declare function createH2Fetch(session: any): (input: Request) => Promise<Response>;\nexport declare function createPoolBackedH2Fetch(pool: any, domain: string): (input: Request) => Promise<Response>;\nexport declare function h2RequestDirect(session: any, url: string, init?: RequestInit): Promise<Response>;\nexport declare function h2RequestDirectFromPool(pool: any, domain: string, url: string, init?: RequestInit): Promise<Response>;\nexport declare function withUploadSlot<T>(domain: string, fn: () => Promise<T>): Promise<T>;\n`,
     },
   ];
 
