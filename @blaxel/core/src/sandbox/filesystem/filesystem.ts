@@ -144,8 +144,11 @@ export class SandboxFileSystem extends SandboxAction {
       return await response.json() as SuccessResponse;
     };
 
-    const doPut = () => retryOnTransient(putOnce);
-    return h2Domain ? withUploadSlot(h2Domain, doPut) : doPut();
+    // Acquire the upload slot per-attempt INSIDE the retry so the per-domain cap
+    // bounds in-flight streams, not retry sequences: the slot is released during
+    // backoff, so a failing PUT never pins a slot while it sleeps (Mendral review).
+    const putWithSlot = h2Domain ? () => withUploadSlot(h2Domain, putOnce) : putOnce;
+    return retryOnTransient(putWithSlot);
   }
 
   async writeTree(files: SandboxFilesystemFile[], destinationPath: string | null = null) {
@@ -551,8 +554,11 @@ export class SandboxFileSystem extends SandboxAction {
           const end = Math.min(start + CHUNK_SIZE, size);
           const chunk = blob.slice(start, end);
 
-          const uploadOne = () => retryOnTransient(() => this.uploadPart(uploadId, partNumber, chunk));
-          batch.push(h2Domain ? withUploadSlot(h2Domain, uploadOne) : uploadOne());
+          // Slot acquired per-attempt inside the retry (see writeBinary): bounds
+          // concurrent part streams, not retry sequences; freed during backoff.
+          const doPart = () => this.uploadPart(uploadId, partNumber, chunk);
+          const partWithSlot = h2Domain ? () => withUploadSlot(h2Domain, doPart) : doPart;
+          batch.push(retryOnTransient(partWithSlot));
         }
 
         // Wait for batch to complete
