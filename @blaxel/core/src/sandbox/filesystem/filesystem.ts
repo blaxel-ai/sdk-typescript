@@ -123,10 +123,15 @@ export class SandboxFileSystem extends SandboxAction {
       formData.append("permissions", "0644");
       formData.append("path", path);
 
+      // A forceUrl (session-token) sandbox carries its own headers and must not
+      // require global credentials; settings.headers now throws without them
+      // (ENG-2698). Mirror streamLogs/execWithStreaming, which already pick
+      // sandbox.headers for forceUrl sessions.
+      const headers = this.sandbox.forceUrl ? this.sandbox.headers : settings.headers;
       const response = await this.h2Fetch(url, {
         method: 'PUT',
         headers: {
-          ...settings.headers,
+          ...headers,
         },
         body: formData,
       });
