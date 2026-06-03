@@ -57,6 +57,15 @@ export type Config = {
    */
   fsPartRetries?: number;
   /**
+   * Retry attempts for transient connection resets on IDEMPOTENT sandbox reads
+   * (fs.read/readBinary/ls/search/find/grep, drives.list, process.get/list/logs).
+   * Higher than the upload default so a later attempt can span a multi-second
+   * sandbox cold-start/standby wake (the window a first-call read reset falls in).
+   * Defaults to 5. Set `0` to disable. Never applied to non-idempotent ops
+   * (process.exec, drives.mount, etc.).
+   */
+  sandboxReadRetries?: number;
+  /**
    * Client credentials for OAuth2 client_credentials flow.
    *
    * Accepts either:
@@ -370,6 +379,20 @@ class Settings {
       }
     }
     return 3;
+  }
+
+  get sandboxReadRetries(): number {
+    if (typeof this.config.sandboxReadRetries === "number") {
+      return this.config.sandboxReadRetries;
+    }
+    const value = env.BL_SANDBOX_READ_RETRIES;
+    if (value) {
+      const parsed = parseInt(value, 10);
+      if (!Number.isNaN(parsed)) {
+        return parsed;
+      }
+    }
+    return 5;
   }
 
   /**

@@ -1,5 +1,6 @@
 import { Sandbox } from "../../client/types.gen.js";
 import { SandboxAction } from "../action.js";
+import { retryOnTransientReset } from "../../common/transient-retry.js";
 import {
   postDrivesMount,
   deleteDrivesMountByMountPath,
@@ -53,11 +54,15 @@ export class SandboxDrive extends SandboxAction {
    * List all mounted drives in the sandbox
    */
   async list(): Promise<DriveMountInfo[]> {
-    const { response, data, error } = await getDrivesMount(this.withClient({
-      baseUrl: this.url,
-    }));
-    this.handleResponseError(response, data, error);
-    const result = data as GetDrivesMountResponse;
-    return result.mounts ?? [];
+    // Idempotent GET: self-heal a transient connection reset after sandbox resume.
+    // mount/unmount stay un-retried (non-idempotent POST/DELETE).
+    return retryOnTransientReset(async () => {
+      const { response, data, error } = await getDrivesMount(this.withClient({
+        baseUrl: this.url,
+      }));
+      this.handleResponseError(response, data, error);
+      const result = data as GetDrivesMountResponse;
+      return result.mounts ?? [];
+    });
   }
 }
