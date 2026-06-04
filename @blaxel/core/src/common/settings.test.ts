@@ -11,10 +11,10 @@ describe('Settings.apiVersion', () => {
     delete (env as Record<string, unknown>).BL_API_VERSION;
   });
 
-  it('defaults to 2026-04-16 when BL_API_VERSION is not set', async () => {
+  it('defaults to 2026-04-28 when BL_API_VERSION is not set', async () => {
     delete (env as Record<string, unknown>).BL_API_VERSION;
     const { settings } = await import('./settings.js');
-    expect(settings.apiVersion).toBe('2026-04-16');
+    expect(settings.apiVersion).toBe('2026-04-28');
   });
 
   it('headers include Blaxel-Version set to the default', async () => {
@@ -24,7 +24,7 @@ describe('Settings.apiVersion', () => {
     const previous = settings.credentials;
     settings.credentials = new ApiKey({ apiKey: 'test-key', workspace: 'test-ws' });
     try {
-      expect(settings.headers['Blaxel-Version']).toBe('2026-04-16');
+      expect(settings.headers['Blaxel-Version']).toBe('2026-04-28');
     } finally {
       settings.credentials = previous;
     }

@@ -254,9 +254,9 @@ describe('Sandbox CRUD Operations', () => {
       createdSandboxes.push(name)
 
       const sandboxes = await SandboxInstance.list()
-      expect(Array.isArray(sandboxes)).toBe(true)
+      expect(Array.isArray(sandboxes.data)).toBe(true)
 
-      const found = sandboxes.find(s => s.metadata.name === name)
+      const found = sandboxes.data.find(s => s.metadata.name === name)
       expect(found).toBeDefined()
     })
   })

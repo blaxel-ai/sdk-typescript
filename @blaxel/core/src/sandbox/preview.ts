@@ -107,11 +107,16 @@ export class SandboxPreviews {
     return data.map((preview) => new SandboxPreview(preview));
   }
 
-  async create(preview: Preview) {
+  async create(preview: Preview, force?: boolean) {
+    const query: Record<string, string> = {}
+    if (force) {
+      query['force'] = 'true'
+    }
     const { data } = await createSandboxPreview({
       path: {
         sandboxName: this.sandboxName,
       },
+      query,
       body: preview,
       throwOnError: true,
     });
@@ -119,13 +124,13 @@ export class SandboxPreviews {
   }
 
 
-  async createIfNotExists(preview: Preview) {
+  async createIfNotExists(preview: Preview, force?: boolean) {
     try {
       const previewInstance = await this.get(preview.metadata.name);
       return previewInstance;
     } catch (e) {
       if (typeof e === "object" && e !== null && "code" in e && e.code === 404) {
-        return this.create(preview);
+        return this.create(preview, force);
       }
       throw e;
     }

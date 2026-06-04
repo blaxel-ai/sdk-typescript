@@ -136,9 +136,9 @@ describe('Sandbox Volume Operations', () => {
       createdVolumes.push(name)
 
       const volumes = await VolumeInstance.list()
-      expect(Array.isArray(volumes)).toBe(true)
+      expect(Array.isArray(volumes.data)).toBe(true)
 
-      const found = volumes.find(v => v.name === name)
+      const found = volumes.data.find(v => v.name === name)
       expect(found).toBeDefined()
     })
 
