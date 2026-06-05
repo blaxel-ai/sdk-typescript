@@ -1,7 +1,7 @@
 import { SandboxInstance } from "@blaxel/core"
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { defaultImage, defaultLabels, defaultRegion, uniqueName } from '../helpers.js'
-import { lowercaseKeys, parseJsonOutput, proxyCleanup } from './helpers.js'
+import { execProxyCommandWithRetry, lowercaseKeys, parseJsonOutput, proxyCleanup, proxyHelperScript } from './helpers.js'
 
 describe('proxy e2e with common CLI tools', () => {
   const createdSandboxes: string[] = []
@@ -34,7 +34,16 @@ describe('proxy e2e with common CLI tools', () => {
       waitForCompletion: true,
     })
     if (certInstall.exitCode !== 0) throw new Error(`CA cert install failed: ${certInstall.logs?.slice(0, 500)}`)
-  }, 120_000)
+
+    // Wait for the proxy to become ready before running test assertions.
+    await cliSandbox.fs.write("/tmp/proxy-test.js", proxyHelperScript)
+    const warmup = await execProxyCommandWithRetry(
+      cliSandbox,
+      'node /tmp/proxy-test.js GET https://httpbin.org/headers',
+      { retries: 10, delayMs: 2000 },
+    )
+    if (warmup.exitCode !== 0) throw new Error(`Proxy warmup failed: ${warmup.logs?.slice(0, 500)}`)
+  }, 180_000)
 
   describe('curl', () => {
     it('routes GET requests through the proxy with header injection', async () => {
