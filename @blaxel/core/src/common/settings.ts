@@ -324,6 +324,10 @@ class Settings {
     return false;
   }
 
+  get modelGatewayUrl() {
+    return env.BL_MODEL_GATEWAY_URL || undefined;
+  }
+
   get region() {
     return env.BL_REGION || undefined;
   }

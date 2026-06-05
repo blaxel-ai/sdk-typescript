@@ -118,7 +118,7 @@ class BlaxelLLM implements ToolCallLLM<object, ToolCallLLMMessageOptions> {
 
     // mk3 models use the direct gateway URL and always speak OpenAI-compatible API
     if (this.modelData?.spec.runtime?.generation === "mk3") {
-      const gatewayUrl = this.modelData.metadata.url;
+      const gatewayUrl = settings.modelGatewayUrl || this.modelData.metadata.url;
       if (!gatewayUrl) {
         throw new Error(`Model ${this.model} is mk3 but has no gateway URL in metadata`);
       }
