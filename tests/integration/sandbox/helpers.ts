@@ -1,5 +1,4 @@
 import { SandboxInstance, VolumeInstance } from "@blaxel/core"
-import { v4 as uuidv4 } from 'uuid'
 
 /**
  * Environment-aware configuration
@@ -21,7 +20,7 @@ export const defaultLabels = {
  * Generate a unique sandbox name for testing
  */
 export function uniqueName(prefix: string = "test"): string {
-  return `${prefix}-${uuidv4().replace(/-/g, '').substring(0, 8)}`
+  return `${prefix}-${crypto.randomUUID().replace(/-/g, '').substring(0, 8)}`
 }
 
 /**

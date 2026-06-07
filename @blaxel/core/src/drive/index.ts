@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from "uuid";
 import { createDrive, deleteDrive, getDrive, listDrives, updateDrive, Drive } from "../client/index.js";
 import { settings } from "../common/settings.js";
 
@@ -46,7 +45,7 @@ export class DriveInstance {
   }
 
   static async create(config: DriveCreateConfiguration | Drive) {
-    const defaultName = `drive-${uuidv4().replace(/-/g, '').substring(0, 8)}`;
+    const defaultName = `drive-${crypto.randomUUID().replace(/-/g, '').substring(0, 8)}`;
 
     let drive: Drive;
 

@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from "uuid";
 import { createVolume, deleteVolume, getVolume, listVolumes, updateVolume, Volume } from "../client/index.js";
 import { settings } from "../common/settings.js";
 
@@ -43,7 +42,7 @@ export class VolumeInstance {
   }
 
   static async create(config: VolumeCreateConfiguration | Volume) {
-    const defaultName = `volume-${uuidv4().replace(/-/g, '').substring(0, 8)}`;
+    const defaultName = `volume-${crypto.randomUUID().replace(/-/g, '').substring(0, 8)}`;
     const defaultSize = 1024; // 1GB in MB
 
     let volume: Volume;

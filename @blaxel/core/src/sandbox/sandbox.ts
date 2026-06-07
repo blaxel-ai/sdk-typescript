@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from "uuid";
 import type http2 from "http2";
 import { createSandbox, deleteSandbox, getSandbox, listSandboxes, SandboxLifecycle, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
@@ -115,7 +114,7 @@ export class SandboxInstance {
   }
 
   static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = false, createIfNotExist = false }: { safe?: boolean, createIfNotExist?: boolean } = {}) {
-    const defaultName = `sandbox-${uuidv4().replace(/-/g, '').substring(0, 8)}`
+    const defaultName = `sandbox-${crypto.randomUUID().replace(/-/g, '').substring(0, 8)}`
     const defaultImage = `blaxel/base-image:latest`
     const defaultMemory = 4096
 
