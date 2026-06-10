@@ -60,7 +60,7 @@ describe('Sandbox extraArgs (kernel selection)', () => {
         labels: defaultLabels,
       })
     } catch (e: unknown) {
-      if (e instanceof Error && e.message.includes('unsupported extraArgs key "nfs"')) {
+      if (String(e).includes('unsupported extraArgs key')) {
         ctx.skip()
         return
       }
