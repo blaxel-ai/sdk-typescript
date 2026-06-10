@@ -49,6 +49,22 @@ describe('Sandbox extraArgs (kernel selection)', () => {
     expect(retrieved.spec.runtime?.extraArgs?.["nvme"]).toBe("enabled")
   })
 
+  it('creates a sandbox with nfs enabled', async () => {
+    const name = uniqueName("extra-args-nfs")
+    const sandbox = await SandboxInstance.create({
+      name,
+      image: defaultImage,
+      region: defaultRegion,
+      extraArgs: { nfs: "enabled" },
+      labels: defaultLabels,
+    })
+    createdSandboxes.push(name)
+
+    const retrieved = await SandboxInstance.get(name)
+    expect(retrieved.spec.runtime?.extraArgs).toBeDefined()
+    expect(retrieved.spec.runtime?.extraArgs?.["nfs"]).toBe("enabled")
+  })
+
   it('creates a sandbox with both iptables and nvme enabled', async () => {
     const name = uniqueName("extra-args-both")
     const sandbox = await SandboxInstance.create({
