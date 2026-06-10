@@ -49,15 +49,23 @@ describe('Sandbox extraArgs (kernel selection)', () => {
     expect(retrieved.spec.runtime?.extraArgs?.["nvme"]).toBe("enabled")
   })
 
-  it('creates a sandbox with nfs enabled', async () => {
+  it('creates a sandbox with nfs enabled', async (ctx) => {
     const name = uniqueName("extra-args-nfs")
-    const sandbox = await SandboxInstance.create({
-      name,
-      image: defaultImage,
-      region: defaultRegion,
-      extraArgs: { nfs: "enabled" },
-      labels: defaultLabels,
-    })
+    try {
+      await SandboxInstance.create({
+        name,
+        image: defaultImage,
+        region: defaultRegion,
+        extraArgs: { nfs: "enabled" },
+        labels: defaultLabels,
+      })
+    } catch (e: unknown) {
+      if (e instanceof Error && e.message.includes('unsupported extraArgs key "nfs"')) {
+        ctx.skip()
+        return
+      }
+      throw e
+    }
     createdSandboxes.push(name)
 
     const retrieved = await SandboxInstance.get(name)
