@@ -3,8 +3,9 @@
  *
  * Prerequisites (all three PRs must be deployed):
  *   - controlplane#4206  — DrivePermission model + ACL sync to filer
- *   - seaweedfs#27       — filer-side ACL enforcement
- *   - executionplane#171 — blaxel.ai/labels in workload identity JWT
+ *   - seaweedfs#27       — filer-side ACL enforcement (domain-aware: blaxel.dev / blaxel.ai)
+ *   - executionplane#171 — workload labels in JWT token
+ *   - controlplane (user labels fix) — user-defined metadata.Labels propagated to pod spec
  *
  * Environment variables:
  *   BL_WORKSPACE  — workspace name
@@ -164,37 +165,28 @@ function isMountTimeout(err: unknown): boolean {
   return msg.includes("timeout waiting for mount point") || msg.includes("timed out")
 }
 
-// ---------------------------------------------------------------------------
-// Preflight: detect whether label-based ACL is supported
-// ---------------------------------------------------------------------------
-
-let labelsSupported = true
-
-async function preflight() {
-  console.log("\n=== Preflight: checking label-based ACL support ===")
-  const dName = uid("acl-pre")
-  const sName = uid("acl-pre-sbx")
+/**
+ * Debug helper: read and decode the workload identity JWT from inside a sandbox.
+ * The token path is environment-dependent:
+ *   dev:  /var/run/secrets/blaxel.dev/identity/token
+ *   prod: /var/run/secrets/blaxel.ai/identity/token
+ */
+async function debugJWT(sbx: SandboxInstance): Promise<Record<string, unknown> | null> {
+  const domain = ENV === "dev" ? "blaxel.dev" : "blaxel.ai"
+  const tokenPath = `/var/run/secrets/${domain}/identity/token`
+  const result = await execInSandbox(sbx, `cat ${tokenPath}`)
+  if (!result.ok || !result.logs.trim()) {
+    console.log(`  [DEBUG] Could not read JWT from ${tokenPath}: ${result.logs}`)
+    return null
+  }
   try {
-    await createDriveWithPermissions(dName, [
-      { labels: { preflight: "check" }, mode: "read-write" },
-    ])
-    cleanupDrives.push(dName)
-
-    const sbx = await createSandbox(sName, { preflight: "check" })
-    cleanupSandboxes.push(sName)
-
-    await sbx.drives.mount({ driveName: dName, mountPath: "/mnt/preflight" })
-    console.log("  Label-based ACL is supported (mount succeeded)")
-  } catch (err) {
-    if (isMountTimeout(err)) {
-      console.log("  Label-based mount timed out — blaxel.ai/labels likely missing from JWT")
-      console.log("  (executionplane#171 may not be deployed yet)")
-      console.log("  Label-dependent scenarios will be SKIPPED")
-      labelsSupported = false
-    } else {
-      console.log(`  Preflight error: ${formatError(err)}`)
-      labelsSupported = false
-    }
+    const parts = result.logs.trim().split(".")
+    if (parts.length !== 3) return null
+    const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString()) as Record<string, unknown>
+    console.log(`  [DEBUG] JWT claims: ${JSON.stringify(payload, null, 2).split("\n").slice(0, 15).join("\n")}...`)
+    return payload
+  } catch {
+    return null
   }
 }
 
@@ -233,10 +225,6 @@ async function scenarioOpenAccess() {
  */
 async function scenarioLabelMatch() {
   console.log("\n=== Scenario: label-match (sandbox has matching labels) ===")
-  if (!labelsSupported) {
-    skip("label-match", "labels not in JWT — executionplane#171 not deployed")
-    return
-  }
   const driveName = uid("acl-match")
   const sbxName = uid("acl-match-sbx")
 
@@ -247,6 +235,9 @@ async function scenarioLabelMatch() {
 
   const sbx = await createSandbox(sbxName, { team: "backend", project: "acl-test" })
   cleanupSandboxes.push(sbxName)
+
+  // Debug: inspect the actual workload identity token
+  await debugJWT(sbx)
 
   await sbx.drives.mount({ driveName, mountPath: "/mnt/match" })
   await sleep(MOUNT_SETTLE_MS)
@@ -264,10 +255,6 @@ async function scenarioLabelMatch() {
  */
 async function scenarioLabelMismatch() {
   console.log("\n=== Scenario: label-mismatch (sandbox lacks required labels) ===")
-  if (!labelsSupported) {
-    skip("label-mismatch", "labels not in JWT — executionplane#171 not deployed")
-    return
-  }
   const driveName = uid("acl-mis")
   const sbxName = uid("acl-mis-sbx")
 
@@ -311,10 +298,6 @@ async function scenarioLabelMismatch() {
  */
 async function scenarioReadOnly() {
   console.log("\n=== Scenario: read-only (mode=read blocks writes) ===")
-  if (!labelsSupported) {
-    skip("read-only", "labels not in JWT — executionplane#171 not deployed")
-    return
-  }
   const driveName = uid("acl-ro")
   const writerName = uid("acl-ro-writer")
   const readerName = uid("acl-ro-reader")
@@ -367,10 +350,6 @@ async function scenarioReadOnly() {
  */
 async function scenarioMultiplePermissionsOR() {
   console.log("\n=== Scenario: multiple-permissions-or (first match wins) ===")
-  if (!labelsSupported) {
-    skip("multiple-permissions-or", "labels not in JWT — executionplane#171 not deployed")
-    return
-  }
   const driveName = uid("acl-or")
   const sbxName = uid("acl-or-sbx")
 
@@ -401,10 +380,6 @@ async function scenarioMultiplePermissionsOR() {
  */
 async function scenarioANDLogic() {
   console.log("\n=== Scenario: and-logic (all labels must match within a permission) ===")
-  if (!labelsSupported) {
-    skip("and-logic", "labels not in JWT — executionplane#171 not deployed")
-    return
-  }
   const driveName = uid("acl-and")
   const sbxNamePartial = uid("acl-and-partial")
   const sbxNameFull = uid("acl-and-full")
@@ -444,10 +419,6 @@ async function scenarioANDLogic() {
  */
 async function scenarioPathScoping() {
   console.log("\n=== Scenario: path-scoping (permission restricts to subfolder) ===")
-  if (!labelsSupported) {
-    skip("path-scoping", "labels not in JWT — executionplane#171 not deployed")
-    return
-  }
   const driveName = uid("acl-path")
   const writerName = uid("acl-path-writer")
   const scopedName = uid("acl-path-scoped")
@@ -540,9 +511,6 @@ async function main() {
   console.log("Drive ACL Manual Test (ENG-2761)")
   console.log(`  env=${ENV}  region=${REGION}`)
   console.log(`  scenarios=${selectedScenario || "all"}`)
-
-  // Preflight: detect whether label-based ACL is working end-to-end
-  await preflight()
 
   const toRun = selectedScenario
     ? { [selectedScenario]: SCENARIOS[selectedScenario] }
