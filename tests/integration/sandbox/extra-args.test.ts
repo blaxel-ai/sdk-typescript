@@ -1,9 +1,27 @@
 import { SandboxInstance } from "@blaxel/core"
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { defaultImage, defaultLabels, defaultRegion, uniqueName } from './helpers.js'
 
 describe('Sandbox extraArgs (kernel selection)', () => {
   const createdSandboxes: string[] = []
+  let nfsSupported = false
+
+  beforeAll(async () => {
+    const probeName = uniqueName("extra-args-nfs-probe")
+    try {
+      await SandboxInstance.create({
+        name: probeName,
+        image: defaultImage,
+        region: defaultRegion,
+        extraArgs: { nfs: "enabled" },
+        labels: defaultLabels,
+      })
+      nfsSupported = true
+      await SandboxInstance.delete(probeName).catch(() => {})
+    } catch {
+      nfsSupported = false
+    }
+  })
 
   afterAll(async () => {
     await Promise.all(
@@ -50,22 +68,18 @@ describe('Sandbox extraArgs (kernel selection)', () => {
   })
 
   it('creates a sandbox with nfs enabled', async (ctx) => {
-    const name = uniqueName("extra-args-nfs")
-    try {
-      await SandboxInstance.create({
-        name,
-        image: defaultImage,
-        region: defaultRegion,
-        extraArgs: { nfs: "enabled" },
-        labels: defaultLabels,
-      })
-    } catch (e: unknown) {
-      if (String(e).includes('unsupported extraArgs key')) {
-        ctx.skip()
-        return
-      }
-      throw e
+    if (!nfsSupported) {
+      ctx.skip()
+      return
     }
+    const name = uniqueName("extra-args-nfs")
+    await SandboxInstance.create({
+      name,
+      image: defaultImage,
+      region: defaultRegion,
+      extraArgs: { nfs: "enabled" },
+      labels: defaultLabels,
+    })
     createdSandboxes.push(name)
 
     const retrieved = await SandboxInstance.get(name)
