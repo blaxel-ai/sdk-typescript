@@ -196,10 +196,6 @@ export type AppRevision = {
      * Memory allocation in megabytes. Determines CPU allocation (CPU = memory / 2048).
      */
     memory?: number;
-    /**
-     * Snapshot reference if created from a fork (optional)
-     */
-    snapshot?: string;
 };
 
 /**
@@ -301,6 +297,10 @@ export type ApplicationSpec = {
      * When false, the application is disabled and will not serve requests
      */
     enabled?: boolean;
+    /**
+     * Port the application listens on (default 8080)
+     */
+    port?: number;
     /**
      * Region where the application is deployed (e.g. us-pdx-1, eu-lon-1)
      */
@@ -3720,6 +3720,54 @@ export type SandboxError = {
 };
 
 /**
+ * Request body for forking a sandbox into an application. Creates a new application or adds a canary revision to an existing one.
+ */
+export type SandboxForkRequest = {
+    /**
+     * Custom domain for the application
+     */
+    customDomain?: string;
+    /**
+     * Port to expose from the sandbox
+     */
+    port?: number;
+    /**
+     * URL prefix for the application
+     */
+    prefix?: string;
+    /**
+     * Name of the target application to create or update
+     */
+    targetName: string;
+    /**
+     * Target resource type to fork into
+     */
+    targetType: string;
+    /**
+     * Traffic percentage for canary deployment (0-100). When set on an existing target, creates a new revision with this traffic percentage.
+     */
+    traffic?: number;
+};
+
+/**
+ * Response returned after forking a sandbox. Contains either the new sandbox or application depending on the fork type.
+ */
+export type SandboxForkResponse = {
+    /**
+     * Name of the created or updated resource
+     */
+    name?: string;
+    /**
+     * The snapshot ID the fork was created from
+     */
+    snapshotId?: string;
+    /**
+     * Type of resource that was created (sandbox or application)
+     */
+    type?: 'sandbox' | 'application';
+};
+
+/**
  * Lifecycle configuration controlling automatic sandbox deletion based on idle time, max age, or specific dates
  */
 export type SandboxLifecycle = {
@@ -3812,6 +3860,52 @@ export type SandboxRuntime = {
      */
     ttl?: string;
 };
+
+/**
+ * A point-in-time snapshot of a sandbox that can be used for forking into a new sandbox or application.
+ */
+export type SandboxSnapshot = {
+    /**
+     * When the snapshot was created
+     */
+    createdAt: string;
+    /**
+     * Who created the snapshot
+     */
+    createdBy?: string;
+    /**
+     * Unique snapshot identifier
+     */
+    id: string;
+    /**
+     * Optional human-readable name for the snapshot
+     */
+    name?: string;
+    /**
+     * Name of the source sandbox
+     */
+    sandboxName: string;
+    /**
+     * Status of the snapshot (pending, ready, failed)
+     */
+    status: string;
+    /**
+     * Workspace of the source sandbox
+     */
+    workspace: string;
+};
+
+/**
+ * Request body for creating a snapshot of a sandbox. Captures the current sandbox state.
+ */
+export type SandboxSnapshotRequest = {
+    /**
+     * Optional human-readable name for the snapshot
+     */
+    name?: string;
+};
+
+export type SandboxSnapshots = Array<SandboxSnapshot>;
 
 /**
  * Configuration for a sandbox including its image, memory, ports, region, and lifecycle policies
@@ -7581,6 +7675,48 @@ export type UpdateSandboxResponses = {
 
 export type UpdateSandboxResponse = UpdateSandboxResponses[keyof UpdateSandboxResponses];
 
+export type ForkSandboxData = {
+    body: SandboxForkRequest;
+    path: {
+        /**
+         * Name of the sandbox to fork
+         */
+        sandboxName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/fork';
+};
+
+export type ForkSandboxErrors = {
+    /**
+     * Bad request - Invalid fork parameters
+     */
+    400: _Error;
+    /**
+     * Not found - Source sandbox does not exist
+     */
+    404: _Error;
+    /**
+     * Conflict - Target sandbox already exists (only for type sandbox)
+     */
+    409: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type ForkSandboxError = ForkSandboxErrors[keyof ForkSandboxErrors];
+
+export type ForkSandboxResponses = {
+    /**
+     * Fork created successfully
+     */
+    200: SandboxForkResponse;
+};
+
+export type ForkSandboxResponse = ForkSandboxResponses[keyof ForkSandboxResponses];
+
 export type ListSandboxPreviewsData = {
     body?: never;
     path: {
@@ -7786,6 +7922,70 @@ export type DeleteSandboxPreviewTokenResponses = {
 };
 
 export type DeleteSandboxPreviewTokenResponse = DeleteSandboxPreviewTokenResponses[keyof DeleteSandboxPreviewTokenResponses];
+
+export type ListSandboxSnapshotsData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the sandbox
+         */
+        sandboxName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/snapshots';
+};
+
+export type ListSandboxSnapshotsErrors = {
+    /**
+     * Not found - Sandbox does not exist
+     */
+    404: _Error;
+};
+
+export type ListSandboxSnapshotsError = ListSandboxSnapshotsErrors[keyof ListSandboxSnapshotsErrors];
+
+export type ListSandboxSnapshotsResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxSnapshots;
+};
+
+export type ListSandboxSnapshotsResponse = ListSandboxSnapshotsResponses[keyof ListSandboxSnapshotsResponses];
+
+export type CreateSandboxSnapshotData = {
+    body: SandboxSnapshotRequest;
+    path: {
+        /**
+         * Name of the sandbox to snapshot
+         */
+        sandboxName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/snapshots';
+};
+
+export type CreateSandboxSnapshotErrors = {
+    /**
+     * Not found - Sandbox does not exist
+     */
+    404: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type CreateSandboxSnapshotError = CreateSandboxSnapshotErrors[keyof CreateSandboxSnapshotErrors];
+
+export type CreateSandboxSnapshotResponses = {
+    /**
+     * Snapshot created successfully
+     */
+    200: SandboxSnapshot;
+};
+
+export type CreateSandboxSnapshotResponse = CreateSandboxSnapshotResponses[keyof CreateSandboxSnapshotResponses];
 
 export type GetWorkspaceServiceAccountsData = {
     body?: never;
