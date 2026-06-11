@@ -18,7 +18,7 @@ type H2SendOptions = {
   releaseSlot?: () => void;
 };
 
-const MIN_H2_SESSION_MAX_LISTENERS = 64;
+const MIN_H2_SESSION_MAX_LISTENERS = 256;
 const sessionsWithListenerBudget = new WeakSet<http2.ClientHttp2Session>();
 
 /**

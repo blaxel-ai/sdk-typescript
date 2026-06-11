@@ -218,7 +218,7 @@ describe('h2fetch: no silent retry after session.request()', () => {
       { method: 'POST', body: 'payload' },
     );
 
-    expect(session.getMaxListeners()).toBeGreaterThan(10);
+    expect(session.getMaxListeners()).toBeGreaterThanOrEqual(100);
 
     session.lastStream!.emit('response', { ':status': 200 });
     session.lastStream!.emit('end');
