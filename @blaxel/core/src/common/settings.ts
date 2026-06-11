@@ -66,6 +66,20 @@ export type Config = {
    */
   sandboxReadRetries?: number;
   /**
+   * Per-stream HTTP/2 flow-control window in bytes, advertised to the server as
+   * SETTINGS_INITIAL_WINDOW_SIZE. Node defaults this to 64KB, which caps a single
+   * download at window/RTT (~3MB/s at 20ms RTT) regardless of payload size.
+   * Defaults to 16MB so large reads are bandwidth-bound, not latency-bound.
+   */
+  h2StreamWindowSize?: number;
+  /**
+   * Connection-level HTTP/2 flow-control window in bytes, applied via
+   * session.setLocalWindowSize(). Node defaults this to 64KB and never grows it,
+   * so it throttles the WHOLE session (shared across all streams) — which is why
+   * adding read concurrency does not help. Defaults to 32MB.
+   */
+  h2ConnectionWindowSize?: number;
+  /**
    * Client credentials for OAuth2 client_credentials flow.
    *
    * Accepts either:
@@ -365,6 +379,34 @@ class Settings {
       }
     }
     return 2;
+  }
+
+  get h2StreamWindowSize(): number {
+    if (typeof this.config.h2StreamWindowSize === "number") {
+      return this.config.h2StreamWindowSize;
+    }
+    const value = env.BL_H2_STREAM_WINDOW;
+    if (value) {
+      const parsed = parseInt(value, 10);
+      if (!Number.isNaN(parsed) && parsed > 0) {
+        return parsed;
+      }
+    }
+    return 16 * 1024 * 1024;
+  }
+
+  get h2ConnectionWindowSize(): number {
+    if (typeof this.config.h2ConnectionWindowSize === "number") {
+      return this.config.h2ConnectionWindowSize;
+    }
+    const value = env.BL_H2_CONNECTION_WINDOW;
+    if (value) {
+      const parsed = parseInt(value, 10);
+      if (!Number.isNaN(parsed) && parsed > 0) {
+        return parsed;
+      }
+    }
+    return 32 * 1024 * 1024;
   }
 
   get fsPartRetries(): number {
