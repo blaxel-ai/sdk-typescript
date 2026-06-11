@@ -81,6 +81,35 @@ async function createDriveWithPermissions(
   return DriveInstance.create(body as any)
 }
 
+async function updateDrivePermissions(
+  driveName: string,
+  permissions: DrivePermission[],
+): Promise<void> {
+  // DriveInstance.update doesn't propagate the permissions field, so we make
+  // the PUT request directly. The backend ApplyUpdate allows spec.permissions.
+  const workspace = process.env.BL_WORKSPACE
+  const apiKey = process.env.BL_API_KEY
+  const baseUrl = ENV === "dev"
+    ? "https://api.blaxel.dev"
+    : "https://api.blaxel.ai"
+  const url = `${baseUrl}/v0/workspaces/${workspace}/drives/${driveName}`
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Blaxel-Authorization": `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      metadata: {},
+      spec: { permissions },
+    }),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Failed to update drive permissions: ${res.status} ${text}`)
+  }
+}
+
 async function createSandbox(
   name: string,
   labels: Record<string, string>,
@@ -484,7 +513,80 @@ async function scenarioPathScoping() {
 }
 
 /**
- * Scenario 8: Wildcard permission (empty labels = match all workloads).
+ * Scenario 8: Update permissions on an existing drive.
+ * Creates a drive with open access, verifies write works, then updates
+ * permissions to restrict to team=restricted, and verifies access is denied
+ * to a sandbox without the label.
+ */
+async function scenarioUpdatePermissions() {
+  console.log("\n=== Scenario: update-permissions (edit permissions on existing drive) ===")
+  const driveName = uid("acl-upd")
+  const sbxOpenName = uid("acl-upd-open")
+  const sbxDeniedName = uid("acl-upd-denied")
+  const sbxAllowedName = uid("acl-upd-allowed")
+
+  // Step 1: Create drive with NO permissions (open access)
+  await createDriveWithPermissions(driveName, [])
+  cleanupDrives.push(driveName)
+
+  // Verify open access works
+  const sbxOpen = await createSandbox(sbxOpenName, { role: "tester" })
+  cleanupSandboxes.push(sbxOpenName)
+  await sbxOpen.drives.mount({ driveName, mountPath: "/mnt/upd" })
+  await sleep(MOUNT_SETTLE_MS)
+
+  const openWrite = await execInSandbox(sbxOpen, "echo 'before-update' > /mnt/upd/test.txt")
+  record("update-permissions open write", openWrite.ok, openWrite.ok ? "wrote before restriction" : openWrite.logs)
+
+  // Step 2: Update drive to restrict permissions (only team=restricted can access)
+  await updateDrivePermissions(driveName, [
+    { labels: { team: "restricted" }, mode: "read-write" },
+  ])
+  record("update-permissions API call", true, "permissions updated successfully")
+
+  // Step 3: Verify the update persisted by getting the drive
+  const updated = await DriveInstance.get(driveName)
+  const perms = (updated as any).spec?.permissions as DrivePermission[] | undefined
+  const hasPerms = perms && perms.length === 1 && perms[0]?.labels?.team === "restricted"
+  record("update-permissions persisted", !!hasPerms, hasPerms ? "permissions correctly saved" : `got: ${JSON.stringify(perms)}`)
+
+  // Step 4: New sandbox WITHOUT the label should be denied
+  const sbxDenied = await createSandbox(sbxDeniedName, { team: "other" })
+  cleanupSandboxes.push(sbxDeniedName)
+  try {
+    await sbxDenied.drives.mount({ driveName, mountPath: "/mnt/upd" })
+    await sleep(MOUNT_SETTLE_MS)
+    const deniedWrite = await execInSandbox(sbxDenied, "echo 'should-fail' > /mnt/upd/test.txt")
+    record(
+      "update-permissions denied after update",
+      !deniedWrite.ok,
+      deniedWrite.ok ? `unexpected success: ${deniedWrite.logs.trim()}` : "write denied at file level",
+    )
+  } catch (err) {
+    const msg = formatError(err)
+    const isACLDenial = msg.includes("timeout") || msg.includes("denied") || msg.includes("Permission")
+    record(
+      "update-permissions denied after update",
+      isACLDenial,
+      isACLDenial ? "mount correctly denied after permission update" : `unexpected error: ${msg}`,
+    )
+  }
+
+  // Step 5: New sandbox WITH the label should succeed
+  const sbxAllowed = await createSandbox(sbxAllowedName, { team: "restricted" })
+  cleanupSandboxes.push(sbxAllowedName)
+  await sbxAllowed.drives.mount({ driveName, mountPath: "/mnt/upd" })
+  await sleep(MOUNT_SETTLE_MS)
+
+  const allowedWrite = await execInSandbox(sbxAllowed, "echo 'after-update-ok' > /mnt/upd/test2.txt")
+  record("update-permissions allowed after update", allowedWrite.ok, allowedWrite.ok ? "wrote with correct labels" : allowedWrite.logs)
+
+  const allowedRead = await execInSandbox(sbxAllowed, "cat /mnt/upd/test2.txt")
+  record("update-permissions allowed read", allowedRead.ok && allowedRead.logs.includes("after-update-ok"), allowedRead.logs.trim())
+}
+
+/**
+ * Scenario 9: Wildcard permission (empty labels = match all workloads).
  * A permission with no labels should match any sandbox.
  */
 async function scenarioWildcardPermission() {
@@ -524,6 +626,7 @@ const SCENARIOS: Record<string, () => Promise<void>> = {
   "multiple-permissions-or": scenarioMultiplePermissionsOR,
   "and-logic": scenarioANDLogic,
   "path-scoping": scenarioPathScoping,
+  "update-permissions": scenarioUpdatePermissions,
   "wildcard-permission": scenarioWildcardPermission,
 }
 
