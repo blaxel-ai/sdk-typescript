@@ -180,6 +180,6 @@ describe("_h2Send protocol-race ordering", () => {
 
     // The listener budget was raised once for the session (h2fetch.ts:442-450),
     // so the per-request adds never tripped MaxListenersExceededWarning.
-    expect(session!.getMaxListeners()).toBeGreaterThanOrEqual(64);
+    expect(session!.getMaxListeners()).toBeGreaterThanOrEqual(256);
   });
 });
