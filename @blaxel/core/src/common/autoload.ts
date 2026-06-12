@@ -2,12 +2,14 @@ import { client } from "../client/client.gen.js";
 import { interceptors } from "../client/interceptors.js";
 import { responseInterceptors } from "../client/responseInterceptor.js";
 import { client as clientSandbox } from "../sandbox/client/client.gen.js";
+import { controlPlaneFetch } from "./controlPlaneFetch.js";
 import { Config, settings } from "./settings.js";
 
 export { ensureAutoloaded } from "./lazyInit.js";
 
 client.setConfig({
   baseUrl: settings.baseUrl,
+  fetch: controlPlaneFetch,
 });
 
 // Register request interceptors
@@ -55,6 +57,7 @@ export function initialize(config: Config) {
   settings.setConfig(config);
   client.setConfig({
     baseUrl: settings.baseUrl,
+    fetch: controlPlaneFetch,
   });
   clientSandbox.setConfig({
     baseUrl: settings.baseUrl,
