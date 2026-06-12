@@ -1,7 +1,7 @@
 import { SandboxInstance } from "@blaxel/core"
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { defaultImage, defaultLabels, defaultRegion, uniqueName, sleep } from '../helpers.js'
-import { lowercaseKeys, parseJsonOutput, proxyCleanup, proxyHelperScript } from './helpers.js'
+import { execProxyCommandWithRetry, lowercaseKeys, parseJsonOutput, proxyCleanup, proxyHelperScript } from './helpers.js'
 
 describe('secrets replacement validation', () => {
   const createdSandboxes: string[] = []
@@ -33,7 +33,15 @@ describe('secrets replacement validation', () => {
     })
     createdSandboxes.push(name)
     await secretSandbox.fs.write("/tmp/proxy-test.js", proxyHelperScript)
-  }, 60_000)
+
+    // Wait for the proxy to become ready before running test assertions.
+    const warmup = await execProxyCommandWithRetry(
+      secretSandbox,
+      'node /tmp/proxy-test.js GET https://httpbin.org/headers',
+      { retries: 10, delayMs: 2000 },
+    )
+    if (warmup.exitCode !== 0) throw new Error(`Proxy warmup failed: ${warmup.logs?.slice(0, 500)}`)
+  }, 120_000)
 
   it('resolves {{SECRET:name}} in headers to actual value', async () => {
     const result = await secretSandbox.process.exec({ command: 'node /tmp/proxy-test.js GET https://httpbin.org/headers', waitForCompletion: true })

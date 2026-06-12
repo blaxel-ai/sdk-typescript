@@ -1,7 +1,7 @@
 import { SandboxInstance } from "@blaxel/core"
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { defaultImage, defaultLabels, defaultRegion, uniqueName } from '../helpers.js'
-import { lowercaseKeys, parseJsonOutput, proxyCleanup } from './helpers.js'
+import { execProxyCommandWithRetry, lowercaseKeys, parseJsonOutput, proxyCleanup } from './helpers.js'
 
 describe('proxy e2e with Python requests (py-app image)', () => {
   const createdSandboxes: string[] = []
@@ -38,7 +38,15 @@ print(resp.text)
     await pySandbox.fs.write("/tmp/proxy-test.py", pythonHelperScript)
     const pipResult = await pySandbox.process.exec({ command: 'pip install --break-system-packages requests 2>&1', waitForCompletion: true })
     if (pipResult.exitCode !== 0) throw new Error(`pip install failed: ${pipResult.logs?.slice(0, 500)}`)
-  }, 120_000)
+
+    // Wait for the proxy to become ready before running test assertions.
+    const warmup = await execProxyCommandWithRetry(
+      pySandbox,
+      'python3 /tmp/proxy-test.py GET https://httpbin.org/headers 2>&1',
+      { retries: 10, delayMs: 2000 },
+    )
+    if (warmup.exitCode !== 0) throw new Error(`Proxy warmup failed: ${warmup.logs?.slice(0, 500)}`)
+  }, 180_000)
 
   it('injects headers via Python requests (respects HTTPS_PROXY)', async () => {
     const result = await pySandbox.process.exec({ command: 'python3 /tmp/proxy-test.py GET https://httpbin.org/headers 2>&1', waitForCompletion: true })

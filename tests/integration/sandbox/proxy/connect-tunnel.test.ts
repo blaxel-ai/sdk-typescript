@@ -1,7 +1,7 @@
 import { SandboxInstance } from "@blaxel/core"
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { defaultLabels, defaultRegion, uniqueName } from '../helpers.js'
-import { execProxyCommandWithRetry, parseJsonOutput, proxyCleanup } from './helpers.js'
+import { execProxyCommandWithRetry, parseJsonOutput, proxyCleanup, proxyHelperScript } from './helpers.js'
 
 type PythonProxyOutput = {
   status: number
@@ -74,6 +74,16 @@ except urllib3.exceptions.HTTPError as e:
       })
       expect(install.exitCode, install.logs).toBe(0)
       await sandbox.fs.write("/tmp/urllib3-test.py", urllib3HelperScript)
+
+      // Wait for the proxy to become ready before running test assertions.
+      await sandbox.fs.write("/tmp/proxy-test.js", proxyHelperScript)
+      const warmup = await execProxyCommandWithRetry(
+        sandbox,
+        'node /tmp/proxy-test.js GET https://storage.googleapis.com 2>&1 || true',
+        { retries: 10, delayMs: 2000 },
+      )
+      // We don't check warmup exit code strictly here since the target might
+      // return errors, we just need the proxy connection to be established.
     }, 120_000)
 
     it('urllib3 reaches GCS through CONNECT with proxy-injected Authorization', async () => {
@@ -110,6 +120,15 @@ except urllib3.exceptions.HTTPError as e:
         },
       })
       createdSandboxes.push(name)
+
+      // Wait for the proxy to become ready (env vars should be set immediately,
+      // but the proxy sidecar may need a few seconds to start accepting connections).
+      await sandbox.fs.write("/tmp/proxy-test.js", proxyHelperScript)
+      const warmup = await execProxyCommandWithRetry(
+        sandbox,
+        'node /tmp/proxy-test.js GET https://pypi.org 2>&1 || true',
+        { retries: 10, delayMs: 2000 },
+      )
     }, 120_000)
 
     it('HTTP_PROXY and HTTPS_PROXY env vars are set in sandbox', async () => {
