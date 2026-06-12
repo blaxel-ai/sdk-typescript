@@ -19,7 +19,7 @@
  *   npx tsx tests/manual/drive_acl.ts --scenario label-match
  */
 
-import { DriveInstance, SandboxInstance } from "@blaxel/core"
+import { DriveInstance, SandboxInstance, settings } from "@blaxel/core"
 import { v4 as uuidv4 } from "uuid"
 
 // ---------------------------------------------------------------------------
@@ -87,18 +87,16 @@ async function updateDrivePermissions(
 ): Promise<void> {
   // DriveInstance.update doesn't propagate the permissions field, so we make
   // the PUT request directly. The backend ApplyUpdate allows spec.permissions.
-  const workspace = process.env.BL_WORKSPACE
-  const apiKey = process.env.BL_API_KEY
-  const baseUrl = ENV === "dev"
-    ? "https://api.blaxel.dev/v0"
-    : "https://api.blaxel.ai/v0"
+  // Use SDK settings for auth so it works with both API key and device-mode login.
+  await settings.authenticate()
+  const authHeaders = settings.headers
+  const baseUrl = settings.baseUrl
   const url = `${baseUrl}/drives/${driveName}`
   const res = await fetch(url, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      "x-blaxel-authorization": `Bearer ${apiKey}`,
-      "x-blaxel-workspace": workspace || "",
+      ...authHeaders,
     },
     body: JSON.stringify({
       metadata: {},
@@ -348,10 +346,25 @@ async function scenarioReadOnly() {
   const seed = await execInSandbox(writer, "echo 'read-only-test-data' > /mnt/ro/readonly.txt")
   record("read-only seed write", seed.ok, seed.ok ? "seeded data" : seed.logs)
 
-  // Reader sandbox: mount should succeed with the idempotent-mount fix
+  // Reader sandbox: mount with read-only permission.
+  // Known issue: FUSE mount calls Mkdir during init (a write op). If the filer
+  // ACL blocks it, mount times out. SeaweedFS#27 should make this idempotent
+  // but if it still fails, record the failure with context.
   const reader = await createSandbox(readerName, { role: "reader" })
   cleanupSandboxes.push(readerName)
-  await reader.drives.mount({ driveName, mountPath: "/mnt/ro" })
+  try {
+    await reader.drives.mount({ driveName, mountPath: "/mnt/ro" })
+  } catch (err) {
+    const msg = formatError(err)
+    record(
+      "read-only mount",
+      false,
+      msg.includes("timeout")
+        ? "FUSE init writes blocked by ACL (seaweedfs needs fix for read-only init)"
+        : `unexpected mount error: ${msg}`,
+    )
+    return
+  }
   await sleep(MOUNT_SETTLE_MS)
 
   const read = await execInSandbox(reader, "cat /mnt/ro/readonly.txt")
