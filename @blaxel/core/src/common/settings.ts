@@ -38,6 +38,22 @@ export type Config = {
   workspace?: string;
   disableH2?: boolean;
   /**
+   * Disables only the control-plane HTTP/2 wrapper, leaving data-plane (edge)
+   * H2 untouched. Use this to route control-plane calls (api.blaxel.{ai,dev})
+   * over native fetch while keeping sandbox/data-plane traffic on the H2 pool.
+   * The global `disableH2` flag still wins: when it is true, both planes use
+   * native fetch regardless of this value. Defaults to `false` (wrapper on).
+   */
+  disableControlPlaneH2?: boolean;
+  /**
+   * Forces the control-plane HTTP/2 wrapper on even when the runtime's native
+   * fetch already negotiates HTTP/2 (undici >= 8 / Node 26+), where it is
+   * otherwise skipped as redundant. Mainly for exercising the pooled path on a
+   * modern runtime. `disableH2` and `disableControlPlaneH2` still win.
+   * Defaults to `false`.
+   */
+  forceControlPlaneH2?: boolean;
+  /**
    * Maximum number of concurrent in-flight HTTP/2 requests across the shared
    * H2 session pool. `0` or `undefined` means unlimited (current behavior).
    */
@@ -351,6 +367,33 @@ class Settings {
       return ["1", "true", "yes", "on"].includes(value.toLowerCase());
     }
     return isDenoRuntime();
+  }
+
+  // Control-plane-only escape hatch: disables the control-plane H2 wrapper
+  // without affecting data-plane (edge) H2. `disableH2` is the global override
+  // and is checked separately by callers, so it always wins.
+  get disableControlPlaneH2(): boolean {
+    if (typeof this.config.disableControlPlaneH2 === "boolean") {
+      return this.config.disableControlPlaneH2;
+    }
+    const value = env.BL_DISABLE_CONTROL_PLANE_H2;
+    if (value) {
+      return ["1", "true", "yes", "on"].includes(value.toLowerCase());
+    }
+    return false;
+  }
+
+  // Forces the control-plane H2 wrapper on even when native fetch already
+  // supports H2 (undici >= 7). `disableH2`/`disableControlPlaneH2` still win.
+  get forceControlPlaneH2(): boolean {
+    if (typeof this.config.forceControlPlaneH2 === "boolean") {
+      return this.config.forceControlPlaneH2;
+    }
+    const value = env.BL_FORCE_CONTROL_PLANE_H2;
+    if (value) {
+      return ["1", "true", "yes", "on"].includes(value.toLowerCase());
+    }
+    return false;
   }
 
   get maxConcurrentH2Requests(): number {
