@@ -90,14 +90,15 @@ async function updateDrivePermissions(
   const workspace = process.env.BL_WORKSPACE
   const apiKey = process.env.BL_API_KEY
   const baseUrl = ENV === "dev"
-    ? "https://api.blaxel.dev"
-    : "https://api.blaxel.ai"
-  const url = `${baseUrl}/v0/workspaces/${workspace}/drives/${driveName}`
+    ? "https://api.blaxel.dev/v0"
+    : "https://api.blaxel.ai/v0"
+  const url = `${baseUrl}/drives/${driveName}`
   const res = await fetch(url, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      "X-Blaxel-Authorization": `Bearer ${apiKey}`,
+      "x-blaxel-authorization": `Bearer ${apiKey}`,
+      "x-blaxel-workspace": workspace || "",
     },
     body: JSON.stringify({
       metadata: {},
@@ -187,11 +188,6 @@ function formatError(err: unknown): string {
   if (err instanceof Error) return err.message
   if (typeof err === "object" && err !== null) return JSON.stringify(err)
   return String(err)
-}
-
-function isMountTimeout(err: unknown): boolean {
-  const msg = formatError(err)
-  return msg.includes("timeout waiting for mount point") || msg.includes("timed out")
 }
 
 /**
@@ -355,15 +351,7 @@ async function scenarioReadOnly() {
   // Reader sandbox: mount should succeed with the idempotent-mount fix
   const reader = await createSandbox(readerName, { role: "reader" })
   cleanupSandboxes.push(readerName)
-  try {
-    await reader.drives.mount({ driveName, mountPath: "/mnt/ro" })
-  } catch (err) {
-    if (isMountTimeout(err)) {
-      skip("read-only mount", "read-only mount requires updated seaweedfs binary (seaweedfs#27 latest)")
-      return
-    }
-    throw err
-  }
+  await reader.drives.mount({ driveName, mountPath: "/mnt/ro" })
   await sleep(MOUNT_SETTLE_MS)
 
   const read = await execInSandbox(reader, "cat /mnt/ro/readonly.txt")
@@ -488,15 +476,7 @@ async function scenarioPathScoping() {
   // Scoped sandbox: mount with drivePath="/data" (only has access to /data)
   const scoped = await createSandbox(scopedName, { role: "scoped" })
   cleanupSandboxes.push(scopedName)
-  try {
-    await scoped.drives.mount({ driveName, drivePath: "/data", mountPath: "/mnt/scoped" })
-  } catch (err) {
-    if (isMountTimeout(err)) {
-      skip("path-scoping mount", "path-scoped mount requires updated seaweedfs binary")
-      return
-    }
-    throw err
-  }
+  await scoped.drives.mount({ driveName, drivePath: "/data", mountPath: "/mnt/scoped" })
   await sleep(MOUNT_SETTLE_MS)
 
   // Should be able to read /data/file.txt (visible at mount root since drivePath=/data)
