@@ -93,3 +93,30 @@ cd @blaxel/core && npm run build    # builds CJS + ESM + browser variants
 ```
 
 The build outputs to `dist/cjs/`, `dist/esm/`, `dist/cjs-browser/`, `dist/esm-browser/`. Tests and other packages import from the compiled output, not from source.
+
+## Cursor Cloud specific instructions
+
+### Environment
+
+- **Package manager**: Bun v1.3.4 (installed at `~/.bun/bin/bun`). Ensure `PATH` includes `$HOME/.bun/bin`.
+- **Node.js**: v22 via nvm (pre-installed).
+- **No Docker** or external services required for SDK development.
+
+### Key commands
+
+| Task | Command |
+|------|---------|
+| Install deps | `bun install` |
+| Build all | `bun run build` |
+| Lint | `bun run lint` |
+| Unit tests | `npx vitest run tests/unit --reporter=verbose` |
+| H2 fetch tests | `npx vitest run tests/integration/common/h2fetch.test.ts --reporter=verbose` |
+| Integration tests | `bun run test:integration` (requires `BL_WORKSPACE` + `BL_API_KEY`) |
+| Dev watch mode | `bun run dev` |
+
+### Gotchas
+
+- You must rebuild (`bun run build`) before running integration tests; tests import from `dist/`, not source.
+- The lint command reports pre-existing errors in `@blaxel/core/src/image/image.ts` (unnecessary type assertions). These are not regressions.
+- Unit tests (`tests/unit/`) and `tests/integration/common/h2fetch.test.ts` run without any API credentials. All other integration tests require `BL_WORKSPACE` and `BL_API_KEY`.
+- The global test cleanup hook always runs and logs warnings about listing sandboxes/volumes when credentials are absent — this is safe to ignore.
