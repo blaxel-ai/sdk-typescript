@@ -108,7 +108,8 @@ export class DriveInstance {
 
   static async list() {
     const { data } = await listDrives({ throwOnError: true });
-    return data.map((drive) => new DriveInstance(drive));
+    const items = Array.isArray(data) ? data : (data.data ?? []);
+    return items.map((drive: Drive) => new DriveInstance(drive));
   }
 
   static async delete(driveName: string) {

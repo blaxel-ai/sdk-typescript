@@ -258,8 +258,9 @@ export class SandboxInstance {
   }
 
   static async list() {
-    const { data } = await listSandboxes({ throwOnError: true }) as { response: Response; data: SandboxModel[] };
-    const instances = data.map((sandbox) => new SandboxInstance(sandbox));
+    const { data } = await listSandboxes({ throwOnError: true });
+    const items: SandboxModel[] = Array.isArray(data) ? data : (data.data ?? []);
+    const instances = items.map((sandbox) => new SandboxInstance(sandbox));
     return Promise.all(instances.map((instance) => SandboxInstance.attachH2Session(instance)));
   }
 
