@@ -783,6 +783,16 @@ export type ExpirationPolicy = {
 };
 
 /**
+ * Firewall configuration specifying which network lockdown rulesets to apply. Valid rulesets are "default" (no-op), "proxy" (restrict egress to proxy), and "dedicated-ip" (restrict egress to dedicated IP gateway).
+ */
+export type FirewallConfig = {
+    /**
+     * List of firewall rulesets to apply. Valid values: "default" (no-op), "proxy" (restrict egress to proxy), "dedicated-ip" (restrict egress to dedicated IP gateway).
+     */
+    rulesets?: Array<string>;
+};
+
+/**
  * A type of hardware available for deployments
  */
 export type Flavor = {
@@ -2746,9 +2756,17 @@ export type PrivateLocation = {
  */
 export type ProxyConfig = {
     /**
+     * List of allowed external domains (allowlist). When set, only these domains are reachable. Supports wildcards (e.g. *.s3.amazonaws.com).
+     */
+    allowedDomains?: Array<string>;
+    /**
      * Domains that bypass the proxy entirely via the NO_PROXY directive. Traffic to these destinations goes direct, not through the CONNECT tunnel. Supports wildcards. Note that localhost, private ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16), 169.254.169.254, .local and .internal are always bypassed by default.
      */
     bypass?: Array<string>;
+    /**
+     * List of forbidden external domains (denylist). When set, all domains except these are reachable. Supports wildcards (e.g. *.malware.com). If both allowedDomains and forbiddenDomains are set, allowedDomains takes precedence.
+     */
+    forbiddenDomains?: Array<string>;
     /**
      * Per-destination routing rules with header/body injection and secrets. Use destinations ["*"] for global rules that apply to all destinations.
      */
@@ -3220,19 +3238,24 @@ export type SandboxLifecycle = {
 };
 
 /**
- * Network configuration for a sandbox including domain filtering, egress IP binding, and proxy settings
+ * Network configuration for a sandbox including subnet, firewall rulesets, domain filtering, egress IP binding, and proxy settings
  */
 export type SandboxNetwork = {
     /**
-     * List of allowed external domains (allowlist). When set, only these domains are reachable. Supports wildcards (e.g. *.s3.amazonaws.com).
+     * Deprecated: use proxy.allowedDomains instead. List of allowed external domains (allowlist). Kept for backward compatibility.
      */
     allowedDomains?: Array<string>;
     egress?: EgressConfig;
+    firewall?: FirewallConfig;
     /**
-     * List of forbidden external domains (denylist). When set, all domains except these are reachable. Supports wildcards (e.g. *.malware.com). If both allowedDomains and forbiddenDomains are set, allowedDomains takes precedence.
+     * Deprecated: use proxy.forbiddenDomains instead. List of forbidden external domains (denylist). Kept for backward compatibility.
      */
     forbiddenDomains?: Array<string>;
     proxy?: ProxyConfig;
+    /**
+     * Subnet name for the sandbox. Takes priority over any subnet derived from egress config. Defaults to "default" when absent.
+     */
+    subnet?: string;
 };
 
 /**
