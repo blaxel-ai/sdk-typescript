@@ -320,10 +320,13 @@ async function scenarioLabelMismatch() {
  * Scenario 4: Read-only mode enforcement.
  * Sandbox with matching labels but mode=read should be able to read but NOT write.
  *
- * Requires seaweedfs#27 (latest) — the mount init was updated to skip Mkdir
- * when the bucket directory already exists, allowing read-only permissions to
- * mount successfully. If the old binary is deployed, mount will time out and
- * the scenario gracefully skips.
+ * Requires:
+ *   - seaweedfs#27 (filer_conf.go fix) — handles PermissionDenied on
+ *     /etc/seaweedfs/filer.conf gracefully so mount doesn't abort
+ *   - sandbox PR#225 — detects early blfs exit immediately (fast-fail)
+ *
+ * The reader mounts with readOnly: true so the FUSE layer enforces read-only
+ * at the kernel level. The filer ACL also blocks writes server-side.
  */
 async function scenarioReadOnly() {
   console.log("\n=== Scenario: read-only (mode=read blocks writes) ===")
@@ -347,21 +350,18 @@ async function scenarioReadOnly() {
   record("read-only seed write", seed.ok, seed.ok ? "seeded data" : seed.logs)
 
   // Reader sandbox: mount with read-only permission.
-  // Known issue: FUSE mount calls Mkdir during init (a write op). If the filer
-  // ACL blocks it, mount times out. SeaweedFS#27 should make this idempotent
-  // but if it still fails, record the failure with context.
+  // Must pass readOnly: true so the sandbox-api skips write-based readiness
+  // checks and mounts with FUSE-level read-only flag.
   const reader = await createSandbox(readerName, { role: "reader" })
   cleanupSandboxes.push(readerName)
   try {
-    await reader.drives.mount({ driveName, mountPath: "/mnt/ro" })
+    await reader.drives.mount({ driveName, mountPath: "/mnt/ro", readOnly: true })
   } catch (err) {
     const msg = formatError(err)
     record(
       "read-only mount",
       false,
-      msg.includes("timeout")
-        ? "FUSE init writes blocked by ACL (seaweedfs needs fix for read-only init)"
-        : `unexpected mount error: ${msg}`,
+      `mount failed: ${msg}`,
     )
     return
   }
