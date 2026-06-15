@@ -259,8 +259,39 @@ export class SandboxInstance {
 
   static async list() {
     const { data } = await listSandboxes({ throwOnError: true }) as { response: Response; data: SandboxModel[] };
-    const instances = data.map((sandbox) => new SandboxInstance(sandbox));
-    return Promise.all(instances.map((instance) => SandboxInstance.attachH2Session(instance)));
+    const instances = data.map((sb) => new SandboxInstance(sb));
+
+    if (!settings.disableH2) {
+      const { h2Pool } = await import("../common/h2pool.js");
+      const uniqueDomains = [
+        ...new Set(
+          instances
+            .map((i) => SandboxInstance.edgeDomainForRegion(i.spec?.region))
+            .filter((d): d is string => d !== null),
+        ),
+      ];
+      const sessionByDomain = new Map<string, http2.ClientHttp2Session | null>();
+      await Promise.all(
+        uniqueDomains.map(async (domain) => {
+          try {
+            sessionByDomain.set(domain, await h2Pool.get(domain));
+          } catch {
+            sessionByDomain.set(domain, null);
+          }
+        }),
+      );
+      for (const instance of instances) {
+        const domain = SandboxInstance.edgeDomainForRegion(instance.spec?.region);
+        if (domain) {
+          const session = sessionByDomain.get(domain) ?? null;
+          instance.h2Session = session;
+          instance.sandbox.h2Session = session;
+          instance.sandbox.h2Domain = domain;
+        }
+      }
+    }
+
+    return instances;
   }
 
   static async delete(sandboxName: string) {
