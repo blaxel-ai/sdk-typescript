@@ -196,6 +196,10 @@ export type AppRevision = {
      * Memory allocation in megabytes. Determines CPU allocation (CPU = memory / 2048).
      */
     memory?: number;
+    /**
+     * Snapshot ID this revision was forked from (optional, only set when created via fork)
+     */
+    snapshot?: string;
 };
 
 /**
@@ -3736,6 +3740,10 @@ export type SandboxForkRequest = {
      */
     prefix?: string;
     /**
+     * Snapshot ID to fork from. When set, the application revision references this snapshot.
+     */
+    snapshotId?: string;
+    /**
      * Name of the target application to create or update
      */
     targetName: string;
@@ -5171,7 +5179,7 @@ export type ListApplicationRevisionsResponses = {
     /**
      * successful operation
      */
-    200: Array<RevisionMetadata>;
+    200: Array<AppRevision>;
 };
 
 export type ListApplicationRevisionsResponse = ListApplicationRevisionsResponses[keyof ListApplicationRevisionsResponses];
@@ -7986,6 +7994,44 @@ export type CreateSandboxSnapshotResponses = {
 };
 
 export type CreateSandboxSnapshotResponse = CreateSandboxSnapshotResponses[keyof CreateSandboxSnapshotResponses];
+
+export type DeleteSandboxSnapshotData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the sandbox
+         */
+        sandboxName: string;
+        /**
+         * ID of the snapshot to delete
+         */
+        snapshotId: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/snapshots/{snapshotId}';
+};
+
+export type DeleteSandboxSnapshotErrors = {
+    /**
+     * Not found - Snapshot does not exist
+     */
+    404: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type DeleteSandboxSnapshotError = DeleteSandboxSnapshotErrors[keyof DeleteSandboxSnapshotErrors];
+
+export type DeleteSandboxSnapshotResponses = {
+    /**
+     * Snapshot deleted successfully
+     */
+    204: void;
+};
+
+export type DeleteSandboxSnapshotResponse = DeleteSandboxSnapshotResponses[keyof DeleteSandboxSnapshotResponses];
 
 export type GetWorkspaceServiceAccountsData = {
     body?: never;

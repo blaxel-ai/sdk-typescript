@@ -50,9 +50,9 @@ export class ApplicationInstance {
     let body: ApplicationModel;
 
     if ("spec" in config && "metadata" in config) {
-      body = config as ApplicationModel;
+      body = config;
     } else {
-      const cfg = config as ApplicationCreateConfiguration;
+      const cfg = config;
       body = {
         metadata: {
           name: cfg.name || defaultName,
@@ -122,15 +122,15 @@ export class ApplicationInstance {
       body = {
         metadata: {
           ...existing.metadata,
-          ...(updates as ApplicationModel).metadata,
+          ...updates.metadata,
         },
         spec: {
           ...existing.spec,
-          ...(updates as ApplicationModel).spec,
+          ...updates.spec,
         },
       };
     } else {
-      const cfg = updates as ApplicationCreateConfiguration;
+      const cfg = updates;
       const metadataUpdates: Record<string, unknown> = {};
       const specUpdates: Partial<ApplicationSpec> = {};
 
@@ -177,6 +177,6 @@ export class ApplicationInstance {
       path: { applicationName: this.metadata.name },
       throwOnError: true,
     });
-    return data as AppRevision[];
+    return data;
   }
 }
