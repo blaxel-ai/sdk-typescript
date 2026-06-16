@@ -15,7 +15,7 @@
     "@blaxel/core": "workspace:*",
     "@blaxel/telemetry": "workspace:*",
     "@blaxel/vercel": "workspace:*",
-    "next": "15.5.4"
+    "next": "15.5.18"
   },
   "devDependencies": {
     "typescript": "^5",
@@ -25,7 +25,7 @@
     "@tailwindcss/postcss": "^4",
     "tailwindcss": "^4",
     "eslint": "^9",
-    "eslint-config-next": "15.5.4",
+    "eslint-config-next": "15.5.18",
     "@eslint/eslintrc": "^3"
   }
 }
