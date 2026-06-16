@@ -220,7 +220,7 @@ describe('Sandbox externalId', () => {
       const res = await apiFetch(`/sandboxes?externalId=${externalId}`)
       expect(res.ok).toBe(true)
       const sandboxes = await res.json()
-      const found = sandboxes.find((s: any) => s.metadata.name === name && s.status !== "TERMINATED")
+      const found = sandboxes.find((s: any) => s.metadata.name === name)
       expect(found).toBeUndefined()
     })
   })
