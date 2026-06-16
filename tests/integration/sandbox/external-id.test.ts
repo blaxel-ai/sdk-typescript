@@ -1,74 +1,56 @@
-import { SandboxInstance, settings } from "@blaxel/core"
+import {
+  SandboxInstance,
+  createSandbox,
+  getSandbox,
+  getSandboxByExternalId,
+  listSandboxes,
+  updateSandbox,
+} from "@blaxel/core"
+import type { Sandbox } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
 import { defaultImage, defaultLabels, defaultRegion, uniqueName, waitForSandboxDeletion, sleep } from './helpers.js'
 
 /**
- * Helper: raw fetch against the controlplane API with SDK auth headers.
- * Used because the generated SDK types don't include externalId yet.
+ * Creates a sandbox with an externalId using the generated SDK client.
  */
-async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
-  const url = `${settings.baseUrl}${path}`
-  return fetch(url, {
-    ...init,
-    headers: {
-      ...settings.headers,
-      ...(init?.headers || {}),
-    },
-  })
-}
-
-/**
- * Creates a sandbox with an externalId by issuing a raw POST (the generated
- * SDK doesn't know about the field yet).
- */
-async function createSandboxWithExternalId(name: string, externalId: string) {
-  const body = {
-    metadata: {
-      name,
-      labels: defaultLabels,
-      externalId,
-    },
-    spec: {
-      runtime: {
-        image: defaultImage,
+async function createSandboxWithExternalId(name: string, externalId: string): Promise<Sandbox> {
+  const { data } = await createSandbox({
+    body: {
+      metadata: {
+        name,
+        labels: defaultLabels,
+        externalId,
       },
-      region: defaultRegion,
+      spec: {
+        runtime: {
+          image: defaultImage,
+        },
+        region: defaultRegion,
+      },
     },
-  }
-  const res = await apiFetch('/sandboxes', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    throwOnError: true,
   })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`createSandboxWithExternalId failed (${res.status}): ${text}`)
-  }
-  return res.json()
+  return data
 }
 
 /**
- * Updates a sandbox's externalId via PUT (preserves other fields).
+ * Updates a sandbox's externalId via the generated SDK client (preserves other fields).
  */
-async function updateSandboxExternalId(name: string, externalId: string) {
-  // First get the current sandbox
-  const getRes = await apiFetch(`/sandboxes/${name}`)
-  if (!getRes.ok) throw new Error(`GET /sandboxes/${name} failed: ${getRes.status}`)
-  const sandbox = await getRes.json()
-
-  // Update metadata.externalId
-  sandbox.metadata.externalId = externalId
-
-  const res = await apiFetch(`/sandboxes/${name}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(sandbox),
+async function updateSandboxExternalId(name: string, externalId: string): Promise<Sandbox> {
+  const { data: current } = await getSandbox({
+    path: { sandboxName: name },
+    throwOnError: true,
   })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`updateSandboxExternalId failed (${res.status}): ${text}`)
-  }
-  return res.json()
+
+  const { data } = await updateSandbox({
+    path: { sandboxName: name },
+    body: {
+      ...current,
+      metadata: { ...current.metadata, externalId },
+    },
+    throwOnError: true,
+  })
+  return data
 }
 
 describe('Sandbox externalId', () => {
@@ -95,9 +77,10 @@ describe('Sandbox externalId', () => {
       createdSandboxes.push(name)
 
       // Verify via GET that externalId is persisted
-      const res = await apiFetch(`/sandboxes/${name}`)
-      expect(res.ok).toBe(true)
-      const sandbox = await res.json()
+      const { data: sandbox } = await getSandbox({
+        path: { sandboxName: name },
+        throwOnError: true,
+      })
       expect(sandbox.metadata.externalId).toBe(externalId)
     })
 
@@ -106,15 +89,16 @@ describe('Sandbox externalId', () => {
       await SandboxInstance.create({ name, region: defaultRegion, labels: defaultLabels })
       createdSandboxes.push(name)
 
-      const res = await apiFetch(`/sandboxes/${name}`)
-      expect(res.ok).toBe(true)
-      const sandbox = await res.json()
+      const { data: sandbox } = await getSandbox({
+        path: { sandboxName: name },
+        throwOnError: true,
+      })
       // externalId should be empty or not set
       expect(sandbox.metadata.externalId || "").toBe("")
     })
   })
 
-  describe('GET /sandboxes/by-external-id/{externalId}', () => {
+  describe('getSandboxByExternalId', () => {
     it('returns the sandbox by externalId', async () => {
       const name = uniqueName("ext-id-get")
       const externalId = `get-${Date.now()}`
@@ -122,16 +106,19 @@ describe('Sandbox externalId', () => {
       await createSandboxWithExternalId(name, externalId)
       createdSandboxes.push(name)
 
-      const res = await apiFetch(`/sandboxes/by-external-id/${externalId}`)
-      expect(res.ok).toBe(true)
-      const sandbox = await res.json()
+      const { data: sandbox } = await getSandboxByExternalId({
+        path: { externalId },
+        throwOnError: true,
+      })
       expect(sandbox.metadata.name).toBe(name)
       expect(sandbox.metadata.externalId).toBe(externalId)
     })
 
     it('returns 404 for non-existent externalId', async () => {
-      const res = await apiFetch(`/sandboxes/by-external-id/does-not-exist-${Date.now()}`)
-      expect(res.status).toBe(404)
+      const { response } = await getSandboxByExternalId({
+        path: { externalId: `does-not-exist-${Date.now()}` },
+      })
+      expect(response.status).toBe(404)
     })
 
     it('returns the most recent non-terminated sandbox when multiple exist', async () => {
@@ -155,9 +142,10 @@ describe('Sandbox externalId', () => {
       createdSandboxes.push(name2)
 
       // by-external-id should return the second (alive) one
-      const res = await apiFetch(`/sandboxes/by-external-id/${externalId}`)
-      expect(res.ok).toBe(true)
-      const sandbox = await res.json()
+      const { data: sandbox } = await getSandboxByExternalId({
+        path: { externalId },
+        throwOnError: true,
+      })
       expect(sandbox.metadata.name).toBe(name2)
     })
 
@@ -173,12 +161,14 @@ describe('Sandbox externalId', () => {
       await waitForSandboxDeletion(name)
 
       // by-external-id should return 404 since it's terminated
-      const res = await apiFetch(`/sandboxes/by-external-id/${externalId}`)
-      expect(res.status).toBe(404)
+      const { response } = await getSandboxByExternalId({
+        path: { externalId },
+      })
+      expect(response.status).toBe(404)
     })
   })
 
-  describe('GET /sandboxes?externalId=...', () => {
+  describe('listSandboxes with externalId filter', () => {
     it('filters sandboxes by externalId query param', async () => {
       const name = uniqueName("ext-id-filter")
       const externalId = `filter-${Date.now()}`
@@ -186,22 +176,24 @@ describe('Sandbox externalId', () => {
       await createSandboxWithExternalId(name, externalId)
       createdSandboxes.push(name)
 
-      const res = await apiFetch(`/sandboxes?externalId=${externalId}`)
-      expect(res.ok).toBe(true)
-      const sandboxes = await res.json()
-      expect(Array.isArray(sandboxes)).toBe(true)
+      const { data } = await listSandboxes({
+        query: { externalId },
+        throwOnError: true,
+      })
+      const sandboxes = Array.isArray(data) ? data : (data?.data ?? [])
       expect(sandboxes.length).toBeGreaterThanOrEqual(1)
 
-      const found = sandboxes.find((s: any) => s.metadata.name === name)
+      const found = sandboxes.find((s) => s.metadata.name === name)
       expect(found).toBeDefined()
-      expect(found.metadata.externalId).toBe(externalId)
+      expect(found!.metadata.externalId).toBe(externalId)
     })
 
     it('returns empty list for non-existent externalId', async () => {
-      const res = await apiFetch(`/sandboxes?externalId=nonexistent-${Date.now()}`)
-      expect(res.ok).toBe(true)
-      const sandboxes = await res.json()
-      expect(Array.isArray(sandboxes)).toBe(true)
+      const { data } = await listSandboxes({
+        query: { externalId: `nonexistent-${Date.now()}` },
+        throwOnError: true,
+      })
+      const sandboxes = Array.isArray(data) ? data : (data?.data ?? [])
       expect(sandboxes.length).toBe(0)
     })
 
@@ -217,10 +209,12 @@ describe('Sandbox externalId', () => {
       await waitForSandboxDeletion(name)
 
       // Filtered list should not include the terminated sandbox
-      const res = await apiFetch(`/sandboxes?externalId=${externalId}`)
-      expect(res.ok).toBe(true)
-      const sandboxes = await res.json()
-      const found = sandboxes.find((s: any) => s.metadata.name === name)
+      const { data } = await listSandboxes({
+        query: { externalId },
+        throwOnError: true,
+      })
+      const sandboxes = Array.isArray(data) ? data : (data?.data ?? [])
+      const found = sandboxes.find((s) => s.metadata.name === name)
       expect(found).toBeUndefined()
     })
   })
@@ -238,13 +232,16 @@ describe('Sandbox externalId', () => {
       await updateSandboxExternalId(name, externalId2)
 
       // Old externalId should no longer resolve
-      const resOld = await apiFetch(`/sandboxes/by-external-id/${externalId1}`)
+      const { response: resOld } = await getSandboxByExternalId({
+        path: { externalId: externalId1 },
+      })
       expect(resOld.status).toBe(404)
 
       // New externalId should work
-      const resNew = await apiFetch(`/sandboxes/by-external-id/${externalId2}`)
-      expect(resNew.ok).toBe(true)
-      const sandbox = await resNew.json()
+      const { data: sandbox } = await getSandboxByExternalId({
+        path: { externalId: externalId2 },
+        throwOnError: true,
+      })
       expect(sandbox.metadata.name).toBe(name)
       expect(sandbox.metadata.externalId).toBe(externalId2)
     })
@@ -262,9 +259,10 @@ describe('Sandbox externalId', () => {
       })
 
       // externalId should still be there
-      const res = await apiFetch(`/sandboxes/by-external-id/${externalId}`)
-      expect(res.ok).toBe(true)
-      const sandbox = await res.json()
+      const { data: sandbox } = await getSandboxByExternalId({
+        path: { externalId },
+        throwOnError: true,
+      })
       expect(sandbox.metadata.name).toBe(name)
       expect(sandbox.metadata.externalId).toBe(externalId)
     })
@@ -275,22 +273,20 @@ describe('Sandbox externalId', () => {
       const name = uniqueName("ext-id-toolong")
       const longId = 'a'.repeat(65)
 
-      const res = await apiFetch('/sandboxes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const { response, data } = await createSandbox({
+        body: {
           metadata: { name, labels: defaultLabels, externalId: longId },
           spec: { runtime: { image: defaultImage }, region: defaultRegion },
-        }),
+        },
       })
 
       // Should fail validation
-      if (res.ok) {
+      if (response.ok) {
         // If it somehow passed, clean up
         createdSandboxes.push(name)
       }
-      expect(res.ok).toBe(false)
-      expect(res.status).toBe(400)
+      expect(response.ok).toBe(false)
+      expect(response.status).toBe(400)
     })
 
     it('accepts externalId at exactly 64 characters', async () => {
@@ -300,9 +296,10 @@ describe('Sandbox externalId', () => {
       await createSandboxWithExternalId(name, maxId)
       createdSandboxes.push(name)
 
-      const res = await apiFetch(`/sandboxes/by-external-id/${maxId}`)
-      expect(res.ok).toBe(true)
-      const sandbox = await res.json()
+      const { data: sandbox } = await getSandboxByExternalId({
+        path: { externalId: maxId },
+        throwOnError: true,
+      })
       expect(sandbox.metadata.externalId).toBe(maxId)
     })
 
@@ -310,20 +307,18 @@ describe('Sandbox externalId', () => {
       const name = uniqueName("ext-id-invalid")
       const invalidId = 'has spaces!'
 
-      const res = await apiFetch('/sandboxes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const { response } = await createSandbox({
+        body: {
           metadata: { name, labels: defaultLabels, externalId: invalidId },
           spec: { runtime: { image: defaultImage }, region: defaultRegion },
-        }),
+        },
       })
 
-      if (res.ok) {
+      if (response.ok) {
         createdSandboxes.push(name)
       }
-      expect(res.ok).toBe(false)
-      expect(res.status).toBe(400)
+      expect(response.ok).toBe(false)
+      expect(response.status).toBe(400)
     })
   })
 })

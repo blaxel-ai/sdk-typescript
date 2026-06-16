@@ -258,8 +258,9 @@ export class SandboxInstance {
   }
 
   static async list() {
-    const { data } = await listSandboxes({ throwOnError: true }) as { response: Response; data: SandboxModel[] };
-    const instances = data.map((sb) => new SandboxInstance(sb));
+    const { data: raw } = await listSandboxes({ throwOnError: true });
+    const items = (Array.isArray(raw) ? raw : (raw?.data ?? [])) as SandboxModel[];
+    const instances = items.map((sb) => new SandboxInstance(sb));
 
     if (!settings.disableH2) {
       const { h2Pool } = await import("../common/h2pool.js");
