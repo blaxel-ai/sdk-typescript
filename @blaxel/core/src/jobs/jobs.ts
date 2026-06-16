@@ -120,7 +120,8 @@ class BlJob {
       throwOnError: true,
     });
 
-    return data ?? [];
+    const items = Array.isArray(data) ? data : (data?.data ?? []);
+    return items;
   }
 
   /**

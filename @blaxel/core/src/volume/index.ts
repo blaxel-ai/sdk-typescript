@@ -110,7 +110,8 @@ export class VolumeInstance {
 
   static async list() {
     const { data } = await listVolumes({ throwOnError: true });
-    return data.map((volume) => new VolumeInstance(volume));
+    const items = Array.isArray(data) ? data : (data?.data ?? []);
+    return items.map((volume) => new VolumeInstance(volume as Volume));
   }
 
   static async delete(volumeName: string) {
