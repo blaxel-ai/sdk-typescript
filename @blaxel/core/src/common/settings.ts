@@ -38,6 +38,22 @@ export type Config = {
   workspace?: string;
   disableH2?: boolean;
   /**
+   * Disables only the control-plane HTTP/2 wrapper, leaving data-plane (edge)
+   * H2 untouched. Use this to route control-plane calls (api.blaxel.{ai,dev})
+   * over native fetch while keeping sandbox/data-plane traffic on the H2 pool.
+   * The global `disableH2` flag still wins: when it is true, both planes use
+   * native fetch regardless of this value. Defaults to `false` (wrapper on).
+   */
+  disableControlPlaneH2?: boolean;
+  /**
+   * Forces the control-plane HTTP/2 wrapper on even when the runtime's native
+   * fetch already negotiates HTTP/2 (undici >= 8 / Node 26+), where it is
+   * otherwise skipped as redundant. Mainly for exercising the pooled path on a
+   * modern runtime. `disableH2` and `disableControlPlaneH2` still win.
+   * Defaults to `false`.
+   */
+  forceControlPlaneH2?: boolean;
+  /**
    * Maximum number of concurrent in-flight HTTP/2 requests across the shared
    * H2 session pool. `0` or `undefined` means unlimited (current behavior).
    */
@@ -65,6 +81,20 @@ export type Config = {
    * (process.exec, drives.mount, etc.).
    */
   sandboxReadRetries?: number;
+  /**
+   * Per-stream HTTP/2 flow-control window in bytes, advertised to the server as
+   * SETTINGS_INITIAL_WINDOW_SIZE. Node defaults this to 64KB, which caps a single
+   * download at window/RTT (~3MB/s at 20ms RTT) regardless of payload size.
+   * Defaults to 16MB so large reads are bandwidth-bound, not latency-bound.
+   */
+  h2StreamWindowSize?: number;
+  /**
+   * Connection-level HTTP/2 flow-control window in bytes, applied via
+   * session.setLocalWindowSize(). Node defaults this to 64KB and never grows it,
+   * so it throttles the WHOLE session (shared across all streams) — which is why
+   * adding read concurrency does not help. Defaults to 32MB.
+   */
+  h2ConnectionWindowSize?: number;
   /**
    * Client credentials for OAuth2 client_credentials flow.
    *
@@ -339,6 +369,33 @@ class Settings {
     return isDenoRuntime();
   }
 
+  // Control-plane-only escape hatch: disables the control-plane H2 wrapper
+  // without affecting data-plane (edge) H2. `disableH2` is the global override
+  // and is checked separately by callers, so it always wins.
+  get disableControlPlaneH2(): boolean {
+    if (typeof this.config.disableControlPlaneH2 === "boolean") {
+      return this.config.disableControlPlaneH2;
+    }
+    const value = env.BL_DISABLE_CONTROL_PLANE_H2;
+    if (value) {
+      return ["1", "true", "yes", "on"].includes(value.toLowerCase());
+    }
+    return false;
+  }
+
+  // Forces the control-plane H2 wrapper on even when native fetch already
+  // supports H2 (undici >= 7). `disableH2`/`disableControlPlaneH2` still win.
+  get forceControlPlaneH2(): boolean {
+    if (typeof this.config.forceControlPlaneH2 === "boolean") {
+      return this.config.forceControlPlaneH2;
+    }
+    const value = env.BL_FORCE_CONTROL_PLANE_H2;
+    if (value) {
+      return ["1", "true", "yes", "on"].includes(value.toLowerCase());
+    }
+    return false;
+  }
+
   get maxConcurrentH2Requests(): number {
     if (typeof this.config.maxConcurrentH2Requests === "number") {
       return this.config.maxConcurrentH2Requests;
@@ -365,6 +422,34 @@ class Settings {
       }
     }
     return 2;
+  }
+
+  get h2StreamWindowSize(): number {
+    if (typeof this.config.h2StreamWindowSize === "number") {
+      return this.config.h2StreamWindowSize;
+    }
+    const value = env.BL_H2_STREAM_WINDOW;
+    if (value) {
+      const parsed = parseInt(value, 10);
+      if (!Number.isNaN(parsed) && parsed > 0) {
+        return parsed;
+      }
+    }
+    return 16 * 1024 * 1024;
+  }
+
+  get h2ConnectionWindowSize(): number {
+    if (typeof this.config.h2ConnectionWindowSize === "number") {
+      return this.config.h2ConnectionWindowSize;
+    }
+    const value = env.BL_H2_CONNECTION_WINDOW;
+    if (value) {
+      const parsed = parseInt(value, 10);
+      if (!Number.isNaN(parsed) && parsed > 0) {
+        return parsed;
+      }
+    }
+    return 32 * 1024 * 1024;
   }
 
   get fsPartRetries(): number {
