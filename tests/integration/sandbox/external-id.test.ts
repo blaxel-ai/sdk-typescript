@@ -1,57 +1,6 @@
-import {
-  SandboxInstance,
-  createSandbox,
-  getSandbox,
-  getSandboxByExternalId,
-  listSandboxes,
-  updateSandbox,
-} from "@blaxel/core"
-import type { Sandbox } from "@blaxel/core"
+import { SandboxInstance } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
 import { defaultImage, defaultLabels, defaultRegion, uniqueName, waitForSandboxDeletion, sleep } from './helpers.js'
-
-/**
- * Creates a sandbox with an externalId using the generated SDK client.
- */
-async function createSandboxWithExternalId(name: string, externalId: string): Promise<Sandbox> {
-  const { data } = await createSandbox({
-    body: {
-      metadata: {
-        name,
-        labels: defaultLabels,
-        externalId,
-      },
-      spec: {
-        runtime: {
-          image: defaultImage,
-        },
-        region: defaultRegion,
-      },
-    },
-    throwOnError: true,
-  })
-  return data
-}
-
-/**
- * Updates a sandbox's externalId via the generated SDK client (preserves other fields).
- */
-async function updateSandboxExternalId(name: string, externalId: string): Promise<Sandbox> {
-  const { data: current } = await getSandbox({
-    path: { sandboxName: name },
-    throwOnError: true,
-  })
-
-  const { data } = await updateSandbox({
-    path: { sandboxName: name },
-    body: {
-      ...current,
-      metadata: { ...current.metadata, externalId },
-    },
-    throwOnError: true,
-  })
-  return data
-}
 
 describe('Sandbox externalId', () => {
   const createdSandboxes: string[] = []
@@ -73,14 +22,10 @@ describe('Sandbox externalId', () => {
       const name = uniqueName("ext-id-create")
       const externalId = `ext-${Date.now()}`
 
-      await createSandboxWithExternalId(name, externalId)
+      await SandboxInstance.create({ name, externalId, region: defaultRegion, labels: defaultLabels, image: defaultImage })
       createdSandboxes.push(name)
 
-      // Verify via GET that externalId is persisted
-      const { data: sandbox } = await getSandbox({
-        path: { sandboxName: name },
-        throwOnError: true,
-      })
+      const sandbox = await SandboxInstance.get(name)
       expect(sandbox.metadata.externalId).toBe(externalId)
     })
 
@@ -89,36 +34,28 @@ describe('Sandbox externalId', () => {
       await SandboxInstance.create({ name, region: defaultRegion, labels: defaultLabels })
       createdSandboxes.push(name)
 
-      const { data: sandbox } = await getSandbox({
-        path: { sandboxName: name },
-        throwOnError: true,
-      })
-      // externalId should be empty or not set
+      const sandbox = await SandboxInstance.get(name)
       expect(sandbox.metadata.externalId || "").toBe("")
     })
   })
 
-  describe('getSandboxByExternalId', () => {
+  describe('getByExternalId', () => {
     it('returns the sandbox by externalId', async () => {
       const name = uniqueName("ext-id-get")
       const externalId = `get-${Date.now()}`
 
-      await createSandboxWithExternalId(name, externalId)
+      await SandboxInstance.create({ name, externalId, region: defaultRegion, labels: defaultLabels, image: defaultImage })
       createdSandboxes.push(name)
 
-      const { data: sandbox } = await getSandboxByExternalId({
-        path: { externalId },
-        throwOnError: true,
-      })
+      const sandbox = await SandboxInstance.getByExternalId(externalId)
       expect(sandbox.metadata.name).toBe(name)
       expect(sandbox.metadata.externalId).toBe(externalId)
     })
 
     it('returns 404 for non-existent externalId', async () => {
-      const { response } = await getSandboxByExternalId({
-        path: { externalId: `does-not-exist-${Date.now()}` },
-      })
-      expect(response.status).toBe(404)
+      await expect(
+        SandboxInstance.getByExternalId(`does-not-exist-${Date.now()}`)
+      ).rejects.toMatchObject({ code: 404 })
     })
 
     it('returns the most recent non-terminated sandbox when multiple exist', async () => {
@@ -126,8 +63,7 @@ describe('Sandbox externalId', () => {
       const name1 = uniqueName("ext-id-old")
       const name2 = uniqueName("ext-id-new")
 
-      // Create first sandbox with externalId
-      await createSandboxWithExternalId(name1, externalId)
+      await SandboxInstance.create({ name: name1, externalId, region: defaultRegion, labels: defaultLabels, image: defaultImage })
       createdSandboxes.push(name1)
 
       // Wait briefly to ensure ordering by createdAt
@@ -137,15 +73,10 @@ describe('Sandbox externalId', () => {
       await SandboxInstance.delete(name1)
       await waitForSandboxDeletion(name1)
 
-      // Create second sandbox with same externalId
-      await createSandboxWithExternalId(name2, externalId)
+      await SandboxInstance.create({ name: name2, externalId, region: defaultRegion, labels: defaultLabels, image: defaultImage })
       createdSandboxes.push(name2)
 
-      // by-external-id should return the second (alive) one
-      const { data: sandbox } = await getSandboxByExternalId({
-        path: { externalId },
-        throwOnError: true,
-      })
+      const sandbox = await SandboxInstance.getByExternalId(externalId)
       expect(sandbox.metadata.name).toBe(name2)
     })
 
@@ -153,68 +84,51 @@ describe('Sandbox externalId', () => {
       const name = uniqueName("ext-id-term")
       const externalId = `term-${Date.now()}`
 
-      await createSandboxWithExternalId(name, externalId)
+      await SandboxInstance.create({ name, externalId, region: defaultRegion, labels: defaultLabels, image: defaultImage })
       createdSandboxes.push(name)
 
-      // Delete the sandbox
       await SandboxInstance.delete(name)
       await waitForSandboxDeletion(name)
 
-      // by-external-id should return 404 since it's terminated
-      const { response } = await getSandboxByExternalId({
-        path: { externalId },
-      })
-      expect(response.status).toBe(404)
+      await expect(
+        SandboxInstance.getByExternalId(externalId)
+      ).rejects.toMatchObject({ code: 404 })
     })
   })
 
-  describe('listSandboxes with externalId filter', () => {
-    it('filters sandboxes by externalId query param', async () => {
+  describe('list with externalId filter', () => {
+    it('filters sandboxes by externalId', async () => {
       const name = uniqueName("ext-id-filter")
       const externalId = `filter-${Date.now()}`
 
-      await createSandboxWithExternalId(name, externalId)
+      await SandboxInstance.create({ name, externalId, region: defaultRegion, labels: defaultLabels, image: defaultImage })
       createdSandboxes.push(name)
 
-      const { data } = await listSandboxes({
-        query: { externalId },
-        throwOnError: true,
-      })
-      const sandboxes = Array.isArray(data) ? data : (data?.data ?? [])
-      expect(sandboxes.length).toBeGreaterThanOrEqual(1)
+      const instances = await SandboxInstance.list({ externalId })
+      expect(instances.length).toBeGreaterThanOrEqual(1)
 
-      const found = sandboxes.find((s) => s.metadata.name === name)
+      const found = instances.find((s) => s.metadata.name === name)
       expect(found).toBeDefined()
       expect(found!.metadata.externalId).toBe(externalId)
     })
 
     it('returns empty list for non-existent externalId', async () => {
-      const { data } = await listSandboxes({
-        query: { externalId: `nonexistent-${Date.now()}` },
-        throwOnError: true,
-      })
-      const sandboxes = Array.isArray(data) ? data : (data?.data ?? [])
-      expect(sandboxes.length).toBe(0)
+      const instances = await SandboxInstance.list({ externalId: `nonexistent-${Date.now()}` })
+      expect(instances.length).toBe(0)
     })
 
     it('hides terminated sandboxes by default', async () => {
       const name = uniqueName("ext-id-list-term")
       const externalId = `list-term-${Date.now()}`
 
-      await createSandboxWithExternalId(name, externalId)
+      await SandboxInstance.create({ name, externalId, region: defaultRegion, labels: defaultLabels, image: defaultImage })
       createdSandboxes.push(name)
 
-      // Delete it
       await SandboxInstance.delete(name)
       await waitForSandboxDeletion(name)
 
-      // Filtered list should not include the terminated sandbox
-      const { data } = await listSandboxes({
-        query: { externalId },
-        throwOnError: true,
-      })
-      const sandboxes = Array.isArray(data) ? data : (data?.data ?? [])
-      const found = sandboxes.find((s) => s.metadata.name === name)
+      const instances = await SandboxInstance.list({ externalId })
+      const found = instances.find((s) => s.metadata.name === name)
       expect(found).toBeUndefined()
     })
   })
@@ -225,23 +139,18 @@ describe('Sandbox externalId', () => {
       const externalId1 = `upd1-${Date.now()}`
       const externalId2 = `upd2-${Date.now()}`
 
-      await createSandboxWithExternalId(name, externalId1)
+      await SandboxInstance.create({ name, externalId: externalId1, region: defaultRegion, labels: defaultLabels, image: defaultImage })
       createdSandboxes.push(name)
 
-      // Update to a new externalId
-      await updateSandboxExternalId(name, externalId2)
+      await SandboxInstance.updateMetadata(name, { externalId: externalId2 })
 
       // Old externalId should no longer resolve
-      const { response: resOld } = await getSandboxByExternalId({
-        path: { externalId: externalId1 },
-      })
-      expect(resOld.status).toBe(404)
+      await expect(
+        SandboxInstance.getByExternalId(externalId1)
+      ).rejects.toMatchObject({ code: 404 })
 
       // New externalId should work
-      const { data: sandbox } = await getSandboxByExternalId({
-        path: { externalId: externalId2 },
-        throwOnError: true,
-      })
+      const sandbox = await SandboxInstance.getByExternalId(externalId2)
       expect(sandbox.metadata.name).toBe(name)
       expect(sandbox.metadata.externalId).toBe(externalId2)
     })
@@ -250,19 +159,15 @@ describe('Sandbox externalId', () => {
       const name = uniqueName("ext-id-preserve")
       const externalId = `preserve-${Date.now()}`
 
-      await createSandboxWithExternalId(name, externalId)
+      await SandboxInstance.create({ name, externalId, region: defaultRegion, labels: defaultLabels, image: defaultImage })
       createdSandboxes.push(name)
 
-      // Update labels only (don't touch externalId) via SDK
+      // Update labels only (don't touch externalId)
       await SandboxInstance.updateMetadata(name, {
         labels: { ...defaultLabels, updated: "true" },
       })
 
-      // externalId should still be there
-      const { data: sandbox } = await getSandboxByExternalId({
-        path: { externalId },
-        throwOnError: true,
-      })
+      const sandbox = await SandboxInstance.getByExternalId(externalId)
       expect(sandbox.metadata.name).toBe(name)
       expect(sandbox.metadata.externalId).toBe(externalId)
     })
@@ -273,33 +178,25 @@ describe('Sandbox externalId', () => {
       const name = uniqueName("ext-id-toolong")
       const longId = 'a'.repeat(65)
 
-      const { response, data } = await createSandbox({
-        body: {
-          metadata: { name, labels: defaultLabels, externalId: longId },
-          spec: { runtime: { image: defaultImage }, region: defaultRegion },
-        },
-      })
-
-      // Should fail validation
-      if (response.ok) {
-        // If it somehow passed, clean up
-        createdSandboxes.push(name)
-      }
-      expect(response.ok).toBe(false)
-      expect(response.status).toBe(400)
+      await expect(
+        SandboxInstance.create({
+          name,
+          externalId: longId,
+          region: defaultRegion,
+          labels: defaultLabels,
+          image: defaultImage,
+        })
+      ).rejects.toBeDefined()
     })
 
     it('accepts externalId at exactly 64 characters', async () => {
       const name = uniqueName("ext-id-max")
       const maxId = 'a'.repeat(64)
 
-      await createSandboxWithExternalId(name, maxId)
+      await SandboxInstance.create({ name, externalId: maxId, region: defaultRegion, labels: defaultLabels, image: defaultImage })
       createdSandboxes.push(name)
 
-      const { data: sandbox } = await getSandboxByExternalId({
-        path: { externalId: maxId },
-        throwOnError: true,
-      })
+      const sandbox = await SandboxInstance.getByExternalId(maxId)
       expect(sandbox.metadata.externalId).toBe(maxId)
     })
 
@@ -307,18 +204,15 @@ describe('Sandbox externalId', () => {
       const name = uniqueName("ext-id-invalid")
       const invalidId = 'has spaces!'
 
-      const { response } = await createSandbox({
-        body: {
-          metadata: { name, labels: defaultLabels, externalId: invalidId },
-          spec: { runtime: { image: defaultImage }, region: defaultRegion },
-        },
-      })
-
-      if (response.ok) {
-        createdSandboxes.push(name)
-      }
-      expect(response.ok).toBe(false)
-      expect(response.status).toBe(400)
+      await expect(
+        SandboxInstance.create({
+          name,
+          externalId: invalidId,
+          region: defaultRegion,
+          labels: defaultLabels,
+          image: defaultImage,
+        })
+      ).rejects.toBeDefined()
     })
   })
 })

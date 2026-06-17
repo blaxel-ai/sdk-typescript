@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import type http2 from "http2";
-import { createSandbox, deleteSandbox, getSandbox, listSandboxes, SandboxLifecycle, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
+import { createSandbox, deleteSandbox, getSandbox, getSandboxByExternalId, listSandboxes, SandboxLifecycle, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
 import { SandboxCodegen } from "./codegen/index.js";
@@ -175,7 +175,7 @@ export class SandboxInstance {
       const extraArgs = sandbox.extraArgs;
 
       sandbox = {
-        metadata: { name: sandbox.name, labels: sandbox.labels },
+        metadata: { name: sandbox.name, labels: sandbox.labels, externalId: sandbox.externalId },
         spec: {
           region: region,
           runtime: {
@@ -257,8 +257,20 @@ export class SandboxInstance {
     return SandboxInstance.attachH2Session(instance);
   }
 
-  static async list() {
-    const { data: raw } = await listSandboxes({ throwOnError: true });
+  static async getByExternalId(externalId: string) {
+    const { data } = await getSandboxByExternalId({
+      path: { externalId },
+      throwOnError: true,
+    });
+    const instance = new SandboxInstance(data);
+    return SandboxInstance.attachH2Session(instance);
+  }
+
+  static async list({ externalId }: { externalId?: string } = {}) {
+    const { data: raw } = await listSandboxes({
+      query: externalId ? { externalId } : undefined,
+      throwOnError: true,
+    });
     const items = (Array.isArray(raw) ? raw : (raw?.data ?? [])) as SandboxModel[];
     const instances = items.map((sb) => new SandboxInstance(sb));
 
