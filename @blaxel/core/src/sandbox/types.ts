@@ -37,6 +37,7 @@ export type SandboxConfiguration = {
 export type SandboxUpdateMetadata = {
   labels?: Record<string, string>;
   displayName?: string;
+  externalId?: string;
 }
 
 export type SandboxUpdateNetwork = {
@@ -58,6 +59,7 @@ export type SandboxCreateConfiguration = {
   snapshotEnabled?: boolean;
   labels?: Record<string, string>;
   extraArgs?: Record<string, string>;
+  externalId?: string;
 }
 
 export function normalizePorts(ports?: (Port | Record<string, any>)[]): Port[] | undefined {
