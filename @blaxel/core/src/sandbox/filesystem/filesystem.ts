@@ -24,6 +24,34 @@ export function retryOnTransient<T>(fn: () => Promise<T>): Promise<T> {
   return retryOnTransientReset(fn, { retries: settings.fsPartRetries });
 }
 
+async function blobFromReadableStream(stream: ReadableStream<Uint8Array>): Promise<Blob> {
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (value) chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return new Blob(chunks);
+}
+
+async function normalizeBinaryDownload(data: unknown, response: Response): Promise<Blob> {
+  if (data instanceof Blob) return data;
+  if (typeof data === "string") return new Blob([data]);
+  if (data instanceof ArrayBuffer) return new Blob([data]);
+  if (ArrayBuffer.isView(data)) {
+    const bytes = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    return new Blob([bytes]);
+  }
+  if (data instanceof ReadableStream) return blobFromReadableStream(data);
+  if (response.body) return blobFromReadableStream(response.body);
+  throw new Error(`Unsupported binary download response: ${data === null ? "null" : typeof data}`);
+}
+
 export class SandboxFileSystem extends SandboxAction {
   constructor(sandbox: Sandbox, private process: SandboxProcess) {
     super(sandbox);
@@ -200,12 +228,10 @@ export class SandboxFileSystem extends SandboxAction {
         headers: {
           'Accept': 'application/octet-stream',
         },
+        parseAs: 'blob',
       }));
       this.handleResponseError(response, data, error);
-      if (typeof data === 'string') {
-        return new Blob([data]);
-      }
-      return data as Blob;
+      return normalizeBinaryDownload(data, response);
     });
   }
 
