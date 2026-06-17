@@ -93,6 +93,12 @@ export class SandboxFileSystem extends SandboxAction {
       if (!fs) {
         throw new Error("File path upload is only supported in Node.js environments");
       }
+      const stat = fs.statSync(content);
+      // For files larger than MULTIPART_THRESHOLD, stream chunks directly
+      // to avoid hitting Node.js Buffer size limit (2 GiB)
+      if (stat.size > MULTIPART_THRESHOLD) {
+        return await this.uploadFileWithMultipart(path, content, stat.size, "0644");
+      }
       const buffer = fs.readFileSync(content);
       fileBlob = new Blob([buffer]);
     } else {
@@ -519,6 +525,60 @@ export class SandboxFileSystem extends SandboxAction {
       throwOnError: true,
     }));
     return data;
+  }
+
+  private async uploadFileWithMultipart(path: string, filePath: string, fileSize: number, permissions: string = "0644"): Promise<SuccessResponse> {
+    if (!fs) {
+      throw new Error("File streaming upload is only supported in Node.js environments");
+    }
+
+    const initResponse = await this.initiateMultipartUpload(path, permissions);
+    const uploadId = initResponse.uploadId;
+
+    if (!uploadId) {
+      throw new Error("Failed to get upload ID from initiate response");
+    }
+
+    try {
+      const numParts = Math.ceil(fileSize / CHUNK_SIZE);
+      const parts: Array<MultipartPartInfo> = [];
+      const fd = fs.openSync(filePath, 'r');
+
+      try {
+        for (let i = 0; i < numParts; i += MAX_PARALLEL_UPLOADS) {
+          const batch: Array<Promise<MultipartUploadPartResponse>> = [];
+
+          for (let j = 0; j < MAX_PARALLEL_UPLOADS && i + j < numParts; j++) {
+            const partNumber = i + j + 1;
+            const start = (partNumber - 1) * CHUNK_SIZE;
+            const end = Math.min(start + CHUNK_SIZE, fileSize);
+            const length = end - start;
+
+            const buffer = Buffer.alloc(length);
+            fs.readSync(fd, buffer, 0, length, start);
+            const chunk = new Blob([buffer]);
+
+            batch.push(this.uploadPart(uploadId, partNumber, chunk));
+          }
+
+          const batchResults = await Promise.all(batch);
+          parts.push(...batchResults);
+        }
+      } finally {
+        fs.closeSync(fd);
+      }
+
+      parts.sort((a, b) => (a.partNumber ?? 0) - (b.partNumber ?? 0));
+
+      return await this.completeMultipartUpload(uploadId, parts);
+    } catch (error) {
+      try {
+        await this.abortMultipartUpload(uploadId);
+      } catch (abortError) {
+        // Log but don't throw - we want to throw the original error
+      }
+      throw error;
+    }
   }
 
   private async uploadWithMultipart(path: string, blob: Blob, permissions: string = "0644"): Promise<SuccessResponse> {
