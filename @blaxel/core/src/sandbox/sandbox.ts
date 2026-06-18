@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import type http2 from "http2";
-import { createSandbox, deleteSandbox, getSandbox, listSandboxes, type ListSandboxesData, type SandboxLifecycle, type Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
+import { createSandbox, deleteSandbox, getSandbox, getSandboxByExternalId, listSandboxes, type ListSandboxesData, type SandboxLifecycle, type Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
 import { createPaginatedList } from "../common/pagination.js";
 import { settings } from "../common/settings.js";
@@ -23,6 +23,24 @@ const NON_REUSABLE_SANDBOX_STATUSES = new Set([
 ]);
 
 export type SandboxListQuery = NonNullable<ListSandboxesData["query"]>;
+
+// Statuses that resolve on their own (a delete or deactivation in flight). The control
+// plane keeps answering 409 to creates while the record is in one of these, so retrying
+// instantly burns the whole attempt budget inside the window. Terminal statuses
+// (FAILED, TERMINATED) accept a create immediately and are not listed here.
+const TRANSIENT_SANDBOX_STATUSES = new Set([
+  "TERMINATING",
+  "DELETING",
+  "DEACTIVATING",
+]);
+const TRANSIENT_STATUS_MAX_WAIT_MS = 30_000;
+const TRANSIENT_STATUS_POLL_MS = 500;
+
+const isSandboxNotFound = (e: unknown): boolean => {
+  if (typeof e !== "object" || e === null) return false;
+  const candidate = e as { code?: unknown; status?: unknown };
+  return candidate.code === 404 || candidate.code === "404" || candidate.status === 404;
+};
 
 export class SandboxInstance {
   fs: SandboxFileSystem;
@@ -160,7 +178,7 @@ export class SandboxInstance {
       const extraArgs = sandbox.extraArgs;
 
       sandbox = {
-        metadata: { name: sandbox.name, labels: sandbox.labels },
+        metadata: { name: sandbox.name, labels: sandbox.labels, externalId: sandbox.externalId },
         spec: {
           region: region,
           runtime: {
@@ -242,6 +260,15 @@ export class SandboxInstance {
     return SandboxInstance.attachH2Session(instance);
   }
 
+  static async getByExternalId(externalId: string) {
+    const { data } = await getSandboxByExternalId({
+      path: { externalId },
+      throwOnError: true,
+    });
+    const instance = new SandboxInstance(data);
+    return SandboxInstance.attachH2Session(instance);
+  }
+
   /**
    * List one page of sandboxes.
    *
@@ -314,9 +341,9 @@ export class SandboxInstance {
     return SandboxInstance.attachH2Session(instance);
   }
 
-  static async updateTtl(sandboxName: string, ttl: string) {
+  static async updateTtl(sandboxName: string, ttl: string | null) {
     const sandbox = await SandboxInstance.get(sandboxName);
-    const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, runtime: { ...sandbox.spec.runtime, ttl } } } as SandboxModel
+    const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, runtime: { ...sandbox.spec.runtime, ttl: ttl === '' ? null : ttl ?? null } } } as SandboxModel
     const { data } = await updateSandbox({
       path: { sandboxName },
       body,
@@ -326,9 +353,9 @@ export class SandboxInstance {
     return SandboxInstance.attachH2Session(instance);
   }
 
-  static async updateLifecycle(sandboxName: string, lifecycle: SandboxLifecycle) {
+  static async updateLifecycle(sandboxName: string, lifecycle: SandboxLifecycle | null) {
     const sandbox = await SandboxInstance.get(sandboxName);
-    const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, lifecycle } } as SandboxModel
+    const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, lifecycle: lifecycle ?? null } } as SandboxModel
     const { data } = await updateSandbox({
       path: { sandboxName },
       body,
@@ -353,7 +380,9 @@ export class SandboxInstance {
 
   static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration) {
     const ATTEMPTS = 3;
+    let lastStatus = "unknown";
     for (let i = 0; i < ATTEMPTS; ++i) {
+      const finalAttempt = i === ATTEMPTS - 1;
       try {
         return await this.create(sandbox, { createIfNotExist: true });
       } catch (e) {
@@ -364,11 +393,33 @@ export class SandboxInstance {
           }
 
           // Get the existing sandbox to check its status
-          const sandboxInstance = await this.get(name);
+          let sandboxInstance: SandboxInstance;
+          try {
+            sandboxInstance = await this.get(name);
+          } catch (getError) {
+            if (isSandboxNotFound(getError)) {
+              // The record vanished between the create conflict and this status check
+              // (its deletion just finished); give the control plane a beat and retry.
+              lastStatus = "vanished";
+              if (!finalAttempt) {
+                await new Promise((resolve) => setTimeout(resolve, TRANSIENT_STATUS_POLL_MS));
+              }
+              continue;
+            }
+            throw getError;
+          }
 
           // Recreate instead of returning sandbox records that cannot be reused.
           if (!NON_REUSABLE_SANDBOX_STATUSES.has(sandboxInstance.status ?? "")) {
             return sandboxInstance;
+          }
+
+          // A delete or deactivation in flight rejects creates until it finishes;
+          // wait it out instead of burning the remaining attempts inside the window.
+          // No point waiting after the last attempt: nothing will use the result.
+          lastStatus = sandboxInstance.status ?? "unknown";
+          if (TRANSIENT_SANDBOX_STATUSES.has(lastStatus) && !finalAttempt) {
+            await this.waitWhileSandboxDying(name);
           }
 
           // Retry creation. We want the same error handling on the retry as creates can race.
@@ -377,7 +428,26 @@ export class SandboxInstance {
         throw e;
       }
     }
-    throw new Error(`Unable to create sandbox after ${ATTEMPTS} attempts.`);
+    throw new Error(`Unable to create sandbox after ${ATTEMPTS} attempts. Last conflicting status: ${lastStatus}.`);
+  }
+
+  // Poll the record until an in-flight delete/deactivation settles (or the record
+  // disappears), bounded by TRANSIENT_STATUS_MAX_WAIT_MS. Errors from get (e.g. 404
+  // once the record is gone) end the wait: the caller's create retry decides next.
+  private static async waitWhileSandboxDying(name: string): Promise<void> {
+    const deadline = Date.now() + TRANSIENT_STATUS_MAX_WAIT_MS;
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, TRANSIENT_STATUS_POLL_MS));
+      try {
+        const current = await this.get(name);
+        if (!TRANSIENT_SANDBOX_STATUSES.has(current.status ?? "")) {
+          return;
+        }
+        logger.debug(`Sandbox ${name} still ${current.status}; waiting for the record to settle before recreating`);
+      } catch {
+        return;
+      }
+    }
   }
 
   /* eslint-disable */

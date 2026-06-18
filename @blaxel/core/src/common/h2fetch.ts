@@ -52,32 +52,37 @@ type H2DomainGate = {
   queue: Array<() => void>;
 };
 
+// Global per-domain gate (the opt-in maxConcurrentH2Requests cap).
 const h2GatesByDomain = new Map<string, H2DomainGate>();
+// Upload-scoped per-domain gate (the default-on multipart upload cap, ENG-2680).
+// Kept separate from the global gate so it only ever throttles upload parts.
+const h2UploadGatesByDomain = new Map<string, H2DomainGate>();
 
-function getH2Gate(domain: string): H2DomainGate {
-  let gate = h2GatesByDomain.get(domain);
+function getGate(gates: Map<string, H2DomainGate>, domain: string): H2DomainGate {
+  let gate = gates.get(domain);
   if (!gate) {
     gate = { active: 0, queue: [] };
-    h2GatesByDomain.set(domain, gate);
+    gates.set(domain, gate);
   }
   return gate;
 }
 
 /**
- * Acquire an OPEN-STREAM slot for `domain`. Resolves with a release function
- * that is idempotent and FIFO-fair: releasing wakes the longest-waiting queued
- * caller for the same domain. The slot is held for the lifetime of an OPEN H2
- * stream — the send path releases it on the stream terminal — so the gate
- * bounds true concurrent streams on the one shared session, not merely requests
- * awaiting headers (ENG-2678). A backstop timer releases the slot if a request
- * neither opens a stream nor ever settles, preventing per-domain starvation;
- * it never aborts the underlying request (see `H2_SLOT_TIMEOUT_MS`).
+ * Core per-domain async semaphore, shared by the global and upload gates.
+ * Resolves with a release function that is idempotent and FIFO-fair: releasing
+ * wakes the longest-waiting queued caller for the same domain. When `max` is
+ * `0`/unset the gate is a no-op (unlimited). A backstop timer releases the slot
+ * if a holder never releases, preventing per-domain starvation; it never aborts
+ * the underlying request (see `H2_SLOT_TIMEOUT_MS`).
  */
-async function acquireH2Slot(domain: string): Promise<() => void> {
-  const max = settings.maxConcurrentH2Requests; // 0/undefined = unlimited
+async function acquireGateSlot(
+  gates: Map<string, H2DomainGate>,
+  domain: string,
+  max: number,
+): Promise<() => void> {
   if (!max || max <= 0) return () => {};
 
-  const gate = getH2Gate(domain);
+  const gate = getGate(gates, domain);
   while (gate.active >= max) {
     await new Promise<void>((resolve) => gate.queue.push(resolve));
   }
@@ -95,9 +100,9 @@ async function acquireH2Slot(domain: string): Promise<() => void> {
     if (next) {
       next();
     } else if (gate.active === 0 && gate.queue.length === 0) {
-      // No active requests and nothing waiting: drop the empty gate so the
-      // Map does not grow unbounded across many short-lived domains.
-      h2GatesByDomain.delete(domain);
+      // No active holders and nothing waiting: drop the empty gate so the Map
+      // does not grow unbounded across many short-lived domains.
+      gates.delete(domain);
     }
   };
 
@@ -107,6 +112,43 @@ async function acquireH2Slot(domain: string): Promise<() => void> {
   (timer.handle as unknown as { unref?: () => void }).unref?.();
 
   return release;
+}
+
+/**
+ * Acquire the global OPEN-STREAM slot for `domain` (the opt-in
+ * `maxConcurrentH2Requests` cap; `0`/unset = unlimited, the default). Held for
+ * the lifetime of an OPEN H2 stream — the send path releases it on the stream
+ * terminal — so the gate bounds true concurrent streams on the one shared
+ * session, not merely requests awaiting headers (ENG-2678).
+ */
+function acquireH2Slot(domain: string): Promise<() => void> {
+  return acquireGateSlot(h2GatesByDomain, domain, settings.maxConcurrentH2Requests);
+}
+
+/**
+ * Acquire an upload-scoped slot for `domain`, bounding concurrent multipart
+ * upload-part requests on the shared H2 connection (ENG-2680). Separate from the
+ * global gate so it only throttles uploads. Defaults to 2 — the measured value
+ * that stops concurrent large uploads tripping ENHANCE_YOUR_CALM — making it the
+ * one reliability mitigation on by default, scoped to the upload path.
+ */
+function acquireUploadSlot(domain: string): Promise<() => void> {
+  return acquireGateSlot(h2UploadGatesByDomain, domain, settings.maxConcurrentUploadH2Requests);
+}
+
+/**
+ * Run `fn` while holding an upload slot for `domain`, releasing it when `fn`
+ * settles (the part PUT completes or fails). Bounds concurrent in-flight upload
+ * parts per domain across all files sharing the connection. Used by the
+ * multipart upload path; a no-op wrapper when the upload cap is unset.
+ */
+export async function withUploadSlot<T>(domain: string, fn: () => Promise<T>): Promise<T> {
+  const release = await acquireUploadSlot(domain);
+  try {
+    return await fn();
+  } finally {
+    release();
+  }
 }
 
 /**

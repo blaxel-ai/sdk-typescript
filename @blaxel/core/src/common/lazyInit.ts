@@ -1,5 +1,6 @@
 import { client } from "../client/client.gen.js";
 import { client as clientSandbox } from "../sandbox/client/client.gen.js";
+import { controlPlaneFetch } from "./controlPlaneFetch.js";
 import { initSentry } from "./sentry.js";
 import { settings } from "./settings.js";
 
@@ -36,7 +37,7 @@ export function ensureAutoloaded(): void {
   // Keep the clients' baseUrl in sync with the now-resolved env. Without
   // this, the module-load `client.setConfig({ baseUrl })` would be stuck on
   // the prod default for users who rely on `config.yaml` (no env vars).
-  client.setConfig({ baseUrl: settings.baseUrl });
+  client.setConfig({ baseUrl: settings.baseUrl, fetch: controlPlaneFetch });
   clientSandbox.setConfig({ baseUrl: settings.baseUrl });
 
   // Initialize Sentry for SDK error tracking.
@@ -50,9 +51,9 @@ export function ensureAutoloaded(): void {
   if (isNode && !isBrowser && !settings.disableH2) {
     try {
       // Pre-warm edge H2 for the configured region so the first
-      // SandboxInstance.create() gets an instant session via the pool.
-      // The control-plane client (api.blaxel.ai) stays on regular fetch
-      // which already benefits from undici's built-in connection pooling.
+      // SandboxInstance.create() gets an instant data-plane session via the
+      // pool. Control-plane H2 is intentionally not warmed; its cold burst
+      // relies on pool deduplication instead.
       const region = settings.region;
       if (region) {
         import("./h2pool.js").then(({ h2Pool }) => {

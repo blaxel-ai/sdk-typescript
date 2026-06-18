@@ -41,6 +41,52 @@ describe('firewall e2e (allowedDomains / forbiddenDomains)', () => {
     }, 60_000)
   })
 
+  describe('no proxy bypass (firewall ruleset: proxy)', () => {
+    let bypassSandbox: Awaited<ReturnType<typeof SandboxInstance.create>>
+
+    beforeAll(async () => {
+      const readyStart = Date.now()
+      bypassSandbox = await createReadyProxySandbox(
+        async () => {
+          const name = uniqueName("fw-bypass")
+          console.log(`[fw-bypass] creating sandbox ${name}...`)
+          const createStart = Date.now()
+          const sandbox = await SandboxInstance.create({
+            name, image: defaultImage, region: defaultRegion, labels: defaultLabels,
+            network: {
+              firewall: { rulesets: ["proxy"] },
+              allowedDomains: ["httpbin.org"],
+              proxy: { routing: [] },
+            },
+          })
+          console.log(`[fw-bypass] SandboxInstance.create took ${Date.now() - createStart}ms`)
+          return { name, sandbox }
+        },
+        createdSandboxes,
+        'node /tmp/proxy-test.js GET https://httpbin.org/get',
+      )
+      console.log(`[fw-bypass] sandbox ready (create + proxy warmup) took ${Date.now() - readyStart}ms`)
+
+      // // Give the "proxy" firewall ruleset a moment to be fully enforced at the
+      // // network level before we assert that a direct (no-proxy) call is blocked.
+      // await new Promise((resolve) => setTimeout(resolve, 15_000))
+    }, 180_000)
+
+    it('blocks requests even when proxy env vars are unset (no proxy bypass)', async () => {
+      // Strip every proxy hint so the helper attempts a direct connection,
+      // bypassing the proxy entirely. With the "proxy" firewall ruleset egress is
+      // enforced at the network level by dropping packets, so a direct connection
+      // won't be refused — it just hangs. `timeout` turns that hang into a
+      // non-zero exit (124), proving the bypass is blocked rather than silently
+      // succeeding.
+      const result = await bypassSandbox.process.exec({
+        command: 'timeout 10 env -u HTTP_PROXY -u http_proxy -u HTTPS_PROXY -u https_proxy node /tmp/proxy-test.js GET https://httpbin.org/get',
+        waitForCompletion: true,
+      })
+      expect(result.exitCode, result.logs).not.toBe(0)
+    }, 60_000)
+  })
+
   describe('forbiddenDomains (denylist)', () => {
     let denySandbox: Awaited<ReturnType<typeof SandboxInstance.create>>
 
