@@ -337,9 +337,9 @@ export class SandboxInstance {
     return SandboxInstance.attachH2Session(instance);
   }
 
-  static async updateTtl(sandboxName: string, ttl: string) {
+  static async updateTtl(sandboxName: string, ttl: string | null) {
     const sandbox = await SandboxInstance.get(sandboxName);
-    const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, runtime: { ...sandbox.spec.runtime, ttl } } } as SandboxModel
+    const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, runtime: { ...sandbox.spec.runtime, ttl: ttl === '' ? null : ttl ?? null } } } as SandboxModel
     const { data } = await updateSandbox({
       path: { sandboxName },
       body,
@@ -349,9 +349,9 @@ export class SandboxInstance {
     return SandboxInstance.attachH2Session(instance);
   }
 
-  static async updateLifecycle(sandboxName: string, lifecycle: SandboxLifecycle) {
+  static async updateLifecycle(sandboxName: string, lifecycle: SandboxLifecycle | null) {
     const sandbox = await SandboxInstance.get(sandboxName);
-    const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, lifecycle } } as SandboxModel
+    const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, lifecycle: lifecycle ?? null } } as SandboxModel
     const { data } = await updateSandbox({
       path: { sandboxName },
       body,
