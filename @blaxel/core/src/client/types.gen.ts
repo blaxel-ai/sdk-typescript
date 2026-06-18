@@ -427,6 +427,10 @@ export type CustomDomainSpec = {
      */
     cnameRecords?: string;
     /**
+     * Preview ID to route to when a preview lookup fails on this custom domain
+     */
+    fallbackPreviewId?: string;
+    /**
      * Last verification attempt timestamp
      */
     readonly lastVerifiedAt?: string;
@@ -438,6 +442,10 @@ export type CustomDomainSpec = {
      * Current status of the domain (pending, verified, failed)
      */
     status?: 'pending' | 'verified' | 'failed';
+    /**
+     * List of subdomains (previews) currently using this custom domain. Only populated on GET /customdomains/{domainName}.
+     */
+    readonly subdomains?: Array<CustomDomainSubdomain>;
     /**
      * Map of TXT record names to values for domain verification
      */
@@ -459,6 +467,10 @@ export type CustomDomainSpecWritable = {
      */
     cnameRecords?: string;
     /**
+     * Preview ID to route to when a preview lookup fails on this custom domain
+     */
+    fallbackPreviewId?: string;
+    /**
      * Region that the custom domain is associated with
      */
     region?: string;
@@ -472,6 +484,32 @@ export type CustomDomainSpecWritable = {
     txtRecords?: {
         [key: string]: string;
     };
+};
+
+/**
+ * A subdomain (preview) using a custom domain
+ */
+export type CustomDomainSubdomain = {
+    /**
+     * Preview name
+     */
+    previewName?: string;
+    /**
+     * Resource name
+     */
+    resourceName?: string;
+    /**
+     * Resource type (e.g., sandbox)
+     */
+    resourceType?: string;
+    /**
+     * Subdomain prefix used for routing
+     */
+    subdomain?: string;
+    /**
+     * Full URL of the preview on this custom domain
+     */
+    url?: string;
 };
 
 /**
@@ -835,6 +873,16 @@ export type ExpirationPolicy = {
      * Duration value for TTL policies (e.g., '30m', '24h', '7d') or ISO 8601 date for date policies
      */
     value?: string;
+};
+
+/**
+ * Firewall configuration specifying which network lockdown rulesets to apply. Valid rulesets are "default" (no-op), "proxy" (restrict egress to proxy), and "dedicated-ip" (restrict egress to dedicated IP gateway).
+ */
+export type FirewallConfig = {
+    /**
+     * List of firewall rulesets to apply. Valid values: "default" (no-op), "proxy" (restrict egress to proxy), "dedicated-ip" (restrict egress to dedicated IP gateway).
+     */
+    rulesets?: Array<string>;
 };
 
 /**
@@ -2119,6 +2167,10 @@ export type Metadata = TimeFields & OwnerFields & {
      * Human-readable name for display in the UI. Can contain spaces and special characters, max 63 characters.
      */
     displayName?: string;
+    /**
+     * Caller-owned identifier for external lookups. Max 64 chars, alphanumeric + dash.
+     */
+    externalId?: string;
     labels?: MetadataLabels;
     /**
      * Unique identifier for the resource within the workspace. Must be lowercase alphanumeric with hyphens, max 49 characters. Immutable after creation.
@@ -2146,6 +2198,10 @@ export type MetadataWritable = TimeFields & OwnerFields & {
      * Human-readable name for display in the UI. Can contain spaces and special characters, max 63 characters.
      */
     displayName?: string;
+    /**
+     * Caller-owned identifier for external lookups. Max 64 chars, alphanumeric + dash.
+     */
+    externalId?: string;
     labels?: MetadataLabels;
     /**
      * Unique identifier for the resource within the workspace. Must be lowercase alphanumeric with hyphens, max 49 characters. Immutable after creation.
@@ -3058,9 +3114,17 @@ export type PrivateLocation = {
  */
 export type ProxyConfig = {
     /**
+     * List of allowed external domains (allowlist). When set, only these domains are reachable. Supports wildcards (e.g. *.s3.amazonaws.com).
+     */
+    allowedDomains?: Array<string>;
+    /**
      * Domains that bypass the proxy entirely via the NO_PROXY directive. Traffic to these destinations goes direct, not through the CONNECT tunnel. Supports wildcards. Note that localhost, private ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16), 169.254.169.254, .local and .internal are always bypassed by default.
      */
     bypass?: Array<string>;
+    /**
+     * List of forbidden external domains (denylist). When set, all domains except these are reachable. Supports wildcards (e.g. *.malware.com). If both allowedDomains and forbiddenDomains are set, allowedDomains takes precedence.
+     */
+    forbiddenDomains?: Array<string>;
     /**
      * Per-destination routing rules with header/body injection and secrets. Use destinations ["*"] for global rules that apply to all destinations.
      */
@@ -3554,19 +3618,24 @@ export type SandboxListWritable = {
 };
 
 /**
- * Network configuration for a sandbox including domain filtering, egress IP binding, and proxy settings
+ * Network configuration for a sandbox including subnet, firewall rulesets, domain filtering, egress IP binding, and proxy settings
  */
 export type SandboxNetwork = {
     /**
-     * List of allowed external domains (allowlist). When set, only these domains are reachable. Supports wildcards (e.g. *.s3.amazonaws.com).
+     * Deprecated: use proxy.allowedDomains instead. List of allowed external domains (allowlist). Kept for backward compatibility.
      */
     allowedDomains?: Array<string>;
     egress?: EgressConfig;
+    firewall?: FirewallConfig;
     /**
-     * List of forbidden external domains (denylist). When set, all domains except these are reachable. Supports wildcards (e.g. *.malware.com). If both allowedDomains and forbiddenDomains are set, allowedDomains takes precedence.
+     * Deprecated: use proxy.forbiddenDomains instead. List of forbidden external domains (denylist). Kept for backward compatibility.
      */
     forbiddenDomains?: Array<string>;
     proxy?: ProxyConfig;
+    /**
+     * Subnet name for the sandbox. Takes priority over any subnet derived from egress config. Defaults to "default" when absent.
+     */
+    subnet?: string;
 };
 
 /**
@@ -3582,7 +3651,7 @@ export type SandboxRuntime = {
      */
     expires?: string;
     /**
-     * Extra arguments for sandbox kernel selection. Supported keys: 'iptables', 'nvme'. Values: 'enabled' or 'disabled'. Determines which kernel variant the sandbox runs on. Immutable after creation.
+     * Extra arguments for sandbox kernel selection. Supported keys: 'iptables', 'nvme', 'nfs'. Values: 'enabled' or 'disabled'. Determines which kernel variant the sandbox runs on. Immutable after creation.
      */
     extraArgs?: {
         [key: string]: string;
@@ -3601,7 +3670,7 @@ export type SandboxRuntime = {
      */
     terminationGracePeriodSeconds?: number;
     /**
-     * Time-to-live duration after which the sandbox is automatically deleted (e.g., '30m', '24h', '7d')
+     * Max-age from creation: the sandbox is deleted this long after it is created, regardless of activity (not an idle timeout). Units s, m, h, d, w (e.g., '30m', '24h', '7d', '2w'). For idle-based cleanup, use a lifecycle expiration policy of type ttl-idle.
      */
     ttl?: string;
 };
@@ -3622,6 +3691,10 @@ export type SandboxSpec = {
     region?: string;
     runtime?: SandboxRuntime;
     volumes?: VolumeAttachments;
+    /**
+     * VPC name for the sandbox. Defaults to "default" when absent.
+     */
+    vpc?: string;
 };
 
 /**
@@ -4151,6 +4224,7 @@ export type Workspace = TimeFields & OwnerFields & {
      * Group-to-role mappings for directory sync (SCIM) group membership
      */
     groupMappings?: Array<GroupWorkspaceMapping>;
+    hipaaInfo?: unknown;
     /**
      * Autogenerated unique workspace id
      */
@@ -4197,6 +4271,7 @@ export type WorkspaceWritable = TimeFields & OwnerFields & {
      * Group-to-role mappings for directory sync (SCIM) group membership
      */
     groupMappings?: Array<GroupWorkspaceMapping>;
+    hipaaInfo?: unknown;
     labels?: MetadataLabels;
     /**
      * Workspace name
@@ -4289,6 +4364,17 @@ export type WorkspaceRuntime = {
      * Infrastructure generation version for the workspace (affects available features and deployment behavior)
      */
     generation?: string;
+    sandbox?: WorkspaceSandboxSettings;
+};
+
+/**
+ * Workspace-wide sandbox configuration that applies to all sandbox deployments in the workspace.
+ */
+export type WorkspaceSandboxSettings = {
+    /**
+     * When true, sandbox deployments in this workspace set SANDBOX_DISABLE_PROCESS_LOGGING=true to disable per-process stdout/stderr logging. Requires sandbox-api v0.2.28+.
+     */
+    disableProcessLogging?: boolean;
 };
 
 /**
@@ -6902,6 +6988,10 @@ export type ListSandboxesData = {
          * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
+        /**
+         * Filter sandboxes by external ID. When set, only sandboxes matching this caller-owned identifier are returned.
+         */
+        externalId?: string;
     };
     url: '/sandboxes';
 };
@@ -7144,7 +7234,7 @@ export type CreateSandboxPreviewData = {
     };
     query?: {
         /**
-         * Force creation by deleting conflicting previews that use the same custom domain prefix URL
+         * Force creation by replacing conflicting previews that use the same custom domain prefix URL
          */
         force?: boolean;
     };
@@ -7318,6 +7408,48 @@ export type DeleteSandboxPreviewTokenResponses = {
 };
 
 export type DeleteSandboxPreviewTokenResponse = DeleteSandboxPreviewTokenResponses[keyof DeleteSandboxPreviewTokenResponses];
+
+export type GetSandboxByExternalIdData = {
+    body?: never;
+    path: {
+        /**
+         * Caller-owned external identifier for the sandbox
+         */
+        externalId: string;
+    };
+    query?: never;
+    url: '/sandboxes/by-external-id/{externalId}';
+};
+
+export type GetSandboxByExternalIdErrors = {
+    /**
+     * Unauthorized - Invalid or missing authentication credentials
+     */
+    401: _Error;
+    /**
+     * Forbidden - Insufficient permissions to view sandboxes
+     */
+    403: _Error;
+    /**
+     * Not found - No active sandbox with this external ID
+     */
+    404: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type GetSandboxByExternalIdError = GetSandboxByExternalIdErrors[keyof GetSandboxByExternalIdErrors];
+
+export type GetSandboxByExternalIdResponses = {
+    /**
+     * successful operation
+     */
+    200: Sandbox;
+};
+
+export type GetSandboxByExternalIdResponse = GetSandboxByExternalIdResponses[keyof GetSandboxByExternalIdResponses];
 
 export type GetWorkspaceServiceAccountsData = {
     body?: never;

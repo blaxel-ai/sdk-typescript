@@ -229,6 +229,9 @@ export type ProcessRequest = {
      * Disable scale-to-zero while process runs. Default timeout is 600s (10 minutes). Set timeout to 0 for infinite.
      */
     keepAlive?: boolean;
+    /**
+     * Maximum number of restarts on failure. Set to a negative value (e.g. -1) for unlimited restarts.
+     */
     maxRestarts?: number;
     name?: string;
     restartOnFailure?: boolean;
@@ -303,7 +306,7 @@ export type UpgradeRequest = {
      */
     baseUrl?: string;
     /**
-     * Version to upgrade to: "develop", "main", "latest", or specific tag like "v1.0.0"
+     * Version to upgrade to: "latest" (default), "develop", "main", or specific tag like "v1.0.0"
      */
     version?: string;
 };
