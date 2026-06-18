@@ -94,6 +94,39 @@ describe('Drive Operations', () => {
       expect(found).toBeDefined()
     })
 
+    it('paginates drives with cursor, nextPage and autoPaging', async () => {
+      // Ensure at least two drives exist so a page size of 1 spans multiple pages
+      const a = uniqueName("drive-page-a")
+      const b = uniqueName("drive-page-b")
+      await DriveInstance.create({ name: a, size: 10, region: defaultRegion, labels: defaultLabels })
+      createdDrives.push(a)
+      await DriveInstance.create({ name: b, size: 10, region: defaultRegion, labels: defaultLabels })
+      createdDrives.push(b)
+
+      // First page with limit 1 must report more pages and expose a cursor
+      const page1 = await DriveInstance.list({ limit: 1 })
+      expect(page1.data.length).toBe(1)
+      expect(page1.hasMore).toBe(true)
+      expect(page1.nextCursor).toBeTruthy()
+
+      // Next page must be a different item (no repeated cursor, no duplicate)
+      const page2 = await page1.nextPage()
+      expect(page2).not.toBeNull()
+      expect(page2!.data.length).toBeGreaterThanOrEqual(1)
+      expect(page2!.data[0].name).not.toBe(page1.data[0].name)
+
+      // Auto-paging with a small page size walks every page without duplicates
+      const walked = await (await DriveInstance.list({ limit: 1 })).autoPagingToArray({ limit: 100000 })
+      const names = walked.map(d => d.name)
+      expect(new Set(names).size).toBe(names.length)
+      expect(names).toContain(a)
+      expect(names).toContain(b)
+
+      // Auto-paging total matches a single unbounded list
+      const full = await (await DriveInstance.list()).autoPagingToArray({ limit: 100000 })
+      expect(walked.length).toBe(full.length)
+    })
+
     it('updates a drive', async () => {
       const name = uniqueName("drive-update")
       const drive = await DriveInstance.create({
