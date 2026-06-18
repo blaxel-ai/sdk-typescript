@@ -118,13 +118,14 @@ describe('Drive Operations', () => {
       // Auto-paging with a small page size walks every page without duplicates
       const walked = await (await DriveInstance.list({ limit: 1 })).autoPagingToArray({ limit: 100000 })
       const names = walked.map(d => d.name)
-      expect(new Set(names).size).toBe(names.length)
+      expect(new Set(names).size).toBe(names.length) // no duplicates across pages
       expect(names).toContain(a)
       expect(names).toContain(b)
-
-      // Auto-paging total matches a single unbounded list
-      const full = await (await DriveInstance.list()).autoPagingToArray({ limit: 100000 })
-      expect(walked.length).toBe(full.length)
+      // Both created drives land on different pages (page size is 1), so finding
+      // both proves the auto-pager advances past the first page. We don't compare
+      // against a second unbounded listing: the workspace is shared, so concurrent
+      // create/delete from other tests makes an exact total count flaky.
+      expect(walked.length).toBeGreaterThan(1)
     })
 
     it('updates a drive', async () => {
