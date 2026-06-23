@@ -20,6 +20,7 @@ export default defineConfig({
     globals: true,
     reporters: ['verbose'],
     fileParallelism: true,
+    minWorkers: 1,
     maxWorkers: 10,
     sequence: {
       concurrent: false,

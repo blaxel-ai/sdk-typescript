@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import type http2 from "http2";
-import { createSandbox, deleteSandbox, getSandbox, listSandboxes, SandboxLifecycle, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
+import { createSandbox, deleteSandbox, getSandbox, getSandboxByExternalId, listSandboxes, SandboxLifecycle, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
 import { settings } from "../common/settings.js";
 import { SandboxCodegen } from "./codegen/index.js";
@@ -175,7 +175,7 @@ export class SandboxInstance {
       const extraArgs = sandbox.extraArgs;
 
       sandbox = {
-        metadata: { name: sandbox.name, labels: sandbox.labels },
+        metadata: { name: sandbox.name, labels: sandbox.labels, externalId: sandbox.externalId },
         spec: {
           region: region,
           runtime: {
@@ -257,10 +257,54 @@ export class SandboxInstance {
     return SandboxInstance.attachH2Session(instance);
   }
 
-  static async list() {
-    const { data } = await listSandboxes({ throwOnError: true }) as { response: Response; data: SandboxModel[] };
-    const instances = data.map((sandbox) => new SandboxInstance(sandbox));
-    return Promise.all(instances.map((instance) => SandboxInstance.attachH2Session(instance)));
+  static async getByExternalId(externalId: string) {
+    const { data } = await getSandboxByExternalId({
+      path: { externalId },
+      throwOnError: true,
+    });
+    const instance = new SandboxInstance(data);
+    return SandboxInstance.attachH2Session(instance);
+  }
+
+  static async list({ externalId }: { externalId?: string } = {}) {
+    const { data: raw } = await listSandboxes({
+      query: externalId ? { externalId } : undefined,
+      throwOnError: true,
+    });
+    const items = (Array.isArray(raw) ? raw : (raw?.data ?? [])) as SandboxModel[];
+    const instances = items.map((sb) => new SandboxInstance(sb));
+
+    if (!settings.disableH2) {
+      const { h2Pool } = await import("../common/h2pool.js");
+      const uniqueDomains = [
+        ...new Set(
+          instances
+            .map((i) => SandboxInstance.edgeDomainForRegion(i.spec?.region))
+            .filter((d): d is string => d !== null),
+        ),
+      ];
+      const sessionByDomain = new Map<string, http2.ClientHttp2Session | null>();
+      await Promise.all(
+        uniqueDomains.map(async (domain) => {
+          try {
+            sessionByDomain.set(domain, await h2Pool.get(domain));
+          } catch {
+            sessionByDomain.set(domain, null);
+          }
+        }),
+      );
+      for (const instance of instances) {
+        const domain = SandboxInstance.edgeDomainForRegion(instance.spec?.region);
+        if (domain) {
+          const session = sessionByDomain.get(domain) ?? null;
+          instance.h2Session = session;
+          instance.sandbox.h2Session = session;
+          instance.sandbox.h2Domain = domain;
+        }
+      }
+    }
+
+    return instances;
   }
 
   static async delete(sandboxName: string) {
@@ -293,9 +337,9 @@ export class SandboxInstance {
     return SandboxInstance.attachH2Session(instance);
   }
 
-  static async updateTtl(sandboxName: string, ttl: string) {
+  static async updateTtl(sandboxName: string, ttl: string | null) {
     const sandbox = await SandboxInstance.get(sandboxName);
-    const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, runtime: { ...sandbox.spec.runtime, ttl } } } as SandboxModel
+    const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, runtime: { ...sandbox.spec.runtime, ttl: ttl === '' ? null : ttl ?? null } } } as SandboxModel
     const { data } = await updateSandbox({
       path: { sandboxName },
       body,
@@ -305,9 +349,9 @@ export class SandboxInstance {
     return SandboxInstance.attachH2Session(instance);
   }
 
-  static async updateLifecycle(sandboxName: string, lifecycle: SandboxLifecycle) {
+  static async updateLifecycle(sandboxName: string, lifecycle: SandboxLifecycle | null) {
     const sandbox = await SandboxInstance.get(sandboxName);
-    const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, lifecycle } } as SandboxModel
+    const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, lifecycle: lifecycle ?? null } } as SandboxModel
     const { data } = await updateSandbox({
       path: { sandboxName },
       body,
