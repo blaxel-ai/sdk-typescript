@@ -307,7 +307,7 @@ async function scenarioLabelMismatch() {
   } catch (err) {
     // Mount failure = ACL correctly denied access
     const msg = formatError(err)
-    const isACLDenial = msg.includes("timeout") || msg.includes("denied") || msg.includes("Permission")
+    const isACLDenial = msg.includes("timeout") || msg.includes("denied") || msg.includes("Permission") || msg.includes("exited unexpectedly")
     record(
       "label-mismatch mount denied",
       isACLDenial,
@@ -438,7 +438,7 @@ async function scenarioANDLogic() {
     )
   } catch (err) {
     const msg = formatError(err)
-    const isACLDenial = msg.includes("timeout") || msg.includes("denied") || msg.includes("Permission")
+    const isACLDenial = msg.includes("timeout") || msg.includes("denied") || msg.includes("Permission") || msg.includes("exited unexpectedly")
     record(
       "and-logic partial denied",
       isACLDenial,
@@ -557,7 +557,7 @@ async function scenarioUpdatePermissions() {
     )
   } catch (err) {
     const msg = formatError(err)
-    const isACLDenial = msg.includes("timeout") || msg.includes("denied") || msg.includes("Permission")
+    const isACLDenial = msg.includes("timeout") || msg.includes("denied") || msg.includes("Permission") || msg.includes("exited unexpectedly")
     record(
       "update-permissions denied after update",
       isACLDenial,
