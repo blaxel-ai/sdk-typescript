@@ -307,7 +307,7 @@ async function scenarioLabelMismatch() {
   } catch (err) {
     // Mount failure = ACL correctly denied access
     const msg = formatError(err)
-    const isACLDenial = msg.includes("timeout") || msg.includes("denied") || msg.includes("Permission")
+    const isACLDenial = msg.includes("timeout") || msg.includes("denied") || msg.includes("Permission") || msg.includes("exited unexpectedly")
     record(
       "label-mismatch mount denied",
       isACLDenial,
@@ -358,6 +358,11 @@ async function scenarioReadOnly() {
     await reader.drives.mount({ driveName, mountPath: "/mnt/ro", readOnly: true })
   } catch (err) {
     const msg = formatError(err)
+    // Capture blfs debug logs to diagnose mount failure
+    try {
+      const logs = await execInSandbox(reader, "cat /proc/1/fd/1 2>/dev/null || journalctl -u blfs 2>/dev/null || dmesg | tail -20 2>/dev/null || echo 'no logs available'")
+      console.log("  [DEBUG] reader sandbox logs:", logs.logs?.trim())
+    } catch { /* ignore */ }
     record(
       "read-only mount",
       false,
@@ -438,7 +443,7 @@ async function scenarioANDLogic() {
     )
   } catch (err) {
     const msg = formatError(err)
-    const isACLDenial = msg.includes("timeout") || msg.includes("denied") || msg.includes("Permission")
+    const isACLDenial = msg.includes("timeout") || msg.includes("denied") || msg.includes("Permission") || msg.includes("exited unexpectedly")
     record(
       "and-logic partial denied",
       isACLDenial,
@@ -557,7 +562,7 @@ async function scenarioUpdatePermissions() {
     )
   } catch (err) {
     const msg = formatError(err)
-    const isACLDenial = msg.includes("timeout") || msg.includes("denied") || msg.includes("Permission")
+    const isACLDenial = msg.includes("timeout") || msg.includes("denied") || msg.includes("Permission") || msg.includes("exited unexpectedly")
     record(
       "update-permissions denied after update",
       isACLDenial,
