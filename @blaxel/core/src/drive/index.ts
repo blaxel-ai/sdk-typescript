@@ -47,6 +47,10 @@ export class DriveInstance {
     return this.drive.spec.region;
   }
 
+  get permissions() {
+    return this.drive.spec?.permissions;
+  }
+
   static async create(config: DriveCreateConfiguration | Drive) {
     const defaultName = `drive-${uuidv4().replace(/-/g, '').substring(0, 8)}`;
 

@@ -50,10 +50,37 @@ describe('Drive ACL Permissions', () => {
       createdDrives.push(name)
 
       expect(drive.name).toBe(name)
-      expect(drive.spec?.permissions).toBeDefined()
-      expect(drive.spec?.permissions).toHaveLength(1)
-      expect(drive.spec?.permissions?.[0]?.labels?.team).toBe("backend")
-      expect(drive.spec?.permissions?.[0]?.mode).toBe("read-write")
+      expect(drive.permissions).toBeDefined()
+      expect(drive.permissions).toHaveLength(1)
+      expect(drive.permissions?.[0]?.labels?.team).toBe("backend")
+      expect(drive.permissions?.[0]?.mode).toBe("read-write")
+    })
+
+    it('creates a drive with permissions using full Drive object', async () => {
+      const name = uniqueName("acl-full")
+      const permissions: DrivePermission[] = [
+        { labels: { team: "infra" }, mode: "read-write" },
+      ]
+
+      const drive = await DriveInstance.create({
+        metadata: {
+          name,
+          displayName: name,
+          labels: defaultLabels,
+        },
+        spec: {
+          size: 1,
+          region: defaultRegion,
+          permissions,
+        },
+      })
+      createdDrives.push(name)
+
+      expect(drive.name).toBe(name)
+      expect(drive.permissions).toBeDefined()
+      expect(drive.permissions).toHaveLength(1)
+      expect(drive.permissions?.[0]?.labels?.team).toBe("infra")
+      expect(drive.permissions?.[0]?.mode).toBe("read-write")
     })
 
     it('creates a drive with empty permissions (open access)', async () => {
@@ -88,9 +115,9 @@ describe('Drive ACL Permissions', () => {
       })
       createdDrives.push(name)
 
-      expect(drive.spec?.permissions).toHaveLength(3)
-      expect(drive.spec?.permissions?.[1]?.mode).toBe("read")
-      expect(drive.spec?.permissions?.[2]?.path).toBe("/")
+      expect(drive.permissions).toHaveLength(3)
+      expect(drive.permissions?.[1]?.mode).toBe("read")
+      expect(drive.permissions?.[2]?.path).toBe("/")
     })
   })
 
@@ -113,8 +140,8 @@ describe('Drive ACL Permissions', () => {
         ],
       })
 
-      expect(updated.spec?.permissions).toHaveLength(1)
-      expect(updated.spec?.permissions?.[0]?.labels?.team).toBe("restricted")
+      expect(updated.permissions).toHaveLength(1)
+      expect(updated.permissions?.[0]?.labels?.team).toBe("restricted")
     })
 
     it('persists updated permissions on re-fetch', async () => {
@@ -135,9 +162,9 @@ describe('Drive ACL Permissions', () => {
       })
 
       const fetched = await DriveInstance.get(name)
-      expect(fetched.spec?.permissions).toHaveLength(1)
-      expect(fetched.spec?.permissions?.[0]?.labels?.env).toBe("staging")
-      expect(fetched.spec?.permissions?.[0]?.mode).toBe("read")
+      expect(fetched.permissions).toHaveLength(1)
+      expect(fetched.permissions?.[0]?.labels?.env).toBe("staging")
+      expect(fetched.permissions?.[0]?.mode).toBe("read")
     })
   })
 
