@@ -6,6 +6,7 @@ import { h2Pool } from "../common/h2pool.js";
 import { getForcedUrl, getGlobalUniqueHash } from "../common/internal.js";
 import { settings } from "../common/settings.js";
 import { client as defaultClient } from "./client/client.gen.js";
+import type { SandboxDiagnosticValue } from "./diagnostics.js";
 import { SandboxConfiguration } from "./types.js";
 
 export class ResponseError extends Error {
@@ -128,5 +129,43 @@ export class SandboxAction {
     if (!response.ok || !data) {
       throw new ResponseError(response, data, error);
     }
+  }
+
+  protected async recordOperation<T>(
+    subsystem: string,
+    operation: string,
+    attributes: Record<string, unknown>,
+    run: () => Promise<T>,
+    summarize?: (result: T) => Record<string, unknown>,
+  ): Promise<T> {
+    const recorder = this.sandbox.operationRecorder;
+    if (!recorder) return run();
+
+    const pending = recorder.start({
+      sandboxName: this.name,
+      subsystem,
+      operation,
+      attributes,
+      transport: {
+        h2Domain: this.sandbox.h2Domain ?? null,
+        forcedUrl: Boolean(this.sandbox.forceUrl),
+      },
+    });
+
+    try {
+      const result = await run();
+      recorder.end(pending, "ok", summarize?.(result));
+      return result;
+    } catch (error) {
+      recorder.end(pending, "error", undefined, error);
+      throw error;
+    }
+  }
+
+  protected commandDiagnostics(command: string): Record<string, SandboxDiagnosticValue> {
+    return this.sandbox.operationRecorder?.command(command) ?? {
+      commandLength: command.length,
+      commandText: "[redacted]",
+    };
   }
 }

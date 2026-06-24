@@ -5,6 +5,35 @@ import { retryOnTransientReset } from "../../common/transient-retry.js";
 import { DeleteProcessByIdentifierKillResponse, DeleteProcessByIdentifierResponse, GetProcessByIdentifierResponse, GetProcessResponse, PostProcessResponse, ProcessRequest, deleteProcessByIdentifier, deleteProcessByIdentifierKill, getProcess, getProcessByIdentifier, getProcessByIdentifierLogs, postProcess } from "../client/index.js";
 import { ProcessRequestWithLog, ProcessResponseWithLog } from "../types.js";
 
+function summarizeProcessRequest(process: ProcessRequest, commandDiagnostics: Record<string, unknown>) {
+  return {
+    ...commandDiagnostics,
+    envNames: process.env ? Object.keys(process.env).sort() : [],
+    hasEnv: Boolean(process.env && Object.keys(process.env).length > 0),
+    keepAlive: process.keepAlive ?? false,
+    maxRestarts: process.maxRestarts ?? null,
+    name: process.name ?? null,
+    restartOnFailure: process.restartOnFailure ?? false,
+    timeout: process.timeout ?? null,
+    waitForCompletion: process.waitForCompletion ?? false,
+    waitForPorts: process.waitForPorts ?? [],
+    workingDir: process.workingDir ?? null,
+  };
+}
+
+function summarizeProcessResponse(process: PostProcessResponse) {
+  return {
+    exitCode: "exitCode" in process ? process.exitCode ?? null : null,
+    name: process.name ?? null,
+    pid: process.pid ?? null,
+    restartCount: "restartCount" in process ? process.restartCount ?? null : null,
+    status: process.status ?? null,
+    stdoutBytes: "stdout" in process && process.stdout ? new Blob([process.stdout]).size : 0,
+    stderrBytes: "stderr" in process && process.stderr ? new Blob([process.stderr]).size : 0,
+    logsBytes: "logs" in process && process.logs ? new Blob([process.logs]).size : 0,
+  };
+}
+
 export class SandboxProcess extends SandboxAction {
   constructor(sandbox: Sandbox) {
     super(sandbox);
@@ -100,6 +129,18 @@ export class SandboxProcess extends SandboxAction {
   }
 
   async exec(
+    process: ProcessRequest | ProcessRequestWithLog,
+  ): Promise<PostProcessResponse | ProcessResponseWithLog> {
+    return this.recordOperation(
+      "process",
+      "exec",
+      summarizeProcessRequest(process, this.commandDiagnostics(process.command)),
+      () => this.execInternal(process),
+      summarizeProcessResponse,
+    );
+  }
+
+  private async execInternal(
     process: ProcessRequest | ProcessRequestWithLog,
   ): Promise<PostProcessResponse | ProcessResponseWithLog> {
     let onLog: ((log: string) => void) | undefined;
@@ -313,84 +354,130 @@ export class SandboxProcess extends SandboxAction {
   }
 
   async wait(identifier: string, { maxWait = 60000, interval = 1000 }: { maxWait?: number, interval?: number } = {}): Promise<GetProcessByIdentifierResponse> {
-    const startTime = Date.now();
-    let status = "running";
-    let data = await this.get(identifier);
-    while (status === "running") {
-      await new Promise((resolve) => setTimeout(resolve, interval));
-      try {
-        data = await this.get(identifier);
-        status = data.status ?? "running";
-      } catch {
-        break;
-      }
-      if (Date.now() - startTime > maxWait) {
-        throw new Error("Process did not finish in time");
-      }
-    }
-    return data;
+    return this.recordOperation(
+      "process",
+      "wait",
+      { identifier, maxWait, interval },
+      async () => {
+        const startTime = Date.now();
+        let status = "running";
+        let data = await this.get(identifier);
+        while (status === "running") {
+          await new Promise((resolve) => setTimeout(resolve, interval));
+          try {
+            data = await this.get(identifier);
+            status = data.status ?? "running";
+          } catch {
+            break;
+          }
+          if (Date.now() - startTime > maxWait) {
+            throw new Error("Process did not finish in time");
+          }
+        }
+        return data;
+      },
+      summarizeProcessResponse,
+    );
   }
 
   async get(identifier: string): Promise<GetProcessByIdentifierResponse> {
-    // Idempotent GET: self-heal a transient connection reset (also makes the
-    // wait() poll loop resilient). exec() stays un-retried — it is a
-    // non-idempotent POST and retrying it duplicates the process (ENG-2340).
-    return retryOnTransientReset(async () => {
-      const { response, data, error } = await getProcessByIdentifier(this.withClient({
-        path: { identifier },
-        baseUrl: this.url,
-      }));
-      this.handleResponseError(response, data, error);
-      return data as GetProcessByIdentifierResponse;
-    });
+    return this.recordOperation(
+      "process",
+      "get",
+      { identifier },
+      async () => {
+        // Idempotent GET: self-heal a transient connection reset (also makes the
+        // wait() poll loop resilient). exec() stays un-retried — it is a
+        // non-idempotent POST and retrying it duplicates the process (ENG-2340).
+        return retryOnTransientReset(async () => {
+          const { response, data, error } = await getProcessByIdentifier(this.withClient({
+            path: { identifier },
+            baseUrl: this.url,
+          }));
+          this.handleResponseError(response, data, error);
+          return data as GetProcessByIdentifierResponse;
+        });
+      },
+      summarizeProcessResponse,
+    );
   }
 
   async list(): Promise<GetProcessResponse> {
-    // Idempotent GET: self-heal a transient connection reset.
-    return retryOnTransientReset(async () => {
-      const { response, data, error } = await getProcess(this.withClient({
-        baseUrl: this.url,
-      }));
-      this.handleResponseError(response, data, error);
-      return data as GetProcessResponse;
-    });
+    return this.recordOperation(
+      "process",
+      "list",
+      {},
+      async () => {
+        // Idempotent GET: self-heal a transient connection reset.
+        return retryOnTransientReset(async () => {
+          const { response, data, error } = await getProcess(this.withClient({
+            baseUrl: this.url,
+          }));
+          this.handleResponseError(response, data, error);
+          return data as GetProcessResponse;
+        });
+      },
+      (processes) => ({ count: Array.isArray(processes) ? processes.length : 0 }),
+    );
   }
 
   async stop(identifier: string): Promise<DeleteProcessByIdentifierResponse> {
-    const { response, data, error } = await deleteProcessByIdentifier(this.withClient({
-      path: { identifier },
-      baseUrl: this.url,
-    }));
-    this.handleResponseError(response, data, error);
-    return data as DeleteProcessByIdentifierResponse;
+    return this.recordOperation(
+      "process",
+      "stop",
+      { identifier },
+      async () => {
+        const { response, data, error } = await deleteProcessByIdentifier(this.withClient({
+          path: { identifier },
+          baseUrl: this.url,
+        }));
+        this.handleResponseError(response, data, error);
+        return data as DeleteProcessByIdentifierResponse;
+      }
+    );
   }
 
   async kill(identifier: string): Promise<DeleteProcessByIdentifierKillResponse> {
-    const { response, data, error } = await deleteProcessByIdentifierKill(this.withClient({
-      path: { identifier },
-      baseUrl: this.url,
-    }));
-    this.handleResponseError(response, data, error);
-    return data as DeleteProcessByIdentifierKillResponse;
+    return this.recordOperation(
+      "process",
+      "kill",
+      { identifier },
+      async () => {
+        const { response, data, error } = await deleteProcessByIdentifierKill(this.withClient({
+          path: { identifier },
+          baseUrl: this.url,
+        }));
+        this.handleResponseError(response, data, error);
+        return data as DeleteProcessByIdentifierKillResponse;
+      },
+    );
   }
 
   async logs(identifier: string, type: "stdout" | "stderr" | "all" = "all"): Promise<string> {
-    // Idempotent GET: self-heal a transient connection reset.
-    const data = await retryOnTransientReset(async () => {
-      const { response, data, error } = await getProcessByIdentifierLogs(this.withClient({
-        path: { identifier },
-        baseUrl: this.url,
-      }));
-      this.handleResponseError(response, data, error);
-      return data;
-    });
-    if (type === "all") {
-      return data?.logs || "";
-    } else if (type === "stdout") {
-      return data?.stdout || "";
-    } else if (type === "stderr") {
-      return data?.stderr || "";
-    }
-    throw new Error("Unsupported log type");
+    return this.recordOperation(
+      "process",
+      "logs",
+      { identifier, type },
+      async () => {
+        // Idempotent GET: self-heal a transient connection reset.
+        const data = await retryOnTransientReset(async () => {
+          const { response, data, error } = await getProcessByIdentifierLogs(this.withClient({
+            path: { identifier },
+            baseUrl: this.url,
+          }));
+          this.handleResponseError(response, data, error);
+          return data;
+        });
+        if (type === "all") {
+          return data?.logs || "";
+        } else if (type === "stdout") {
+          return data?.stdout || "";
+        } else if (type === "stderr") {
+          return data?.stderr || "";
+        }
+        throw new Error("Unsupported log type");
+      },
+      (logs) => ({ bytes: new Blob([logs]).size }),
+    );
   }
 }
