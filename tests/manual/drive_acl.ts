@@ -19,7 +19,8 @@
  *   npx tsx tests/manual/drive_acl.ts --scenario label-match
  */
 
-import { DriveInstance, SandboxInstance, settings } from "@blaxel/core"
+import { DriveInstance, SandboxInstance } from "@blaxel/core"
+import type { DrivePermission } from "@blaxel/core"
 import { v4 as uuidv4 } from "uuid"
 
 // ---------------------------------------------------------------------------
@@ -55,58 +56,24 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   })
 }
 
-type DrivePermission = {
-  labels?: Record<string, string>
-  mode?: "read" | "read-write"
-  path?: string
-}
-
 async function createDriveWithPermissions(
   name: string,
   permissions: DrivePermission[],
 ): Promise<DriveInstance> {
-  // The SDK types don't include `permissions` yet, so we pass a raw Drive
-  // object with the extra field — the API accepts it.
-  const body = {
-    metadata: { name, labels: TEST_LABELS },
-    spec: {
-      region: REGION,
-      size: 1,
-      permissions,
-    },
-  }
-  // DriveInstance.create accepts Drive | DriveCreateConfiguration.
-  // Cast to any to include the permissions field that isn't in the generated type yet.
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-  return DriveInstance.create(body as any)
+  return DriveInstance.create({
+    name,
+    labels: TEST_LABELS,
+    region: REGION,
+    size: 1,
+    permissions,
+  })
 }
 
 async function updateDrivePermissions(
   driveName: string,
   permissions: DrivePermission[],
 ): Promise<void> {
-  // DriveInstance.update doesn't propagate the permissions field, so we make
-  // the PUT request directly. The backend ApplyUpdate allows spec.permissions.
-  // Use SDK settings for auth so it works with both API key and device-mode login.
-  await settings.authenticate()
-  const authHeaders = settings.headers
-  const baseUrl = settings.baseUrl
-  const url = `${baseUrl}/drives/${driveName}`
-  const res = await fetch(url, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      ...authHeaders,
-    },
-    body: JSON.stringify({
-      metadata: {},
-      spec: { permissions },
-    }),
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Failed to update drive permissions: ${res.status} ${text}`)
-  }
+  await DriveInstance.update(driveName, { permissions })
 }
 
 async function createSandbox(
@@ -539,7 +506,7 @@ async function scenarioUpdatePermissions() {
 
   // Step 3: Verify the update persisted by getting the drive
   const updated = await DriveInstance.get(driveName)
-  const perms = (updated as any).spec?.permissions as DrivePermission[] | undefined
+  const perms = updated.spec?.permissions
   const hasPerms = perms && perms.length === 1 && perms[0]?.labels?.team === "restricted"
   record("update-permissions persisted", !!hasPerms, hasPerms ? "permissions correctly saved" : `got: ${JSON.stringify(perms)}`)
 
