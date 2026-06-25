@@ -1,6 +1,7 @@
 import type http2 from "http2";
 import { Port, Sandbox, SandboxLifecycle, VolumeAttachment, SandboxNetwork } from "../client/types.gen";
 import { PostProcessResponse, ProcessRequest } from "./client";
+import type { SandboxOperationRecorder } from "./diagnostics.js";
 
 export interface SessionCreateOptions {
   expiresAt?: Date;
@@ -32,6 +33,7 @@ export type SandboxConfiguration = {
   params?: Record<string, string>;
   h2Session?: http2.ClientHttp2Session | null;
   h2Domain?: string | null;
+  operationRecorder?: SandboxOperationRecorder;
 } & Sandbox;
 
 export type SandboxUpdateMetadata = {

@@ -24,6 +24,44 @@ export function retryOnTransient<T>(fn: () => Promise<T>): Promise<T> {
   return retryOnTransientReset(fn, { retries: settings.fsPartRetries });
 }
 
+function contentDiagnostics(content: Buffer | Blob | File | Uint8Array | string) {
+  if (typeof content === "string") {
+    return {
+      contentKind: "string",
+      contentBytes: new Blob([content]).size,
+    };
+  }
+  if (content instanceof Blob || content instanceof File) {
+    return {
+      contentKind: content.constructor.name,
+      contentBytes: content.size,
+      mediaType: content.type || null,
+    };
+  }
+  if (Buffer.isBuffer(content)) {
+    return {
+      contentKind: "Buffer",
+      contentBytes: content.byteLength,
+    };
+  }
+  if (ArrayBuffer.isView(content)) {
+    return {
+      contentKind: content.constructor.name,
+      contentBytes: content.byteLength,
+    };
+  }
+  return {
+    contentKind: typeof content,
+  };
+}
+
+function directoryDiagnostics(directory: Directory) {
+  return {
+    files: directory.files?.length ?? 0,
+    subdirectories: directory.subdirectories?.length ?? 0,
+  };
+}
+
 export class SandboxFileSystem extends SandboxAction {
   constructor(sandbox: Sandbox, private process: SandboxProcess) {
     super(sandbox);
@@ -32,18 +70,33 @@ export class SandboxFileSystem extends SandboxAction {
 
   async mkdir(path: string, permissions: string = "0755"): Promise<SuccessResponse> {
     path = this.formatPath(path);
-    const { response, data, error } = await putFilesystemByPath(this.withClient({
-      path: { path },
-      body: { isDirectory: true, permissions },
-      baseUrl: this.url,
-    }));
-    this.handleResponseError(response, data, error);
-    return data as SuccessResponse;
+    return this.recordOperation(
+      "filesystem",
+      "mkdir",
+      { path, permissions },
+      async () => {
+        const { response, data, error } = await putFilesystemByPath(this.withClient({
+          path: { path },
+          body: { isDirectory: true, permissions },
+          baseUrl: this.url,
+        }));
+        this.handleResponseError(response, data, error);
+        return data as SuccessResponse;
+      },
+    );
   }
 
   async write(path: string, content: string): Promise<SuccessResponse> {
     path = this.formatPath(path);
+    return this.recordOperation(
+      "filesystem",
+      "write",
+      { path, ...contentDiagnostics(content) },
+      () => this.writeInternal(path, content),
+    );
+  }
 
+  private async writeInternal(path: string, content: string): Promise<SuccessResponse> {
     // Calculate content size in bytes
     const contentSize = new Blob([content]).size;
 
@@ -65,7 +118,15 @@ export class SandboxFileSystem extends SandboxAction {
 
   async writeBinary(path: string, content: Buffer | Blob | File | Uint8Array | string): Promise<SuccessResponse> {
     path = this.formatPath(path);
+    return this.recordOperation(
+      "filesystem",
+      "writeBinary",
+      { path, ...contentDiagnostics(content) },
+      () => this.writeBinaryInternal(path, content),
+    );
+  }
 
+  private async writeBinaryInternal(path: string, content: Buffer | Blob | File | Uint8Array | string): Promise<SuccessResponse> {
     // Convert content to Blob regardless of input type
     let fileBlob: Blob;
 
@@ -152,6 +213,19 @@ export class SandboxFileSystem extends SandboxAction {
   }
 
   async writeTree(files: SandboxFilesystemFile[], destinationPath: string | null = null) {
+    return this.recordOperation(
+      "filesystem",
+      "writeTree",
+      {
+        destinationPath,
+        files: files.length,
+        totalBytes: files.reduce((sum, file) => sum + new Blob([file.content]).size, 0),
+      },
+      () => this.writeTreeInternal(files, destinationPath),
+    );
+  }
+
+  private async writeTreeInternal(files: SandboxFilesystemFile[], destinationPath: string | null = null) {
     const options = {
       body: {
         files: files.reduce((acc, file) => {
@@ -175,79 +249,131 @@ export class SandboxFileSystem extends SandboxAction {
 
   async read(path: string): Promise<string> {
     path = this.formatPath(path);
-    // Idempotent GET: self-heal a transient connection reset (e.g. first call
-    // after sandbox resume). Non-transient errors (404, etc.) are not retried.
-    return retryOnTransientReset(async () => {
-      const { response, data, error } = await getFilesystemByPath(this.withClient({
-        path: { path },
-        baseUrl: this.url,
-      }));
-      this.handleResponseError(response, data, error);
-      if (data && 'content' in data) {
-        return data.content;
-      }
-      throw new Error("Unsupported file type");
-    });
+    return this.recordOperation(
+      "filesystem",
+      "read",
+      { path },
+      async () => {
+        // Idempotent GET: self-heal a transient connection reset (e.g. first call
+        // after sandbox resume). Non-transient errors (404, etc.) are not retried.
+        return retryOnTransientReset(async () => {
+          const { response, data, error } = await getFilesystemByPath(this.withClient({
+            path: { path },
+            baseUrl: this.url,
+          }));
+          this.handleResponseError(response, data, error);
+          if (data && 'content' in data) {
+            return data.content;
+          }
+          throw new Error("Unsupported file type");
+        });
+      },
+      (content) => ({ bytes: new Blob([content]).size }),
+    );
   }
 
   async readBinary(path: string): Promise<Blob> {
     path = this.formatPath(path);
-    // Idempotent GET: self-heal a transient connection reset.
-    return retryOnTransientReset(async () => {
-      const { response, data, error } = await getFilesystemByPath(this.withClient({
-        path: { path },
-        baseUrl: this.url,
-        headers: {
-          'Accept': 'application/octet-stream',
-        },
-      }));
-      this.handleResponseError(response, data, error);
-      if (typeof data === 'string') {
-        return new Blob([data]);
-      }
-      return data as Blob;
-    });
+    return this.recordOperation(
+      "filesystem",
+      "readBinary",
+      { path },
+      async () => {
+        // Idempotent GET: self-heal a transient connection reset.
+        return retryOnTransientReset(async () => {
+          const { response, data, error } = await getFilesystemByPath(this.withClient({
+            path: { path },
+            baseUrl: this.url,
+            headers: {
+              'Accept': 'application/octet-stream',
+            },
+          }));
+          this.handleResponseError(response, data, error);
+          if (typeof data === 'string') {
+            return new Blob([data]);
+          }
+          return data as Blob;
+        });
+      },
+      (blob) => ({ bytes: blob.size, mediaType: blob.type || null }),
+    );
   }
 
   async download(src: string, destinationPath: string, { mode = 0o644 }: { mode?: number } = {}): Promise<void> {
-    if (!fs) {
-      throw new Error("File download to local filesystem is only supported in Node.js environments");
-    }
-    const blob = await this.readBinary(src);
-    const arrayBuffer = await blob.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    fs.writeFileSync(destinationPath, buffer, { mode: mode ?? 0o644 });
+    return this.recordOperation(
+      "filesystem",
+      "download",
+      { src, destinationPath, mode },
+      async () => {
+        if (!fs) {
+          throw new Error("File download to local filesystem is only supported in Node.js environments");
+        }
+        const blob = await this.readBinary(src);
+        const arrayBuffer = await blob.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        fs.writeFileSync(destinationPath, buffer, { mode: mode ?? 0o644 });
+      },
+    );
   }
 
   async rm(path: string, recursive: boolean = false): Promise<SuccessResponse> {
     path = this.formatPath(path);
-    const { response, data, error } = await deleteFilesystemByPath(this.withClient({
-      path: { path },
-      query: { recursive },
-      baseUrl: this.url,
-    }));
-    this.handleResponseError(response, data, error);
-    return data as SuccessResponse;
+    return this.recordOperation(
+      "filesystem",
+      "rm",
+      { path, recursive },
+      async () => {
+        const { response, data, error } = await deleteFilesystemByPath(this.withClient({
+          path: { path },
+          query: { recursive },
+          baseUrl: this.url,
+        }));
+        this.handleResponseError(response, data, error);
+        return data as SuccessResponse;
+      },
+    );
   }
 
   async ls(path: string): Promise<Directory> {
     path = this.formatPath(path);
-    // Idempotent GET: self-heal a transient connection reset (the file-tree
-    // refresh that customers hit as intermittent 500s after sandbox resume).
-    return retryOnTransientReset(async () => {
-      const { response, data, error } = await getFilesystemByPath(this.withClient({
-        path: { path },
-        baseUrl: this.url,
-      }));
-      this.handleResponseError(response, data, error);
-      if (!data || !('files' in data || 'subdirectories' in data)) {
-        throw new Error(JSON.stringify({ error: "Directory not found" }));
-      }
-      return data as Directory;
-    });
+    return this.recordOperation(
+      "filesystem",
+      "ls",
+      { path },
+      async () => {
+        // Idempotent GET: self-heal a transient connection reset (the file-tree
+        // refresh that customers hit as intermittent 500s after sandbox resume).
+        return retryOnTransientReset(async () => {
+          const { response, data, error } = await getFilesystemByPath(this.withClient({
+            path: { path },
+            baseUrl: this.url,
+          }));
+          this.handleResponseError(response, data, error);
+          if (!data || !('files' in data || 'subdirectories' in data)) {
+            throw new Error(JSON.stringify({ error: "Directory not found" }));
+          }
+          return data as Directory;
+        });
+      },
+      directoryDiagnostics,
+    );
   }
 
   async search(
+    query: string,
+    path: string = "/",
+    options?: FilesystemSearchOptions
+  ): Promise<FuzzySearchResponse> {
+    return this.recordOperation(
+      "filesystem",
+      "search",
+      { path, queryLength: query.length, options: options ?? {} },
+      () => this.searchInternal(query, path, options),
+      (result) => ({ matches: result.matches.length, total: result.total }),
+    );
+  }
+
+  private async searchInternal(
     query: string,
     path: string = "/",
     options?: FilesystemSearchOptions
@@ -286,6 +412,19 @@ export class SandboxFileSystem extends SandboxAction {
   }
 
   async find(
+    path: string,
+    options?: FilesystemFindOptions
+  ): Promise<FindResponse> {
+    return this.recordOperation(
+      "filesystem",
+      "find",
+      { path, options: options ?? {} },
+      () => this.findInternal(path, options),
+      (result) => ({ matches: result.matches.length, total: result.total }),
+    );
+  }
+
+  private async findInternal(
     path: string,
     options?: FilesystemFindOptions
   ): Promise<FindResponse> {
@@ -331,6 +470,20 @@ export class SandboxFileSystem extends SandboxAction {
     path: string = "/",
     options?: FilesystemGrepOptions
   ): Promise<ContentSearchResponse> {
+    return this.recordOperation(
+      "filesystem",
+      "grep",
+      { path, queryLength: query.length, options: options ?? {} },
+      () => this.grepInternal(query, path, options),
+      (result) => ({ matches: result.matches.length, total: result.total }),
+    );
+  }
+
+  private async grepInternal(
+    query: string,
+    path: string = "/",
+    options?: FilesystemGrepOptions
+  ): Promise<ContentSearchResponse> {
     const formattedPath = this.formatPath(path);
 
     const queryParams: {
@@ -372,18 +525,25 @@ export class SandboxFileSystem extends SandboxAction {
   }
 
   async cp(source: string, destination: string, { maxWait = 180000 }: { maxWait?: number } = {}): Promise<CopyResponse> {
-    let process = await this.process.exec({
-      command: `cp -r ${source} ${destination}`,
-    })
-    process = await this.process.wait(process.pid, { maxWait, interval: 100 })
-    if (process.status === "failed") {
-      throw new Error(`Could not copy ${source} to ${destination} cause: ${process.logs}`)
-    }
-    return {
-      message: "Files copied",
-      source,
-      destination,
-    }
+    return this.recordOperation(
+      "filesystem",
+      "cp",
+      { source, destination, maxWait },
+      async () => {
+        let process = await this.process.exec({
+          command: `cp -r ${source} ${destination}`,
+        })
+        process = await this.process.wait(process.pid, { maxWait, interval: 100 })
+        if (process.status === "failed") {
+          throw new Error(`Could not copy ${source} to ${destination} cause: ${process.logs}`)
+        }
+        return {
+          message: "Files copied",
+          source,
+          destination,
+        }
+      },
+    );
   }
 
   watch(
