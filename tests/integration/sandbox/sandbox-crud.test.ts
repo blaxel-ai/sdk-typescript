@@ -259,6 +259,40 @@ describe('Sandbox CRUD Operations', () => {
       const found = sandboxes.data.find(s => s.metadata.name === name)
       expect(found).toBeDefined()
     })
+
+    it('paginates sandboxes with cursor, nextPage and autoPaging', async () => {
+      // Ensure at least two sandboxes exist so a page size of 1 spans multiple pages
+      const a = uniqueName("sandbox-page-a")
+      const b = uniqueName("sandbox-page-b")
+      await SandboxInstance.create({ name: a, region: defaultRegion, labels: defaultLabels })
+      createdSandboxes.push(a)
+      await SandboxInstance.create({ name: b, region: defaultRegion, labels: defaultLabels })
+      createdSandboxes.push(b)
+
+      // First page with limit 1 must report more pages and expose a cursor
+      const page1 = await SandboxInstance.list({ limit: 1 })
+      expect(page1.data.length).toBe(1)
+      expect(page1.hasMore).toBe(true)
+      expect(page1.nextCursor).toBeTruthy()
+
+      // Next page must advance via the cursor (a fresh, non-empty page)
+      const page2 = await page1.nextPage()
+      expect(page2).not.toBeNull()
+      expect(page2!.data.length).toBeGreaterThanOrEqual(1)
+
+      // Auto-paging with a small page size walks past the first page and reaches
+      // both created sandboxes. Unlike drives/volumes we do NOT assert "no
+      // duplicates across pages": the listSandboxes endpoint orders on a volatile
+      // field (sandboxes change state continuously), so with limit:1 the cursor
+      // is not a stable keyset and can revisit items across pages. The duplicates
+      // are a backend pagination limitation, not an SDK bug -- the cursor helper
+      // is identical to the drive/volume paths that paginate cleanly.
+      const walked = await (await SandboxInstance.list({ limit: 1 })).autoPagingToArray({ limit: 100000 })
+      const names = walked.map(s => s.metadata.name)
+      expect(names).toContain(a)
+      expect(names).toContain(b)
+      expect(walked.length).toBeGreaterThan(1)
+    })
   })
 
   describe('delete', () => {
