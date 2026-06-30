@@ -42,6 +42,28 @@ describe("pagination helpers", () => {
     expect(cursors).toEqual([undefined, "next-page"]);
   });
 
+  it("keeps hasMore consistent with nextPage when the API omits a cursor", async () => {
+    const fetchPage = async () => {
+      await Promise.resolve();
+      // API reports more data but gives no cursor to fetch it.
+      return {
+        data: ["only"],
+        meta: { hasMore: true },
+      };
+    };
+
+    const page = await createPaginatedList({
+      response: await fetchPage(),
+      fetchPage,
+      mapItem: (item) => item,
+    });
+
+    // hasMore must reflect what nextPage() can actually deliver.
+    expect(page.hasMore).toBe(false);
+    await expect(page.nextPage()).resolves.toBeNull();
+    await expect(page.autoPagingToArray({ limit: 10 })).resolves.toEqual(["only"]);
+  });
+
   it("supports auto paging with an explicit limit", async () => {
     const fetchPage = async (query?: { cursor?: string }) => {
       await Promise.resolve();

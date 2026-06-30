@@ -77,8 +77,13 @@ export async function createPaginatedList<TRaw, TItem, TQuery extends CursorPagi
   const list: PaginatedList<TItem, TQuery> = {
     data,
     meta,
+    // Derive `hasMore` from cursor presence, not `meta.hasMore`: `nextPage()`
+    // can only advance when there is a `nextCursor`, so a consumer doing
+    // `if (page.hasMore) await page.nextPage()` must never see `hasMore: true`
+    // while `nextPage()` returns null. Keeping the two in sync prevents silent
+    // truncation if the API ever sends `hasMore: true` without a cursor.
     get hasMore() {
-      return Boolean(meta.hasMore);
+      return Boolean(list.nextCursor);
     },
     get nextCursor() {
       return meta.nextCursor || undefined;
