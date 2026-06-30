@@ -1,4 +1,5 @@
-import { createSandboxSchedule, deleteSandboxSchedule, getSandboxSchedule, listSandboxScheduleExecutions, listSandboxSchedules, Sandbox, SandboxScheduleEntry, SandboxScheduleExecution, updateSandboxSchedule } from "../client/index.js";
+import { createSandboxSchedule, deleteSandboxSchedule, getSandboxSchedule, listSandboxScheduleExecutions, listSandboxSchedules, updateSandboxSchedule } from "../client/index.js";
+import type { Sandbox, SandboxScheduleEntry, SandboxScheduleExecution } from "../client/index.js";
 
 /** Optional filters for listing schedules. */
 export type SandboxScheduleListOptions = {
