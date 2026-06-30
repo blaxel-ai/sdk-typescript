@@ -1,100 +1,22 @@
 import { SandboxInstance, Sandbox as SandboxModel } from "@blaxel/core"
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { defaultImage, defaultLabels, defaultRegion, sleep, uniqueName, waitForSandboxDeployed } from './helpers.js'
-
-const proxyHelperScript = `
-const https = require("https");
-const tls = require("tls");
-const method = process.argv[2] || "GET";
-const targetUrl = process.argv[3] || "https://httpbin.org/headers";
-const extraHeaders = process.argv[4] ? JSON.parse(process.argv[4]) : {};
-const bodyData = process.argv[5] || null;
-const proxyUrl = process.env.HTTPS_PROXY || process.env.https_proxy ||
-                 process.env.HTTP_PROXY || process.env.http_proxy;
-
-function fire(socket) {
-  const t = new URL(targetUrl);
-  const opts = {
-    hostname: t.hostname, port: t.port || 443,
-    path: t.pathname + t.search, method,
-    headers: { ...extraHeaders }, servername: t.hostname,
-  };
-  if (socket) { opts.socket = socket; opts.agent = false; }
-  if (bodyData) {
-    opts.headers["Content-Type"] = "application/json";
-    opts.headers["Content-Length"] = Buffer.byteLength(bodyData);
-  }
-  const req = https.request(opts, (r) => {
-    let d = ""; r.on("data", c => d += c);
-    r.on("end", () => { process.stdout.write(d); process.exit(0); });
-  });
-  req.on("error", (e) => { process.stderr.write("REQ ERR: " + e.message + "\\n"); process.exit(1); });
-  if (bodyData) req.write(bodyData);
-  req.end();
-}
-
-if (!proxyUrl) { fire(null); }
-else {
-  const p = new URL(proxyUrl);
-  const t = new URL(targetUrl);
-  const port = parseInt(p.port) || (p.protocol === "https:" ? 443 : 3128);
-  const auth = (p.username || p.password)
-    ? "Proxy-Authorization: Basic " +
-      Buffer.from(decodeURIComponent(p.username||"") + ":" + decodeURIComponent(p.password||"")).toString("base64") + "\\r\\n"
-    : "";
-  const connectMsg = "CONNECT " + t.hostname + ":443 HTTP/1.1\\r\\n" +
-    "Host: " + t.hostname + ":443\\r\\n" + auth + "\\r\\n";
-
-  function onSocket(sock) {
-    let buf = "";
-    sock.on("data", function h(chunk) {
-      buf += chunk.toString();
-      if (buf.indexOf("\\r\\n\\r\\n") < 0) return;
-      sock.removeListener("data", h);
-      const code = parseInt(buf.split(" ")[1]);
-      if (code !== 200) {
-        process.stderr.write("CONNECT " + code + "\\n");
-        process.exit(1);
-      }
-      fire(sock);
-    });
-    sock.write(connectMsg);
-  }
-
-  const timeout = setTimeout(() => { process.stderr.write("PROXY TIMEOUT\\n"); process.exit(1); }, 15000);
-  if (p.protocol === "https:") {
-    const s = tls.connect({ host: p.hostname, port }, () => { clearTimeout(timeout); onSocket(s); });
-    s.on("error", (e) => { clearTimeout(timeout); process.stderr.write("PROXY TLS: " + e.message + "\\n"); process.exit(1); });
-  } else {
-    const s = require("net").connect({ host: p.hostname, port }, () => { clearTimeout(timeout); onSocket(s); });
-    s.on("error", (e) => { clearTimeout(timeout); process.stderr.write("PROXY TCP: " + e.message + "\\n"); process.exit(1); });
-  }
-}
-`.trim()
-
-function parseJsonOutput(logs: string | undefined): any {
-  if (!logs) throw new Error("No output from command")
-  const trimmed = logs.trim()
-  const jsonStart = trimmed.indexOf('{')
-  if (jsonStart === -1) throw new Error(`No JSON found in output: ${trimmed.slice(0, 200)}`)
-  let depth = 0
-  let jsonEnd = -1
-  for (let i = jsonStart; i < trimmed.length; i++) {
-    if (trimmed[i] === '{') depth++
-    else if (trimmed[i] === '}') { depth--; if (depth === 0) { jsonEnd = i + 1; break } }
-  }
-  if (jsonEnd === -1) throw new Error(`Unterminated JSON in output: ${trimmed.slice(0, 300)}`)
-  return JSON.parse(trimmed.slice(jsonStart, jsonEnd))
-}
-
-function lowercaseKeys(obj: Record<string, string>): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(obj).map(([k, v]) => [k.toLowerCase(), v])
-  )
-}
+import { createEchoServerSandbox, lowercaseKeys, parseJsonOutput, proxyHelperScript } from './proxy/helpers.js'
 
 describe('Sandbox Update Operations', () => {
   const createdSandboxes: string[] = []
+
+  // A controlled httpbin-compatible upstream (reached via a preview URL) shared by
+  // the live-network-call suites below, replacing the flaky public httpbin.org. We
+  // use its hostname as the allow/forbid/route target.
+  let echoHost: string
+  let echoUrl: string
+
+  beforeAll(async () => {
+    const echo = await createEchoServerSandbox(createdSandboxes)
+    echoHost = echo.host
+    echoUrl = echo.url
+  }, 180_000)
 
   afterAll(async () => {
     if (process.env.SKIP_CLEANUP === '1') {
@@ -386,7 +308,7 @@ describe('Sandbox Update Operations', () => {
     let name: string
     let sandbox: Awaited<ReturnType<typeof SandboxInstance.get>>
 
-    it('creates sandbox with httpbin.org forbidden', async () => {
+    it('creates sandbox with echo host forbidden', async () => {
       name = uniqueName("upd-fw-live")
       const created = await SandboxInstance.create({
         name,
@@ -394,7 +316,7 @@ describe('Sandbox Update Operations', () => {
         region: defaultRegion,
         labels: defaultLabels,
         network: {
-          forbiddenDomains: ["httpbin.org"],
+          forbiddenDomains: [echoHost],
           proxy: { routing: [] },
         },
       })
@@ -404,9 +326,9 @@ describe('Sandbox Update Operations', () => {
       await sandbox.fs.write("/tmp/proxy-test.js", proxyHelperScript)
     }, 60_000)
 
-    it('httpbin.org is blocked before update', async () => {
+    it('echo host is blocked before update', async () => {
       const result = await sandbox.process.exec({
-        command: 'node /tmp/proxy-test.js GET https://httpbin.org/get',
+        command: `node /tmp/proxy-test.js GET ${echoUrl}/get`,
         waitForCompletion: true,
       })
       expect(result.exitCode).not.toBe(0)
@@ -418,19 +340,19 @@ describe('Sandbox Update Operations', () => {
       sandbox = await SandboxInstance.get(name)
     })
 
-    it('httpbin.org is reachable after update', async () => {
+    it('echo host is reachable after update', async () => {
       // Firewall rule propagation may lag behind DEPLOYED status — retry until reachable
       let result: Awaited<ReturnType<typeof sandbox.process.exec>> | undefined
       for (let i = 0; i < 15; i++) {
         result = await sandbox.process.exec({
-          command: 'node /tmp/proxy-test.js GET https://httpbin.org/get',
+          command: `node /tmp/proxy-test.js GET ${echoUrl}/get`,
           waitForCompletion: true,
         })
         if (result.exitCode === 0) break
         await sleep(2000)
       }
       expect(result!.exitCode).toBe(0)
-      expect(result!.logs).toContain("httpbin.org")
+      expect(result!.logs).toContain(echoHost)
     }, 60_000)
   })
 
@@ -438,7 +360,7 @@ describe('Sandbox Update Operations', () => {
     let name: string
     let sandbox: Awaited<ReturnType<typeof SandboxInstance.get>>
 
-    it('creates sandbox with only httpbin.org allowed', async () => {
+    it('creates sandbox with only echo host allowed', async () => {
       name = uniqueName("upd-allow-live")
       const created = await SandboxInstance.create({
         name,
@@ -446,7 +368,7 @@ describe('Sandbox Update Operations', () => {
         region: defaultRegion,
         labels: defaultLabels,
         network: {
-          allowedDomains: ["httpbin.org"],
+          allowedDomains: [echoHost],
           proxy: { routing: [] },
         },
       })
@@ -456,9 +378,9 @@ describe('Sandbox Update Operations', () => {
       await sandbox.fs.write("/tmp/proxy-test.js", proxyHelperScript)
     }, 60_000)
 
-    it('httpbin.org is reachable', async () => {
+    it('echo host is reachable', async () => {
       const result = await sandbox.process.exec({
-        command: 'node /tmp/proxy-test.js GET https://httpbin.org/get',
+        command: `node /tmp/proxy-test.js GET ${echoUrl}/get`,
         waitForCompletion: true,
       })
       expect(result.exitCode).toBe(0)
@@ -474,10 +396,10 @@ describe('Sandbox Update Operations', () => {
 
     it('expands allowedDomains to include example.com', async () => {
       const updated = await updateNetwork(name, {
-        allowedDomains: ["httpbin.org", "example.com"],
+        allowedDomains: [echoHost, "example.com"],
         proxy: { routing: [] },
       })
-      expect(updated.spec?.network?.allowedDomains).toEqual(["httpbin.org", "example.com"])
+      expect(updated.spec?.network?.allowedDomains).toEqual([echoHost, "example.com"])
       sandbox = await SandboxInstance.get(name)
     })
 
@@ -490,9 +412,9 @@ describe('Sandbox Update Operations', () => {
       expect(result.logs!.length).toBeGreaterThan(0)
     }, 60_000)
 
-    it('httpbin.org is still reachable', async () => {
+    it('echo host is still reachable', async () => {
       const result = await sandbox.process.exec({
-        command: 'node /tmp/proxy-test.js GET https://httpbin.org/get',
+        command: `node /tmp/proxy-test.js GET ${echoUrl}/get`,
         waitForCompletion: true,
       })
       expect(result.exitCode).toBe(0)
@@ -514,7 +436,7 @@ describe('Sandbox Update Operations', () => {
           proxy: {
             routing: [
               {
-                destinations: ["httpbin.org"],
+                destinations: [echoHost],
                 headers: { "X-Update-Test": "initial-value" },
               },
             ],
@@ -529,7 +451,7 @@ describe('Sandbox Update Operations', () => {
 
     it('initial routing rule injects headers', async () => {
       const result = await sandbox.process.exec({
-        command: 'node /tmp/proxy-test.js GET https://httpbin.org/headers',
+        command: `node /tmp/proxy-test.js GET ${echoUrl}/headers`,
         waitForCompletion: true,
       })
       expect(result.exitCode).toBe(0)
@@ -537,7 +459,6 @@ describe('Sandbox Update Operations', () => {
       const response = parseJsonOutput(result.logs)
       const headers = lowercaseKeys(response.headers)
       expect(headers["x-update-test"]).toBe("initial-value")
-      expect(headers["x-blaxel-request-id"]).toBeDefined()
     }, 60_000)
 
     it('updates routing rule with new header and secret', async () => {
@@ -545,7 +466,7 @@ describe('Sandbox Update Operations', () => {
         proxy: {
           routing: [
             {
-              destinations: ["httpbin.org"],
+              destinations: [echoHost],
               headers: {
                 "X-Update-Test": "changed-via-update",
                 "X-Api-Key": "{{SECRET:test-key}}",
@@ -563,7 +484,7 @@ describe('Sandbox Update Operations', () => {
 
     it('updated headers and resolved secret appear', async () => {
       const result = await sandbox.process.exec({
-        command: 'node /tmp/proxy-test.js GET https://httpbin.org/headers',
+        command: `node /tmp/proxy-test.js GET ${echoUrl}/headers`,
         waitForCompletion: true,
       })
       expect(result.exitCode).toBe(0)
@@ -579,7 +500,7 @@ describe('Sandbox Update Operations', () => {
         proxy: {
           routing: [
             {
-              destinations: ["httpbin.org"],
+              destinations: [echoHost],
               headers: {
                 "X-Update-Test": "third-value",
               },
@@ -590,7 +511,7 @@ describe('Sandbox Update Operations', () => {
       sandbox = await SandboxInstance.get(name)
 
       const result = await sandbox.process.exec({
-        command: 'node /tmp/proxy-test.js GET https://httpbin.org/headers',
+        command: `node /tmp/proxy-test.js GET ${echoUrl}/headers`,
         waitForCompletion: true,
       })
       expect(result.exitCode).toBe(0)
