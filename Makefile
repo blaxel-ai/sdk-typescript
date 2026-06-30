@@ -23,8 +23,6 @@ sdk-sandbox:
 
 sdk-controlplane:
 	@echo "Downloading controlplane definition from blaxel-ai/controlplane"
-	@# TEMPORARY: pinned to the sandbox-scheduling branch so schedule endpoints
-	@# are included before they merge to main. Revert ref to main after merge.
 	@curl -H "Authorization: token $$(gh auth token)" \
 		-H "Accept: application/vnd.github.v3.raw" \
 		-o ./definition.yml \
