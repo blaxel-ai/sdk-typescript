@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { createDrive, deleteDrive, getDrive, listDrives, updateDrive, Drive } from "../client/index.js";
+import type { DrivePermission } from "../client/index.js";
 import { settings } from "../common/settings.js";
 
 export interface DriveCreateConfiguration {
@@ -8,6 +9,7 @@ export interface DriveCreateConfiguration {
   labels?: Record<string, string>;
   size?: number; // Size in GB
   region?: string;
+  permissions?: Array<DrivePermission>;
 }
 
 export class DriveInstance {
@@ -45,6 +47,10 @@ export class DriveInstance {
     return this.drive.spec.region;
   }
 
+  get permissions() {
+    return this.drive.spec?.permissions;
+  }
+
   static async create(config: DriveCreateConfiguration | Drive) {
     const defaultName = `drive-${uuidv4().replace(/-/g, '').substring(0, 8)}`;
 
@@ -63,7 +69,8 @@ export class DriveInstance {
         },
         spec: {
           size: config.size,
-          region: config.region || settings.region
+          region: config.region || settings.region,
+          permissions: config.permissions,
         }
       };
     }
@@ -141,6 +148,7 @@ export class DriveInstance {
       if (updates.spec) {
         if (updates.spec.size !== undefined) specUpdates.size = updates.spec.size;
         if (updates.spec.region !== undefined) specUpdates.region = updates.spec.region;
+        if (updates.spec.permissions !== undefined) specUpdates.permissions = updates.spec.permissions;
       }
     } else {
       // It's a DriveCreateConfiguration - only include defined fields
@@ -148,6 +156,7 @@ export class DriveInstance {
       if (updates.labels !== undefined) metadataUpdates.labels = updates.labels;
       if (updates.size !== undefined) specUpdates.size = updates.size;
       if (updates.region !== undefined) specUpdates.region = updates.region;
+      if (updates.permissions !== undefined) specUpdates.permissions = updates.permissions;
     }
 
     const body = {
