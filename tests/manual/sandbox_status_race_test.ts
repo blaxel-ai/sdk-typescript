@@ -583,7 +583,7 @@ async function suiteStatusDistribution(): Promise<TestResult> {
   }
 
   console.log(`  Completed in ${elapsed(start)}: ${passed} passed, ${failed} failed`)
-  return { suite, total: snapshots.length, passed, failed, details }
+  return { suite, total: names.length, passed, failed, details }
 }
 
 // ---------------------------------------------------------------------------
