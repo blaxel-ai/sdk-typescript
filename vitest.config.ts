@@ -26,7 +26,13 @@ export default defineConfig({
       concurrent: false,
     },
     globalSetup: ['tests/integration/sandbox/globalTeardown.ts', 'tests/benchmarks/sandbox/teardown.ts'],
+    // Central registry of opt-in slow integration tests. Each waits on real
+    // backend timing and can exceed the 1-minute per-test budget, so it is off
+    // by default here. Flip one to "true" to enable it, or override per-run
+    // (e.g. RUN_SLOW_SCHEDULES=true npx vitest run ...). Read via
+    // isSlowTestEnabled() from tests/integration/sandbox/helpers.ts.
     env: {
+      RUN_SLOW_SCHEDULES: process.env.RUN_SLOW_SCHEDULES ?? "false",
     },
     benchmark: {
       include: ['tests/benchmarks/**/*.bench.ts'],

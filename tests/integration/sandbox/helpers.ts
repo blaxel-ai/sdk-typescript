@@ -25,6 +25,16 @@ export function uniqueName(prefix: string = "test"): string {
 }
 
 /**
+ * Whether an opt-in slow test flag is enabled. Defaults for every flag live in
+ * vitest.config.ts (test.env), all "false". Use with describe.runIf/it.runIf,
+ * e.g. describe.runIf(isSlowTestEnabled("RUN_SLOW_SCHEDULES"))(...).
+ */
+export function isSlowTestEnabled(flag: string): boolean {
+  const v = process.env[flag]
+  return v === "true" || v === "1"
+}
+
+/**
  * Waits for a sandbox to be deployed by polling until status is DEPLOYED
  * @param sandboxName The name of the sandbox to wait for
  * @param maxAttempts Maximum number of attempts to wait (default: 30 seconds)

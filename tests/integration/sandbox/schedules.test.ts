@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { SandboxInstance } from "@blaxel/core"
-import { uniqueName, defaultImage, defaultLabels, defaultRegion, sleep } from './helpers.js'
+import { uniqueName, defaultImage, defaultLabels, defaultRegion, sleep, isSlowTestEnabled } from './helpers.js'
 
 // Mirrors the controlplane `e2e-sandbox-scheduling` skill, scoped to the SDK
 // wrapper (`sandbox.schedules`): exercises the CRUD surface and proves real
@@ -142,8 +142,9 @@ describe('Sandbox Schedule Operations', () => {
 
   // Firing depends on the scheduler tick + a backend cleanup pass whose latency
   // can push this block past the 1-minute integration-test budget, so it is
-  // opt-in. Enable with RUN_SLOW_SCHEDULES=1; the default run stays CRUD-only.
-  describe.runIf(process.env.RUN_SLOW_SCHEDULES)('firing', () => {
+  // opt-in. The RUN_SLOW_SCHEDULES flag defaults to "false" in vitest.config.ts;
+  // enable it there or per-run (RUN_SLOW_SCHEDULES=true). The default stays CRUD-only.
+  describe.runIf(isSlowTestEnabled("RUN_SLOW_SCHEDULES"))('firing', () => {
     it('fires a one-off at schedule (auto-deletes after firing)', async () => {
       // Fire ~10s out; the scheduler runs it and then auto-removes the one-off
       // definition, which is our version-independent proof that it fired.
