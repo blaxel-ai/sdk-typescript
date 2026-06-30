@@ -143,6 +143,7 @@ export class SandboxInstance {
       'name' in sandbox ||
       'image' in sandbox ||
       'memory' in sandbox ||
+      'storageMb' in sandbox ||
       'ports' in sandbox ||
       'envs' in sandbox ||
       'volumes' in sandbox ||
@@ -181,6 +182,7 @@ export class SandboxInstance {
           runtime: {
             image: sandbox.image,
             memory: sandbox.memory,
+            ...(sandbox.storageMb !== undefined && { storageMb: sandbox.storageMb }),
             ports: ports,
             envs: envs,
             generation: "mk3",

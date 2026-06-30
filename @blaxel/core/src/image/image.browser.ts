@@ -29,6 +29,7 @@ export interface ImageBuildContext {
 export interface ImageBuildOptions {
   name: string;
   memory?: number;
+  storageMb?: number;
   timeout?: number;
   onStatusChange?: (status: string) => void;
   sandboxVersion?: string;
@@ -141,4 +142,3 @@ export class ImageInstance {
     throwBrowserError();
   }
 }
-

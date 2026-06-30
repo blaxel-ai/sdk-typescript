@@ -3827,6 +3827,10 @@ export type SandboxRuntime = {
     memory?: number;
     ports?: Ports;
     /**
+     * Disk-backed root storage capacity in megabytes. When omitted, the sandbox uses the default tmpfs overlay sizing based on its memory allocation.
+     */
+    storageMb?: number;
+    /**
      * Duration in seconds the pod needs to terminate gracefully. Defaults to 0 for immediate termination.
      */
     terminationGracePeriodSeconds?: number;
