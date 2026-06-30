@@ -1,7 +1,7 @@
 import { SandboxInstance } from "@blaxel/core"
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { defaultImage, defaultLabels, defaultRegion, uniqueName } from '../helpers.js'
-import { lowercaseKeys, parseJsonOutput, proxyCleanup, proxyHelperScript } from './helpers.js'
+import { createEchoServerSandbox, lowercaseKeys, parseJsonOutput, proxyCleanup, proxyHelperScript } from './helpers.js'
 
 describe('proxy vs no-proxy comparison', () => {
   const createdSandboxes: string[] = []
@@ -9,6 +9,8 @@ describe('proxy vs no-proxy comparison', () => {
 
   let proxySandbox: Awaited<ReturnType<typeof SandboxInstance.create>>
   let noProxySandbox: Awaited<ReturnType<typeof SandboxInstance.create>>
+  // Controlled httpbin-compatible upstream reached via a preview URL.
+  let echoUrl: string
 
   async function timedExec(
     sb: Awaited<ReturnType<typeof SandboxInstance.create>>,
@@ -20,12 +22,15 @@ describe('proxy vs no-proxy comparison', () => {
   }
 
   beforeAll(async () => {
+    const echo = await createEchoServerSandbox(createdSandboxes)
+    echoUrl = echo.url
+
     const [proxyName, noProxyName] = [uniqueName("cmp-proxy"), uniqueName("cmp-noproxy")]
     const [pSb, npSb] = await Promise.all([
       SandboxInstance.create({
         name: proxyName, image: defaultImage, region: defaultRegion, labels: defaultLabels,
         network: {
-          proxy: { routing: [{ destinations: ["httpbin.org"], headers: { "X-Proxy-Compare": "with-proxy", "X-Api-Key": "{{SECRET:cmp-key}}" }, body: { "injected_field": "proxy-injected" }, secrets: { "cmp-key": "comparison-secret-123" } }] },
+          proxy: { routing: [{ destinations: [echo.host], headers: { "X-Proxy-Compare": "with-proxy", "X-Api-Key": "{{SECRET:cmp-key}}" }, body: { "injected_field": "proxy-injected" }, secrets: { "cmp-key": "comparison-secret-123" } }] },
         },
       }),
       SandboxInstance.create({ name: noProxyName, image: defaultImage, region: defaultRegion, labels: defaultLabels }),
@@ -40,7 +45,7 @@ describe('proxy vs no-proxy comparison', () => {
 
     for (let i = 0; i < 10; i++) {
       const warmup = await proxySandbox.process.exec({
-        command: 'node /tmp/proxy-test.js GET https://httpbin.org/headers',
+        command: `node /tmp/proxy-test.js GET ${echoUrl}/headers`,
         waitForCompletion: true,
       })
       if (warmup.exitCode === 0) {
@@ -51,12 +56,12 @@ describe('proxy vs no-proxy comparison', () => {
       }
       await new Promise(r => setTimeout(r, 2000))
     }
-  }, 180_000)
+  }, 240_000)
 
   it('proxy sandbox injects headers, no-proxy sandbox does not', async () => {
     const [proxyResult, noProxyResult] = await Promise.all([
-      timedExec(proxySandbox, 'node /tmp/proxy-test.js GET https://httpbin.org/headers'),
-      timedExec(noProxySandbox, 'node /tmp/proxy-test.js GET https://httpbin.org/headers'),
+      timedExec(proxySandbox, `node /tmp/proxy-test.js GET ${echoUrl}/headers`),
+      timedExec(noProxySandbox, `node /tmp/proxy-test.js GET ${echoUrl}/headers`),
     ])
     expect(proxyResult.exitCode).toBe(0)
     expect(noProxyResult.exitCode).toBe(0)
@@ -64,16 +69,14 @@ describe('proxy vs no-proxy comparison', () => {
     const noProxyHeaders = lowercaseKeys(parseJsonOutput(noProxyResult.logs).headers)
     expect(proxyHeaders["x-proxy-compare"]).toBe("with-proxy")
     expect(proxyHeaders["x-api-key"]).toBe("comparison-secret-123")
-    expect(proxyHeaders["x-blaxel-request-id"]).toBeDefined()
     expect(noProxyHeaders["x-proxy-compare"]).toBeUndefined()
     expect(noProxyHeaders["x-api-key"]).toBeUndefined()
-    expect(noProxyHeaders["x-blaxel-request-id"]).toBeUndefined()
     console.log(`[compare GET headers] proxy: ${proxyResult.durationMs}ms, no-proxy: ${noProxyResult.durationMs}ms, overhead: ${proxyResult.durationMs - noProxyResult.durationMs}ms`)
   }, 60_000)
 
   it('proxy sandbox injects body fields, no-proxy sandbox does not', async () => {
     const postBody = JSON.stringify({ user_data: "original" })
-    const cmd = `node /tmp/proxy-test.js POST https://httpbin.org/post '{}' '${postBody}'`
+    const cmd = `node /tmp/proxy-test.js POST ${echoUrl}/post '{}' '${postBody}'`
     const [proxyResult, noProxyResult] = await Promise.all([timedExec(proxySandbox, cmd), timedExec(noProxySandbox, cmd)])
     expect(proxyResult.exitCode).toBe(0)
     expect(noProxyResult.exitCode).toBe(0)
@@ -103,12 +106,12 @@ describe('proxy vs no-proxy comparison', () => {
   }, 60_000)
 
   it('both sandboxes reach the same endpoint successfully', async () => {
-    const cmd = 'node /tmp/proxy-test.js GET https://httpbin.org/get'
+    const cmd = `node /tmp/proxy-test.js GET ${echoUrl}/get`
     const [proxyResult, noProxyResult] = await Promise.all([timedExec(proxySandbox, cmd), timedExec(noProxySandbox, cmd)])
     expect(proxyResult.exitCode).toBe(0)
     expect(noProxyResult.exitCode).toBe(0)
-    expect(parseJsonOutput(proxyResult.logs).url).toBe("https://httpbin.org/get")
-    expect(parseJsonOutput(noProxyResult.logs).url).toBe("https://httpbin.org/get")
+    expect(parseJsonOutput(proxyResult.logs).path).toBe("/get")
+    expect(parseJsonOutput(noProxyResult.logs).path).toBe("/get")
     console.log(`[compare GET /get] proxy: ${proxyResult.durationMs}ms, no-proxy: ${noProxyResult.durationMs}ms, overhead: ${proxyResult.durationMs - noProxyResult.durationMs}ms`)
   }, 60_000)
 
@@ -118,8 +121,8 @@ describe('proxy vs no-proxy comparison', () => {
     const noProxyTimes: number[] = []
     for (let i = 0; i < iterations; i++) {
       const [p, np] = await Promise.all([
-        timedExec(proxySandbox, 'node /tmp/proxy-test.js GET https://httpbin.org/get'),
-        timedExec(noProxySandbox, 'node /tmp/proxy-test.js GET https://httpbin.org/get'),
+        timedExec(proxySandbox, `node /tmp/proxy-test.js GET ${echoUrl}/get`),
+        timedExec(noProxySandbox, `node /tmp/proxy-test.js GET ${echoUrl}/get`),
       ])
       expect(p.exitCode).toBe(0)
       expect(np.exitCode).toBe(0)

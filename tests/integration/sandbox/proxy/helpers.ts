@@ -1,4 +1,67 @@
 import { SandboxInstance } from "@blaxel/core"
+import { defaultImage, defaultLabels, defaultRegion, fetchWithRetry, uniqueName } from '../helpers.js'
+
+/**
+ * An httpbin-compatible echo server. It mirrors the subset of httpbin endpoints
+ * the proxy tests rely on, so we never depend on the public httpbin.org (which
+ * intermittently returns 503). It runs inside a sandbox and is exposed through a
+ * public preview URL.
+ *
+ * Supported endpoints:
+ *  - `/get`, `/post`, `/put`, `/delete`, `/headers`, `/anything` (and any other
+ *    path): returns `{ headers, json, data, args, method, path, url }` where
+ *    `json` is the parsed request body (httpbin-style).
+ *  - `/redirect/N`: 302s N times, ending at `/get` (for `curl -L`).
+ *  - `/bytes/N`: returns exactly N bytes of data (for download-size checks).
+ */
+export const echoServerScript = `
+const http = require("http");
+const crypto = require("crypto");
+const port = parseInt(process.env.ECHO_PORT || "3000", 10);
+
+http.createServer((req, res) => {
+  const chunks = [];
+  req.on("data", (c) => chunks.push(c));
+  req.on("end", () => {
+    const raw = Buffer.concat(chunks).toString();
+    const host = req.headers.host || "localhost";
+    const u = new URL(req.url, "http://" + host);
+    const path = u.pathname;
+
+    const redirectMatch = path.match(/^\\/redirect\\/(\\d+)$/);
+    if (redirectMatch) {
+      const n = parseInt(redirectMatch[1], 10);
+      const location = n <= 1 ? "/get" : "/redirect/" + (n - 1);
+      res.writeHead(302, { Location: location });
+      res.end();
+      return;
+    }
+
+    const bytesMatch = path.match(/^\\/bytes\\/(\\d+)$/);
+    if (bytesMatch) {
+      const n = parseInt(bytesMatch[1], 10);
+      res.writeHead(200, { "Content-Type": "application/octet-stream" });
+      res.end(crypto.randomBytes(n));
+      return;
+    }
+
+    let json = null;
+    if (raw) { try { json = JSON.parse(raw); } catch (e) { json = null; } }
+    const args = {};
+    for (const [k, v] of u.searchParams.entries()) args[k] = v;
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      headers: req.headers,
+      json,
+      data: raw,
+      args,
+      method: req.method,
+      path,
+      url: "https://" + host + req.url,
+    }));
+  });
+}).listen(port, () => { console.log("echo server listening on " + port); });
+`.trim()
 
 export const proxyHelperScript = `
 const https = require("https");
@@ -97,6 +160,55 @@ export function lowercaseKeys(obj: Record<string, string>): Record<string, strin
 
 type Sandbox = Awaited<ReturnType<typeof SandboxInstance.create>>
 type ExecResult = Awaited<ReturnType<Sandbox["process"]["exec"]>>
+
+export type EchoServer = {
+  sandbox: Sandbox
+  /** Hostname only (e.g. `prefix-workspace.preview.blaxel.dev`), for proxy `destinations`. */
+  host: string
+  /** Full base URL (e.g. `https://prefix-workspace.preview.blaxel.dev`). */
+  url: string
+}
+
+/**
+ * Creates a sandbox running {@link echoServerScript}, exposes it through a public
+ * preview, and waits until the preview URL is reachable. Use the returned `host`
+ * as a proxy `destinations` entry and target `${url}/headers` or `${url}/post`
+ * from inside a proxied sandbox to get deterministic, httpbin-compatible
+ * responses without relying on the public httpbin.org.
+ */
+export async function createEchoServerSandbox(
+  createdSandboxes: string[],
+  { port = 3000 }: { port?: number } = {},
+): Promise<EchoServer> {
+  const name = uniqueName("proxy-echo")
+  const sandbox = await SandboxInstance.create({
+    name, image: defaultImage, region: defaultRegion, labels: defaultLabels,
+    ports: [{ target: port }],
+  })
+  createdSandboxes.push(name)
+
+  await sandbox.fs.write("/tmp/echo-server.js", echoServerScript)
+  await sandbox.process.exec({
+    command: `ECHO_PORT=${port} node /tmp/echo-server.js`,
+    waitForPorts: [port],
+  })
+
+  const preview = await sandbox.previews.create({
+    metadata: { name: uniqueName("echo-preview") },
+    spec: { port, public: true },
+  })
+  const url = preview.spec.url
+  if (!url) throw new Error("Echo server preview did not return a URL")
+  const host = new URL(url).hostname
+
+  // Block until the preview is actually serving (infra propagation can lag).
+  const ready = await fetchWithRetry(`${url}/headers`, undefined, { retries: 15, delayMs: 2000 })
+  if (ready.status !== 200) {
+    throw new Error(`Echo server preview not reachable: status=${ready.status} url=${url}`)
+  }
+
+  return { sandbox, host, url }
+}
 
 export async function execProxyCommandWithRetry(
   sandbox: Sandbox,

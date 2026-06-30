@@ -1,7 +1,7 @@
 import { SandboxInstance } from "@blaxel/core"
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { defaultImage, defaultLabels, defaultRegion, uniqueName } from '../helpers.js'
-import { createReadyProxySandbox, execProxyCommandWithRetry, lowercaseKeys, parseJsonObjectOutput, proxyCleanup } from './helpers.js'
+import { createEchoServerSandbox, createReadyProxySandbox, execProxyCommandWithRetry, lowercaseKeys, parseJsonObjectOutput, proxyCleanup } from './helpers.js'
 
 type HttpBinResponse = {
   headers: Record<string, string>
@@ -12,8 +12,13 @@ describe('proxy with wildcard (*) destination', () => {
   afterAll(proxyCleanup(createdSandboxes))
 
   let wildcardSandbox: Awaited<ReturnType<typeof SandboxInstance.create>>
+  // Controlled httpbin-compatible upstream reached via a preview URL.
+  let headersUrl: string
 
   beforeAll(async () => {
+    const echo = await createEchoServerSandbox(createdSandboxes)
+    headersUrl = `${echo.url}/headers`
+
     wildcardSandbox = await createReadyProxySandbox(
       async () => {
         const name = uniqueName("proxy-wild")
@@ -32,7 +37,7 @@ describe('proxy with wildcard (*) destination', () => {
         return { name, sandbox }
       },
       createdSandboxes,
-      'node /tmp/proxy-test.js GET https://httpbin.org/headers',
+      `node /tmp/proxy-test.js GET ${headersUrl}`,
       (result) => {
         if (result.exitCode !== 0) return false
         const headers = lowercaseKeys(parseJsonObjectOutput<HttpBinResponse>(result.logs).headers)
@@ -41,8 +46,8 @@ describe('proxy with wildcard (*) destination', () => {
     )
   }, 180_000)
 
-  it('applies global rule to httpbin.org', async () => {
-    const result = await execProxyCommandWithRetry(wildcardSandbox, 'node /tmp/proxy-test.js GET https://httpbin.org/headers')
+  it('applies global rule to any destination', async () => {
+    const result = await execProxyCommandWithRetry(wildcardSandbox, `node /tmp/proxy-test.js GET ${headersUrl}`)
     expect(result.exitCode, result.logs).toBe(0)
     const headers = lowercaseKeys(parseJsonObjectOutput<HttpBinResponse>(result.logs).headers)
     expect(headers["x-global-auth"]).toBe("Bearer global-token-xyz")
