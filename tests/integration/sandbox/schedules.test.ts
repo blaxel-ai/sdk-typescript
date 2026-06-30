@@ -140,7 +140,10 @@ describe('Sandbox Schedule Operations', () => {
     })
   })
 
-  describe('firing', () => {
+  // Firing depends on the scheduler tick + a backend cleanup pass whose latency
+  // can push this block past the 1-minute integration-test budget, so it is
+  // opt-in. Enable with RUN_SLOW_SCHEDULES=1; the default run stays CRUD-only.
+  describe.runIf(process.env.RUN_SLOW_SCHEDULES)('firing', () => {
     it('fires a one-off at schedule (auto-deletes after firing)', async () => {
       // Fire ~10s out; the scheduler runs it and then auto-removes the one-off
       // definition, which is our version-independent proof that it fired.
