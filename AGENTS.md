@@ -80,6 +80,8 @@ Key points:
 - Watch for name conflicts between `client/types.gen.ts` (API types) and SDK classes (e.g. `SandboxNetwork` type vs `SandboxNetwork` class) -- use named exports to resolve
 
 ### Testing
+- Every feature ships with an integration test that exercises it end to end against the real API
+- An integration test must run in **under 1 minute**. If it inherently takes longer (e.g. waiting on a recurring scheduler tick), gate the slow part behind an env var so it is opt-in -- the default run stays fast (e.g. `if (!process.env.RUN_SLOW_SCHEDULES) return`)
 - Integration tests require `BL_WORKSPACE` and `BL_API_KEY` environment variables
 - Use helpers from `tests/integration/sandbox/helpers.ts` (uniqueName, defaultLabels, defaultImage, etc.)
 - Always label test resources with `defaultLabels` for automatic cleanup
