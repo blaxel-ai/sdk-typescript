@@ -26,7 +26,7 @@ const FIRE_TIMEOUT_MS = 75_000
 async function waitUntilGone(sandbox: SandboxInstance, scheduleId: string): Promise<boolean> {
   const deadline = Date.now() + FIRE_TIMEOUT_MS
   while (Date.now() < deadline) {
-    const list = await sandbox.schedules.list().catch(() => [])
+    const list = await sandbox.schedules.list().then((p) => p.data).catch(() => [])
     if (!list.find((s) => s.id === scheduleId)) return true
     await sleep(3000)
   }
@@ -98,9 +98,18 @@ describe('Sandbox Schedule Operations', () => {
 
     it('lists the created schedules', async () => {
       const schedules = await sandbox.schedules.list()
-      expect(schedules.length).toBeGreaterThanOrEqual(createdIds.length)
+      expect(schedules.data.length).toBeGreaterThanOrEqual(createdIds.length)
       for (const id of createdIds) {
-        expect(schedules.find((s) => s.id === id)).toBeDefined()
+        expect(schedules.data.find((s) => s.id === id)).toBeDefined()
+      }
+    })
+
+    it('walks every schedule across pages with autoPagingToArray', async () => {
+      // limit:1 forces multiple pages so the cursor walk is actually exercised.
+      const page = await sandbox.schedules.list({ limit: 1 })
+      const all = await page.autoPagingToArray({ limit: 100000 })
+      for (const id of createdIds) {
+        expect(all.find((s) => s.id === id)).toBeDefined()
       }
     })
 
@@ -109,8 +118,8 @@ describe('Sandbox Schedule Operations', () => {
       // it from Blaxel-Version 2026-04-28 on, so just assert the call works and
       // still surfaces the cron we created (subset, not exact match).
       const crons = await sandbox.schedules.list({ type: "cron" })
-      expect(Array.isArray(crons)).toBe(true)
-      expect(crons.find((s) => s.id === createdIds[0])).toBeDefined()
+      expect(Array.isArray(crons.data)).toBe(true)
+      expect(crons.data.find((s) => s.id === createdIds[0])).toBeDefined()
     })
 
     it('gets a single schedule by id', async () => {
@@ -136,7 +145,7 @@ describe('Sandbox Schedule Operations', () => {
       const id = createdIds.pop()!
       await sandbox.schedules.delete(id)
       const schedules = await sandbox.schedules.list()
-      expect(schedules.find((s) => s.id === id)).toBeUndefined()
+      expect(schedules.data.find((s) => s.id === id)).toBeUndefined()
     })
   })
 
@@ -157,7 +166,7 @@ describe('Sandbox Schedule Operations', () => {
 
       // Visible in list() right after creation, gone once it has fired.
       const before = await sandbox.schedules.list()
-      expect(before.find((s) => s.id === at.id)).toBeDefined()
+      expect(before.data.find((s) => s.id === at.id)).toBeDefined()
 
       const fired = await waitUntilGone(sandbox, at.id!)
       expect(fired).toBe(true)
@@ -166,7 +175,7 @@ describe('Sandbox Schedule Operations', () => {
       // populated from Blaxel-Version 2026-04-28 on, so just assert the wrapper
       // call works and returns an array (no firing-count assertion).
       const executions = await sandbox.schedules.executions()
-      expect(Array.isArray(executions)).toBe(true)
+      expect(Array.isArray(executions.data)).toBe(true)
     }, FIRE_TIMEOUT_MS + 30_000)
   })
 })

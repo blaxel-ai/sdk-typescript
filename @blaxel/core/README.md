@@ -70,7 +70,7 @@ await existing.delete();
 
 #### Listing resources
 
-List methods return one page at a time. The result contains `data`, `meta`, and helpers for fetching more pages when you want them.
+List methods return one page at a time. The result contains `data`, `meta`, and helpers for fetching more pages when you want them. The same shape is returned by `VolumeInstance.list()`, `DriveInstance.list()`, and the sandbox-scoped `sandbox.schedules.list()` / `sandbox.schedules.executions()`.
 
 ```typescript
 import { SandboxInstance } from "@blaxel/core";
