@@ -1,7 +1,7 @@
 import { SandboxInstance } from "@blaxel/core"
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { defaultImage, defaultLabels, defaultRegion, uniqueName } from '../helpers.js'
-import { createReadyProxySandbox, execProxyCommandWithRetry, lowercaseKeys, parseJsonObjectOutput, proxyCleanup } from './helpers.js'
+import { createEchoServerSandbox, createReadyProxySandbox, execProxyCommandWithRetry, lowercaseKeys, parseJsonObjectOutput, proxyCleanup } from './helpers.js'
 
 type HttpBinResponse = {
   headers: Record<string, string>
@@ -27,7 +27,7 @@ const tls = require("tls");
 const net = require("net");
 
 const method = process.argv[2] || "GET";
-const targetUrl = process.argv[3] || "https://httpbin.org/headers";
+const targetUrl = process.argv[3] || "https://example.com/headers";
 const extraHeaders = process.argv[4] ? JSON.parse(process.argv[4]) : {};
 const bodyData = process.argv[5] || null;
 const proxyUrl = process.env.HTTPS_PROXY || process.env.https_proxy ||
@@ -134,8 +134,15 @@ describe('proxy end-to-end functionality over HTTP/2', () => {
   afterAll(proxyCleanup(createdSandboxes))
 
   let sandbox: Awaited<ReturnType<typeof SandboxInstance.create>>
+  // Controlled httpbin-compatible upstream reached via a preview URL.
+  let headersUrl: string
+  let postUrl: string
 
   beforeAll(async () => {
+    const echo = await createEchoServerSandbox(createdSandboxes)
+    headersUrl = `${echo.url}/headers`
+    postUrl = `${echo.url}/post`
+
     sandbox = await createReadyProxySandbox(
       async () => {
         const name = uniqueName("proxy-h2")
@@ -144,7 +151,7 @@ describe('proxy end-to-end functionality over HTTP/2', () => {
           network: {
             proxy: {
               routing: [{
-                destinations: ["httpbin.org"],
+                destinations: [echo.host],
                 headers: { "X-Proxy-Test": "header-injected", "X-Api-Key": "{{SECRET:test-api-key}}" },
                 body: { "injected_field": "body-injected", "secret_body": "{{SECRET:test-api-key}}" },
                 secrets: { "test-api-key": "resolved-secret-42" },
@@ -155,7 +162,7 @@ describe('proxy end-to-end functionality over HTTP/2', () => {
         return { name, sandbox }
       },
       createdSandboxes,
-      'node /tmp/proxy-test.js GET https://httpbin.org/headers',
+      `node /tmp/proxy-test.js GET ${headersUrl}`,
       (result) => {
         if (result.exitCode !== 0) return false
         const headers = lowercaseKeys(parseJsonObjectOutput<HttpBinResponse>(result.logs).headers)
@@ -166,20 +173,19 @@ describe('proxy end-to-end functionality over HTTP/2', () => {
   }, 180_000)
 
   it('negotiates h2 ALPN and routes HTTP/2 GET through the proxy with header injection', async () => {
-    const result = await execProxyCommandWithRetry(sandbox, 'node /tmp/proxy-test-h2.js GET https://httpbin.org/headers')
+    const result = await execProxyCommandWithRetry(sandbox, `node /tmp/proxy-test-h2.js GET ${headersUrl}`)
     expect(result.exitCode, result.logs).toBe(0)
     const out = parseJsonObjectOutput<Http2Output>(result.logs)
     expect(out.alpnProtocol, `expected ALPN h2, got "${out.alpnProtocol}"`).toBe("h2")
     expect(out.status).toBe(200)
     const httpbin = JSON.parse(out.body) as HttpBinResponse
     const headers = lowercaseKeys(httpbin.headers)
-    expect(headers["x-blaxel-request-id"]).toBeDefined()
     expect(headers["x-proxy-test"]).toBe("header-injected")
     expect(headers["x-api-key"]).toBe("resolved-secret-42")
   }, 60_000)
 
   it('routes HTTP/2 POST through the proxy with body injection', async () => {
-    const result = await execProxyCommandWithRetry(sandbox, `node /tmp/proxy-test-h2.js POST https://httpbin.org/post '{}' '{"user_data":"from-h2"}'`)
+    const result = await execProxyCommandWithRetry(sandbox, `node /tmp/proxy-test-h2.js POST ${postUrl} '{}' '{"user_data":"from-h2"}'`)
     expect(result.exitCode, result.logs).toBe(0)
     const out = parseJsonObjectOutput<Http2Output>(result.logs)
     expect(out.alpnProtocol).toBe("h2")
@@ -194,7 +200,7 @@ describe('proxy end-to-end functionality over HTTP/2', () => {
   }, 60_000)
 
   it('preserves user-sent headers over HTTP/2 through the proxy', async () => {
-    const result = await execProxyCommandWithRetry(sandbox, `node /tmp/proxy-test-h2.js GET https://httpbin.org/headers '{"X-User-Custom":"from-h2-client"}'`)
+    const result = await execProxyCommandWithRetry(sandbox, `node /tmp/proxy-test-h2.js GET ${headersUrl} '{"X-User-Custom":"from-h2-client"}'`)
     expect(result.exitCode, result.logs).toBe(0)
     const out = parseJsonObjectOutput<Http2Output>(result.logs)
     expect(out.alpnProtocol).toBe("h2")

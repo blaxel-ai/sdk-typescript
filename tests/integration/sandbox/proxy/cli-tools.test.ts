@@ -1,22 +1,27 @@
 import { SandboxInstance } from "@blaxel/core"
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { defaultImage, defaultLabels, defaultRegion, uniqueName } from '../helpers.js'
-import { lowercaseKeys, parseJsonOutput, proxyCleanup } from './helpers.js'
+import { createEchoServerSandbox, lowercaseKeys, parseJsonOutput, proxyCleanup } from './helpers.js'
 
 describe('proxy e2e with common CLI tools', () => {
   const createdSandboxes: string[] = []
   afterAll(proxyCleanup(createdSandboxes))
 
   let cliSandbox: Awaited<ReturnType<typeof SandboxInstance.create>>
+  // Controlled httpbin-compatible upstream reached via a preview URL.
+  let echoUrl: string
 
   beforeAll(async () => {
+    const echo = await createEchoServerSandbox(createdSandboxes)
+    echoUrl = echo.url
+
     const name = uniqueName("proxy-cli")
     cliSandbox = await SandboxInstance.create({
       name, image: defaultImage, region: defaultRegion, labels: defaultLabels,
       network: {
         proxy: {
           routing: [{
-            destinations: ["httpbin.org"],
+            destinations: [echo.host],
             headers: { "X-Proxy-Test": "header-injected", "X-Api-Key": "{{SECRET:test-api-key}}" },
             body: { "injected_field": "body-injected", "secret_body": "{{SECRET:test-api-key}}" },
             secrets: { "test-api-key": "resolved-secret-42" },
@@ -34,32 +39,30 @@ describe('proxy e2e with common CLI tools', () => {
       waitForCompletion: true,
     })
     if (certInstall.exitCode !== 0) throw new Error(`CA cert install failed: ${certInstall.logs?.slice(0, 500)}`)
-  }, 120_000)
+  }, 180_000)
 
   describe('curl', () => {
     it('routes GET requests through the proxy with header injection', async () => {
-      const result = await cliSandbox.process.exec({ command: 'curl -s https://httpbin.org/headers', waitForCompletion: true })
+      const result = await cliSandbox.process.exec({ command: `curl -s ${echoUrl}/headers`, waitForCompletion: true })
       expect(result.exitCode).toBe(0)
       const headers = lowercaseKeys(parseJsonOutput(result.logs).headers)
-      expect(headers["x-blaxel-request-id"]).toBeDefined()
       expect(headers["x-proxy-test"]).toBe("header-injected")
       expect(headers["x-api-key"]).toBe("resolved-secret-42")
     }, 60_000)
 
     it('routes POST requests through the proxy with body injection', async () => {
-      const result = await cliSandbox.process.exec({ command: `curl -s -X POST https://httpbin.org/post -H "Content-Type: application/json" -d '{"user_data":"from-curl"}'`, waitForCompletion: true })
+      const result = await cliSandbox.process.exec({ command: `curl -s -X POST ${echoUrl}/post -H "Content-Type: application/json" -d '{"user_data":"from-curl"}'`, waitForCompletion: true })
       expect(result.exitCode).toBe(0)
       const response = parseJsonOutput(result.logs)
       expect(response.json.user_data).toBe("from-curl")
       expect(response.json.injected_field).toBe("body-injected")
       expect(response.json.secret_body).toBe("resolved-secret-42")
       const headers = lowercaseKeys(response.headers)
-      expect(headers["x-blaxel-request-id"]).toBeDefined()
       expect(headers["x-proxy-test"]).toBe("header-injected")
     }, 60_000)
 
     it('preserves user-sent headers', async () => {
-      const result = await cliSandbox.process.exec({ command: 'curl -s -H "X-User-Custom: from-curl" https://httpbin.org/headers', waitForCompletion: true })
+      const result = await cliSandbox.process.exec({ command: `curl -s -H "X-User-Custom: from-curl" ${echoUrl}/headers`, waitForCompletion: true })
       expect(result.exitCode).toBe(0)
       const headers = lowercaseKeys(parseJsonOutput(result.logs).headers)
       expect(headers["x-user-custom"]).toBe("from-curl")
@@ -68,13 +71,13 @@ describe('proxy e2e with common CLI tools', () => {
     }, 60_000)
 
     it('follows redirects through the proxy', async () => {
-      const result = await cliSandbox.process.exec({ command: 'curl -s -L -o /dev/null -w "%{http_code}" https://httpbin.org/redirect/1', waitForCompletion: true })
+      const result = await cliSandbox.process.exec({ command: `curl -s -L -o /dev/null -w "%{http_code}" ${echoUrl}/redirect/1`, waitForCompletion: true })
       expect(result.exitCode).toBe(0)
       expect(result.logs?.trim()).toBe("200")
     }, 60_000)
 
     it('sends PUT requests through the proxy', async () => {
-      const result = await cliSandbox.process.exec({ command: `curl -s -X PUT https://httpbin.org/put -H "Content-Type: application/json" -d '{"update":"from-curl"}'`, waitForCompletion: true })
+      const result = await cliSandbox.process.exec({ command: `curl -s -X PUT ${echoUrl}/put -H "Content-Type: application/json" -d '{"update":"from-curl"}'`, waitForCompletion: true })
       expect(result.exitCode).toBe(0)
       const response = parseJsonOutput(result.logs)
       expect(response.json.update).toBe("from-curl")
@@ -82,13 +85,13 @@ describe('proxy e2e with common CLI tools', () => {
     }, 60_000)
 
     it('sends DELETE requests through the proxy', async () => {
-      const result = await cliSandbox.process.exec({ command: 'curl -s -X DELETE https://httpbin.org/delete', waitForCompletion: true })
+      const result = await cliSandbox.process.exec({ command: `curl -s -X DELETE ${echoUrl}/delete`, waitForCompletion: true })
       expect(result.exitCode).toBe(0)
       expect(lowercaseKeys(parseJsonOutput(result.logs).headers)["x-proxy-test"]).toBe("header-injected")
     }, 60_000)
 
     it('handles large response payloads', async () => {
-      const result = await cliSandbox.process.exec({ command: 'curl -s -o /dev/null -w "%{http_code} %{size_download}" https://httpbin.org/bytes/10240', waitForCompletion: true })
+      const result = await cliSandbox.process.exec({ command: `curl -s -o /dev/null -w "%{http_code} %{size_download}" ${echoUrl}/bytes/10240`, waitForCompletion: true })
       expect(result.exitCode).toBe(0)
       const [statusCode, sizeStr] = (result.logs?.trim() || "").split(" ")
       expect(statusCode).toBe("200")

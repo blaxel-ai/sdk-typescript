@@ -80,6 +80,8 @@ Key points:
 - Watch for name conflicts between `client/types.gen.ts` (API types) and SDK classes (e.g. `SandboxNetwork` type vs `SandboxNetwork` class) -- use named exports to resolve
 
 ### Testing
+- Every feature ships with an integration test that exercises it end to end against the real API
+- An integration test must run in **under 1 minute**. If it inherently takes longer (e.g. waiting on a recurring scheduler tick), make the slow part opt-in: register a flag in `vitest.config.ts` (`test.env`, defaulted to `"false"`) and gate the block with `describe.runIf(isSlowTestEnabled("FLAG"))` from `tests/integration/sandbox/helpers.ts`. The default run stays fast; all slow flags are discoverable in one place in the vite config
 - Integration tests require `BL_WORKSPACE` and `BL_API_KEY` environment variables
 - Use helpers from `tests/integration/sandbox/helpers.ts` (uniqueName, defaultLabels, defaultImage, etc.)
 - Always label test resources with `defaultLabels` for automatic cleanup
