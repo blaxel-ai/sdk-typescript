@@ -3837,6 +3837,206 @@ export type SandboxRuntime = {
 };
 
 /**
+ * List of scheduled tasks for automated process execution inside the sandbox. Supports recurring cron expressions, one-off datetime targets, and sleep durations.
+ */
+export type SandboxSchedule = Array<SandboxScheduleEntry>;
+
+/**
+ * List of scheduled tasks for automated process execution inside the sandbox. Supports recurring cron expressions, one-off datetime targets, and sleep durations.
+ */
+export type SandboxScheduleWritable = Array<SandboxScheduleEntryWritable>;
+
+/**
+ * A scheduled task that executes a process inside the sandbox at specified times. Stored in the dedicated schedules table (no longer embedded in the sandbox spec).
+ */
+export type SandboxScheduleEntry = {
+    /**
+     * Creation timestamp (read-only).
+     */
+    readonly createdAt?: string;
+    /**
+     * Unique identifier for this schedule within its sandbox. Auto-generated if not provided.
+     */
+    id?: string;
+    input?: SandboxScheduleInput;
+    /**
+     * Maximum number of execution records kept for this schedule. Once reached, recording a new execution deletes the oldest. Defaults to 100.
+     */
+    maxExecutions?: number;
+    /**
+     * Type of schedule timing. 'cron' for recurring (5-field expression), 'at' for a specific RFC 3339 datetime, 'sleep' for a duration from now (resolved to 'at' on creation).
+     */
+    type?: 'cron' | 'at' | 'sleep';
+    /**
+     * Timing value. For 'cron': a 5-field cron expression (e.g. '0 8 * * 1-5'). For 'at': an RFC 3339 datetime (e.g. '2026-07-01T09:00:00Z'). For 'sleep': a duration (e.g. '2h', '30m', '7d').
+     */
+    value?: string;
+};
+
+/**
+ * A scheduled task that executes a process inside the sandbox at specified times. Stored in the dedicated schedules table (no longer embedded in the sandbox spec).
+ */
+export type SandboxScheduleEntryWritable = {
+    /**
+     * Unique identifier for this schedule within its sandbox. Auto-generated if not provided.
+     */
+    id?: string;
+    input?: SandboxScheduleInput;
+    /**
+     * Maximum number of execution records kept for this schedule. Once reached, recording a new execution deletes the oldest. Defaults to 100.
+     */
+    maxExecutions?: number;
+    /**
+     * Type of schedule timing. 'cron' for recurring (5-field expression), 'at' for a specific RFC 3339 datetime, 'sleep' for a duration from now (resolved to 'at' on creation).
+     */
+    type?: 'cron' | 'at' | 'sleep';
+    /**
+     * Timing value. For 'cron': a 5-field cron expression (e.g. '0 8 * * 1-5'). For 'at': an RFC 3339 datetime (e.g. '2026-07-01T09:00:00Z'). For 'sleep': a duration (e.g. '2h', '30m', '7d').
+     */
+    value?: string;
+};
+
+/**
+ * Cursor-paginated list of a sandbox's schedule definitions.
+ */
+export type SandboxScheduleEntryList = {
+    /**
+     * Page of schedule definitions.
+     */
+    data?: Array<SandboxScheduleEntry>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * Cursor-paginated list of a sandbox's schedule definitions.
+ */
+export type SandboxScheduleEntryListWritable = {
+    /**
+     * Page of schedule definitions.
+     */
+    data?: Array<SandboxScheduleEntryWritable>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * One recorded execution of a sandbox schedule. statusCode is the HTTP status from submitting the command to the sandbox (the scheduler does not wait for the command to finish). Stored in the dedicated scheduleexecutions table.
+ */
+export type SandboxScheduleExecution = {
+    /**
+     * Creation timestamp (read-only).
+     */
+    readonly createdAt?: string;
+    /**
+     * RFC 3339 time at which the command was submitted.
+     */
+    executedAt?: string;
+    /**
+     * Unique id of this execution within the schedule.
+     */
+    id?: string;
+    /**
+     * Name of the process started in the sandbox for this execution, used to look up its logs.
+     */
+    processName?: string;
+    /**
+     * Id of the schedule this execution belongs to.
+     */
+    scheduleId?: string;
+    /**
+     * HTTP status code returned when the scheduled command was submitted to the sandbox (0 if the sandbox could not be reached). 2xx/3xx means the command was accepted.
+     */
+    statusCode?: number;
+    /**
+     * Process timeout in seconds for this execution. The UI uses it to scope the log view to [executedAt, executedAt+timeout]. 0 when the schedule set no timeout.
+     */
+    timeout?: number;
+};
+
+/**
+ * One recorded execution of a sandbox schedule. statusCode is the HTTP status from submitting the command to the sandbox (the scheduler does not wait for the command to finish). Stored in the dedicated scheduleexecutions table.
+ */
+export type SandboxScheduleExecutionWritable = {
+    /**
+     * RFC 3339 time at which the command was submitted.
+     */
+    executedAt?: string;
+    /**
+     * Unique id of this execution within the schedule.
+     */
+    id?: string;
+    /**
+     * Name of the process started in the sandbox for this execution, used to look up its logs.
+     */
+    processName?: string;
+    /**
+     * Id of the schedule this execution belongs to.
+     */
+    scheduleId?: string;
+    /**
+     * HTTP status code returned when the scheduled command was submitted to the sandbox (0 if the sandbox could not be reached). 2xx/3xx means the command was accepted.
+     */
+    statusCode?: number;
+    /**
+     * Process timeout in seconds for this execution. The UI uses it to scope the log view to [executedAt, executedAt+timeout]. 0 when the schedule set no timeout.
+     */
+    timeout?: number;
+};
+
+/**
+ * Cursor-paginated list of a sandbox's schedule execution history (across all its schedules).
+ */
+export type SandboxScheduleExecutionList = {
+    /**
+     * Page of schedule executions.
+     */
+    data?: Array<SandboxScheduleExecution>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * Cursor-paginated list of a sandbox's schedule execution history (across all its schedules).
+ */
+export type SandboxScheduleExecutionListWritable = {
+    /**
+     * Page of schedule executions.
+     */
+    data?: Array<SandboxScheduleExecutionWritable>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * Process execution configuration for a scheduled sandbox task
+ */
+export type SandboxScheduleInput = {
+    /**
+     * Shell command to execute inside the sandbox
+     */
+    command?: string;
+    /**
+     * Environment variables to set for the process. May contain secrets, so values are encrypted at rest and masked in API responses unless an admin requests show_secrets=true.
+     */
+    env?: {
+        [key: string]: string;
+    };
+    /**
+     * Keep the sandbox alive (disable scale-to-zero) while the process runs. Defaults to true.
+     */
+    keepAlive?: boolean;
+    /**
+     * Optional name for the process (used to retrieve status/logs)
+     */
+    name?: string;
+    /**
+     * Timeout in seconds for the process. Defaults to 600 (10 minutes). Set to 0 for no timeout.
+     */
+    timeout?: number;
+    /**
+     * Working directory for the command
+     */
+    workingDir?: string;
+};
+
+/**
  * Configuration for a sandbox including its image, memory, ports, region, and lifecycle policies
  */
 export type SandboxSpec = {
@@ -7836,6 +8036,182 @@ export type DeleteSandboxPreviewTokenResponses = {
 };
 
 export type DeleteSandboxPreviewTokenResponse = DeleteSandboxPreviewTokenResponses[keyof DeleteSandboxPreviewTokenResponses];
+
+export type ListSandboxScheduleExecutionsData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+    };
+    query?: {
+        /**
+         * Number of items per page
+         */
+        limit?: number;
+        /**
+         * Opaque cursor returned by a previous response's meta.nextCursor. Only valid for the same query (workspace + filters); the server rejects cursors bound to a different query or older than 24h. Omit on the first page.
+         */
+        cursor?: string;
+        /**
+         * Sort spec, formatted as `<key>:<direction>`. Allowed values are `createdAt:desc` (default), `createdAt:asc`, `name:asc`, `name:desc`. The cursor fingerprint is bound to the sort, so a cursor opened with one value cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        sort?: 'createdAt:desc' | 'createdAt:asc' | 'name:asc' | 'name:desc';
+        /**
+         * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        q?: string;
+    };
+    url: '/sandboxes/{sandboxName}/schedule-executions';
+};
+
+export type ListSandboxScheduleExecutionsResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxScheduleExecutionList;
+};
+
+export type ListSandboxScheduleExecutionsResponse = ListSandboxScheduleExecutionsResponses[keyof ListSandboxScheduleExecutionsResponses];
+
+export type ListSandboxSchedulesData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+    };
+    query?: {
+        /**
+         * Number of items per page
+         */
+        limit?: number;
+        /**
+         * Opaque cursor returned by a previous response's meta.nextCursor. Only valid for the same query (workspace + filters); the server rejects cursors bound to a different query or older than 24h. Omit on the first page.
+         */
+        cursor?: string;
+        /**
+         * Sort spec, formatted as `<key>:<direction>`. Allowed values are `createdAt:desc` (default), `createdAt:asc`, `name:asc`, `name:desc`. The cursor fingerprint is bound to the sort, so a cursor opened with one value cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        sort?: 'createdAt:desc' | 'createdAt:asc' | 'name:asc' | 'name:desc';
+        /**
+         * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        q?: string;
+        /**
+         * Filter schedules by timing type. Only cron and at are stored (sleep resolves to at on creation); any other value is ignored.
+         */
+        type?: 'cron' | 'at';
+    };
+    url: '/sandboxes/{sandboxName}/schedules';
+};
+
+export type ListSandboxSchedulesResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxScheduleEntryList;
+};
+
+export type ListSandboxSchedulesResponse = ListSandboxSchedulesResponses[keyof ListSandboxSchedulesResponses];
+
+export type CreateSandboxScheduleData = {
+    body: SandboxScheduleEntryWritable;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/schedules';
+};
+
+export type CreateSandboxScheduleResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxScheduleEntry;
+};
+
+export type CreateSandboxScheduleResponse = CreateSandboxScheduleResponses[keyof CreateSandboxScheduleResponses];
+
+export type DeleteSandboxScheduleData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+        /**
+         * Id of the Schedule
+         */
+        scheduleId: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/schedules/{scheduleId}';
+};
+
+export type DeleteSandboxScheduleResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxScheduleEntry;
+};
+
+export type DeleteSandboxScheduleResponse = DeleteSandboxScheduleResponses[keyof DeleteSandboxScheduleResponses];
+
+export type GetSandboxScheduleData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+        /**
+         * Id of the Schedule
+         */
+        scheduleId: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/schedules/{scheduleId}';
+};
+
+export type GetSandboxScheduleResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxScheduleEntry;
+};
+
+export type GetSandboxScheduleResponse = GetSandboxScheduleResponses[keyof GetSandboxScheduleResponses];
+
+export type UpdateSandboxScheduleData = {
+    body: SandboxScheduleEntryWritable;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+        /**
+         * Id of the Schedule
+         */
+        scheduleId: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/schedules/{scheduleId}';
+};
+
+export type UpdateSandboxScheduleResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxScheduleEntry;
+};
+
+export type UpdateSandboxScheduleResponse = UpdateSandboxScheduleResponses[keyof UpdateSandboxScheduleResponses];
 
 export type GetSandboxByExternalIdData = {
     body?: never;

@@ -9,6 +9,7 @@ import { SandboxFileSystem } from "./filesystem/index.js";
 import { SandboxNetwork } from "./network/index.js";
 import { SandboxPreviews } from "./preview.js";
 import { SandboxProcess } from "./process/index.js";
+import { SandboxSchedules } from "./schedule.js";
 import { SandboxSessions } from "./session.js";
 import { SandboxSystem } from "./system.js";
 import { normalizeEnvs, normalizePorts, normalizeVolumes, SandboxConfiguration, SandboxCreateConfiguration, SandboxUpdateMetadata, SandboxUpdateNetwork, SessionWithToken } from "./types.js";
@@ -44,6 +45,7 @@ export class SandboxInstance {
   network: SandboxNetwork;
   process: SandboxProcess;
   previews: SandboxPreviews;
+  schedules: SandboxSchedules;
   sessions: SandboxSessions;
   codegen: SandboxCodegen;
   system: SandboxSystem;
@@ -55,6 +57,7 @@ export class SandboxInstance {
     this.fs = new SandboxFileSystem(sandbox, this.process);
     this.network = new SandboxNetwork(sandbox);
     this.previews = new SandboxPreviews(sandbox);
+    this.schedules = new SandboxSchedules(sandbox);
     this.sessions = new SandboxSessions(sandbox);
     this.codegen = new SandboxCodegen(sandbox);
     this.system = new SandboxSystem(sandbox);
