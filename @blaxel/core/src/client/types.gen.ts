@@ -197,6 +197,10 @@ export type AppRevision = {
      */
     memory?: number;
     /**
+     * Port the application listens on for this revision (default uses spec-level port or 8080)
+     */
+    port?: number;
+    /**
      * Snapshot ID this revision was forked from (optional, only set when created via fork)
      */
     snapshot?: string;
@@ -577,6 +581,10 @@ export type CustomDomainSpec = {
      */
     cnameRecords?: string;
     /**
+     * Type of custom domain (previews or applications)
+     */
+    domainType?: 'previews' | 'applications';
+    /**
      * Preview ID to route to when a preview lookup fails on this custom domain
      */
     fallbackPreviewId?: string;
@@ -593,9 +601,11 @@ export type CustomDomainSpec = {
      */
     status?: 'pending' | 'verified' | 'failed';
     /**
-     * List of subdomains (previews) currently using this custom domain. Only populated on GET /customdomains/{domainName}.
+     * Subject Alternative Names (SANs) for the ACM certificate. Only applicable for application domains.
      */
-    readonly subdomains?: Array<CustomDomainSubdomain>;
+    subjectAlternativeNames?: Array<{
+        [key: string]: unknown;
+    }>;
     /**
      * Map of TXT record names to values for domain verification
      */
@@ -617,6 +627,10 @@ export type CustomDomainSpecWritable = {
      */
     cnameRecords?: string;
     /**
+     * Type of custom domain (previews or applications)
+     */
+    domainType?: 'previews' | 'applications';
+    /**
      * Preview ID to route to when a preview lookup fails on this custom domain
      */
     fallbackPreviewId?: string;
@@ -629,37 +643,17 @@ export type CustomDomainSpecWritable = {
      */
     status?: 'pending' | 'verified' | 'failed';
     /**
+     * Subject Alternative Names (SANs) for the ACM certificate. Only applicable for application domains.
+     */
+    subjectAlternativeNames?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
      * Map of TXT record names to values for domain verification
      */
     txtRecords?: {
         [key: string]: string;
     };
-};
-
-/**
- * A subdomain (preview) using a custom domain
- */
-export type CustomDomainSubdomain = {
-    /**
-     * Preview name
-     */
-    previewName?: string;
-    /**
-     * Resource name
-     */
-    resourceName?: string;
-    /**
-     * Resource type (e.g., sandbox)
-     */
-    resourceType?: string;
-    /**
-     * Subdomain prefix used for routing
-     */
-    subdomain?: string;
-    /**
-     * Full URL of the preview on this custom domain
-     */
-    url?: string;
 };
 
 /**
@@ -709,6 +703,26 @@ export type DriveListWritable = {
 };
 
 /**
+ * Permission that controls which workloads can access a drive. A workload must have ALL specified labels (AND logic). Permissions are evaluated with OR logic — the first matching permission grants access.
+ */
+export type DrivePermission = {
+    /**
+     * Labels that the workload must have. All labels must match (AND logic). Empty labels match all workloads.
+     */
+    labels?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Access mode granted by this permission
+     */
+    mode?: 'read' | 'read-write';
+    /**
+     * Subfolder path to restrict access to. Defaults to / (full drive).
+     */
+    path?: string;
+};
+
+/**
  * Immutable drive configuration set at creation time
  */
 export type DriveSpec = {
@@ -716,6 +730,10 @@ export type DriveSpec = {
      * The internal infrastructure resource identifier for this drive (bucket name)
      */
     readonly infrastructureId?: string;
+    /**
+     * Permissions controlling which workloads can access this drive. Empty means all workloads in the workspace can access the drive. Maximum 3 permissions.
+     */
+    permissions?: Array<DrivePermission>;
     /**
      * Deployment region for the drive (e.g., us-pdx-1, eu-lon-1). Must match the region of resources it attaches to.
      */
@@ -730,6 +748,10 @@ export type DriveSpec = {
  * Immutable drive configuration set at creation time
  */
 export type DriveSpecWritable = {
+    /**
+     * Permissions controlling which workloads can access this drive. Empty means all workloads in the workspace can access the drive. Maximum 3 permissions.
+     */
+    permissions?: Array<DrivePermission>;
     /**
      * Deployment region for the drive (e.g., us-pdx-1, eu-lon-1). Must match the region of resources it attaches to.
      */
@@ -1143,6 +1165,7 @@ export type FunctionRuntime = {
      * Minimum instances to keep warm. Set to 1+ to eliminate cold starts, 0 for scale-to-zero.
      */
     minScale?: number;
+    ports?: Ports;
     /**
      * Transport compatibility for the MCP, can be "websocket" or "http-stream"
      */
@@ -2317,6 +2340,10 @@ export type Metadata = TimeFields & OwnerFields & {
      * Human-readable name for display in the UI. Can contain spaces and special characters, max 63 characters.
      */
     displayName?: string;
+    /**
+     * Caller-owned identifier for external lookups. Max 64 chars, alphanumeric + dash.
+     */
+    externalId?: string;
     labels?: MetadataLabels;
     /**
      * Unique identifier for the resource within the workspace. Must be lowercase alphanumeric with hyphens, max 49 characters. Immutable after creation.
@@ -2344,6 +2371,10 @@ export type MetadataWritable = TimeFields & OwnerFields & {
      * Human-readable name for display in the UI. Can contain spaces and special characters, max 63 characters.
      */
     displayName?: string;
+    /**
+     * Caller-owned identifier for external lookups. Max 64 chars, alphanumeric + dash.
+     */
+    externalId?: string;
     labels?: MetadataLabels;
     /**
      * Unique identifier for the resource within the workspace. Must be lowercase alphanumeric with hyphens, max 49 characters. Immutable after creation.
@@ -2471,7 +2502,7 @@ export type OAuth = {
 };
 
 /**
- * Owner fields for Persistance
+ * Owner fields for Persistence
  */
 export type OwnerFields = {
     /**
@@ -3627,7 +3658,7 @@ export type SandboxWritable = {
  */
 export type SandboxDefinition = {
     /**
-     * Categories of the defintion
+     * Categories of the definition
      */
     categories?: Array<{
         [key: string]: unknown;
@@ -3637,7 +3668,7 @@ export type SandboxDefinition = {
      */
     coming_soon?: boolean;
     /**
-     * Description of the defintion
+     * Description of the definition
      */
     description?: string;
     /**
@@ -3661,7 +3692,7 @@ export type SandboxDefinition = {
      */
     image?: string;
     /**
-     * Long description of the defintion
+     * Long description of the definition
      */
     longDescription?: string;
     /**
@@ -3845,7 +3876,7 @@ export type SandboxRuntime = {
      */
     expires?: string;
     /**
-     * Extra arguments for sandbox kernel selection. Supported keys: 'iptables', 'nvme'. Values: 'enabled' or 'disabled'. Determines which kernel variant the sandbox runs on. Immutable after creation.
+     * Extra arguments for sandbox kernel selection. Supported keys: 'iptables', 'nvme', 'nfs'. Values: 'enabled' or 'disabled'. Determines which kernel variant the sandbox runs on. Immutable after creation.
      */
     extraArgs?: {
         [key: string]: string;
@@ -3867,6 +3898,196 @@ export type SandboxRuntime = {
      * Max-age from creation: the sandbox is deleted this long after it is created, regardless of activity (not an idle timeout). Units s, m, h, d, w (e.g., '30m', '24h', '7d', '2w'). For idle-based cleanup, use a lifecycle expiration policy of type ttl-idle.
      */
     ttl?: string;
+};
+
+/**
+ * A scheduled task that executes a process inside the sandbox at specified times. Stored in the dedicated schedules table (no longer embedded in the sandbox spec).
+ */
+export type SandboxScheduleEntry = {
+    /**
+     * Creation timestamp (read-only).
+     */
+    readonly createdAt?: string;
+    /**
+     * Unique identifier for this schedule within its sandbox. Auto-generated if not provided.
+     */
+    id?: string;
+    input?: SandboxScheduleInput;
+    /**
+     * Maximum number of execution records kept for this schedule. Once reached, recording a new execution deletes the oldest. Defaults to 100.
+     */
+    maxExecutions?: number;
+    /**
+     * Type of schedule timing. 'cron' for recurring (5-field expression), 'at' for a specific RFC 3339 datetime, 'sleep' for a duration from now (resolved to 'at' on creation).
+     */
+    type?: 'cron' | 'at' | 'sleep';
+    /**
+     * Timing value. For 'cron': a 5-field cron expression (e.g. '0 8 * * 1-5'). For 'at': an RFC 3339 datetime (e.g. '2026-07-01T09:00:00Z'). For 'sleep': a duration (e.g. '2h', '30m', '7d').
+     */
+    value?: string;
+};
+
+/**
+ * A scheduled task that executes a process inside the sandbox at specified times. Stored in the dedicated schedules table (no longer embedded in the sandbox spec).
+ */
+export type SandboxScheduleEntryWritable = {
+    /**
+     * Unique identifier for this schedule within its sandbox. Auto-generated if not provided.
+     */
+    id?: string;
+    input?: SandboxScheduleInput;
+    /**
+     * Maximum number of execution records kept for this schedule. Once reached, recording a new execution deletes the oldest. Defaults to 100.
+     */
+    maxExecutions?: number;
+    /**
+     * Type of schedule timing. 'cron' for recurring (5-field expression), 'at' for a specific RFC 3339 datetime, 'sleep' for a duration from now (resolved to 'at' on creation).
+     */
+    type?: 'cron' | 'at' | 'sleep';
+    /**
+     * Timing value. For 'cron': a 5-field cron expression (e.g. '0 8 * * 1-5'). For 'at': an RFC 3339 datetime (e.g. '2026-07-01T09:00:00Z'). For 'sleep': a duration (e.g. '2h', '30m', '7d').
+     */
+    value?: string;
+};
+
+/**
+ * Cursor-paginated list of a sandbox's schedule definitions.
+ */
+export type SandboxScheduleEntryList = {
+    /**
+     * Page of schedule definitions.
+     */
+    data?: Array<SandboxScheduleEntry>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * Cursor-paginated list of a sandbox's schedule definitions.
+ */
+export type SandboxScheduleEntryListWritable = {
+    /**
+     * Page of schedule definitions.
+     */
+    data?: Array<SandboxScheduleEntryWritable>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * One recorded execution of a sandbox schedule. statusCode is the HTTP status from submitting the command to the sandbox (the scheduler does not wait for the command to finish). Stored in the dedicated scheduleexecutions table.
+ */
+export type SandboxScheduleExecution = {
+    /**
+     * Creation timestamp (read-only).
+     */
+    readonly createdAt?: string;
+    /**
+     * RFC 3339 time at which the command was submitted.
+     */
+    executedAt?: string;
+    /**
+     * Unique id of this execution within the schedule.
+     */
+    id?: string;
+    /**
+     * Name of the process started in the sandbox for this execution, used to look up its logs.
+     */
+    processName?: string;
+    /**
+     * Id of the schedule this execution belongs to.
+     */
+    scheduleId?: string;
+    /**
+     * HTTP status code returned when the scheduled command was submitted to the sandbox (0 if the sandbox could not be reached). 2xx/3xx means the command was accepted.
+     */
+    statusCode?: number;
+    /**
+     * Process timeout in seconds for this execution. The UI uses it to scope the log view to [executedAt, executedAt+timeout]. 0 when the schedule set no timeout.
+     */
+    timeout?: number;
+};
+
+/**
+ * One recorded execution of a sandbox schedule. statusCode is the HTTP status from submitting the command to the sandbox (the scheduler does not wait for the command to finish). Stored in the dedicated scheduleexecutions table.
+ */
+export type SandboxScheduleExecutionWritable = {
+    /**
+     * RFC 3339 time at which the command was submitted.
+     */
+    executedAt?: string;
+    /**
+     * Unique id of this execution within the schedule.
+     */
+    id?: string;
+    /**
+     * Name of the process started in the sandbox for this execution, used to look up its logs.
+     */
+    processName?: string;
+    /**
+     * Id of the schedule this execution belongs to.
+     */
+    scheduleId?: string;
+    /**
+     * HTTP status code returned when the scheduled command was submitted to the sandbox (0 if the sandbox could not be reached). 2xx/3xx means the command was accepted.
+     */
+    statusCode?: number;
+    /**
+     * Process timeout in seconds for this execution. The UI uses it to scope the log view to [executedAt, executedAt+timeout]. 0 when the schedule set no timeout.
+     */
+    timeout?: number;
+};
+
+/**
+ * Cursor-paginated list of a sandbox's schedule execution history (across all its schedules).
+ */
+export type SandboxScheduleExecutionList = {
+    /**
+     * Page of schedule executions.
+     */
+    data?: Array<SandboxScheduleExecution>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * Cursor-paginated list of a sandbox's schedule execution history (across all its schedules).
+ */
+export type SandboxScheduleExecutionListWritable = {
+    /**
+     * Page of schedule executions.
+     */
+    data?: Array<SandboxScheduleExecutionWritable>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * Process execution configuration for a scheduled sandbox task
+ */
+export type SandboxScheduleInput = {
+    /**
+     * Shell command to execute inside the sandbox
+     */
+    command?: string;
+    /**
+     * Environment variables to set for the process. May contain secrets, so values are encrypted at rest and masked in API responses unless an admin requests show_secrets=true.
+     */
+    env?: {
+        [key: string]: string;
+    };
+    /**
+     * Keep the sandbox alive (disable scale-to-zero) while the process runs. Defaults to true.
+     */
+    keepAlive?: boolean;
+    /**
+     * Optional name for the process (used to retrieve status/logs)
+     */
+    name?: string;
+    /**
+     * Timeout in seconds for the process. Defaults to 600 (10 minutes). Set to 0 for no timeout.
+     */
+    timeout?: number;
+    /**
+     * Working directory for the command
+     */
+    workingDir?: string;
 };
 
 /**
@@ -4023,7 +4244,7 @@ export type TemplateVariable = {
 };
 
 /**
- * Time fields for Persistance
+ * Time fields for Persistence
  */
 export type TimeFields = {
     /**
@@ -4464,6 +4685,7 @@ export type Workspace = TimeFields & OwnerFields & {
      * Group-to-role mappings for directory sync (SCIM) group membership
      */
     groupMappings?: Array<GroupWorkspaceMapping>;
+    hipaaInfo?: WorkspaceHipaaInfo;
     /**
      * Autogenerated unique workspace id
      */
@@ -4510,6 +4732,7 @@ export type WorkspaceWritable = TimeFields & OwnerFields & {
      * Group-to-role mappings for directory sync (SCIM) group membership
      */
     groupMappings?: Array<GroupWorkspaceMapping>;
+    hipaaInfo?: WorkspaceHipaaInfoWritable;
     labels?: MetadataLabels;
     /**
      * Workspace name
@@ -5162,6 +5385,27 @@ export type UpdateApplicationResponses = {
 };
 
 export type UpdateApplicationResponse = UpdateApplicationResponses[keyof UpdateApplicationResponses];
+
+export type CreateApplicationCustomDomainData = {
+    body: CustomDomainWritable;
+    path: {
+        /**
+         * Name of the application
+         */
+        applicationName: string;
+    };
+    query?: never;
+    url: '/applications/{applicationName}/customdomains';
+};
+
+export type CreateApplicationCustomDomainResponses = {
+    /**
+     * successful operation
+     */
+    200: CustomDomain;
+};
+
+export type CreateApplicationCustomDomainResponse = CreateApplicationCustomDomainResponses[keyof CreateApplicationCustomDomainResponses];
 
 export type ListApplicationRevisionsData = {
     body?: never;
@@ -7472,6 +7716,10 @@ export type ListSandboxesData = {
          * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
+        /**
+         * Filter sandboxes by external ID. When set, only sandboxes matching this caller-owned identifier are returned.
+         */
+        externalId?: string;
     };
     url: '/sandboxes';
 };
@@ -7756,7 +8004,7 @@ export type CreateSandboxPreviewData = {
     };
     query?: {
         /**
-         * Force creation by deleting conflicting previews that use the same custom domain prefix URL
+         * Force creation by replacing conflicting previews that use the same custom domain prefix URL
          */
         force?: boolean;
     };
@@ -7931,6 +8179,182 @@ export type DeleteSandboxPreviewTokenResponses = {
 
 export type DeleteSandboxPreviewTokenResponse = DeleteSandboxPreviewTokenResponses[keyof DeleteSandboxPreviewTokenResponses];
 
+export type ListSandboxScheduleExecutionsData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+    };
+    query?: {
+        /**
+         * Number of items per page
+         */
+        limit?: number;
+        /**
+         * Opaque cursor returned by a previous response's meta.nextCursor. Only valid for the same query (workspace + filters); the server rejects cursors bound to a different query or older than 24h. Omit on the first page.
+         */
+        cursor?: string;
+        /**
+         * Sort spec, formatted as `<key>:<direction>`. Allowed values are `createdAt:desc` (default), `createdAt:asc`, `name:asc`, `name:desc`. The cursor fingerprint is bound to the sort, so a cursor opened with one value cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        sort?: 'createdAt:desc' | 'createdAt:asc' | 'name:asc' | 'name:desc';
+        /**
+         * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        q?: string;
+    };
+    url: '/sandboxes/{sandboxName}/schedule-executions';
+};
+
+export type ListSandboxScheduleExecutionsResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxScheduleExecutionList;
+};
+
+export type ListSandboxScheduleExecutionsResponse = ListSandboxScheduleExecutionsResponses[keyof ListSandboxScheduleExecutionsResponses];
+
+export type ListSandboxSchedulesData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+    };
+    query?: {
+        /**
+         * Number of items per page
+         */
+        limit?: number;
+        /**
+         * Opaque cursor returned by a previous response's meta.nextCursor. Only valid for the same query (workspace + filters); the server rejects cursors bound to a different query or older than 24h. Omit on the first page.
+         */
+        cursor?: string;
+        /**
+         * Sort spec, formatted as `<key>:<direction>`. Allowed values are `createdAt:desc` (default), `createdAt:asc`, `name:asc`, `name:desc`. The cursor fingerprint is bound to the sort, so a cursor opened with one value cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        sort?: 'createdAt:desc' | 'createdAt:asc' | 'name:asc' | 'name:desc';
+        /**
+         * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        q?: string;
+        /**
+         * Filter schedules by timing type. Only cron and at are stored (sleep resolves to at on creation); any other value is ignored.
+         */
+        type?: 'cron' | 'at';
+    };
+    url: '/sandboxes/{sandboxName}/schedules';
+};
+
+export type ListSandboxSchedulesResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxScheduleEntryList;
+};
+
+export type ListSandboxSchedulesResponse = ListSandboxSchedulesResponses[keyof ListSandboxSchedulesResponses];
+
+export type CreateSandboxScheduleData = {
+    body: SandboxScheduleEntryWritable;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/schedules';
+};
+
+export type CreateSandboxScheduleResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxScheduleEntry;
+};
+
+export type CreateSandboxScheduleResponse = CreateSandboxScheduleResponses[keyof CreateSandboxScheduleResponses];
+
+export type DeleteSandboxScheduleData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+        /**
+         * Id of the Schedule
+         */
+        scheduleId: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/schedules/{scheduleId}';
+};
+
+export type DeleteSandboxScheduleResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxScheduleEntry;
+};
+
+export type DeleteSandboxScheduleResponse = DeleteSandboxScheduleResponses[keyof DeleteSandboxScheduleResponses];
+
+export type GetSandboxScheduleData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+        /**
+         * Id of the Schedule
+         */
+        scheduleId: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/schedules/{scheduleId}';
+};
+
+export type GetSandboxScheduleResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxScheduleEntry;
+};
+
+export type GetSandboxScheduleResponse = GetSandboxScheduleResponses[keyof GetSandboxScheduleResponses];
+
+export type UpdateSandboxScheduleData = {
+    body: SandboxScheduleEntryWritable;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+        /**
+         * Id of the Schedule
+         */
+        scheduleId: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/schedules/{scheduleId}';
+};
+
+export type UpdateSandboxScheduleResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxScheduleEntry;
+};
+
+export type UpdateSandboxScheduleResponse = UpdateSandboxScheduleResponses[keyof UpdateSandboxScheduleResponses];
+
 export type ListSandboxSnapshotsData = {
     body?: never;
     path: {
@@ -8032,6 +8456,48 @@ export type DeleteSandboxSnapshotResponses = {
 };
 
 export type DeleteSandboxSnapshotResponse = DeleteSandboxSnapshotResponses[keyof DeleteSandboxSnapshotResponses];
+
+export type GetSandboxByExternalIdData = {
+    body?: never;
+    path: {
+        /**
+         * Caller-owned external identifier for the sandbox
+         */
+        externalId: string;
+    };
+    query?: never;
+    url: '/sandboxes/by-external-id/{externalId}';
+};
+
+export type GetSandboxByExternalIdErrors = {
+    /**
+     * Unauthorized - Invalid or missing authentication credentials
+     */
+    401: _Error;
+    /**
+     * Forbidden - Insufficient permissions to view sandboxes
+     */
+    403: _Error;
+    /**
+     * Not found - No active sandbox with this external ID
+     */
+    404: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type GetSandboxByExternalIdError = GetSandboxByExternalIdErrors[keyof GetSandboxByExternalIdErrors];
+
+export type GetSandboxByExternalIdResponses = {
+    /**
+     * successful operation
+     */
+    200: Sandbox;
+};
+
+export type GetSandboxByExternalIdResponse = GetSandboxByExternalIdResponses[keyof GetSandboxByExternalIdResponses];
 
 export type GetWorkspaceServiceAccountsData = {
     body?: never;
