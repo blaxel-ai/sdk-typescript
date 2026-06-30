@@ -1,26 +1,13 @@
 import { createSandboxSchedule, deleteSandboxSchedule, getSandboxSchedule, listSandboxScheduleExecutions, listSandboxSchedules, updateSandboxSchedule } from "../client/index.js";
-import type { Sandbox, SandboxScheduleEntry, SandboxScheduleExecution } from "../client/index.js";
+import type { ListSandboxScheduleExecutionsData, ListSandboxSchedulesData, Sandbox, SandboxScheduleEntry, SandboxScheduleExecution } from "../client/index.js";
 
-/** Sort spec for schedule listings. Defaults to `createdAt:desc` server-side. */
-export type SandboxScheduleSort = "createdAt:desc" | "createdAt:asc" | "name:asc" | "name:desc";
+// Derive option types from the generated query shapes so they stay in sync with
+// the API (new sort values, filters, etc.) without re-typing the literals here.
+/** Optional filters for listing schedules (`type`, `q`, `limit`, `cursor`, `sort`). */
+export type SandboxScheduleListOptions = NonNullable<ListSandboxSchedulesData["query"]>;
 
-/** Optional filters for listing schedules. */
-export type SandboxScheduleListOptions = {
-  /** Only cron and at are stored (sleep resolves to at on creation). */
-  type?: "cron" | "at";
-  q?: string;
-  limit?: number;
-  cursor?: string;
-  sort?: SandboxScheduleSort;
-};
-
-/** Optional filters for listing schedule executions. */
-export type SandboxScheduleExecutionListOptions = {
-  q?: string;
-  limit?: number;
-  cursor?: string;
-  sort?: SandboxScheduleSort;
-};
+/** Optional filters for listing schedule executions (`q`, `limit`, `cursor`, `sort`). */
+export type SandboxScheduleExecutionListOptions = NonNullable<ListSandboxScheduleExecutionsData["query"]>;
 
 // Schedule list endpoints return a bare array on older API versions and a
 // cursor-paginated `{ data, meta }` envelope starting on Blaxel-Version
