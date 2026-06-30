@@ -1,6 +1,9 @@
 import { createSandboxSchedule, deleteSandboxSchedule, getSandboxSchedule, listSandboxScheduleExecutions, listSandboxSchedules, updateSandboxSchedule } from "../client/index.js";
 import type { Sandbox, SandboxScheduleEntry, SandboxScheduleExecution } from "../client/index.js";
 
+/** Sort spec for schedule listings. Defaults to `createdAt:desc` server-side. */
+export type SandboxScheduleSort = "createdAt:desc" | "createdAt:asc" | "name:asc" | "name:desc";
+
 /** Optional filters for listing schedules. */
 export type SandboxScheduleListOptions = {
   /** Only cron and at are stored (sleep resolves to at on creation). */
@@ -8,6 +11,7 @@ export type SandboxScheduleListOptions = {
   q?: string;
   limit?: number;
   cursor?: string;
+  sort?: SandboxScheduleSort;
 };
 
 /** Optional filters for listing schedule executions. */
@@ -15,6 +19,7 @@ export type SandboxScheduleExecutionListOptions = {
   q?: string;
   limit?: number;
   cursor?: string;
+  sort?: SandboxScheduleSort;
 };
 
 // Schedule list endpoints return a bare array on older API versions and a
