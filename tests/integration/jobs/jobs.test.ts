@@ -103,8 +103,8 @@ describe('Jobs API Integration', () => {
       const executions = await job.listExecutions()
 
       expect(executions).toBeDefined()
-      expect(Array.isArray(executions)).toBe(true)
-      expect(executions.length).toBeGreaterThan(0)
+      expect(Array.isArray(executions.data)).toBe(true)
+      expect(executions.data.length).toBeGreaterThan(0)
     })
 
     it('can wait for execution to complete', async ({ skip }) => {
