@@ -3755,58 +3755,6 @@ export type SandboxError = {
 };
 
 /**
- * Request body for forking a sandbox into an application. Creates a new application or adds a canary revision to an existing one.
- */
-export type SandboxForkRequest = {
-    /**
-     * Custom domain for the application
-     */
-    customDomain?: string;
-    /**
-     * Port to expose from the sandbox
-     */
-    port?: number;
-    /**
-     * URL prefix for the application
-     */
-    prefix?: string;
-    /**
-     * Snapshot ID to fork from. When set, the application revision references this snapshot.
-     */
-    snapshotId?: string;
-    /**
-     * Name of the target application to create or update
-     */
-    targetName: string;
-    /**
-     * Target resource type to fork into
-     */
-    targetType: string;
-    /**
-     * Traffic percentage for canary deployment (0-100). When set on an existing target, creates a new revision with this traffic percentage.
-     */
-    traffic?: number;
-};
-
-/**
- * Response returned after forking a sandbox. Contains either the new sandbox or application depending on the fork type.
- */
-export type SandboxForkResponse = {
-    /**
-     * Name of the created or updated resource
-     */
-    name?: string;
-    /**
-     * The snapshot ID the fork was created from
-     */
-    snapshotId?: string;
-    /**
-     * Type of resource that was created (sandbox or application)
-     */
-    type?: 'sandbox' | 'application';
-};
-
-/**
  * Lifecycle configuration controlling automatic sandbox deletion based on idle time, max age, or specific dates
  */
 export type SandboxLifecycle = {
@@ -3899,6 +3847,16 @@ export type SandboxRuntime = {
      */
     ttl?: string;
 };
+
+/**
+ * List of scheduled tasks for automated process execution inside the sandbox. Supports recurring cron expressions, one-off datetime targets, and sleep durations.
+ */
+export type SandboxSchedule = Array<SandboxScheduleEntry>;
+
+/**
+ * List of scheduled tasks for automated process execution inside the sandbox. Supports recurring cron expressions, one-off datetime targets, and sleep durations.
+ */
+export type SandboxScheduleWritable = Array<SandboxScheduleEntryWritable>;
 
 /**
  * A scheduled task that executes a process inside the sandbox at specified times. Stored in the dedicated schedules table (no longer embedded in the sandbox spec).
@@ -5423,7 +5381,7 @@ export type ListApplicationRevisionsResponses = {
     /**
      * successful operation
      */
-    200: Array<AppRevision>;
+    200: Array<RevisionMetadata>;
 };
 
 export type ListApplicationRevisionsResponse = ListApplicationRevisionsResponses[keyof ListApplicationRevisionsResponses];
@@ -7932,10 +7890,23 @@ export type UpdateSandboxResponses = {
 export type UpdateSandboxResponse = UpdateSandboxResponses[keyof UpdateSandboxResponses];
 
 export type ForkSandboxData = {
-    body: SandboxForkRequest;
+    body: {
+        /**
+         * Target name for the forked resource
+         */
+        name: string;
+        /**
+         * Target type: 'sandbox' or 'application'
+         */
+        type: 'sandbox' | 'application';
+        /**
+         * Snapshot ID to fork from (required)
+         */
+        snapshotId: string;
+    };
     path: {
         /**
-         * Name of the sandbox to fork
+         * Name of the source sandbox
          */
         sandboxName: string;
     };
@@ -7945,15 +7916,15 @@ export type ForkSandboxData = {
 
 export type ForkSandboxErrors = {
     /**
-     * Bad request - Invalid fork parameters
+     * Bad request
      */
     400: _Error;
     /**
-     * Not found - Source sandbox does not exist
+     * Not found - Sandbox does not exist
      */
     404: _Error;
     /**
-     * Conflict - Target sandbox already exists (only for type sandbox)
+     * Conflict - Target sandbox already exists
      */
     409: _Error;
     /**
@@ -7966,9 +7937,9 @@ export type ForkSandboxError = ForkSandboxErrors[keyof ForkSandboxErrors];
 
 export type ForkSandboxResponses = {
     /**
-     * Fork created successfully
+     * successful operation
      */
-    200: SandboxForkResponse;
+    200: Sandbox | Application;
 };
 
 export type ForkSandboxResponse = ForkSandboxResponses[keyof ForkSandboxResponses];

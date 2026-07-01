@@ -99,7 +99,7 @@ async function getSandbox(name: string): Promise<SandboxLike> {
 
 async function listSandboxes(): Promise<SandboxLike[]> {
   if (isLocal) return LocalSandboxInstance.list()
-  return SandboxInstance.list()
+  return (await SandboxInstance.list()).autoPagingToArray({ limit: 10000 })
 }
 
 async function deleteSandbox(name: string): Promise<void> {

@@ -68,6 +68,35 @@ await SandboxInstance.delete("my-sandbox");
 await existing.delete();
 ```
 
+#### Listing resources
+
+List methods return one page at a time. The result contains `data`, `meta`, and helpers for fetching more pages when you want them. The same shape is returned by `VolumeInstance.list()`, `DriveInstance.list()`, and the sandbox-scoped `sandbox.schedules.list()` / `sandbox.schedules.executions()`.
+
+```typescript
+import { SandboxInstance } from "@blaxel/core";
+
+const page = await SandboxInstance.list({
+  limit: 50,
+  sort: "createdAt:desc",
+});
+
+for (const sandbox of page.data) {
+  console.log(sandbox.metadata.name);
+}
+
+if (page.hasMore) {
+  const nextPage = await page.nextPage();
+  console.log(nextPage?.data);
+}
+
+// Optional auto-pagination, inspired by Stripe's SDK.
+for await (const sandbox of page) {
+  console.log(sandbox.metadata.name);
+}
+
+const firstThousand = await page.autoPagingToArray({ limit: 1000 });
+```
+
 #### Preview URLs
 
 Generate public preview URLs to access services running in your sandbox:
@@ -237,8 +266,11 @@ const sandbox = await SandboxInstance.createIfNotExists({
   ]
 });
 
-// List volumes
+// List first page of volumes
 const volumes = await VolumeInstance.list();
+for (const volume of volumes.data) {
+  console.log(volume.name);
+}
 
 // Delete volume (using class)
 await VolumeInstance.delete("my-volume");
@@ -284,8 +316,11 @@ try {
   console.log(`Timeout: ${error.message}`);
 }
 
-// List all executions
+// List first page of executions
 const executions = await job.listExecutions();
+for (const execution of executions.data) {
+  console.log(execution.status);
+}
 
 // Delete an execution
 await job.deleteExecution(executionId);

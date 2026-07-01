@@ -111,7 +111,7 @@ export type Config = {
 const BUILD_VERSION = "__BUILD_VERSION__";
 const BUILD_COMMIT = "__BUILD_COMMIT__";
 const BUILD_SENTRY_DSN = "__BUILD_SENTRY_DSN__";
-const BLAXEL_API_VERSION = "2026-04-16";
+const BLAXEL_API_VERSION = "2026-04-28";
 
 // Cache for config.yaml tracking value
 let configTrackingValue: boolean | null = null;

@@ -106,7 +106,7 @@ export const getDrivesMount = <ThrowOnError extends boolean = false>(options?: O
 
 /**
  * Attach a drive to a local path
- * Mounts an agent drive using the blfs binary to a local path, optionally mounting a subpath within the drive
+ * Mounts an agent drive using the blfs binary to a local path, optionally mounting a subpath within the drive. Supports optional UID/GID mapping to remap file ownership between the local sandbox and the filer (always mapped to filer UID/GID 0). Mapping values can be set per-request via uidMap/gidMap fields, or globally via BLFS_UID_MAP/BLFS_GID_MAP environment variables (request values take precedence).
  */
 export const postDrivesMount = <ThrowOnError extends boolean = false>(options: Options<PostDrivesMountData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<PostDrivesMountResponse, PostDrivesMountError, ThrowOnError>({
@@ -657,7 +657,7 @@ export const getProcessByIdentifierLogsStream = <ThrowOnError extends boolean = 
  * Triggers an upgrade of the sandbox-api process. Returns 200 immediately before upgrading.
  * The upgrade will: download the specified binary from GitHub releases, validate it, and restart.
  * All running processes will be preserved across the upgrade.
- * Available versions: "develop" (default), "main", "latest", or specific tag like "v1.0.0"
+ * Available versions: "latest" (default, most recent release), "develop", "main", or specific tag like "v1.0.0"
  * You can also specify a custom baseUrl for forks (defaults to https://github.com/blaxel-ai/sandbox/releases)
  */
 export const postUpgrade = <ThrowOnError extends boolean = false>(options?: Options<PostUpgradeData, ThrowOnError>) => {

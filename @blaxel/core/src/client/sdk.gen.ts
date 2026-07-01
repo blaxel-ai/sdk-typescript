@@ -25,7 +25,10 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
 export const listAgents = <ThrowOnError extends boolean = false>(options?: Options<ListAgentsData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<ListAgentsResponse, ListAgentsError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/agents',
         ...options
@@ -39,7 +42,10 @@ export const listAgents = <ThrowOnError extends boolean = false>(options?: Optio
 export const createAgent = <ThrowOnError extends boolean = false>(options: Options<CreateAgentData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateAgentResponse, CreateAgentError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/agents',
         ...options,
@@ -57,7 +63,10 @@ export const createAgent = <ThrowOnError extends boolean = false>(options: Optio
 export const deleteAgent = <ThrowOnError extends boolean = false>(options: Options<DeleteAgentData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteAgentResponse, DeleteAgentError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/agents/{agentName}',
         ...options
@@ -71,7 +80,10 @@ export const deleteAgent = <ThrowOnError extends boolean = false>(options: Optio
 export const getAgent = <ThrowOnError extends boolean = false>(options: Options<GetAgentData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetAgentResponse, GetAgentError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/agents/{agentName}',
         ...options
@@ -85,7 +97,10 @@ export const getAgent = <ThrowOnError extends boolean = false>(options: Options<
 export const updateAgent = <ThrowOnError extends boolean = false>(options: Options<UpdateAgentData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).put<UpdateAgentResponse, UpdateAgentError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/agents/{agentName}',
         ...options,
@@ -102,7 +117,10 @@ export const updateAgent = <ThrowOnError extends boolean = false>(options: Optio
 export const listAgentRevisions = <ThrowOnError extends boolean = false>(options: Options<ListAgentRevisionsData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<ListAgentRevisionsResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/agents/{agentName}/revisions',
         ...options
@@ -116,7 +134,10 @@ export const listAgentRevisions = <ThrowOnError extends boolean = false>(options
 export const listApplications = <ThrowOnError extends boolean = false>(options?: Options<ListApplicationsData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<ListApplicationsResponse, ListApplicationsError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/applications',
         ...options
@@ -130,7 +151,10 @@ export const listApplications = <ThrowOnError extends boolean = false>(options?:
 export const createApplication = <ThrowOnError extends boolean = false>(options: Options<CreateApplicationData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateApplicationResponse, CreateApplicationError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/applications',
         ...options,
@@ -148,7 +172,10 @@ export const createApplication = <ThrowOnError extends boolean = false>(options:
 export const deleteApplication = <ThrowOnError extends boolean = false>(options: Options<DeleteApplicationData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteApplicationResponse, DeleteApplicationError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/applications/{applicationName}',
         ...options
@@ -162,7 +189,10 @@ export const deleteApplication = <ThrowOnError extends boolean = false>(options:
 export const getApplication = <ThrowOnError extends boolean = false>(options: Options<GetApplicationData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetApplicationResponse, GetApplicationError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/applications/{applicationName}',
         ...options
@@ -176,7 +206,10 @@ export const getApplication = <ThrowOnError extends boolean = false>(options: Op
 export const updateApplication = <ThrowOnError extends boolean = false>(options: Options<UpdateApplicationData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).put<UpdateApplicationResponse, UpdateApplicationError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/applications/{applicationName}',
         ...options,
@@ -194,7 +227,10 @@ export const updateApplication = <ThrowOnError extends boolean = false>(options:
 export const createApplicationCustomDomain = <ThrowOnError extends boolean = false>(options: Options<CreateApplicationCustomDomainData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateApplicationCustomDomainResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/applications/{applicationName}/customdomains',
         ...options,
@@ -211,7 +247,10 @@ export const createApplicationCustomDomain = <ThrowOnError extends boolean = fal
 export const listApplicationRevisions = <ThrowOnError extends boolean = false>(options: Options<ListApplicationRevisionsData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<ListApplicationRevisionsResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/applications/{applicationName}/revisions',
         ...options
@@ -225,7 +264,10 @@ export const listApplicationRevisions = <ThrowOnError extends boolean = false>(o
 export const getConfiguration = <ThrowOnError extends boolean = false>(options?: Options<GetConfigurationData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<GetConfigurationResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/configuration',
         ...options
@@ -239,7 +281,10 @@ export const getConfiguration = <ThrowOnError extends boolean = false>(options?:
 export const listCustomDomains = <ThrowOnError extends boolean = false>(options?: Options<ListCustomDomainsData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<ListCustomDomainsResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/customdomains',
         ...options
@@ -253,7 +298,10 @@ export const listCustomDomains = <ThrowOnError extends boolean = false>(options?
 export const createCustomDomain = <ThrowOnError extends boolean = false>(options: Options<CreateCustomDomainData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateCustomDomainResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/customdomains',
         ...options,
@@ -270,7 +318,10 @@ export const createCustomDomain = <ThrowOnError extends boolean = false>(options
 export const deleteCustomDomain = <ThrowOnError extends boolean = false>(options: Options<DeleteCustomDomainData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteCustomDomainResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/customdomains/{domainName}',
         ...options
@@ -283,7 +334,10 @@ export const deleteCustomDomain = <ThrowOnError extends boolean = false>(options
 export const getCustomDomain = <ThrowOnError extends boolean = false>(options: Options<GetCustomDomainData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetCustomDomainResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/customdomains/{domainName}',
         ...options
@@ -296,7 +350,10 @@ export const getCustomDomain = <ThrowOnError extends boolean = false>(options: O
 export const updateCustomDomain = <ThrowOnError extends boolean = false>(options: Options<UpdateCustomDomainData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).put<UpdateCustomDomainResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/customdomains/{domainName}',
         ...options,
@@ -313,7 +370,10 @@ export const updateCustomDomain = <ThrowOnError extends boolean = false>(options
 export const verifyCustomDomain = <ThrowOnError extends boolean = false>(options: Options<VerifyCustomDomainData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<VerifyCustomDomainResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/customdomains/{domainName}/verify',
         ...options
@@ -327,7 +387,10 @@ export const verifyCustomDomain = <ThrowOnError extends boolean = false>(options
 export const listDrives = <ThrowOnError extends boolean = false>(options?: Options<ListDrivesData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<ListDrivesResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/drives',
         ...options
@@ -341,7 +404,10 @@ export const listDrives = <ThrowOnError extends boolean = false>(options?: Optio
 export const createDrive = <ThrowOnError extends boolean = false>(options: Options<CreateDriveData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateDriveResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/drives',
         ...options,
@@ -359,7 +425,10 @@ export const createDrive = <ThrowOnError extends boolean = false>(options: Optio
 export const deleteDrive = <ThrowOnError extends boolean = false>(options: Options<DeleteDriveData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteDriveResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/drives/{driveName}',
         ...options
@@ -373,7 +442,10 @@ export const deleteDrive = <ThrowOnError extends boolean = false>(options: Optio
 export const getDrive = <ThrowOnError extends boolean = false>(options: Options<GetDriveData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetDriveResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/drives/{driveName}',
         ...options
@@ -387,7 +459,10 @@ export const getDrive = <ThrowOnError extends boolean = false>(options: Options<
 export const updateDrive = <ThrowOnError extends boolean = false>(options: Options<UpdateDriveData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).put<UpdateDriveResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/drives/{driveName}',
         ...options,
@@ -405,7 +480,10 @@ export const updateDrive = <ThrowOnError extends boolean = false>(options: Optio
 export const createDriveAccessToken = <ThrowOnError extends boolean = false>(options: Options<CreateDriveAccessTokenData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateDriveAccessTokenResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/drives/{driveName}/access-token',
         ...options
@@ -429,7 +507,10 @@ export const getDriveJwks = <ThrowOnError extends boolean = false>(options?: Opt
 export const listAllEgressGateways = <ThrowOnError extends boolean = false>(options?: Options<ListAllEgressGatewaysData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<ListAllEgressGatewaysResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/egressgateways',
         ...options
@@ -443,7 +524,10 @@ export const listAllEgressGateways = <ThrowOnError extends boolean = false>(opti
 export const getEgressGatewayUsage = <ThrowOnError extends boolean = false>(options?: Options<GetEgressGatewayUsageData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<GetEgressGatewayUsageResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/egressgateways/usage',
         ...options
@@ -456,7 +540,10 @@ export const getEgressGatewayUsage = <ThrowOnError extends boolean = false>(opti
 export const listAllEgressIps = <ThrowOnError extends boolean = false>(options?: Options<ListAllEgressIpsData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<ListAllEgressIpsResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/egressips',
         ...options
@@ -470,7 +557,10 @@ export const listAllEgressIps = <ThrowOnError extends boolean = false>(options?:
 export const getWorkspaceFeatures = <ThrowOnError extends boolean = false>(options?: Options<GetWorkspaceFeaturesData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<GetWorkspaceFeaturesResponse, GetWorkspaceFeaturesError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/features',
         ...options
@@ -484,7 +574,10 @@ export const getWorkspaceFeatures = <ThrowOnError extends boolean = false>(optio
 export const testFeatureFlag = <ThrowOnError extends boolean = false>(options: Options<TestFeatureFlagData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<TestFeatureFlagResponse, TestFeatureFlagError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/features/{featureKey}',
         ...options
@@ -498,7 +591,10 @@ export const testFeatureFlag = <ThrowOnError extends boolean = false>(options: O
 export const listFunctions = <ThrowOnError extends boolean = false>(options?: Options<ListFunctionsData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<ListFunctionsResponse, ListFunctionsError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/functions',
         ...options
@@ -512,7 +608,10 @@ export const listFunctions = <ThrowOnError extends boolean = false>(options?: Op
 export const createFunction = <ThrowOnError extends boolean = false>(options: Options<CreateFunctionData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateFunctionResponse, CreateFunctionError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/functions',
         ...options,
@@ -530,7 +629,10 @@ export const createFunction = <ThrowOnError extends boolean = false>(options: Op
 export const deleteFunction = <ThrowOnError extends boolean = false>(options: Options<DeleteFunctionData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteFunctionResponse, DeleteFunctionError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/functions/{functionName}',
         ...options
@@ -544,7 +646,10 @@ export const deleteFunction = <ThrowOnError extends boolean = false>(options: Op
 export const getFunction = <ThrowOnError extends boolean = false>(options: Options<GetFunctionData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetFunctionResponse, GetFunctionError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/functions/{functionName}',
         ...options
@@ -558,7 +663,10 @@ export const getFunction = <ThrowOnError extends boolean = false>(options: Optio
 export const updateFunction = <ThrowOnError extends boolean = false>(options: Options<UpdateFunctionData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).put<UpdateFunctionResponse, UpdateFunctionError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/functions/{functionName}',
         ...options,
@@ -576,7 +684,10 @@ export const updateFunction = <ThrowOnError extends boolean = false>(options: Op
 export const listFunctionRevisions = <ThrowOnError extends boolean = false>(options: Options<ListFunctionRevisionsData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<ListFunctionRevisionsResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/functions/{functionName}/revisions',
         ...options
@@ -590,7 +701,10 @@ export const listFunctionRevisions = <ThrowOnError extends boolean = false>(opti
 export const cleanupImages = <ThrowOnError extends boolean = false>(options?: Options<CleanupImagesData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).delete<CleanupImagesResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/images',
         ...options
@@ -604,7 +718,10 @@ export const cleanupImages = <ThrowOnError extends boolean = false>(options?: Op
 export const listImages = <ThrowOnError extends boolean = false>(options?: Options<ListImagesData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<ListImagesResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/images',
         ...options
@@ -618,7 +735,10 @@ export const listImages = <ThrowOnError extends boolean = false>(options?: Optio
 export const createImage = <ThrowOnError extends boolean = false>(options: Options<CreateImageData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateImageResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/images',
         ...options,
@@ -636,7 +756,10 @@ export const createImage = <ThrowOnError extends boolean = false>(options: Optio
 export const deleteImage = <ThrowOnError extends boolean = false>(options: Options<DeleteImageData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteImageResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/images/{resourceType}/{imageName}',
         ...options
@@ -650,7 +773,10 @@ export const deleteImage = <ThrowOnError extends boolean = false>(options: Optio
 export const getImage = <ThrowOnError extends boolean = false>(options: Options<GetImageData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetImageResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/images/{resourceType}/{imageName}',
         ...options
@@ -664,7 +790,10 @@ export const getImage = <ThrowOnError extends boolean = false>(options: Options<
 export const listImageShares = <ThrowOnError extends boolean = false>(options: Options<ListImageSharesData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<ListImageSharesResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/images/{resourceType}/{imageName}/share',
         ...options
@@ -678,7 +807,10 @@ export const listImageShares = <ThrowOnError extends boolean = false>(options: O
 export const shareImage = <ThrowOnError extends boolean = false>(options: Options<ShareImageData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<ShareImageResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/images/{resourceType}/{imageName}/share',
         ...options,
@@ -696,7 +828,10 @@ export const shareImage = <ThrowOnError extends boolean = false>(options: Option
 export const unshareImage = <ThrowOnError extends boolean = false>(options: Options<UnshareImageData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<UnshareImageResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/images/{resourceType}/{imageName}/share/{targetWorkspace}',
         ...options
@@ -710,7 +845,10 @@ export const unshareImage = <ThrowOnError extends boolean = false>(options: Opti
 export const deleteImageTag = <ThrowOnError extends boolean = false>(options: Options<DeleteImageTagData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteImageTagResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/images/{resourceType}/{imageName}/tags/{tagName}',
         ...options
@@ -724,7 +862,10 @@ export const deleteImageTag = <ThrowOnError extends boolean = false>(options: Op
 export const getIntegration = <ThrowOnError extends boolean = false>(options: Options<GetIntegrationData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetIntegrationResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/integrations/{integrationName}',
         ...options
@@ -738,7 +879,10 @@ export const getIntegration = <ThrowOnError extends boolean = false>(options: Op
 export const listIntegrationConnections = <ThrowOnError extends boolean = false>(options?: Options<ListIntegrationConnectionsData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<ListIntegrationConnectionsResponse, ListIntegrationConnectionsError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/integrations/connections',
         ...options
@@ -752,7 +896,10 @@ export const listIntegrationConnections = <ThrowOnError extends boolean = false>
 export const createIntegrationConnection = <ThrowOnError extends boolean = false>(options: Options<CreateIntegrationConnectionData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateIntegrationConnectionResponse, CreateIntegrationConnectionError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/integrations/connections',
         ...options,
@@ -770,7 +917,10 @@ export const createIntegrationConnection = <ThrowOnError extends boolean = false
 export const deleteIntegrationConnection = <ThrowOnError extends boolean = false>(options: Options<DeleteIntegrationConnectionData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteIntegrationConnectionResponse, DeleteIntegrationConnectionError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/integrations/connections/{connectionName}',
         ...options
@@ -784,7 +934,10 @@ export const deleteIntegrationConnection = <ThrowOnError extends boolean = false
 export const getIntegrationConnection = <ThrowOnError extends boolean = false>(options: Options<GetIntegrationConnectionData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetIntegrationConnectionResponse, GetIntegrationConnectionError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/integrations/connections/{connectionName}',
         ...options
@@ -798,7 +951,10 @@ export const getIntegrationConnection = <ThrowOnError extends boolean = false>(o
 export const updateIntegrationConnection = <ThrowOnError extends boolean = false>(options: Options<UpdateIntegrationConnectionData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).put<UpdateIntegrationConnectionResponse, UpdateIntegrationConnectionError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/integrations/connections/{connectionName}',
         ...options,
@@ -816,7 +972,10 @@ export const updateIntegrationConnection = <ThrowOnError extends boolean = false
 export const getIntegrationConnectionModelEndpointConfigurations = <ThrowOnError extends boolean = false>(options: Options<GetIntegrationConnectionModelEndpointConfigurationsData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<unknown, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/integrations/connections/{connectionName}/endpointConfigurations',
         ...options
@@ -830,7 +989,10 @@ export const getIntegrationConnectionModelEndpointConfigurations = <ThrowOnError
 export const listIntegrationConnectionModels = <ThrowOnError extends boolean = false>(options: Options<ListIntegrationConnectionModelsData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<unknown, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/integrations/connections/{connectionName}/models',
         ...options
@@ -844,7 +1006,10 @@ export const listIntegrationConnectionModels = <ThrowOnError extends boolean = f
 export const getIntegrationConnectionModel = <ThrowOnError extends boolean = false>(options: Options<GetIntegrationConnectionModelData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<unknown, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/integrations/connections/{connectionName}/models/{modelId}',
         ...options
@@ -858,7 +1023,10 @@ export const getIntegrationConnectionModel = <ThrowOnError extends boolean = fal
 export const listJobs = <ThrowOnError extends boolean = false>(options?: Options<ListJobsData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<ListJobsResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/jobs',
         ...options
@@ -872,7 +1040,10 @@ export const listJobs = <ThrowOnError extends boolean = false>(options?: Options
 export const createJob = <ThrowOnError extends boolean = false>(options: Options<CreateJobData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateJobResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/jobs',
         ...options,
@@ -890,7 +1061,10 @@ export const createJob = <ThrowOnError extends boolean = false>(options: Options
 export const deleteJob = <ThrowOnError extends boolean = false>(options: Options<DeleteJobData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteJobResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/jobs/{jobId}',
         ...options
@@ -904,7 +1078,10 @@ export const deleteJob = <ThrowOnError extends boolean = false>(options: Options
 export const getJob = <ThrowOnError extends boolean = false>(options: Options<GetJobData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetJobResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/jobs/{jobId}',
         ...options
@@ -918,7 +1095,10 @@ export const getJob = <ThrowOnError extends boolean = false>(options: Options<Ge
 export const updateJob = <ThrowOnError extends boolean = false>(options: Options<UpdateJobData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).put<UpdateJobResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/jobs/{jobId}',
         ...options,
@@ -936,7 +1116,10 @@ export const updateJob = <ThrowOnError extends boolean = false>(options: Options
 export const listJobExecutions = <ThrowOnError extends boolean = false>(options: Options<ListJobExecutionsData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<ListJobExecutionsResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/jobs/{jobId}/executions',
         ...options
@@ -950,7 +1133,10 @@ export const listJobExecutions = <ThrowOnError extends boolean = false>(options:
 export const createJobExecution = <ThrowOnError extends boolean = false>(options: Options<CreateJobExecutionData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateJobExecutionResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/jobs/{jobId}/executions',
         ...options,
@@ -968,7 +1154,10 @@ export const createJobExecution = <ThrowOnError extends boolean = false>(options
 export const deleteJobExecution = <ThrowOnError extends boolean = false>(options: Options<DeleteJobExecutionData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteJobExecutionResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/jobs/{jobId}/executions/{executionId}',
         ...options
@@ -982,7 +1171,10 @@ export const deleteJobExecution = <ThrowOnError extends boolean = false>(options
 export const getJobExecution = <ThrowOnError extends boolean = false>(options: Options<GetJobExecutionData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetJobExecutionResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/jobs/{jobId}/executions/{executionId}',
         ...options
@@ -996,7 +1188,10 @@ export const getJobExecution = <ThrowOnError extends boolean = false>(options: O
 export const listJobExecutionTasks = <ThrowOnError extends boolean = false>(options: Options<ListJobExecutionTasksData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<ListJobExecutionTasksResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/jobs/{jobId}/executions/{executionId}/tasks',
         ...options
@@ -1010,7 +1205,10 @@ export const listJobExecutionTasks = <ThrowOnError extends boolean = false>(opti
 export const listJobRevisions = <ThrowOnError extends boolean = false>(options: Options<ListJobRevisionsData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<ListJobRevisionsResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/jobs/{jobId}/revisions',
         ...options
@@ -1024,7 +1222,10 @@ export const listJobRevisions = <ThrowOnError extends boolean = false>(options: 
 export const listLocations = <ThrowOnError extends boolean = false>(options?: Options<ListLocationsData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<ListLocationsResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/locations',
         ...options
@@ -1038,7 +1239,10 @@ export const listLocations = <ThrowOnError extends boolean = false>(options?: Op
 export const listMcpHubDefinitions = <ThrowOnError extends boolean = false>(options?: Options<ListMcpHubDefinitionsData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<ListMcpHubDefinitionsResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/mcp/hub',
         ...options
@@ -1052,7 +1256,10 @@ export const listMcpHubDefinitions = <ThrowOnError extends boolean = false>(opti
 export const listModels = <ThrowOnError extends boolean = false>(options?: Options<ListModelsData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<ListModelsResponse, ListModelsError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/models',
         ...options
@@ -1066,7 +1273,10 @@ export const listModels = <ThrowOnError extends boolean = false>(options?: Optio
 export const createModel = <ThrowOnError extends boolean = false>(options: Options<CreateModelData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateModelResponse, CreateModelError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/models',
         ...options,
@@ -1084,7 +1294,10 @@ export const createModel = <ThrowOnError extends boolean = false>(options: Optio
 export const deleteModel = <ThrowOnError extends boolean = false>(options: Options<DeleteModelData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteModelResponse, DeleteModelError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/models/{modelName}',
         ...options
@@ -1098,7 +1311,10 @@ export const deleteModel = <ThrowOnError extends boolean = false>(options: Optio
 export const getModel = <ThrowOnError extends boolean = false>(options: Options<GetModelData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetModelResponse, GetModelError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/models/{modelName}',
         ...options
@@ -1112,7 +1328,10 @@ export const getModel = <ThrowOnError extends boolean = false>(options: Options<
 export const updateModel = <ThrowOnError extends boolean = false>(options: Options<UpdateModelData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).put<UpdateModelResponse, UpdateModelError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/models/{modelName}',
         ...options,
@@ -1130,7 +1349,10 @@ export const updateModel = <ThrowOnError extends boolean = false>(options: Optio
 export const listModelRevisions = <ThrowOnError extends boolean = false>(options: Options<ListModelRevisionsData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<ListModelRevisionsResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/models/{modelName}/revisions',
         ...options
@@ -1144,7 +1366,10 @@ export const listModelRevisions = <ThrowOnError extends boolean = false>(options
 export const listPendingImageShares = <ThrowOnError extends boolean = false>(options?: Options<ListPendingImageSharesData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<ListPendingImageSharesResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/pending-image-shares',
         ...options
@@ -1158,7 +1383,10 @@ export const listPendingImageShares = <ThrowOnError extends boolean = false>(opt
 export const acceptImageShare = <ThrowOnError extends boolean = false>(options: Options<AcceptImageShareData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<AcceptImageShareResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/pending-image-shares/{pendingShareId}/accept',
         ...options
@@ -1172,7 +1400,10 @@ export const acceptImageShare = <ThrowOnError extends boolean = false>(options: 
 export const declineImageShare = <ThrowOnError extends boolean = false>(options: Options<DeclineImageShareData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<DeclineImageShareResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/pending-image-shares/{pendingShareId}/decline',
         ...options
@@ -1186,7 +1417,10 @@ export const declineImageShare = <ThrowOnError extends boolean = false>(options:
 export const listPolicies = <ThrowOnError extends boolean = false>(options?: Options<ListPoliciesData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<ListPoliciesResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/policies',
         ...options
@@ -1200,7 +1434,10 @@ export const listPolicies = <ThrowOnError extends boolean = false>(options?: Opt
 export const createPolicy = <ThrowOnError extends boolean = false>(options: Options<CreatePolicyData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreatePolicyResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/policies',
         ...options,
@@ -1218,7 +1455,10 @@ export const createPolicy = <ThrowOnError extends boolean = false>(options: Opti
 export const deletePolicy = <ThrowOnError extends boolean = false>(options: Options<DeletePolicyData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeletePolicyResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/policies/{policyName}',
         ...options
@@ -1232,7 +1472,10 @@ export const deletePolicy = <ThrowOnError extends boolean = false>(options: Opti
 export const getPolicy = <ThrowOnError extends boolean = false>(options: Options<GetPolicyData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetPolicyResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/policies/{policyName}',
         ...options
@@ -1246,7 +1489,10 @@ export const getPolicy = <ThrowOnError extends boolean = false>(options: Options
 export const updatePolicy = <ThrowOnError extends boolean = false>(options: Options<UpdatePolicyData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).put<UpdatePolicyResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/policies/{policyName}',
         ...options,
@@ -1264,7 +1510,10 @@ export const updatePolicy = <ThrowOnError extends boolean = false>(options: Opti
 export const getPolicyUsages = <ThrowOnError extends boolean = false>(options: Options<GetPolicyUsagesData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetPolicyUsagesResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/policies/{policyName}/usages',
         ...options
@@ -1278,7 +1527,10 @@ export const getPolicyUsages = <ThrowOnError extends boolean = false>(options: O
 export const listPublicIps = <ThrowOnError extends boolean = false>(options?: Options<ListPublicIpsData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<ListPublicIpsResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/publicIps',
         ...options
@@ -1292,7 +1544,10 @@ export const listPublicIps = <ThrowOnError extends boolean = false>(options?: Op
 export const listSandboxHubDefinitions = <ThrowOnError extends boolean = false>(options?: Options<ListSandboxHubDefinitionsData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<ListSandboxHubDefinitionsResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/sandbox/hub',
         ...options
@@ -1306,7 +1561,10 @@ export const listSandboxHubDefinitions = <ThrowOnError extends boolean = false>(
 export const listSandboxes = <ThrowOnError extends boolean = false>(options?: Options<ListSandboxesData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<ListSandboxesResponse, ListSandboxesError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/sandboxes',
         ...options
@@ -1320,7 +1578,10 @@ export const listSandboxes = <ThrowOnError extends boolean = false>(options?: Op
 export const createSandbox = <ThrowOnError extends boolean = false>(options: Options<CreateSandboxData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateSandboxResponse, CreateSandboxError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/sandboxes',
         ...options,
@@ -1338,7 +1599,10 @@ export const createSandbox = <ThrowOnError extends boolean = false>(options: Opt
 export const deleteSandbox = <ThrowOnError extends boolean = false>(options: Options<DeleteSandboxData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteSandboxResponse, DeleteSandboxError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/sandboxes/{sandboxName}',
         ...options
@@ -1352,7 +1616,10 @@ export const deleteSandbox = <ThrowOnError extends boolean = false>(options: Opt
 export const getSandbox = <ThrowOnError extends boolean = false>(options: Options<GetSandboxData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetSandboxResponse, GetSandboxError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/sandboxes/{sandboxName}',
         ...options
@@ -1366,7 +1633,10 @@ export const getSandbox = <ThrowOnError extends boolean = false>(options: Option
 export const updateSandbox = <ThrowOnError extends boolean = false>(options: Options<UpdateSandboxData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).put<UpdateSandboxResponse, UpdateSandboxError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/sandboxes/{sandboxName}',
         ...options,
@@ -1384,7 +1654,10 @@ export const updateSandbox = <ThrowOnError extends boolean = false>(options: Opt
 export const forkSandbox = <ThrowOnError extends boolean = false>(options: Options<ForkSandboxData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<ForkSandboxResponse, ForkSandboxError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/sandboxes/{sandboxName}/fork',
         ...options,
@@ -1402,7 +1675,10 @@ export const forkSandbox = <ThrowOnError extends boolean = false>(options: Optio
 export const listSandboxPreviews = <ThrowOnError extends boolean = false>(options: Options<ListSandboxPreviewsData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<ListSandboxPreviewsResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/sandboxes/{sandboxName}/previews',
         ...options
@@ -1416,7 +1692,10 @@ export const listSandboxPreviews = <ThrowOnError extends boolean = false>(option
 export const createSandboxPreview = <ThrowOnError extends boolean = false>(options: Options<CreateSandboxPreviewData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateSandboxPreviewResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/sandboxes/{sandboxName}/previews',
         ...options,
@@ -1434,7 +1713,10 @@ export const createSandboxPreview = <ThrowOnError extends boolean = false>(optio
 export const deleteSandboxPreview = <ThrowOnError extends boolean = false>(options: Options<DeleteSandboxPreviewData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteSandboxPreviewResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/sandboxes/{sandboxName}/previews/{previewName}',
         ...options
@@ -1448,7 +1730,10 @@ export const deleteSandboxPreview = <ThrowOnError extends boolean = false>(optio
 export const getSandboxPreview = <ThrowOnError extends boolean = false>(options: Options<GetSandboxPreviewData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetSandboxPreviewResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/sandboxes/{sandboxName}/previews/{previewName}',
         ...options
@@ -1462,7 +1747,10 @@ export const getSandboxPreview = <ThrowOnError extends boolean = false>(options:
 export const updateSandboxPreview = <ThrowOnError extends boolean = false>(options: Options<UpdateSandboxPreviewData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).put<UpdateSandboxPreviewResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/sandboxes/{sandboxName}/previews/{previewName}',
         ...options,
@@ -1480,7 +1768,10 @@ export const updateSandboxPreview = <ThrowOnError extends boolean = false>(optio
 export const listSandboxPreviewTokens = <ThrowOnError extends boolean = false>(options: Options<ListSandboxPreviewTokensData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<ListSandboxPreviewTokensResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/sandboxes/{sandboxName}/previews/{previewName}/tokens',
         ...options
@@ -1494,7 +1785,10 @@ export const listSandboxPreviewTokens = <ThrowOnError extends boolean = false>(o
 export const createSandboxPreviewToken = <ThrowOnError extends boolean = false>(options: Options<CreateSandboxPreviewTokenData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateSandboxPreviewTokenResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/sandboxes/{sandboxName}/previews/{previewName}/tokens',
         ...options,
@@ -1512,7 +1806,10 @@ export const createSandboxPreviewToken = <ThrowOnError extends boolean = false>(
 export const deleteSandboxPreviewToken = <ThrowOnError extends boolean = false>(options: Options<DeleteSandboxPreviewTokenData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteSandboxPreviewTokenResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/sandboxes/{sandboxName}/previews/{previewName}/tokens/{tokenName}',
         ...options
@@ -1526,7 +1823,10 @@ export const deleteSandboxPreviewToken = <ThrowOnError extends boolean = false>(
 export const listSandboxScheduleExecutions = <ThrowOnError extends boolean = false>(options: Options<ListSandboxScheduleExecutionsData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<ListSandboxScheduleExecutionsResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/sandboxes/{sandboxName}/schedule-executions',
         ...options
@@ -1540,7 +1840,10 @@ export const listSandboxScheduleExecutions = <ThrowOnError extends boolean = fal
 export const listSandboxSchedules = <ThrowOnError extends boolean = false>(options: Options<ListSandboxSchedulesData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<ListSandboxSchedulesResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/sandboxes/{sandboxName}/schedules',
         ...options
@@ -1554,7 +1857,10 @@ export const listSandboxSchedules = <ThrowOnError extends boolean = false>(optio
 export const createSandboxSchedule = <ThrowOnError extends boolean = false>(options: Options<CreateSandboxScheduleData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateSandboxScheduleResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/sandboxes/{sandboxName}/schedules',
         ...options,
@@ -1572,7 +1878,10 @@ export const createSandboxSchedule = <ThrowOnError extends boolean = false>(opti
 export const deleteSandboxSchedule = <ThrowOnError extends boolean = false>(options: Options<DeleteSandboxScheduleData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteSandboxScheduleResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/sandboxes/{sandboxName}/schedules/{scheduleId}',
         ...options
@@ -1586,7 +1895,10 @@ export const deleteSandboxSchedule = <ThrowOnError extends boolean = false>(opti
 export const getSandboxSchedule = <ThrowOnError extends boolean = false>(options: Options<GetSandboxScheduleData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetSandboxScheduleResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/sandboxes/{sandboxName}/schedules/{scheduleId}',
         ...options
@@ -1600,7 +1912,10 @@ export const getSandboxSchedule = <ThrowOnError extends boolean = false>(options
 export const updateSandboxSchedule = <ThrowOnError extends boolean = false>(options: Options<UpdateSandboxScheduleData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).put<UpdateSandboxScheduleResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/sandboxes/{sandboxName}/schedules/{scheduleId}',
         ...options,
@@ -1618,7 +1933,10 @@ export const updateSandboxSchedule = <ThrowOnError extends boolean = false>(opti
 export const listSandboxSnapshots = <ThrowOnError extends boolean = false>(options: Options<ListSandboxSnapshotsData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<ListSandboxSnapshotsResponse, ListSandboxSnapshotsError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/sandboxes/{sandboxName}/snapshots',
         ...options
@@ -1632,7 +1950,10 @@ export const listSandboxSnapshots = <ThrowOnError extends boolean = false>(optio
 export const createSandboxSnapshot = <ThrowOnError extends boolean = false>(options: Options<CreateSandboxSnapshotData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateSandboxSnapshotResponse, CreateSandboxSnapshotError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/sandboxes/{sandboxName}/snapshots',
         ...options,
@@ -1650,7 +1971,10 @@ export const createSandboxSnapshot = <ThrowOnError extends boolean = false>(opti
 export const deleteSandboxSnapshot = <ThrowOnError extends boolean = false>(options: Options<DeleteSandboxSnapshotData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteSandboxSnapshotResponse, DeleteSandboxSnapshotError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/sandboxes/{sandboxName}/snapshots/{snapshotId}',
         ...options
@@ -1664,7 +1988,10 @@ export const deleteSandboxSnapshot = <ThrowOnError extends boolean = false>(opti
 export const getSandboxByExternalId = <ThrowOnError extends boolean = false>(options: Options<GetSandboxByExternalIdData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetSandboxByExternalIdResponse, GetSandboxByExternalIdError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/sandboxes/by-external-id/{externalId}',
         ...options
@@ -1678,7 +2005,10 @@ export const getSandboxByExternalId = <ThrowOnError extends boolean = false>(opt
 export const getWorkspaceServiceAccounts = <ThrowOnError extends boolean = false>(options?: Options<GetWorkspaceServiceAccountsData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<GetWorkspaceServiceAccountsResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/service_accounts',
         ...options
@@ -1692,7 +2022,10 @@ export const getWorkspaceServiceAccounts = <ThrowOnError extends boolean = false
 export const createWorkspaceServiceAccount = <ThrowOnError extends boolean = false>(options: Options<CreateWorkspaceServiceAccountData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateWorkspaceServiceAccountResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/service_accounts',
         ...options,
@@ -1710,7 +2043,10 @@ export const createWorkspaceServiceAccount = <ThrowOnError extends boolean = fal
 export const deleteWorkspaceServiceAccount = <ThrowOnError extends boolean = false>(options: Options<DeleteWorkspaceServiceAccountData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteWorkspaceServiceAccountResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/service_accounts/{clientId}',
         ...options
@@ -1724,7 +2060,10 @@ export const deleteWorkspaceServiceAccount = <ThrowOnError extends boolean = fal
 export const updateWorkspaceServiceAccount = <ThrowOnError extends boolean = false>(options: Options<UpdateWorkspaceServiceAccountData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).put<UpdateWorkspaceServiceAccountResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/service_accounts/{clientId}',
         ...options,
@@ -1742,7 +2081,10 @@ export const updateWorkspaceServiceAccount = <ThrowOnError extends boolean = fal
 export const listApiKeysForServiceAccount = <ThrowOnError extends boolean = false>(options: Options<ListApiKeysForServiceAccountData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<ListApiKeysForServiceAccountResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/service_accounts/{clientId}/api_keys',
         ...options
@@ -1756,7 +2098,10 @@ export const listApiKeysForServiceAccount = <ThrowOnError extends boolean = fals
 export const createApiKeyForServiceAccount = <ThrowOnError extends boolean = false>(options: Options<CreateApiKeyForServiceAccountData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateApiKeyForServiceAccountResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/service_accounts/{clientId}/api_keys',
         ...options,
@@ -1774,7 +2119,10 @@ export const createApiKeyForServiceAccount = <ThrowOnError extends boolean = fal
 export const deleteApiKeyForServiceAccount = <ThrowOnError extends boolean = false>(options: Options<DeleteApiKeyForServiceAccountData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<unknown, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/service_accounts/{clientId}/api_keys/{apiKeyId}',
         ...options
@@ -1788,7 +2136,10 @@ export const deleteApiKeyForServiceAccount = <ThrowOnError extends boolean = fal
 export const listTemplates = <ThrowOnError extends boolean = false>(options?: Options<ListTemplatesData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<ListTemplatesResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/templates',
         ...options
@@ -1802,7 +2153,10 @@ export const listTemplates = <ThrowOnError extends boolean = false>(options?: Op
 export const getTemplate = <ThrowOnError extends boolean = false>(options: Options<GetTemplateData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetTemplateResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/templates/{templateName}',
         ...options
@@ -1816,7 +2170,10 @@ export const getTemplate = <ThrowOnError extends boolean = false>(options: Optio
 export const listWorkspaceUsers = <ThrowOnError extends boolean = false>(options?: Options<ListWorkspaceUsersData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<ListWorkspaceUsersResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/users',
         ...options
@@ -1830,7 +2187,10 @@ export const listWorkspaceUsers = <ThrowOnError extends boolean = false>(options
 export const inviteWorkspaceUser = <ThrowOnError extends boolean = false>(options: Options<InviteWorkspaceUserData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<InviteWorkspaceUserResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/users',
         ...options,
@@ -1848,7 +2208,10 @@ export const inviteWorkspaceUser = <ThrowOnError extends boolean = false>(option
 export const removeWorkspaceUser = <ThrowOnError extends boolean = false>(options: Options<RemoveWorkspaceUserData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<unknown, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/users/{subOrEmail}',
         ...options
@@ -1862,7 +2225,10 @@ export const removeWorkspaceUser = <ThrowOnError extends boolean = false>(option
 export const updateWorkspaceUserRole = <ThrowOnError extends boolean = false>(options: Options<UpdateWorkspaceUserRoleData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).put<UpdateWorkspaceUserRoleResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/users/{subOrEmail}',
         ...options,
@@ -1880,7 +2246,10 @@ export const updateWorkspaceUserRole = <ThrowOnError extends boolean = false>(op
 export const listVolumeTemplates = <ThrowOnError extends boolean = false>(options?: Options<ListVolumeTemplatesData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<ListVolumeTemplatesResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/volume_templates',
         ...options
@@ -1894,7 +2263,10 @@ export const listVolumeTemplates = <ThrowOnError extends boolean = false>(option
 export const createVolumeTemplate = <ThrowOnError extends boolean = false>(options: Options<CreateVolumeTemplateData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateVolumeTemplateResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/volume_templates',
         ...options,
@@ -1912,7 +2284,10 @@ export const createVolumeTemplate = <ThrowOnError extends boolean = false>(optio
 export const deleteVolumeTemplate = <ThrowOnError extends boolean = false>(options: Options<DeleteVolumeTemplateData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteVolumeTemplateResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/volume_templates/{volumeTemplateName}',
         ...options
@@ -1926,7 +2301,10 @@ export const deleteVolumeTemplate = <ThrowOnError extends boolean = false>(optio
 export const getVolumeTemplate = <ThrowOnError extends boolean = false>(options: Options<GetVolumeTemplateData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetVolumeTemplateResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/volume_templates/{volumeTemplateName}',
         ...options
@@ -1940,7 +2318,10 @@ export const getVolumeTemplate = <ThrowOnError extends boolean = false>(options:
 export const updateVolumeTemplate = <ThrowOnError extends boolean = false>(options: Options<UpdateVolumeTemplateData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).put<UpdateVolumeTemplateResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/volume_templates/{volumeTemplateName}',
         ...options,
@@ -1958,7 +2339,10 @@ export const updateVolumeTemplate = <ThrowOnError extends boolean = false>(optio
 export const deleteVolumeTemplateVersion = <ThrowOnError extends boolean = false>(options: Options<DeleteVolumeTemplateVersionData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteVolumeTemplateVersionResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/volume_templates/{volumeTemplateName}/versions/{versionName}',
         ...options
@@ -1972,7 +2356,10 @@ export const deleteVolumeTemplateVersion = <ThrowOnError extends boolean = false
 export const listVolumes = <ThrowOnError extends boolean = false>(options?: Options<ListVolumesData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<ListVolumesResponse, ListVolumesError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/volumes',
         ...options
@@ -1986,7 +2373,10 @@ export const listVolumes = <ThrowOnError extends boolean = false>(options?: Opti
 export const createVolume = <ThrowOnError extends boolean = false>(options: Options<CreateVolumeData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateVolumeResponse, CreateVolumeError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/volumes',
         ...options,
@@ -2004,7 +2394,10 @@ export const createVolume = <ThrowOnError extends boolean = false>(options: Opti
 export const deleteVolume = <ThrowOnError extends boolean = false>(options: Options<DeleteVolumeData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteVolumeResponse, DeleteVolumeError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/volumes/{volumeName}',
         ...options
@@ -2018,7 +2411,10 @@ export const deleteVolume = <ThrowOnError extends boolean = false>(options: Opti
 export const getVolume = <ThrowOnError extends boolean = false>(options: Options<GetVolumeData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetVolumeResponse, GetVolumeError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/volumes/{volumeName}',
         ...options
@@ -2032,7 +2428,10 @@ export const getVolume = <ThrowOnError extends boolean = false>(options: Options
 export const updateVolume = <ThrowOnError extends boolean = false>(options: Options<UpdateVolumeData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).put<UpdateVolumeResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/volumes/{volumeName}',
         ...options,
@@ -2049,7 +2448,10 @@ export const updateVolume = <ThrowOnError extends boolean = false>(options: Opti
 export const listVpcs = <ThrowOnError extends boolean = false>(options?: Options<ListVpcsData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<ListVpcsResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/vpcs',
         ...options
@@ -2062,7 +2464,10 @@ export const listVpcs = <ThrowOnError extends boolean = false>(options?: Options
 export const createVpc = <ThrowOnError extends boolean = false>(options: Options<CreateVpcData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateVpcResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/vpcs',
         ...options,
@@ -2079,7 +2484,10 @@ export const createVpc = <ThrowOnError extends boolean = false>(options: Options
 export const deleteVpc = <ThrowOnError extends boolean = false>(options: Options<DeleteVpcData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteVpcResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/vpcs/{vpcName}',
         ...options
@@ -2092,7 +2500,10 @@ export const deleteVpc = <ThrowOnError extends boolean = false>(options: Options
 export const getVpc = <ThrowOnError extends boolean = false>(options: Options<GetVpcData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetVpcResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/vpcs/{vpcName}',
         ...options
@@ -2105,7 +2516,10 @@ export const getVpc = <ThrowOnError extends boolean = false>(options: Options<Ge
 export const listEgressGateways = <ThrowOnError extends boolean = false>(options: Options<ListEgressGatewaysData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<ListEgressGatewaysResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/vpcs/{vpcName}/egressgateways',
         ...options
@@ -2118,7 +2532,10 @@ export const listEgressGateways = <ThrowOnError extends boolean = false>(options
 export const createEgressGateway = <ThrowOnError extends boolean = false>(options: Options<CreateEgressGatewayData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateEgressGatewayResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/vpcs/{vpcName}/egressgateways',
         ...options,
@@ -2135,7 +2552,10 @@ export const createEgressGateway = <ThrowOnError extends boolean = false>(option
 export const deleteEgressGateway = <ThrowOnError extends boolean = false>(options: Options<DeleteEgressGatewayData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteEgressGatewayResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/vpcs/{vpcName}/egressgateways/{gatewayName}',
         ...options
@@ -2148,7 +2568,10 @@ export const deleteEgressGateway = <ThrowOnError extends boolean = false>(option
 export const getEgressGateway = <ThrowOnError extends boolean = false>(options: Options<GetEgressGatewayData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetEgressGatewayResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/vpcs/{vpcName}/egressgateways/{gatewayName}',
         ...options
@@ -2161,7 +2584,10 @@ export const getEgressGateway = <ThrowOnError extends boolean = false>(options: 
 export const listEgressIps = <ThrowOnError extends boolean = false>(options: Options<ListEgressIpsData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<ListEgressIpsResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/vpcs/{vpcName}/egressgateways/{gatewayName}/ips',
         ...options
@@ -2174,7 +2600,10 @@ export const listEgressIps = <ThrowOnError extends boolean = false>(options: Opt
 export const createEgressIp = <ThrowOnError extends boolean = false>(options: Options<CreateEgressIpData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateEgressIpResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/vpcs/{vpcName}/egressgateways/{gatewayName}/ips',
         ...options,
@@ -2191,7 +2620,10 @@ export const createEgressIp = <ThrowOnError extends boolean = false>(options: Op
 export const deleteEgressIp = <ThrowOnError extends boolean = false>(options: Options<DeleteEgressIpData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteEgressIpResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/vpcs/{vpcName}/egressgateways/{gatewayName}/ips/{ipName}',
         ...options
@@ -2204,7 +2636,10 @@ export const deleteEgressIp = <ThrowOnError extends boolean = false>(options: Op
 export const getEgressIp = <ThrowOnError extends boolean = false>(options: Options<GetEgressIpData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetEgressIpResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/vpcs/{vpcName}/egressgateways/{gatewayName}/ips/{ipName}',
         ...options
@@ -2218,7 +2653,10 @@ export const getEgressIp = <ThrowOnError extends boolean = false>(options: Optio
 export const listWorkspaces = <ThrowOnError extends boolean = false>(options?: Options<ListWorkspacesData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).get<ListWorkspacesResponse, ListWorkspacesError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/workspaces',
         ...options
@@ -2232,7 +2670,10 @@ export const listWorkspaces = <ThrowOnError extends boolean = false>(options?: O
 export const createWorkspace = <ThrowOnError extends boolean = false>(options: Options<CreateWorkspaceData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CreateWorkspaceResponse, CreateWorkspaceError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/workspaces',
         ...options,
@@ -2250,7 +2691,10 @@ export const createWorkspace = <ThrowOnError extends boolean = false>(options: O
 export const deleteWorkspace = <ThrowOnError extends boolean = false>(options: Options<DeleteWorkspaceData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteWorkspaceResponse, DeleteWorkspaceError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/workspaces/{workspaceName}',
         ...options
@@ -2264,7 +2708,10 @@ export const deleteWorkspace = <ThrowOnError extends boolean = false>(options: O
 export const getWorkspace = <ThrowOnError extends boolean = false>(options: Options<GetWorkspaceData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetWorkspaceResponse, GetWorkspaceError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/workspaces/{workspaceName}',
         ...options
@@ -2278,7 +2725,10 @@ export const getWorkspace = <ThrowOnError extends boolean = false>(options: Opti
 export const updateWorkspace = <ThrowOnError extends boolean = false>(options: Options<UpdateWorkspaceData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).put<UpdateWorkspaceResponse, UpdateWorkspaceError, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/workspaces/{workspaceName}',
         ...options,
@@ -2296,7 +2746,10 @@ export const updateWorkspace = <ThrowOnError extends boolean = false>(options: O
 export const declineWorkspaceInvitation = <ThrowOnError extends boolean = false>(options: Options<DeclineWorkspaceInvitationData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<DeclineWorkspaceInvitationResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/workspaces/{workspaceName}/decline',
         ...options
@@ -2310,7 +2763,10 @@ export const declineWorkspaceInvitation = <ThrowOnError extends boolean = false>
 export const acceptWorkspaceInvitation = <ThrowOnError extends boolean = false>(options: Options<AcceptWorkspaceInvitationData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<AcceptWorkspaceInvitationResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/workspaces/{workspaceName}/join',
         ...options
@@ -2324,7 +2780,10 @@ export const acceptWorkspaceInvitation = <ThrowOnError extends boolean = false>(
 export const leaveWorkspace = <ThrowOnError extends boolean = false>(options: Options<LeaveWorkspaceData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<LeaveWorkspaceResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/workspaces/{workspaceName}/leave',
         ...options
@@ -2338,7 +2797,10 @@ export const leaveWorkspace = <ThrowOnError extends boolean = false>(options: Op
 export const checkWorkspaceAvailability = <ThrowOnError extends boolean = false>(options: Options<CheckWorkspaceAvailabilityData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<CheckWorkspaceAvailabilityResponse, unknown, ThrowOnError>({
         security: [
-            
+            {
+                scheme: 'bearer',
+                type: 'http'
+            }
         ],
         url: '/workspaces/availability',
         ...options,

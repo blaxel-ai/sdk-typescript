@@ -1,14 +1,18 @@
 import {
   createJobExecution,
-  CreateJobExecutionRequest,
   deleteJobExecution,
   getJobExecution,
-  JobExecution,
   listJobExecutions,
+  type CreateJobExecutionRequest,
+  type JobExecution,
+  type ListJobExecutionsData,
 } from "../client/index.js";
 import { logger } from "../common/logger.js";
+import { createPaginatedList } from "../common/pagination.js";
 import { settings } from "../common/settings.js";
 import { startSpan } from "../telemetry/telemetry.js";
+
+export type JobExecutionListQuery = NonNullable<ListJobExecutionsData["query"]>;
 
 class BlJob {
   jobName: string;
@@ -107,21 +111,51 @@ class BlJob {
   }
 
   /**
-   * List all executions for this job
+   * List one page of executions for this job.
+   *
+   * The returned page exposes `data` for the current page, `meta` for cursor
+   * metadata, and helpers to fetch more pages only when you need them.
+   *
+   * @example
+   * ```ts
+   * const job = blJob("daily-import");
+   * const page = await job.listExecutions({ limit: 50 });
+   *
+   * for (const execution of page.data) {
+   *   console.log(execution.status);
+   * }
+   *
+   * const nextPage = await page.nextPage();
+   * ```
+   *
+   * @example
+   * ```ts
+   * const job = blJob("daily-import");
+   * const executions = await (await job.listExecutions()).autoPagingToArray({
+   *   limit: 1000,
+   * });
+   * ```
    */
-  async listExecutions(): Promise<JobExecution[]> {
+  async listExecutions(query?: JobExecutionListQuery) {
     logger.debug(`Listing executions for job: ${this.jobName}`);
 
-    const { data } = await listJobExecutions({
-      path: {
-        jobId: this.jobName,
-      },
-      headers: settings.headers,
-      throwOnError: true,
+    const fetchPage = async (pageQuery?: JobExecutionListQuery) => {
+      const { data } = await listJobExecutions({
+        path: {
+          jobId: this.jobName,
+        },
+        query: pageQuery,
+        headers: settings.headers,
+        throwOnError: true,
+      });
+      return data;
+    };
+    return createPaginatedList({
+      response: await fetchPage(query),
+      fetchPage,
+      mapItem: (execution) => execution,
+      query,
     });
-
-    const items = Array.isArray(data) ? data : (data?.data ?? []);
-    return items;
   }
 
   /**

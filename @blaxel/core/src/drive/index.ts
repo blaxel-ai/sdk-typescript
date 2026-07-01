@@ -1,14 +1,18 @@
 import { v4 as uuidv4 } from "uuid";
-import { createDrive, deleteDrive, getDrive, listDrives, updateDrive, Drive } from "../client/index.js";
+import { createDrive, deleteDrive, getDrive, listDrives, updateDrive, type Drive, type DrivePermission, type ListDrivesData } from "../client/index.js";
+import { createPaginatedList } from "../common/pagination.js";
 import { settings } from "../common/settings.js";
 
-export interface DriveCreateConfiguration {
+export type DriveListQuery = NonNullable<ListDrivesData["query"]>;
+
+export type DriveCreateConfiguration = {
   name?: string;
   displayName?: string;
   labels?: Record<string, string>;
   size?: number; // Size in GB
   region?: string;
-}
+  permissions?: Array<DrivePermission>;
+};
 
 export class DriveInstance {
   constructor(private drive: Drive) {}
@@ -45,6 +49,10 @@ export class DriveInstance {
     return this.drive.spec.region;
   }
 
+  get permissions() {
+    return this.drive.spec?.permissions;
+  }
+
   static async create(config: DriveCreateConfiguration | Drive) {
     const defaultName = `drive-${uuidv4().replace(/-/g, '').substring(0, 8)}`;
 
@@ -63,7 +71,8 @@ export class DriveInstance {
         },
         spec: {
           size: config.size,
-          region: config.region || settings.region
+          region: config.region || settings.region,
+          permissions: config.permissions,
         }
       };
     }
@@ -106,10 +115,44 @@ export class DriveInstance {
     return new DriveInstance(data);
   }
 
-  static async list() {
-    const { data } = await listDrives({ throwOnError: true });
-    const items = Array.isArray(data) ? data : (data.data ?? []);
-    return items.map((drive: Drive) => new DriveInstance(drive));
+  /**
+   * List one page of drives.
+   *
+   * The returned page exposes `data` for the current page, `meta` for cursor
+   * metadata, and helpers to fetch more pages only when you need them.
+   *
+   * @example
+   * ```ts
+   * const page = await DriveInstance.list({ limit: 50 });
+   *
+   * for (const drive of page.data) {
+   *   console.log(drive.name);
+   * }
+   *
+   * const nextPage = await page.nextPage();
+   * ```
+   *
+   * @example
+   * ```ts
+   * const allDrives = await (await DriveInstance.list()).autoPagingToArray({
+   *   limit: 1000,
+   * });
+   * ```
+   */
+  static async list(query?: DriveListQuery) {
+    const fetchPage = async (pageQuery?: DriveListQuery) => {
+      const { data } = await listDrives({
+        query: pageQuery,
+        throwOnError: true,
+      });
+      return data;
+    };
+    return createPaginatedList({
+      response: await fetchPage(query),
+      fetchPage,
+      mapItem: (drive) => new DriveInstance(drive),
+      query,
+    });
   }
 
   static async delete(driveName: string) {
@@ -141,6 +184,7 @@ export class DriveInstance {
       if (updates.spec) {
         if (updates.spec.size !== undefined) specUpdates.size = updates.spec.size;
         if (updates.spec.region !== undefined) specUpdates.region = updates.spec.region;
+        if (updates.spec.permissions !== undefined) specUpdates.permissions = updates.spec.permissions;
       }
     } else {
       // It's a DriveCreateConfiguration - only include defined fields
@@ -148,6 +192,7 @@ export class DriveInstance {
       if (updates.labels !== undefined) metadataUpdates.labels = updates.labels;
       if (updates.size !== undefined) specUpdates.size = updates.size;
       if (updates.region !== undefined) specUpdates.region = updates.region;
+      if (updates.permissions !== undefined) specUpdates.permissions = updates.permissions;
     }
 
     const body = {
