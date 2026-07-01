@@ -200,6 +200,10 @@ export type AppRevision = {
      * Port the application listens on for this revision (default uses spec-level port or 8080)
      */
     port?: number;
+    /**
+     * Snapshot ID this revision was forked from (optional, only set when created via fork)
+     */
+    snapshot?: string;
 };
 
 /**
@@ -577,6 +581,10 @@ export type CustomDomainSpec = {
      */
     cnameRecords?: string;
     /**
+     * Type of custom domain (previews or applications)
+     */
+    domainType?: 'previews' | 'applications';
+    /**
      * Preview ID to route to when a preview lookup fails on this custom domain
      */
     fallbackPreviewId?: string;
@@ -618,6 +626,10 @@ export type CustomDomainSpecWritable = {
      * CNAME target for the domain
      */
     cnameRecords?: string;
+    /**
+     * Type of custom domain (previews or applications)
+     */
+    domainType?: 'previews' | 'applications';
     /**
      * Preview ID to route to when a preview lookup fails on this custom domain
      */
@@ -4035,6 +4047,52 @@ export type SandboxScheduleInput = {
      */
     workingDir?: string;
 };
+
+/**
+ * A point-in-time snapshot of a sandbox that can be used for forking into a new sandbox or application.
+ */
+export type SandboxSnapshot = {
+    /**
+     * When the snapshot was created
+     */
+    createdAt: string;
+    /**
+     * Who created the snapshot
+     */
+    createdBy?: string;
+    /**
+     * Unique snapshot identifier
+     */
+    id: string;
+    /**
+     * Optional human-readable name for the snapshot
+     */
+    name?: string;
+    /**
+     * Name of the source sandbox
+     */
+    sandboxName: string;
+    /**
+     * Status of the snapshot (pending, ready, failed)
+     */
+    status: string;
+    /**
+     * Workspace of the source sandbox
+     */
+    workspace: string;
+};
+
+/**
+ * Request body for creating a snapshot of a sandbox. Captures the current sandbox state.
+ */
+export type SandboxSnapshotRequest = {
+    /**
+     * Optional human-readable name for the snapshot
+     */
+    name?: string;
+};
+
+export type SandboxSnapshots = Array<SandboxSnapshot>;
 
 /**
  * Configuration for a sandbox including its image, memory, ports, region, and lifecycle policies
@@ -7831,6 +7889,61 @@ export type UpdateSandboxResponses = {
 
 export type UpdateSandboxResponse = UpdateSandboxResponses[keyof UpdateSandboxResponses];
 
+export type ForkSandboxData = {
+    body: {
+        /**
+         * Target name for the forked resource
+         */
+        name: string;
+        /**
+         * Target type: 'sandbox' or 'application'
+         */
+        type: 'sandbox' | 'application';
+        /**
+         * Snapshot ID to fork from (required)
+         */
+        snapshotId: string;
+    };
+    path: {
+        /**
+         * Name of the source sandbox
+         */
+        sandboxName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/fork';
+};
+
+export type ForkSandboxErrors = {
+    /**
+     * Bad request
+     */
+    400: _Error;
+    /**
+     * Not found - Sandbox does not exist
+     */
+    404: _Error;
+    /**
+     * Conflict - Target sandbox already exists
+     */
+    409: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type ForkSandboxError = ForkSandboxErrors[keyof ForkSandboxErrors];
+
+export type ForkSandboxResponses = {
+    /**
+     * successful operation
+     */
+    200: Sandbox | Application;
+};
+
+export type ForkSandboxResponse = ForkSandboxResponses[keyof ForkSandboxResponses];
+
 export type ListSandboxPreviewsData = {
     body?: never;
     path: {
@@ -8212,6 +8325,108 @@ export type UpdateSandboxScheduleResponses = {
 };
 
 export type UpdateSandboxScheduleResponse = UpdateSandboxScheduleResponses[keyof UpdateSandboxScheduleResponses];
+
+export type ListSandboxSnapshotsData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the sandbox
+         */
+        sandboxName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/snapshots';
+};
+
+export type ListSandboxSnapshotsErrors = {
+    /**
+     * Not found - Sandbox does not exist
+     */
+    404: _Error;
+};
+
+export type ListSandboxSnapshotsError = ListSandboxSnapshotsErrors[keyof ListSandboxSnapshotsErrors];
+
+export type ListSandboxSnapshotsResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxSnapshots;
+};
+
+export type ListSandboxSnapshotsResponse = ListSandboxSnapshotsResponses[keyof ListSandboxSnapshotsResponses];
+
+export type CreateSandboxSnapshotData = {
+    body: SandboxSnapshotRequest;
+    path: {
+        /**
+         * Name of the sandbox to snapshot
+         */
+        sandboxName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/snapshots';
+};
+
+export type CreateSandboxSnapshotErrors = {
+    /**
+     * Not found - Sandbox does not exist
+     */
+    404: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type CreateSandboxSnapshotError = CreateSandboxSnapshotErrors[keyof CreateSandboxSnapshotErrors];
+
+export type CreateSandboxSnapshotResponses = {
+    /**
+     * Snapshot created successfully
+     */
+    200: SandboxSnapshot;
+};
+
+export type CreateSandboxSnapshotResponse = CreateSandboxSnapshotResponses[keyof CreateSandboxSnapshotResponses];
+
+export type DeleteSandboxSnapshotData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the sandbox
+         */
+        sandboxName: string;
+        /**
+         * ID of the snapshot to delete
+         */
+        snapshotId: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/snapshots/{snapshotId}';
+};
+
+export type DeleteSandboxSnapshotErrors = {
+    /**
+     * Not found - Snapshot does not exist
+     */
+    404: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type DeleteSandboxSnapshotError = DeleteSandboxSnapshotErrors[keyof DeleteSandboxSnapshotErrors];
+
+export type DeleteSandboxSnapshotResponses = {
+    /**
+     * Snapshot deleted successfully
+     */
+    204: void;
+};
+
+export type DeleteSandboxSnapshotResponse = DeleteSandboxSnapshotResponses[keyof DeleteSandboxSnapshotResponses];
 
 export type GetSandboxByExternalIdData = {
     body?: never;
