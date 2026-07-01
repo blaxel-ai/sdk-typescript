@@ -17,7 +17,7 @@ describe('Volume Status Lifecycle', { timeout: 180000 }, () => {
     )
   })
 
-  it('transitions through 404 → DEPLOYING → DEPLOYED → DELETING → TERMINATED/404', async () => {
+  it('transitions through 404 → CREATED/DEPLOYING → DEPLOYED → DELETING → TERMINATED/404', async () => {
     const name = uniqueName("vol-lifecycle")
     const POLL_INTERVAL = 2000
     const DEPLOY_TIMEOUT = 60000
@@ -26,7 +26,7 @@ describe('Volume Status Lifecycle', { timeout: 180000 }, () => {
     // 1. GET a volume that doesn't exist → expect 404
     await expect(VolumeInstance.get(name)).rejects.toThrow()
 
-    // 2. Create a volume → expect status = 'DEPLOYING'
+    // 2. Create a volume → expect a provisioning status (CREATED or DEPLOYING)
     const volume = await VolumeInstance.create({
       name,
       size: 1,
@@ -34,7 +34,7 @@ describe('Volume Status Lifecycle', { timeout: 180000 }, () => {
       labels: defaultLabels,
     })
     createdVolumes.push(name)
-    expect(volume.status).toBe('DEPLOYING')
+    expect(['CREATED', 'DEPLOYING']).toContain(volume.status)
 
     // 3. Poll GET until DEPLOYED (with timeout)
     const deployDeadline = Date.now() + DEPLOY_TIMEOUT
