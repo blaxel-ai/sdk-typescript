@@ -7,7 +7,7 @@ import {
   updateApplication,
   listApplicationRevisions,
 } from "../client/index.js";
-import type { Application as ApplicationModel, ApplicationSpec, AppRevision } from "../client/index.js";
+import type { Application as ApplicationModel, ApplicationSpec, RevisionMetadata } from "../client/index.js";
 import { settings } from "../common/settings.js";
 
 export type ApplicationCreateConfiguration = {
@@ -172,7 +172,7 @@ export class ApplicationInstance {
     return await ApplicationInstance.update(this.metadata.name, updates);
   }
 
-  async listRevisions(): Promise<AppRevision[]> {
+  async listRevisions(): Promise<RevisionMetadata[]> {
     const { data } = await listApplicationRevisions({
       path: { applicationName: this.metadata.name },
       throwOnError: true,
