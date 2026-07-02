@@ -3837,16 +3837,6 @@ export type SandboxRuntime = {
 };
 
 /**
- * List of scheduled tasks for automated process execution inside the sandbox. Supports recurring cron expressions, one-off datetime targets, and sleep durations.
- */
-export type SandboxSchedule = Array<SandboxScheduleEntry>;
-
-/**
- * List of scheduled tasks for automated process execution inside the sandbox. Supports recurring cron expressions, one-off datetime targets, and sleep durations.
- */
-export type SandboxScheduleWritable = Array<SandboxScheduleEntryWritable>;
-
-/**
  * A scheduled task that executes a process inside the sandbox at specified times. Stored in the dedicated schedules table (no longer embedded in the sandbox spec).
  */
 export type SandboxScheduleEntry = {
@@ -4786,7 +4776,7 @@ export type WorkspaceUser = {
 export type BlaxelVersion = string;
 
 /**
- * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+ * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
  */
 export type PaginationAnchor = 'end';
 
@@ -4831,7 +4821,7 @@ export type ListAgentsData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
     };
@@ -5082,7 +5072,7 @@ export type ListApplicationsData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
     };
@@ -5481,7 +5471,7 @@ export type ListDrivesData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
     };
@@ -5834,7 +5824,7 @@ export type ListFunctionsData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
     };
@@ -6695,7 +6685,7 @@ export type ListJobsData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
     };
@@ -7091,7 +7081,7 @@ export type ListModelsData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
     };
@@ -7435,7 +7425,7 @@ export type ListPoliciesData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
     };
@@ -7613,7 +7603,7 @@ export type ListSandboxesData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
         /**
@@ -8830,7 +8820,7 @@ export type ListVolumesData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
     };
