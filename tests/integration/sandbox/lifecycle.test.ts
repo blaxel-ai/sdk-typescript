@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll } from 'vitest'
 import { SandboxInstance, updateSandbox, Sandbox } from "@blaxel/core"
-import { uniqueName, defaultImage, defaultLabels, defaultRegion, sleep, waitForSandboxDeployed, retry } from './helpers.js'
+import { uniqueName, defaultImage, defaultLabels, defaultRegion, sleep, waitForSandboxDeployed, retry, expectTtlCleared } from './helpers.js'
 
 describe('Sandbox Lifecycle and Expiration', () => {
   const createdSandboxes: string[] = []
@@ -337,8 +337,9 @@ describe('Sandbox Lifecycle and Expiration', () => {
       await waitForSandboxDeployed(name)
       const updatedSandbox = await SandboxInstance.get(name)
 
-      // TTL should be cleared on the server
-      expect(updatedSandbox.spec.runtime?.ttl).toBeFalsy()
+      // TTL should be cleared on the server (or reset to the account's enforced
+      // floor TTL on tier_0/free accounts -- see expectTtlCleared)
+      await expectTtlCleared(updatedSandbox.spec.runtime?.ttl)
 
       // File should still exist (no recreation)
       expect(await updatedSandbox.fs.read(testFilePath)).toBe(testContent)
@@ -367,7 +368,9 @@ describe('Sandbox Lifecycle and Expiration', () => {
       // Clear the TTL before it expires
       await SandboxInstance.updateTtl(name, null)
       await waitForSandboxDeployed(name)
-      expect((await SandboxInstance.get(name)).spec.runtime?.ttl).toBeFalsy()
+      // TTL should be cleared (or reset to the account's enforced floor TTL on
+      // tier_0/free accounts -- either way it must be far beyond the 20s window below)
+      await expectTtlCleared((await SandboxInstance.get(name)).spec.runtime?.ttl)
 
       // Wait well past the original 20s window
       await sleep(25000)
@@ -405,8 +408,9 @@ describe('Sandbox Lifecycle and Expiration', () => {
       await waitForSandboxDeployed(name)
       const updatedSandbox = await SandboxInstance.get(name)
 
-      // TTL should be cleared on the server
-      expect(updatedSandbox.spec.runtime?.ttl).toBeFalsy()
+      // TTL should be cleared on the server (or reset to the account's enforced
+      // floor TTL on tier_0/free accounts -- see expectTtlCleared)
+      await expectTtlCleared(updatedSandbox.spec.runtime?.ttl)
 
       // File should still exist (no recreation)
       expect(await updatedSandbox.fs.read(testFilePath)).toBe(testContent)
