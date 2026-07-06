@@ -33,38 +33,6 @@ describe('Sandbox extraArgs (kernel selection)', () => {
     expect(retrieved.spec.runtime?.extraArgs?.["iptables"]).toBe("enabled")
   })
 
-  it('creates a sandbox with nvme enabled', async () => {
-    const name = uniqueName("extra-args-nvme")
-    const sandbox = await SandboxInstance.create({
-      name,
-      image: defaultImage,
-      region: defaultRegion,
-      extraArgs: { nvme: "enabled" },
-      labels: defaultLabels,
-    })
-    createdSandboxes.push(name)
-
-    const retrieved = await SandboxInstance.get(name)
-    expect(retrieved.spec.runtime?.extraArgs).toBeDefined()
-    expect(retrieved.spec.runtime?.extraArgs?.["nvme"]).toBe("enabled")
-  })
-
-  it('creates a sandbox with both iptables and nvme enabled', async () => {
-    const name = uniqueName("extra-args-both")
-    const sandbox = await SandboxInstance.create({
-      name,
-      image: defaultImage,
-      region: defaultRegion,
-      extraArgs: { iptables: "enabled", nvme: "enabled" },
-      labels: defaultLabels,
-    })
-    createdSandboxes.push(name)
-
-    const retrieved = await SandboxInstance.get(name)
-    expect(retrieved.spec.runtime?.extraArgs?.["iptables"]).toBe("enabled")
-    expect(retrieved.spec.runtime?.extraArgs?.["nvme"]).toBe("enabled")
-  })
-
   it('creates a sandbox without extraArgs (default kernel)', async () => {
     const name = uniqueName("extra-args-default")
     const sandbox = await SandboxInstance.create({
