@@ -415,6 +415,34 @@ Enable automatic telemetry by importing the `@blaxel/telemetry` package:
 import "@blaxel/telemetry";
 ```
 
+### Sandbox operation diagnostics
+
+For hard-to-reproduce sandbox failures, you can record a privacy-safe operation
+artifact around the workflow you are debugging:
+
+```typescript
+const sandbox = await SandboxInstance.get("my-sandbox");
+const recorder = sandbox.startOperationRecording();
+
+try {
+  await sandbox.process.exec({
+    command: "npm test",
+    waitForCompletion: true
+  });
+  await sandbox.fs.ls("/app");
+  await sandbox.fetch(3000, "/health");
+} finally {
+  sandbox.stopOperationRecording();
+}
+
+console.log(recorder.toString());
+```
+
+Commands, headers, env values, and file contents are redacted by default. The
+artifact keeps timings, transport metadata, process exit status, byte counts,
+HTTP status, and errors so support can inspect what happened without collecting
+application secrets.
+
 ## Requirements
 
 - Node.js v18 or later

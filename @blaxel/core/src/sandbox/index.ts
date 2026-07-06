@@ -8,6 +8,7 @@ export {
 } from "./client/index.js";
 export * from "./filesystem/index.js";
 export * from "./codegen/index.js";
+export * from "./diagnostics.js";
 export { SandboxDrive, type DriveMountRequest, type DriveMountResponse, type DriveMountInfo, type DriveUnmountResponse } from "./drive/index.js";
 export * from "./preview.js";
 export * from "./schedule.js";
@@ -17,4 +18,3 @@ export * from "./system.js";
 export * from "./types.js";
 export * from "./interpreter.js";
 // Re-export everything from client except ClientOptions to avoid conflict
-

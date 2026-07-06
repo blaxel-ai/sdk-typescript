@@ -5,6 +5,7 @@ import { logger } from "../common/logger.js";
 import { createPaginatedList } from "../common/pagination.js";
 import { settings } from "../common/settings.js";
 import { SandboxCodegen } from "./codegen/index.js";
+import { SandboxOperationRecorder, type SandboxOperationRecorderOptions } from "./diagnostics.js";
 import { SandboxDrive } from "./drive/index.js";
 import { SandboxFileSystem } from "./filesystem/index.js";
 import { SandboxNetwork } from "./network/index.js";
@@ -90,6 +91,22 @@ export class SandboxInstance {
 
   get h2Domain() {
     return this.sandbox.h2Domain ?? null;
+  }
+
+  startOperationRecording(options: SandboxOperationRecorderOptions = {}): SandboxOperationRecorder {
+    const recorder = new SandboxOperationRecorder(options);
+    this.sandbox.operationRecorder = recorder;
+    return recorder;
+  }
+
+  stopOperationRecording(): SandboxOperationRecorder | null {
+    const recorder = this.sandbox.operationRecorder ?? null;
+    delete this.sandbox.operationRecorder;
+    return recorder;
+  }
+
+  get operationRecorder() {
+    return this.sandbox.operationRecorder ?? null;
   }
 
   /**
