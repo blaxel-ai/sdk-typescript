@@ -105,16 +105,16 @@ describe('Sandbox externalId', () => {
       createdSandboxes.push(name)
 
       const instances = await SandboxInstance.list({ externalId })
-      expect(instances.length).toBeGreaterThanOrEqual(1)
+      expect(instances.data.length).toBeGreaterThanOrEqual(1)
 
-      const found = instances.find((s) => s.metadata.name === name)
+      const found = instances.data.find((s) => s.metadata.name === name)
       expect(found).toBeDefined()
       expect(found!.metadata.externalId).toBe(externalId)
     })
 
     it('returns empty list for non-existent externalId', async () => {
       const instances = await SandboxInstance.list({ externalId: `nonexistent-${Date.now()}` })
-      expect(instances.length).toBe(0)
+      expect(instances.data.length).toBe(0)
     })
 
     it('hides terminated sandboxes by default', async () => {
@@ -128,7 +128,7 @@ describe('Sandbox externalId', () => {
       await waitForSandboxDeletion(name)
 
       const instances = await SandboxInstance.list({ externalId })
-      const found = instances.find((s) => s.metadata.name === name)
+      const found = instances.data.find((s) => s.metadata.name === name)
       expect(found).toBeUndefined()
     })
   })
