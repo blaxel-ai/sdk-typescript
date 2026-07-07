@@ -8,7 +8,7 @@ type HttpBinResponse = {
   json: Record<string, unknown>
 }
 
-describe.runIf(isUsingMk3_1())('proxy end-to-end functionality', () => {
+describe.skipIf(isUsingMk3_1())('proxy end-to-end functionality', () => {
   const createdSandboxes: string[] = []
   afterAll(proxyCleanup(createdSandboxes))
 

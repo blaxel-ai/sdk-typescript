@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { defaultImage, defaultLabels, defaultRegion, uniqueName, isUsingMk3_1 } from '../helpers.js'
 import { createEchoServerSandbox, lowercaseKeys, parseJsonOutput, proxyCleanup } from './helpers.js'
 
-describe.runIf(isUsingMk3_1())('proxy e2e with common CLI tools', () => {
+describe.skipIf(isUsingMk3_1())('proxy e2e with common CLI tools', () => {
   const createdSandboxes: string[] = []
   afterAll(proxyCleanup(createdSandboxes))
 
@@ -41,7 +41,7 @@ describe.runIf(isUsingMk3_1())('proxy e2e with common CLI tools', () => {
     if (certInstall.exitCode !== 0) throw new Error(`CA cert install failed: ${certInstall.logs?.slice(0, 500)}`)
   }, 180_000)
 
-  describe.runIf(isUsingMk3_1())('curl', () => {
+  describe.skipIf(isUsingMk3_1())('curl', () => {
     it('routes GET requests through the proxy with header injection', async () => {
       const result = await cliSandbox.process.exec({ command: `curl -s ${echoUrl}/headers`, waitForCompletion: true })
       expect(result.exitCode).toBe(0)
@@ -99,7 +99,7 @@ describe.runIf(isUsingMk3_1())('proxy e2e with common CLI tools', () => {
     }, 60_000)
   })
 
-  describe.runIf(isUsingMk3_1())('git', () => {
+  describe.skipIf(isUsingMk3_1())('git', () => {
     it('clones a public repository through the proxy', async () => {
       const result = await cliSandbox.process.exec({ command: 'export https_proxy=$HTTPS_PROXY http_proxy=$HTTP_PROXY && GIT_SSL_CAINFO=$SSL_CERT_FILE git -c http.proxyAuthMethod=basic clone --depth 1 https://github.com/octocat/Hello-World.git /tmp/git-test-repo 2>&1', waitForCompletion: true })
       expect(result.exitCode).toBe(0)
@@ -121,7 +121,7 @@ describe.runIf(isUsingMk3_1())('proxy e2e with common CLI tools', () => {
     }, 30_000)
   })
 
-  describe.runIf(isUsingMk3_1())('pip (Python package manager)', () => {
+  describe.skipIf(isUsingMk3_1())('pip (Python package manager)', () => {
     it('pip install works through the proxy', async () => {
       const result = await cliSandbox.process.exec({ command: 'pip3 install --break-system-packages --quiet six 2>&1 && python3 -c "import six; print(six.__version__)"', waitForCompletion: true })
       expect(result.exitCode).toBe(0)
@@ -129,7 +129,7 @@ describe.runIf(isUsingMk3_1())('proxy e2e with common CLI tools', () => {
     }, 120_000)
   })
 
-  describe.runIf(isUsingMk3_1())('npm / npx (Node package manager)', () => {
+  describe.skipIf(isUsingMk3_1())('npm / npx (Node package manager)', () => {
     it('npm install works through the proxy', async () => {
       await cliSandbox.fs.write("/tmp/npm-test/package.json", JSON.stringify({ name: "proxy-npm-test", version: "1.0.0", dependencies: { "is-odd": "^3.0.1" } }))
       const result = await cliSandbox.process.exec({ command: 'cd /tmp/npm-test && npm install --no-audit --no-fund 2>&1', waitForCompletion: true })

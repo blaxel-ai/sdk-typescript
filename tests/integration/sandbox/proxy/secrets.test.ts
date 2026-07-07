@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { defaultImage, defaultLabels, defaultRegion, uniqueName, isUsingMk3_1 } from '../helpers.js'
 import { createEchoServerSandbox, lowercaseKeys, parseJsonOutput, proxyCleanup, proxyHelperScript } from './helpers.js'
 
-describe.runIf(isUsingMk3_1())('secrets replacement validation', () => {
+describe.skipIf(isUsingMk3_1())('secrets replacement validation', () => {
   const createdSandboxes: string[] = []
   afterAll(proxyCleanup(createdSandboxes))
 

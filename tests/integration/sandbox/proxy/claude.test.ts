@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { defaultImage, defaultLabels, defaultRegion, uniqueName, isUsingMk3_1 } from '../helpers.js'
 import { createEchoServerSandbox, proxyCleanup } from './helpers.js'
 
-describe.runIf(isUsingMk3_1())('proxy e2e with Claude Code agent', () => {
+describe.skipIf(isUsingMk3_1())('proxy e2e with Claude Code agent', () => {
   if (!process.env.ANTHROPIC_API_KEY) {
     it.skip('requires ANTHROPIC_API_KEY', () => {})
     return

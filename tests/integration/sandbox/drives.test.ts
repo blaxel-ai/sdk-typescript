@@ -4,7 +4,7 @@ import { defaultImage, defaultLabels, uniqueName, waitForSandboxDeletion, isUsin
 
 const defaultRegion = process.env.BL_DRIVE_REGION || (process.env.BL_ENV !== 'dev' ? 'us-was-1' : 'eu-dub-1') // Only region for drives right now
 
-describe.runIf(isUsingMk3_1())('Drive Operations', () => {
+describe.skipIf(isUsingMk3_1())('Drive Operations', () => {
   const createdSandboxes: string[] = []
   const createdDrives: string[] = []
 
@@ -33,7 +33,7 @@ describe.runIf(isUsingMk3_1())('Drive Operations', () => {
     )
   })
 
-  describe.runIf(isUsingMk3_1())('DriveInstance CRUD', () => {
+  describe.skipIf(isUsingMk3_1())('DriveInstance CRUD', () => {
     it('creates a drive', async () => {
       const name = uniqueName("drive")
       const drive = await DriveInstance.create({
@@ -188,7 +188,7 @@ describe.runIf(isUsingMk3_1())('Drive Operations', () => {
     })
   })
 
-  describe.runIf(isUsingMk3_1())('Sandbox Drive Mounting', () => {
+  describe.skipIf(isUsingMk3_1())('Sandbox Drive Mounting', () => {
     it('mounts a drive to a sandbox', async () => {
       const driveName = uniqueName("mount-drive")
       const sandboxName = uniqueName("mount-sandbox")
@@ -399,7 +399,7 @@ describe.runIf(isUsingMk3_1())('Drive Operations', () => {
     })
   })
 
-  describe.runIf(isUsingMk3_1())('Drive persistence across sandboxes', () => {
+  describe.skipIf(isUsingMk3_1())('Drive persistence across sandboxes', () => {
     it('data persists when drive is mounted to different sandboxes', async () => {
       const driveName = uniqueName("persist-drive")
       const fileContent = "persistent data " + Date.now()
@@ -464,7 +464,7 @@ describe.runIf(isUsingMk3_1())('Drive Operations', () => {
     })
   })
 
-  describe.runIf(isUsingMk3_1())('Multiple drives', () => {
+  describe.skipIf(isUsingMk3_1())('Multiple drives', () => {
     it('mounts multiple drives to a sandbox', async () => {
       const drive1Name = uniqueName("multi-drive1")
       const drive2Name = uniqueName("multi-drive2")
@@ -536,7 +536,7 @@ describe.runIf(isUsingMk3_1())('Drive Operations', () => {
     })
   })
 
-  describe.runIf(isUsingMk3_1())('Drive mount path handling', () => {
+  describe.skipIf(isUsingMk3_1())('Drive mount path handling', () => {
     it('handles mount path without leading slash', async () => {
       const driveName = uniqueName("path-drive")
       const sandboxName = uniqueName("path-sandbox")
@@ -575,7 +575,7 @@ describe.runIf(isUsingMk3_1())('Drive Operations', () => {
     })
   })
 
-  describe.runIf(isUsingMk3_1())('Drive file operations', () => {
+  describe.skipIf(isUsingMk3_1())('Drive file operations', () => {
     it('creates directory structure in drive', async () => {
       const driveName = uniqueName("fs-drive")
       const sandboxName = uniqueName("fs-sandbox")

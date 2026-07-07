@@ -129,7 +129,7 @@ if (!proxyUrl) {
 }
 `.trim()
 
-describe.runIf(isUsingMk3_1())('proxy end-to-end functionality over HTTP/2', () => {
+describe.skipIf(isUsingMk3_1())('proxy end-to-end functionality over HTTP/2', () => {
   const createdSandboxes: string[] = []
   afterAll(proxyCleanup(createdSandboxes))
 

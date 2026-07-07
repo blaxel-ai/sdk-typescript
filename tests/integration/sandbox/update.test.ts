@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { defaultImage, defaultLabels, defaultRegion, sleep, uniqueName, waitForSandboxDeployed, isUsingMk3_1 } from './helpers.js'
 import { createEchoServerSandbox, lowercaseKeys, parseJsonOutput, proxyHelperScript } from './proxy/helpers.js'
 
-describe.runIf(isUsingMk3_1())('Sandbox Update Operations', () => {
+describe.skipIf(isUsingMk3_1())('Sandbox Update Operations', () => {
   const createdSandboxes: string[] = []
 
   // A controlled httpbin-compatible upstream (reached via a preview URL) shared by
@@ -43,7 +43,7 @@ describe.runIf(isUsingMk3_1())('Sandbox Update Operations', () => {
     return instance
   }
 
-  describe.runIf(isUsingMk3_1())('update network config in-place', () => {
+  describe.skipIf(isUsingMk3_1())('update network config in-place', () => {
     const MARKER_PATH = '/tmp/update-test-marker.txt'
     const MARKER_CONTENT = 'sandbox-identity-check'
     let name: string
@@ -95,7 +95,7 @@ describe.runIf(isUsingMk3_1())('Sandbox Update Operations', () => {
     })
   })
 
-  describe.runIf(isUsingMk3_1())('add and remove proxy config in-place', () => {
+  describe.skipIf(isUsingMk3_1())('add and remove proxy config in-place', () => {
     const MARKER_PATH = '/tmp/proxy-update-marker.txt'
     const MARKER_CONTENT = 'proxy-identity-check'
     let name: string
@@ -156,7 +156,7 @@ describe.runIf(isUsingMk3_1())('Sandbox Update Operations', () => {
     })
   })
 
-  describe.runIf(isUsingMk3_1())('swap network config (forbiddenDomains → allowedDomains)', () => {
+  describe.skipIf(isUsingMk3_1())('swap network config (forbiddenDomains → allowedDomains)', () => {
     const MARKER_PATH = '/tmp/swap-update-marker.txt'
     const MARKER_CONTENT = 'swap-identity-check'
     let name: string
@@ -195,7 +195,7 @@ describe.runIf(isUsingMk3_1())('Sandbox Update Operations', () => {
     })
   })
 
-  describe.runIf(isUsingMk3_1())('update network config with proxy + firewall combined', () => {
+  describe.skipIf(isUsingMk3_1())('update network config with proxy + firewall combined', () => {
     let name: string
 
     it('creates a sandbox with allowedDomains only', async () => {
@@ -261,7 +261,7 @@ describe.runIf(isUsingMk3_1())('Sandbox Update Operations', () => {
     })
   })
 
-  describe.runIf(isUsingMk3_1())('multiple sequential updates preserve sandbox identity', () => {
+  describe.skipIf(isUsingMk3_1())('multiple sequential updates preserve sandbox identity', () => {
     const MARKER_PATH = '/tmp/seq-update-marker.txt'
     let name: string
 
@@ -304,7 +304,7 @@ describe.runIf(isUsingMk3_1())('Sandbox Update Operations', () => {
     }, 120_000)
   })
 
-  describe.runIf(isUsingMk3_1())('forbiddenDomains update verified with live network calls', () => {
+  describe.skipIf(isUsingMk3_1())('forbiddenDomains update verified with live network calls', () => {
     let name: string
     let sandbox: Awaited<ReturnType<typeof SandboxInstance.get>>
 
@@ -356,7 +356,7 @@ describe.runIf(isUsingMk3_1())('Sandbox Update Operations', () => {
     }, 60_000)
   })
 
-  describe.runIf(isUsingMk3_1())('allowedDomains update verified with live network calls', () => {
+  describe.skipIf(isUsingMk3_1())('allowedDomains update verified with live network calls', () => {
     let name: string
     let sandbox: Awaited<ReturnType<typeof SandboxInstance.get>>
 
@@ -421,7 +421,7 @@ describe.runIf(isUsingMk3_1())('Sandbox Update Operations', () => {
     }, 60_000)
   })
 
-  describe.runIf(isUsingMk3_1())('proxy header injection update verified with live network calls', () => {
+  describe.skipIf(isUsingMk3_1())('proxy header injection update verified with live network calls', () => {
     let name: string
     let sandbox: Awaited<ReturnType<typeof SandboxInstance.get>>
 

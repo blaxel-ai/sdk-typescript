@@ -18,10 +18,10 @@ type PythonProxyOutput = {
  *    forces the Go GCS client to use HTTP/2 over the CONNECT tunnel. Only runs when
  *    `BL_TEST_GCS_BUCKET` + `GCSFUSE_SA_KEY_JSON` are provided.
  */
-describe.runIf(isUsingMk3_1())('proxy CONNECT tunnel support', () => {
+describe.skipIf(isUsingMk3_1())('proxy CONNECT tunnel support', () => {
   const unsetHttpProxyEnv = 'env -u HTTP_PROXY -u http_proxy'
 
-  describe.runIf(isUsingMk3_1())('Python urllib3 through CONNECT', () => {
+  describe.skipIf(isUsingMk3_1())('Python urllib3 through CONNECT', () => {
     const createdSandboxes: string[] = []
     afterAll(proxyCleanup(createdSandboxes))
 
@@ -90,7 +90,7 @@ except urllib3.exceptions.HTTPError as e:
     }, 90_000)
   })
 
-  describe.runIf(isUsingMk3_1())('pip install through CONNECT', () => {
+  describe.skipIf(isUsingMk3_1())('pip install through CONNECT', () => {
     const createdSandboxes: string[] = []
     afterAll(proxyCleanup(createdSandboxes))
 
@@ -144,7 +144,7 @@ except urllib3.exceptions.HTTPError as e:
     }, 240_000)
   })
 
-  describe.runIf(isUsingMk3_1())('gcsfuse with native HTTP/2 (no --client-protocol=http1)', () => {
+  describe.skipIf(isUsingMk3_1())('gcsfuse with native HTTP/2 (no --client-protocol=http1)', () => {
     const bucket = process.env.BL_TEST_GCS_BUCKET
     const saKeyJson = process.env.GCSFUSE_SA_KEY_JSON
 

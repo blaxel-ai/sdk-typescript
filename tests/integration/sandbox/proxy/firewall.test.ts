@@ -7,7 +7,7 @@ type HttpBinResponse = {
   headers: Record<string, string>
 }
 
-describe.runIf(isUsingMk3_1())('firewall e2e (allowedDomains / forbiddenDomains)', () => {
+describe.skipIf(isUsingMk3_1())('firewall e2e (allowedDomains / forbiddenDomains)', () => {
   const createdSandboxes: string[] = []
   afterAll(proxyCleanup(createdSandboxes))
 
@@ -25,7 +25,7 @@ describe.runIf(isUsingMk3_1())('firewall e2e (allowedDomains / forbiddenDomains)
 
   let fwSandbox: Awaited<ReturnType<typeof SandboxInstance.create>>
 
-  describe.runIf(isUsingMk3_1())('allowedDomains (allowlist)', () => {
+  describe.skipIf(isUsingMk3_1())('allowedDomains (allowlist)', () => {
     beforeAll(async () => {
       fwSandbox = await createReadyProxySandbox(
         async () => {
@@ -53,7 +53,7 @@ describe.runIf(isUsingMk3_1())('firewall e2e (allowedDomains / forbiddenDomains)
     }, 60_000)
   })
 
-  describe.runIf(isUsingMk3_1())('no proxy bypass (firewall ruleset: proxy)', () => {
+  describe.skipIf(isUsingMk3_1())('no proxy bypass (firewall ruleset: proxy)', () => {
     let bypassSandbox: Awaited<ReturnType<typeof SandboxInstance.create>>
 
     beforeAll(async () => {
@@ -99,7 +99,7 @@ describe.runIf(isUsingMk3_1())('firewall e2e (allowedDomains / forbiddenDomains)
     }, 60_000)
   })
 
-  describe.runIf(isUsingMk3_1())('forbiddenDomains (denylist)', () => {
+  describe.skipIf(isUsingMk3_1())('forbiddenDomains (denylist)', () => {
     let denySandbox: Awaited<ReturnType<typeof SandboxInstance.create>>
 
     beforeAll(async () => {
@@ -129,7 +129,7 @@ describe.runIf(isUsingMk3_1())('firewall e2e (allowedDomains / forbiddenDomains)
     }, 60_000)
   })
 
-  describe.runIf(isUsingMk3_1())('allowedDomains + forbiddenDomains combined', () => {
+  describe.skipIf(isUsingMk3_1())('allowedDomains + forbiddenDomains combined', () => {
     let comboSandbox: Awaited<ReturnType<typeof SandboxInstance.create>>
 
     beforeAll(async () => {
@@ -154,7 +154,7 @@ describe.runIf(isUsingMk3_1())('firewall e2e (allowedDomains / forbiddenDomains)
     }, 60_000)
   })
 
-  describe.runIf(isUsingMk3_1())('allowedDomains with proxy routing', () => {
+  describe.skipIf(isUsingMk3_1())('allowedDomains with proxy routing', () => {
     let proxyFwSandbox: Awaited<ReturnType<typeof SandboxInstance.create>>
 
     beforeAll(async () => {

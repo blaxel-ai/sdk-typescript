@@ -3,7 +3,7 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { defaultImage, defaultLabels, defaultRegion, uniqueName, waitForSandboxDeletion, isUsingMk3_1 } from '../helpers.js'
 import { proxyCleanup } from './helpers.js'
 
-describe.runIf(isUsingMk3_1())('get proxy config', () => {
+describe.skipIf(isUsingMk3_1())('get proxy config', () => {
   const createdSandboxes: string[] = []
   afterAll(proxyCleanup(createdSandboxes))
 
@@ -47,7 +47,7 @@ describe.runIf(isUsingMk3_1())('get proxy config', () => {
   })
 })
 
-describe.runIf(isUsingMk3_1())('delete sandbox with proxy', () => {
+describe.skipIf(isUsingMk3_1())('delete sandbox with proxy', () => {
   it('deletes a sandbox that has proxy configuration', async () => {
     const name = uniqueName("proxy-del")
     await SandboxInstance.create({

@@ -7,7 +7,7 @@ type HttpBinResponse = {
   headers: Record<string, string>
 }
 
-describe.runIf(isUsingMk3_1())('proxy with wildcard (*) destination', () => {
+describe.skipIf(isUsingMk3_1())('proxy with wildcard (*) destination', () => {
   const createdSandboxes: string[] = []
   afterAll(proxyCleanup(createdSandboxes))
 

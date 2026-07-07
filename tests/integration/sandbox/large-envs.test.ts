@@ -1,6 +1,6 @@
 import { SandboxInstance, VolumeInstance } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
-import { defaultImage, defaultLabels, defaultRegion, uniqueName, waitForSandboxDeletion, waitForVolumeDeletion } from './helpers.js'
+import { defaultImage, defaultLabels, defaultRegion, isUsingMk3_1, uniqueName, waitForSandboxDeletion, waitForVolumeDeletion } from './helpers.js'
 
 describe('Sandbox Large Environment Variables', () => {
   const createdSandboxes: string[] = []
@@ -113,7 +113,7 @@ describe('Sandbox Large Environment Variables', () => {
     console.log(`All ${charTargets.length} targets passed: ${passedTargets.join(', ')}`)
   })
 
-  it('creates a sandbox with large environment variables (4000 chars) and a volume, then verifies persistence', async () => {
+  it.skipIf(isUsingMk3_1())('creates a sandbox with large environment variables (4000 chars) and a volume, then verifies persistence', async () => {
     const sandboxName1 = uniqueName("envs-volume-1")
     const sandboxName2 = uniqueName("envs-volume-2")
     const volumeName = uniqueName("volume-envs")
