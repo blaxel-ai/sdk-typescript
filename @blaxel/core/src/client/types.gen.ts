@@ -2140,6 +2140,10 @@ export type LiteVolumeWritable = {
 export type LiteVolumeMetadata = {
     createdAt?: string;
     displayName?: string;
+    /**
+     * Caller-owned identifier for external lookups.
+     */
+    externalId?: string;
     name?: string;
     updatedAt?: string;
 };
@@ -3837,16 +3841,6 @@ export type SandboxRuntime = {
 };
 
 /**
- * List of scheduled tasks for automated process execution inside the sandbox. Supports recurring cron expressions, one-off datetime targets, and sleep durations.
- */
-export type SandboxSchedule = Array<SandboxScheduleEntry>;
-
-/**
- * List of scheduled tasks for automated process execution inside the sandbox. Supports recurring cron expressions, one-off datetime targets, and sleep durations.
- */
-export type SandboxScheduleWritable = Array<SandboxScheduleEntryWritable>;
-
-/**
  * A scheduled task that executes a process inside the sandbox at specified times. Stored in the dedicated schedules table (no longer embedded in the sandbox spec).
  */
 export type SandboxScheduleEntry = {
@@ -4786,7 +4780,7 @@ export type WorkspaceUser = {
 export type BlaxelVersion = string;
 
 /**
- * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+ * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
  */
 export type PaginationAnchor = 'end';
 
@@ -4831,7 +4825,7 @@ export type ListAgentsData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
     };
@@ -5082,7 +5076,7 @@ export type ListApplicationsData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
     };
@@ -5481,9 +5475,13 @@ export type ListDrivesData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
+        /**
+         * Filter drives by external ID. When set, only drives matching this caller-owned identifier are returned.
+         */
+        externalId?: string;
     };
     url: '/drives';
 };
@@ -5653,6 +5651,46 @@ export type CreateDriveAccessTokenResponses = {
 };
 
 export type CreateDriveAccessTokenResponse = CreateDriveAccessTokenResponses[keyof CreateDriveAccessTokenResponses];
+
+export type GetDriveByExternalIdData = {
+    body?: never;
+    path: {
+        /**
+         * Caller-owned external identifier for the drive
+         */
+        externalId: string;
+    };
+    query?: never;
+    url: '/drives/by-external-id/{externalId}';
+};
+
+export type GetDriveByExternalIdErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden - Insufficient permissions to view drives
+     */
+    403: unknown;
+    /**
+     * Drive not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetDriveByExternalIdResponses = {
+    /**
+     * successful operation
+     */
+    200: Drive;
+};
+
+export type GetDriveByExternalIdResponse = GetDriveByExternalIdResponses[keyof GetDriveByExternalIdResponses];
 
 export type GetDriveJwksData = {
     body?: never;
@@ -5834,7 +5872,7 @@ export type ListFunctionsData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
     };
@@ -6695,7 +6733,7 @@ export type ListJobsData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
     };
@@ -7091,7 +7129,7 @@ export type ListModelsData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
     };
@@ -7435,7 +7473,7 @@ export type ListPoliciesData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
     };
@@ -7613,7 +7651,7 @@ export type ListSandboxesData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
         /**
@@ -8830,9 +8868,13 @@ export type ListVolumesData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
+        /**
+         * Filter volumes by external ID. When set, only volumes matching this caller-owned identifier are returned.
+         */
+        externalId?: string;
     };
     url: '/volumes';
 };
@@ -9012,6 +9054,48 @@ export type UpdateVolumeResponses = {
 };
 
 export type UpdateVolumeResponse = UpdateVolumeResponses[keyof UpdateVolumeResponses];
+
+export type GetVolumeByExternalIdData = {
+    body?: never;
+    path: {
+        /**
+         * Caller-owned external identifier for the volume
+         */
+        externalId: string;
+    };
+    query?: never;
+    url: '/volumes/by-external-id/{externalId}';
+};
+
+export type GetVolumeByExternalIdErrors = {
+    /**
+     * Unauthorized - Invalid or missing authentication credentials
+     */
+    401: _Error;
+    /**
+     * Forbidden - Insufficient permissions to view volumes
+     */
+    403: _Error;
+    /**
+     * Not found - No active volume with this external ID
+     */
+    404: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type GetVolumeByExternalIdError = GetVolumeByExternalIdErrors[keyof GetVolumeByExternalIdErrors];
+
+export type GetVolumeByExternalIdResponses = {
+    /**
+     * successful operation
+     */
+    200: Volume;
+};
+
+export type GetVolumeByExternalIdResponse = GetVolumeByExternalIdResponses[keyof GetVolumeByExternalIdResponses];
 
 export type ListVpcsData = {
     body?: never;

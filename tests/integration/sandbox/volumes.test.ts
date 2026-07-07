@@ -125,6 +125,50 @@ describe('Sandbox Volume Operations', () => {
       expect(volume.name).toBe(name)
     })
 
+    it('gets and lists volumes by externalId', async () => {
+      const name = uniqueName("volume-ext-id")
+      const externalId = `volume-ext-${Date.now()}`
+
+      await VolumeInstance.create({
+        name,
+        externalId,
+        size: 1024,
+        region: defaultRegion,
+        labels: defaultLabels,
+      })
+      createdVolumes.push(name)
+
+      const volume = await VolumeInstance.getByExternalId(externalId)
+      expect(volume.name).toBe(name)
+      expect(volume.metadata.externalId).toBe(externalId)
+
+      const volumes = await VolumeInstance.list({ externalId })
+      const found = volumes.data.find(v => v.name === name)
+      expect(found).toBeDefined()
+      expect(found!.metadata.externalId).toBe(externalId)
+    })
+
+    it('updates a volume externalId', async () => {
+      const name = uniqueName("volume-ext-update")
+      const externalId1 = `volume-upd1-${Date.now()}`
+      const externalId2 = `volume-upd2-${Date.now()}`
+
+      const volume = await VolumeInstance.create({
+        name,
+        externalId: externalId1,
+        size: 1024,
+        region: defaultRegion,
+        labels: defaultLabels,
+      })
+      createdVolumes.push(name)
+
+      await volume.update({ externalId: externalId2 })
+
+      const updated = await VolumeInstance.getByExternalId(externalId2)
+      expect(updated.name).toBe(name)
+      expect(updated.metadata.externalId).toBe(externalId2)
+    })
+
     it('lists volumes', async () => {
       const name = uniqueName("volume-list")
       await VolumeInstance.create({
