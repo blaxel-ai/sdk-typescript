@@ -1,9 +1,9 @@
 import { SandboxInstance } from "@blaxel/core"
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { defaultLabels, defaultRegion, uniqueName } from '../helpers.js'
+import { defaultLabels, defaultRegion, uniqueName, isUsingMk3_1 } from '../helpers.js'
 import { createEchoServerSandbox, lowercaseKeys, parseJsonOutput, proxyCleanup } from './helpers.js'
 
-describe('proxy e2e with Python requests (py-app image)', () => {
+describe.runIf(isUsingMk3_1())('proxy e2e with Python requests (py-app image)', () => {
   const createdSandboxes: string[] = []
   afterAll(proxyCleanup(createdSandboxes))
 

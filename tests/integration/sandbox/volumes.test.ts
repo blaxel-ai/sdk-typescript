@@ -1,8 +1,8 @@
 import { SandboxInstance, VolumeInstance } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
-import { defaultImage, defaultLabels, defaultRegion, sleep, uniqueName, waitForSandboxDeletion, waitForVolumeDeletion } from './helpers.js'
+import { defaultImage, defaultLabels, defaultRegion, sleep, uniqueName, waitForSandboxDeletion, waitForVolumeDeletion, isUsingMk3_1 } from './helpers.js'
 
-describe('Sandbox Volume Operations', () => {
+describe.runIf(isUsingMk3_1())('Sandbox Volume Operations', () => {
   const createdSandboxes: string[] = []
   const createdVolumes: string[] = []
 
@@ -31,7 +31,7 @@ describe('Sandbox Volume Operations', () => {
     )
   })
 
-  describe('VolumeInstance CRUD', () => {
+  describe.runIf(isUsingMk3_1())('VolumeInstance CRUD', () => {
     it('creates a volume', async () => {
       const name = uniqueName("volume")
       const volume = await VolumeInstance.create({
@@ -192,7 +192,7 @@ describe('Sandbox Volume Operations', () => {
     })
   })
 
-  describe('mounting volumes to sandboxes', () => {
+  describe.runIf(isUsingMk3_1())('mounting volumes to sandboxes', () => {
     it('mounts a volume to a sandbox', async () => {
       const volumeName = uniqueName("mount-vol")
       const sandboxName = uniqueName("mount-sandbox")
@@ -291,7 +291,7 @@ describe('Sandbox Volume Operations', () => {
     // })
   })
 
-  describe('volume resize', () => {
+  describe.runIf(isUsingMk3_1())('volume resize', () => {
     it('resizes volume and preserves data', { timeout: 600000 }, async () => {
       const volumeName = uniqueName("resize-vol")
       const sandbox1Name = uniqueName("resize-sandbox-1")
@@ -441,7 +441,7 @@ describe('Sandbox Volume Operations', () => {
     })
   })
 
-  describe('volume persistence', () => {
+  describe.runIf(isUsingMk3_1())('volume persistence', () => {
     it('data persists across sandbox recreations', async () => {
       const volumeName = uniqueName("persist-vol")
       const fileContent = "persistent data " + Date.now()

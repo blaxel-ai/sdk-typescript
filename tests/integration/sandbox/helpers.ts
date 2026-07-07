@@ -36,6 +36,16 @@ export function isSlowTestEnabled(flag: string): boolean {
 }
 
 /**
+ * Whether the current test runtime should run mk-3.1-only feature tests.
+ *
+ * BL_RUNTIME=mk-3 means the older runtime is in use, where mk-3.1-only
+ * features such as drives, firewall, and volumes are not expected to work.
+ */
+export function isUsingMk3_1(): boolean {
+  return process.env.BL_RUNTIME?.trim().toLowerCase() !== "mk-3"
+}
+
+/**
  * Waits for a sandbox to be deployed by polling until status is DEPLOYED
  * @param sandboxName The name of the sandbox to wait for
  * @param maxAttempts Maximum number of attempts to wait (default: 30 seconds)

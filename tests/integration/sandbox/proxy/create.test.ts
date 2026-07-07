@@ -1,9 +1,9 @@
 import { SandboxInstance } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
-import { defaultImage, defaultLabels, defaultRegion, uniqueName } from '../helpers.js'
+import { defaultImage, defaultLabels, defaultRegion, uniqueName, isUsingMk3_1 } from '../helpers.js'
 import { proxyCleanup } from './helpers.js'
 
-describe('create with proxy', () => {
+describe.runIf(isUsingMk3_1())('create with proxy', () => {
   const createdSandboxes: string[] = []
   afterAll(proxyCleanup(createdSandboxes))
 

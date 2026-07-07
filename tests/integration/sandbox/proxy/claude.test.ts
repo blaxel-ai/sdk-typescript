@@ -1,9 +1,9 @@
 import { SandboxInstance } from "@blaxel/core"
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { defaultImage, defaultLabels, defaultRegion, uniqueName } from '../helpers.js'
+import { defaultImage, defaultLabels, defaultRegion, uniqueName, isUsingMk3_1 } from '../helpers.js'
 import { createEchoServerSandbox, proxyCleanup } from './helpers.js'
 
-describe('proxy e2e with Claude Code agent', () => {
+describe.runIf(isUsingMk3_1())('proxy e2e with Claude Code agent', () => {
   if (!process.env.ANTHROPIC_API_KEY) {
     it.skip('requires ANTHROPIC_API_KEY', () => {})
     return

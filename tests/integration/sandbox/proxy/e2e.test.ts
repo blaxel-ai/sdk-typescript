@@ -1,6 +1,6 @@
 import { SandboxInstance } from "@blaxel/core"
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { defaultImage, defaultLabels, defaultRegion, uniqueName } from '../helpers.js'
+import { defaultImage, defaultLabels, defaultRegion, uniqueName, isUsingMk3_1 } from '../helpers.js'
 import { createEchoServerSandbox, createReadyProxySandbox, execProxyCommandWithRetry, lowercaseKeys, parseJsonObjectOutput, proxyCleanup } from './helpers.js'
 
 type HttpBinResponse = {
@@ -8,7 +8,7 @@ type HttpBinResponse = {
   json: Record<string, unknown>
 }
 
-describe('proxy end-to-end functionality', () => {
+describe.runIf(isUsingMk3_1())('proxy end-to-end functionality', () => {
   const createdSandboxes: string[] = []
   afterAll(proxyCleanup(createdSandboxes))
 

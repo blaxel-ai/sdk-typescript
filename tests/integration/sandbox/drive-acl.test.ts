@@ -1,12 +1,12 @@
 import { DriveInstance, SandboxInstance } from "@blaxel/core"
 import type { DrivePermission } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
-import { defaultImage, defaultLabels, sleep, uniqueName, waitForSandboxDeletion } from './helpers.js'
+import { defaultImage, defaultLabels, sleep, uniqueName, waitForSandboxDeletion, isUsingMk3_1 } from './helpers.js'
 
 const defaultRegion = process.env.BL_DRIVE_REGION || (process.env.BL_ENV !== 'dev' ? 'us-was-1' : 'eu-dub-1')
 const MOUNT_SETTLE_MS = 3_000
 
-describe('Drive ACL Permissions', () => {
+describe.runIf(isUsingMk3_1())('Drive ACL Permissions', () => {
   const createdSandboxes: string[] = []
   const createdDrives: string[] = []
 
@@ -33,7 +33,7 @@ describe('Drive ACL Permissions', () => {
     )
   })
 
-  describe('Drive creation with permissions', () => {
+  describe.runIf(isUsingMk3_1())('Drive creation with permissions', () => {
     it('creates a drive with permissions', async () => {
       const name = uniqueName("acl-create")
       const permissions: DrivePermission[] = [
@@ -121,7 +121,7 @@ describe('Drive ACL Permissions', () => {
     })
   })
 
-  describe('Drive permission updates', () => {
+  describe.runIf(isUsingMk3_1())('Drive permission updates', () => {
     it('updates permissions on an existing drive', async () => {
       const name = uniqueName("acl-upd")
 
@@ -168,7 +168,7 @@ describe('Drive ACL Permissions', () => {
     })
   })
 
-  describe('Label-based access control', () => {
+  describe.runIf(isUsingMk3_1())('Label-based access control', () => {
     it('allows matching sandbox to mount and write', async () => {
       const driveName = uniqueName("acl-allow")
       const sandboxName = uniqueName("acl-allow-sbx")

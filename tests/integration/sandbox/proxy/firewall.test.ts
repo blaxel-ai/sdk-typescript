@@ -1,13 +1,13 @@
 import { SandboxInstance } from "@blaxel/core"
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { defaultImage, defaultLabels, defaultRegion, uniqueName } from '../helpers.js'
+import { defaultImage, defaultLabels, defaultRegion, uniqueName, isUsingMk3_1 } from '../helpers.js'
 import { createEchoServerSandbox, createReadyProxySandbox, execProxyCommandWithRetry, lowercaseKeys, parseJsonObjectOutput, proxyCleanup } from './helpers.js'
 
 type HttpBinResponse = {
   headers: Record<string, string>
 }
 
-describe('firewall e2e (allowedDomains / forbiddenDomains)', () => {
+describe.runIf(isUsingMk3_1())('firewall e2e (allowedDomains / forbiddenDomains)', () => {
   const createdSandboxes: string[] = []
   afterAll(proxyCleanup(createdSandboxes))
 
@@ -25,7 +25,7 @@ describe('firewall e2e (allowedDomains / forbiddenDomains)', () => {
 
   let fwSandbox: Awaited<ReturnType<typeof SandboxInstance.create>>
 
-  describe('allowedDomains (allowlist)', () => {
+  describe.runIf(isUsingMk3_1())('allowedDomains (allowlist)', () => {
     beforeAll(async () => {
       fwSandbox = await createReadyProxySandbox(
         async () => {
@@ -53,7 +53,7 @@ describe('firewall e2e (allowedDomains / forbiddenDomains)', () => {
     }, 60_000)
   })
 
-  describe('no proxy bypass (firewall ruleset: proxy)', () => {
+  describe.runIf(isUsingMk3_1())('no proxy bypass (firewall ruleset: proxy)', () => {
     let bypassSandbox: Awaited<ReturnType<typeof SandboxInstance.create>>
 
     beforeAll(async () => {
@@ -99,7 +99,7 @@ describe('firewall e2e (allowedDomains / forbiddenDomains)', () => {
     }, 60_000)
   })
 
-  describe('forbiddenDomains (denylist)', () => {
+  describe.runIf(isUsingMk3_1())('forbiddenDomains (denylist)', () => {
     let denySandbox: Awaited<ReturnType<typeof SandboxInstance.create>>
 
     beforeAll(async () => {
@@ -129,7 +129,7 @@ describe('firewall e2e (allowedDomains / forbiddenDomains)', () => {
     }, 60_000)
   })
 
-  describe('allowedDomains + forbiddenDomains combined', () => {
+  describe.runIf(isUsingMk3_1())('allowedDomains + forbiddenDomains combined', () => {
     let comboSandbox: Awaited<ReturnType<typeof SandboxInstance.create>>
 
     beforeAll(async () => {
@@ -154,7 +154,7 @@ describe('firewall e2e (allowedDomains / forbiddenDomains)', () => {
     }, 60_000)
   })
 
-  describe('allowedDomains with proxy routing', () => {
+  describe.runIf(isUsingMk3_1())('allowedDomains with proxy routing', () => {
     let proxyFwSandbox: Awaited<ReturnType<typeof SandboxInstance.create>>
 
     beforeAll(async () => {
