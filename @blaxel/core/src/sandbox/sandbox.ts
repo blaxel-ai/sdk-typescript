@@ -384,6 +384,12 @@ export class SandboxInstance {
   static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration) {
     const ATTEMPTS = 3;
     let lastStatus = "unknown";
+    // The 'vanished' window (create 409s while get 404s) is driven by the same
+    // transient causes as 'dying': an in-flight delete finishing, or a
+    // concurrent create whose row is not readable yet. Give it the same time
+    // budget as waitWhileSandboxDying instead of burning the attempt budget
+    // 500ms apart (~1s total), which threw on deletes taking >1s (ENG-3667).
+    const vanishedDeadline = Date.now() + TRANSIENT_STATUS_MAX_WAIT_MS;
     for (let i = 0; i < ATTEMPTS; ++i) {
       const finalAttempt = i === ATTEMPTS - 1;
       try {
@@ -395,16 +401,26 @@ export class SandboxInstance {
             throw new Error("Sandbox name is required");
           }
 
+          // The controlplane tags the creation-lock 409 with
+          // reason=CREATION_IN_PROGRESS when the conflict comes from a
+          // concurrent create still in flight (ENG-3776). The field is absent
+          // on older controlplanes and on real row conflicts, so it only
+          // sharpens the give-up error; the polling behavior is the same.
+          const creationInProgress = (e as { reason?: unknown }).reason === "CREATION_IN_PROGRESS";
+
           // Get the existing sandbox to check its status
           let sandboxInstance: SandboxInstance;
           try {
             sandboxInstance = await this.get(name);
           } catch (getError) {
             if (isSandboxNotFound(getError)) {
-              // The record vanished between the create conflict and this status check
-              // (its deletion just finished); give the control plane a beat and retry.
-              lastStatus = "vanished";
-              if (!finalAttempt) {
+              // The record vanished between the create conflict and this status check.
+              lastStatus = creationInProgress ? "creation in progress" : "vanished";
+              if (Date.now() < vanishedDeadline) {
+                // Inside the transient window: poll without consuming attempts.
+                await new Promise((resolve) => setTimeout(resolve, TRANSIENT_STATUS_POLL_MS));
+                --i;
+              } else if (!finalAttempt) {
                 await new Promise((resolve) => setTimeout(resolve, TRANSIENT_STATUS_POLL_MS));
               }
               continue;
