@@ -112,8 +112,9 @@ const DEFAULT_MAX_DELAY_MS = 2000;
 // single wait never blocks unreasonably long. Exponential (rather than linear)
 // gives a later attempt room to span a multi-second sandbox cold-start/standby
 // wake, which is the window a first-call reset falls into, while early attempts
-// stay fast for the common quick-reset case.
-function backoffDelayMs(attempt: number, baseDelayMs: number, maxDelayMs: number): number {
+// stay fast for the common quick-reset case. Exported so other polling paths
+// (e.g. the create-504 wait in sandbox.ts) share the same delay curve.
+export function backoffDelayMs(attempt: number, baseDelayMs: number, maxDelayMs: number): number {
   const exponential = baseDelayMs * Math.pow(2, attempt - 1);
   const capped = Math.min(exponential, maxDelayMs);
   const jitter = Math.floor(Math.random() * baseDelayMs);
