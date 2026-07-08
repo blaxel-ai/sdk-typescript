@@ -16,8 +16,9 @@ import { SandboxInstance } from "@blaxel/core"
 import { afterAll, describe, expect, it } from "vitest"
 import { defaultImage, defaultLabels, defaultRegion, uniqueName } from "./helpers.js"
 
-// Defaults keep the test under the 1-minute budget; crank via env to stress.
-const ROUNDS = parseInt(process.env.ENG3667_ROUNDS || "5", 10)
+// Defaults keep each test under the 1-minute budget (observed ~4s/round in
+// CI); crank via env to stress.
+const ROUNDS = parseInt(process.env.ENG3667_ROUNDS || "3", 10)
 const CONCURRENCY = parseInt(process.env.ENG3667_CONCURRENCY || "10", 10)
 
 const errMessage = (reason: unknown) =>
@@ -69,7 +70,7 @@ describe("ENG-3667: transient createIfNotExists failures (real API)", () => {
     // Any rejection here (typically "... Last conflicting status: vanished.")
     // is the production transient failure this test reproduces.
     expect(failures, failures.join("\n")).toEqual([])
-  }, 120_000)
+  }, 60_000)
 
   it("createIfNotExists racing an in-flight delete of the same name succeeds", async () => {
     // The 'vanished' comment in sandbox.ts:404 names this exact window: create
@@ -112,7 +113,7 @@ describe("ENG-3667: transient createIfNotExists failures (real API)", () => {
     }
 
     expect(failures, failures.join("\n")).toEqual([])
-  }, 180_000)
+  }, 60_000)
 
   it("process calls immediately after create never surface WORKLOAD_UNAVAILABLE", async () => {
     const name = uniqueName("eng3667-wu")
