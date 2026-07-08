@@ -14,7 +14,7 @@
 // regression tests.
 import { SandboxInstance } from "@blaxel/core"
 import { afterAll, describe, expect, it } from "vitest"
-import { defaultImage, defaultLabels, defaultRegion, uniqueName } from "../sandbox/helpers.js"
+import { defaultImage, defaultLabels, defaultRegion, uniqueName } from "./helpers.js"
 
 // Defaults keep the test under the 1-minute budget; crank via env to stress.
 const ROUNDS = parseInt(process.env.ENG3667_ROUNDS || "5", 10)
