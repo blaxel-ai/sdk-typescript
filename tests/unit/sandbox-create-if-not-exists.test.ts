@@ -125,6 +125,97 @@ describe("SandboxInstance.createIfNotExists retry handling", () => {
     expect(create).toHaveBeenCalledTimes(2);
   });
 
+  it("waits out a persistent 'vanished' window instead of giving up after ~1s (ENG-3667)", async () => {
+    vi.useFakeTimers();
+    try {
+      // An in-flight delete rejects creates (409) for 5s while the record is
+      // already unreadable (get 404s). Pre-fix this threw 'vanished' after ~1s.
+      const replacement = sandbox("vanished-slow", "DEPLOYED");
+      const deleteFinishesAtMs = 5_000;
+      const start = Date.now();
+      const create = vi.spyOn(SandboxInstance, "create").mockImplementation(() => {
+        if (Date.now() - start < deleteFinishesAtMs) return Promise.reject(conflict());
+        return Promise.resolve(replacement);
+      });
+      vi.spyOn(SandboxInstance, "get").mockRejectedValue(
+        Object.assign(new Error("Sandbox not found"), { code: 404 }),
+      );
+
+      const promise = SandboxInstance.createIfNotExists({ name: "vanished-slow" });
+      const assertion = expect(promise).resolves.toBe(replacement);
+      await vi.advanceTimersByTimeAsync(deleteFinishesAtMs + 1_000);
+      await assertion;
+      // It kept retrying through the window rather than stopping at 3 calls.
+      expect(create.mock.calls.length).toBeGreaterThan(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("gives up on a 'vanished' record after the bounded window plus the attempt budget", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(SandboxInstance, "create").mockRejectedValue(conflict());
+      vi.spyOn(SandboxInstance, "get").mockRejectedValue(
+        Object.assign(new Error("Sandbox not found"), { code: 404 }),
+      );
+
+      const promise = SandboxInstance.createIfNotExists({ name: "never-back" });
+      const assertion = expect(promise).rejects.toThrow(
+        "Unable to create sandbox after 3 attempts. Last conflicting status: vanished.",
+      );
+      // 30s transient window + the remaining attempts' 500ms waits
+      await vi.advanceTimersByTimeAsync(32_000);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("converges when the 409 carries reason=CREATION_IN_PROGRESS (ENG-3776)", async () => {
+    const winner = sandbox("locked", "DEPLOYED");
+    const create = vi.spyOn(SandboxInstance, "create");
+    create.mockRejectedValueOnce(
+      Object.assign(new Error("being created"), {
+        code: "SANDBOX_ALREADY_EXISTS",
+        status_code: 409,
+        reason: "CREATION_IN_PROGRESS",
+      }),
+    );
+    // Row persisted while the lock is still held: get returns the winner.
+    vi.spyOn(SandboxInstance, "get").mockResolvedValueOnce(winner);
+
+    await expect(
+      SandboxInstance.createIfNotExists({ name: "locked" }),
+    ).resolves.toBe(winner);
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports 'creation in progress' instead of 'vanished' when the lock 409 never resolves", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(SandboxInstance, "create").mockRejectedValue(
+        Object.assign(new Error("being created"), {
+          code: "SANDBOX_ALREADY_EXISTS",
+          status_code: 409,
+          reason: "CREATION_IN_PROGRESS",
+        }),
+      );
+      vi.spyOn(SandboxInstance, "get").mockRejectedValue(
+        Object.assign(new Error("Sandbox not found"), { code: 404 }),
+      );
+
+      const promise = SandboxInstance.createIfNotExists({ name: "locked-forever" });
+      const assertion = expect(promise).rejects.toThrow(
+        "Unable to create sandbox after 3 attempts. Last conflicting status: creation in progress.",
+      );
+      await vi.advanceTimersByTimeAsync(32_000);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("propagates non-404 errors from the status check", async () => {
     vi.spyOn(SandboxInstance, "create").mockRejectedValueOnce(conflict());
     vi.spyOn(SandboxInstance, "get").mockRejectedValue(
