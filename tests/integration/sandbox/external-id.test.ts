@@ -104,17 +104,17 @@ describe('Sandbox externalId', () => {
       await SandboxInstance.create({ name, externalId, region: defaultRegion, labels: defaultLabels, image: defaultImage })
       createdSandboxes.push(name)
 
-      const page = await SandboxInstance.list({ externalId })
-      expect(page.data.length).toBeGreaterThanOrEqual(1)
+      const instances = await SandboxInstance.list({ externalId })
+      expect(instances.data.length).toBeGreaterThanOrEqual(1)
 
-      const found = page.data.find((s) => s.metadata.name === name)
+      const found = instances.data.find((s) => s.metadata.name === name)
       expect(found).toBeDefined()
       expect(found!.metadata.externalId).toBe(externalId)
     })
 
     it('returns empty list for non-existent externalId', async () => {
-      const page = await SandboxInstance.list({ externalId: `nonexistent-${Date.now()}` })
-      expect(page.data.length).toBe(0)
+      const instances = await SandboxInstance.list({ externalId: `nonexistent-${Date.now()}` })
+      expect(instances.data.length).toBe(0)
     })
 
     it('hides terminated sandboxes by default', async () => {
@@ -127,8 +127,8 @@ describe('Sandbox externalId', () => {
       await SandboxInstance.delete(name)
       await waitForSandboxDeletion(name)
 
-      const page = await SandboxInstance.list({ externalId })
-      const found = page.data.find((s) => s.metadata.name === name)
+      const instances = await SandboxInstance.list({ externalId })
+      const found = instances.data.find((s) => s.metadata.name === name)
       expect(found).toBeUndefined()
     })
   })
