@@ -2,7 +2,7 @@ import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { SandboxInstance } from "@blaxel/core"
 import { uniqueName, defaultImage, defaultLabels, defaultRegion, sleep } from './helpers.js'
 
-const SKIP_KEEP_ALIVE = true
+const SKIP_KEEP_ALIVE = false
 
 describe('Sandbox Process Operations', () => {
   let sandbox: SandboxInstance
@@ -535,6 +535,26 @@ describe('Sandbox Process Operations', () => {
       expect(result.status).toBe("completed")
       // Process should complete normally without keepAlive
       expect(result.logs).toContain("no keepalive")
+    })
+
+    it('keeps running server-side without any sandbox calls in between', async () => {
+      await sandbox.process.exec({
+        name: "keepalive-no-poll",
+        command: "sleep 120 && echo 'keepalive done'",
+        keepAlive: true,
+        waitForCompletion: false
+      })
+
+      // Do NOT call the sandbox at all during this window: keepAlive must
+      // keep the process alive server-side without relying on client polling.
+      await sleep(125000)
+
+      const process = await sandbox.process.get("keepalive-no-poll")
+      expect(process.status).toBe("completed")
+      expect(process.exitCode).toBe(0)
+
+      const logs = await sandbox.process.logs("keepalive-no-poll", "stdout")
+      expect(logs).toContain("keepalive done")
     })
   })
 })
