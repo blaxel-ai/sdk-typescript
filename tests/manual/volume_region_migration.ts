@@ -161,6 +161,9 @@ async function main() {
 
   let sourceVolume: string
   let sourceSizeMb: number
+  // A volume can only attach to a sandbox in its own region, so the source
+  // sandbox must be created in the volume's actual region.
+  let sourceRegion = SOURCE_REGION
 
   if (SOURCE_VOLUME) {
     sourceVolume = SOURCE_VOLUME
@@ -168,6 +171,7 @@ async function main() {
     sourceSizeMb = vol.size ?? 1024
     if (vol.region && vol.region !== SOURCE_REGION) {
       log(`note: source volume region is ${vol.region}; using it instead of ${SOURCE_REGION}`)
+      sourceRegion = vol.region
     }
   } else {
     const demo = await seedDemoSourceVolume()
@@ -182,13 +186,13 @@ async function main() {
 
   try {
     // Volumes can only be attached at sandbox-create time, in their own region.
-    log(`creating source sandbox (${SOURCE_REGION}) with ${sourceVolume} mounted read-only`)
+    log(`creating source sandbox (${sourceRegion}) with ${sourceVolume} mounted read-only`)
     log(`creating dest sandbox   (${DEST_REGION}) with ${DEST_VOLUME} mounted read-write`)
     const [sourceSbx, destSbx] = await Promise.all([
       SandboxInstance.create({
         name: sourceName,
         image: IMAGE,
-        region: SOURCE_REGION,
+        region: sourceRegion,
         labels: LABELS,
         volumes: [{ name: sourceVolume, mountPath: MOUNT_PATH, readOnly: true }],
       }),
