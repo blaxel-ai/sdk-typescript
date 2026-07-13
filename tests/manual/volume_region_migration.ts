@@ -100,14 +100,13 @@ async function fingerprint(sbx: SandboxInstance, dir: string): Promise<string> {
 }
 
 async function ensureDestinationVolume(sourceSizeMb: number): Promise<void> {
-  const existing = await VolumeInstance.list().then(
-    (page) => page.data.find((v) => v.metadata?.name === DEST_VOLUME),
-    () => undefined,
-  )
+  // Look the volume up by name directly; VolumeInstance.list() is paginated and
+  // would miss volumes beyond the first page. A 404 means it doesn't exist yet.
+  const existing = await VolumeInstance.get(DEST_VOLUME).catch(() => undefined)
   if (existing) {
-    if (existing.spec?.region && existing.spec.region !== DEST_REGION) {
+    if (existing.region && existing.region !== DEST_REGION) {
       throw new Error(
-        `Destination volume ${DEST_VOLUME} already exists in region ${existing.spec.region}, not ${DEST_REGION}`,
+        `Destination volume ${DEST_VOLUME} already exists in region ${existing.region}, not ${DEST_REGION}`,
       )
     }
     log(`destination volume ${DEST_VOLUME} already exists in ${DEST_REGION}`)
@@ -240,7 +239,7 @@ async function main() {
 
     const fileCount = sourceFp ? sourceFp.split("\n").length : 0
     log(`verification OK — ${fileCount} file(s) match`)
-    log(`migrated ${sourceVolume} (${SOURCE_REGION}) -> ${DEST_VOLUME} (${DEST_REGION}) in ${((Date.now() - t0) / 1000).toFixed(1)}s`)
+    log(`migrated ${sourceVolume} (${sourceRegion}) -> ${DEST_VOLUME} (${DEST_REGION}) in ${((Date.now() - t0) / 1000).toFixed(1)}s`)
   } finally {
     rmSync(localDir, { recursive: true, force: true })
     if (KEEP_RESOURCES) {
