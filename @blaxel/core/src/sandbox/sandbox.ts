@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from "uuid";
 import type http2 from "http2";
 import { createSandbox, deleteSandbox, getSandbox, getSandboxByExternalId, listSandboxes, type ListSandboxesData, type SandboxLifecycle, type Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
+import { backoffDelayMs } from "../common/transient-retry.js";
 import { createPaginatedList } from "../common/pagination.js";
 import { settings } from "../common/settings.js";
 import { SandboxCodegen } from "./codegen/index.js";
@@ -36,6 +37,16 @@ const TRANSIENT_SANDBOX_STATUSES = new Set([
 ]);
 const TRANSIENT_STATUS_MAX_WAIT_MS = 30_000;
 const TRANSIENT_STATUS_POLL_MS = 500;
+
+// A create that outlives the edge's 60s origin-read timeout gets a 504 from
+// CloudFront while the control plane keeps deploying the sandbox for up to
+// 300s (ENG-3662 timeout ladder inversion). The 504 body is edge HTML with no
+// usable payload, so the record is polled instead until it settles.
+// Polling backs off exponentially (1s, 2s, 4s, then 5s + jitter) so a fleet of
+// clients stuck in this window does not hammer the control plane every second.
+const CREATE_GATEWAY_TIMEOUT_MAX_WAIT_MS = 120_000;
+const CREATE_GATEWAY_TIMEOUT_BASE_POLL_MS = 1_000;
+const CREATE_GATEWAY_TIMEOUT_MAX_POLL_MS = 5_000;
 
 const isSandboxNotFound = (e: unknown): boolean => {
   if (typeof e !== "object" || e === null) return false;
@@ -227,14 +238,24 @@ export class SandboxInstance {
       import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.warm(edgeDomain)).catch(() => { });
     }
 
-    const [{ data }, h2Session] = await Promise.all([
+    const [createResult, h2Session] = await Promise.all([
       createSandbox({
         body: sandbox,
         query: createIfNotExist ? { createIfNotExist } : undefined,
-        throwOnError: true,
       }),
       edgeDomain && !settings.disableH2 ? import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.get(edgeDomain)).catch(() => null) : Promise.resolve(null),
     ]);
+    let data = createResult.data;
+    if (createResult.error !== undefined) {
+      const name = sandbox.metadata.name;
+      if (createResult.response.status === 504 && name) {
+        // The edge gave up on the connection but the creation is still running
+        // server-side; wait for the record instead of failing (ENG-3662).
+        data = await SandboxInstance.waitAfterCreateGatewayTimeout(name, createResult.error);
+      } else {
+        throw createResult.error;
+      }
+    }
     // Inject the H2 session into the config so subsystems can use it
     const config = { ...data, h2Session, h2Domain: settings.disableH2 ? null : edgeDomain } as SandboxConfiguration;
     const instance = new SandboxInstance(config);
@@ -384,6 +405,12 @@ export class SandboxInstance {
   static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration) {
     const ATTEMPTS = 3;
     let lastStatus = "unknown";
+    // The 'vanished' window (create 409s while get 404s) is driven by the same
+    // transient causes as 'dying': an in-flight delete finishing, or a
+    // concurrent create whose row is not readable yet. Give it the same time
+    // budget as waitWhileSandboxDying instead of burning the attempt budget
+    // 500ms apart (~1s total), which threw on deletes taking >1s (ENG-3667).
+    const vanishedDeadline = Date.now() + TRANSIENT_STATUS_MAX_WAIT_MS;
     for (let i = 0; i < ATTEMPTS; ++i) {
       const finalAttempt = i === ATTEMPTS - 1;
       try {
@@ -395,16 +422,26 @@ export class SandboxInstance {
             throw new Error("Sandbox name is required");
           }
 
+          // The controlplane tags the creation-lock 409 with
+          // reason=CREATION_IN_PROGRESS when the conflict comes from a
+          // concurrent create still in flight (ENG-3776). The field is absent
+          // on older controlplanes and on real row conflicts, so it only
+          // sharpens the give-up error; the polling behavior is the same.
+          const creationInProgress = (e as { reason?: unknown }).reason === "CREATION_IN_PROGRESS";
+
           // Get the existing sandbox to check its status
           let sandboxInstance: SandboxInstance;
           try {
             sandboxInstance = await this.get(name);
           } catch (getError) {
             if (isSandboxNotFound(getError)) {
-              // The record vanished between the create conflict and this status check
-              // (its deletion just finished); give the control plane a beat and retry.
-              lastStatus = "vanished";
-              if (!finalAttempt) {
+              // The record vanished between the create conflict and this status check.
+              lastStatus = creationInProgress ? "creation in progress" : "vanished";
+              if (Date.now() < vanishedDeadline) {
+                // Inside the transient window: poll without consuming attempts.
+                await new Promise((resolve) => setTimeout(resolve, TRANSIENT_STATUS_POLL_MS));
+                --i;
+              } else if (!finalAttempt) {
                 await new Promise((resolve) => setTimeout(resolve, TRANSIENT_STATUS_POLL_MS));
               }
               continue;
@@ -432,6 +469,35 @@ export class SandboxInstance {
       }
     }
     throw new Error(`Unable to create sandbox after ${ATTEMPTS} attempts. Last conflicting status: ${lastStatus}.`);
+  }
+
+  // Poll the record after a create was cut by the edge with a 504 while the
+  // control plane is still deploying it. Resolves with the sandbox once it
+  // reaches DEPLOYED; throws on FAILED or once the wait budget is spent.
+  private static async waitAfterCreateGatewayTimeout(name: string, createError: unknown): Promise<SandboxModel> {
+    logger.debug(`Sandbox ${name} creation timed out at the edge (504); polling the record while it finishes deploying`);
+    const deadline = Date.now() + CREATE_GATEWAY_TIMEOUT_MAX_WAIT_MS;
+    let attempt = 0;
+    while (Date.now() < deadline) {
+      attempt++;
+      await new Promise((resolve) =>
+        setTimeout(resolve, backoffDelayMs(attempt, CREATE_GATEWAY_TIMEOUT_BASE_POLL_MS, CREATE_GATEWAY_TIMEOUT_MAX_POLL_MS)),
+      );
+      let current: SandboxModel;
+      try {
+        const { data } = await getSandbox({ path: { sandboxName: name }, throwOnError: true });
+        current = data;
+      } catch (e) {
+        // The record can lag behind the accepted create; keep waiting on 404.
+        if (isSandboxNotFound(e)) continue;
+        throw e;
+      }
+      if (current.status === "DEPLOYED") return current;
+      if (current.status === "FAILED") {
+        throw new Error(`Sandbox ${name} failed to deploy after the create timed out at the edge (504).`);
+      }
+    }
+    throw createError;
   }
 
   // Poll the record until an in-flight delete/deactivation settles (or the record
