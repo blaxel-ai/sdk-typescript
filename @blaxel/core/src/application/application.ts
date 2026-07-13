@@ -7,7 +7,7 @@ import {
   updateApplication,
   listApplicationRevisions,
 } from "../client/index.js";
-import type { Application as ApplicationModel, ApplicationSpec, RevisionMetadata } from "../client/index.js";
+import type { Application as ApplicationModel, ApplicationSpec, AppRevision, Env } from "../client/index.js";
 import { settings } from "../common/settings.js";
 
 export type ApplicationCreateConfiguration = {
@@ -18,7 +18,8 @@ export type ApplicationCreateConfiguration = {
   region?: string;
   image?: string;
   memory?: number;
-  envs?: Array<{ name: string; value?: string; secretName?: string }>;
+  port?: number;
+  envs?: Env[];
 };
 
 export class ApplicationInstance {
@@ -62,9 +63,10 @@ export class ApplicationInstance {
         spec: {
           enabled: cfg.enabled ?? true,
           region: cfg.region || settings.region,
-          revisions: cfg.image
-            ? [{ image: cfg.image, memory: cfg.memory, envs: cfg.envs }]
-            : undefined,
+          image: cfg.image,
+          memory: cfg.memory,
+          port: cfg.port,
+          envs: cfg.envs,
         },
       };
     }
@@ -138,14 +140,10 @@ export class ApplicationInstance {
       if (cfg.labels !== undefined) metadataUpdates.labels = cfg.labels;
       if (cfg.enabled !== undefined) specUpdates.enabled = cfg.enabled;
       if (cfg.region !== undefined) specUpdates.region = cfg.region;
-      if (cfg.image !== undefined || cfg.memory !== undefined || cfg.envs !== undefined) {
-        const existingRevision = existing.spec?.revisions?.[0];
-        specUpdates.revisions = [{
-          image: cfg.image ?? existingRevision?.image ?? "",
-          ...(cfg.memory !== undefined ? { memory: cfg.memory } : {}),
-          ...(cfg.envs !== undefined ? { envs: cfg.envs } : {}),
-        }];
-      }
+      if (cfg.image !== undefined) specUpdates.image = cfg.image;
+      if (cfg.memory !== undefined) specUpdates.memory = cfg.memory;
+      if (cfg.port !== undefined) specUpdates.port = cfg.port;
+      if (cfg.envs !== undefined) specUpdates.envs = cfg.envs;
 
       body = {
         metadata: {
@@ -172,7 +170,7 @@ export class ApplicationInstance {
     return await ApplicationInstance.update(this.metadata.name, updates);
   }
 
-  async listRevisions(): Promise<RevisionMetadata[]> {
+  async listRevisions(): Promise<AppRevision[]> {
     const { data } = await listApplicationRevisions({
       path: { applicationName: this.metadata.name },
       throwOnError: true,

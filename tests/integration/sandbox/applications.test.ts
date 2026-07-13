@@ -13,11 +13,9 @@
  */
 
 import { describe, it, expect, afterAll } from 'vitest'
-import { ApplicationInstance, ImageInstance, SandboxInstance, deleteApplication, getApplication, listApplications } from "@blaxel/core"
+import { ApplicationInstance, ImageInstance, SandboxInstance } from "@blaxel/core"
 import type { Application } from "@blaxel/core"
-import { defaultLabels, defaultRegion, uniqueName, sleep, waitForSandboxDeletion } from './helpers.js'
-
-const IMAGE_BUILD = process.env.IMAGE_BUILD === 'true'
+import { defaultLabels, defaultRegion, isSlowTestEnabled, uniqueName, sleep, waitForSandboxDeletion } from './helpers.js'
 
 /**
  * Wait for an application to reach a target status.
@@ -40,7 +38,7 @@ async function waitForApplicationStatus(
   return false
 }
 
-describe.skipIf(!IMAGE_BUILD)('Application Runtime', () => {
+describe.runIf(isSlowTestEnabled("IMAGE_BUILD"))('Application Runtime', () => {
   const createdSandboxes: string[] = []
   const createdApps: string[] = []
   let builtImageName: string
@@ -104,13 +102,15 @@ describe.skipIf(!IMAGE_BUILD)('Application Runtime', () => {
         name: appName,
         image: builtImageName,
         memory: 2048,
+        port: 8080,
         region: defaultRegion,
         labels: defaultLabels,
       })
 
       expect(app.name).toBe(appName)
-      expect(app.spec?.revisions?.[0]?.image).toBe(builtImageName)
-      expect(app.spec?.revisions?.[0]?.memory).toBe(2048)
+      expect(app.spec?.image).toBe(builtImageName)
+      expect(app.spec?.memory).toBe(2048)
+      expect(app.spec?.port).toBe(8080)
       expect(app.spec?.region).toBe(defaultRegion)
     })
 
@@ -139,7 +139,7 @@ describe.skipIf(!IMAGE_BUILD)('Application Runtime', () => {
         image: builtImageName,
       })
 
-      expect(updated.spec?.revisions?.[0]?.memory).toBe(4096)
+      expect(updated.spec?.memory).toBe(4096)
     })
 
     it('lists application revisions', async () => {
@@ -174,7 +174,7 @@ describe.skipIf(!IMAGE_BUILD)('Application Runtime', () => {
       })
 
       expect(app.name).toBe(appName)
-      expect(app.spec?.revisions?.[0]?.envs?.length).toBe(2)
+      expect(app.spec?.envs?.length).toBe(2)
     })
 
     it('creates an application using raw ApplicationModel', async () => {
@@ -190,10 +190,9 @@ describe.skipIf(!IMAGE_BUILD)('Application Runtime', () => {
         spec: {
           enabled: true,
           region: defaultRegion,
-          revisions: [{
-            image: builtImageName,
-            memory: 2048,
-          }],
+          image: builtImageName,
+          memory: 2048,
+          port: 8080,
         },
       } as Application)
 

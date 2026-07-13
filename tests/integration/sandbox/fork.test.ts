@@ -21,10 +21,7 @@ import {
   createSandboxSnapshot,
   listSandboxSnapshots,
 } from "@blaxel/core"
-import type { SandboxForkResponse } from "@blaxel/core"
-import { defaultLabels, defaultRegion, fetchWithRetry, uniqueName, sleep, waitForSandboxDeployed, waitForSandboxDeletion } from './helpers.js'
-
-const IMAGE_BUILD = process.env.IMAGE_BUILD === 'true'
+import { fetchWithRetry, isSlowTestEnabled, uniqueName, sleep, waitForSandboxDeployed } from './helpers.js'
 
 /**
  * Wait for an application to reach DEPLOYED status.
@@ -50,9 +47,29 @@ async function waitForApplicationDeployed(
   return false
 }
 
-describe.skipIf(!IMAGE_BUILD)('Sandbox Fork Operations', () => {
+async function waitForSnapshotReady(
+  sandboxName: string,
+  snapshotId: string,
+  maxAttempts = 60
+): Promise<boolean> {
+  for (let i = 0; i < maxAttempts; i++) {
+    const { data } = await listSandboxSnapshots({
+      path: { sandboxName },
+      throwOnError: true,
+    })
+    const snapshot = data.find((item) => item.id === snapshotId)
+    const status = snapshot?.status.toLowerCase()
+    if (status === "ready") return true
+    if (status === "failed") return false
+    await sleep(2000)
+  }
+  return false
+}
+
+describe.runIf(isSlowTestEnabled("IMAGE_BUILD"))('Sandbox Fork Operations', () => {
   let sourceSandbox: SandboxInstance
   let previewUrl: string
+  let snapshotId: string
   const sourceSandboxName = uniqueName("fork-src")
   const createdSandboxes: string[] = [sourceSandboxName]
   const createdApps: string[] = []
@@ -148,20 +165,22 @@ describe.skipIf(!IMAGE_BUILD)('Sandbox Fork Operations', () => {
       expect(data).toBeDefined()
       expect(data.id).toBeDefined()
       expect(data.sandboxName).toBe(sourceSandboxName)
-      console.log(`  Snapshot created: ${data.id}`)
+      snapshotId = data.id
+      expect(await waitForSnapshotReady(sourceSandboxName, snapshotId)).toBe(true)
+      console.log(`  Snapshot created: ${snapshotId}`)
     })
 
     it('lists snapshots for the source sandbox', async () => {
       const { data } = await listSandboxSnapshots({
         path: { sandboxName: sourceSandboxName },
         throwOnError: true,
-      }) as { data: Array<{ id: string; sandboxName: string; status: string }>, response: Response }
+      })
 
       expect(Array.isArray(data)).toBe(true)
       expect(data.length).toBeGreaterThan(0)
 
-      const snapshot = data[0]
-      expect(snapshot.sandboxName).toBe(sourceSandboxName)
+      const snapshot = data.find((item) => item.id === snapshotId)
+      expect(snapshot?.sandboxName).toBe(sourceSandboxName)
       console.log(`  Found ${data.length} snapshot(s)`)
     })
   })
@@ -177,15 +196,15 @@ describe.skipIf(!IMAGE_BUILD)('Sandbox Fork Operations', () => {
         body: {
           targetName: targetSandboxName,
           targetType: "sandbox",
+          snapshotId,
         },
         throwOnError: true,
       })
 
-      const forkResponse = data as SandboxForkResponse
-      expect(forkResponse.type).toBe("sandbox")
-      expect(forkResponse.name).toBe(targetSandboxName)
-      expect(forkResponse.snapshotId).toBeDefined()
-      console.log(`  Forked to sandbox: ${forkResponse.name} (snapshot: ${forkResponse.snapshotId})`)
+      expect(data.type).toBe("sandbox")
+      expect(data.name).toBe(targetSandboxName)
+      expect(data.snapshotId).toBe(snapshotId)
+      console.log(`  Forked to sandbox: ${data.name} (snapshot: ${data.snapshotId})`)
     })
 
     it('verifies the forked sandbox exists and deploys', async () => {
@@ -210,16 +229,16 @@ describe.skipIf(!IMAGE_BUILD)('Sandbox Fork Operations', () => {
         body: {
           targetName: targetAppName,
           targetType: "application",
+          snapshotId,
           port: 8080,
         },
         throwOnError: true,
       })
 
-      const forkResponse = data as SandboxForkResponse
-      expect(forkResponse.type).toBe("application")
-      expect(forkResponse.name).toBe(targetAppName)
-      expect(forkResponse.snapshotId).toBeDefined()
-      console.log(`  Forked to application: ${forkResponse.name} (snapshot: ${forkResponse.snapshotId})`)
+      expect(data.type).toBe("application")
+      expect(data.name).toBe(targetAppName)
+      expect(data.snapshotId).toBe(snapshotId)
+      console.log(`  Forked to application: ${data.name} (snapshot: ${data.snapshotId})`)
     })
 
     it('verifies the forked application exists and deploys', async () => {
@@ -233,8 +252,13 @@ describe.skipIf(!IMAGE_BUILD)('Sandbox Fork Operations', () => {
 
       // The forked app should have a snapshot reference
       const revision = app.spec?.revisions?.[0]
-      expect(revision?.snapshot).toBeDefined()
-      console.log(`  Application deployed with image: ${revision?.image}, snapshot: ${revision?.snapshot}`)
+      expect(revision?.snapshot).toBe(snapshotId)
+
+      expect(app.metadata.url).toBeDefined()
+      const response = await fetchWithRetry(app.metadata.url!, undefined, { retries: 15, delayMs: 2000 })
+      expect(response.status).toBe(200)
+      expect(await response.text()).toBe("hello-from-fork-source")
+      console.log(`  Application deployed and reachable at ${app.metadata.url}`)
     })
   })
 })

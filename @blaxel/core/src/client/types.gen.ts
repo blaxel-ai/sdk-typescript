@@ -259,6 +259,10 @@ export type AppUrls = Array<AppUrl>;
 export type Application = {
     events?: CoreEvents;
     metadata: Metadata;
+    /**
+     * Infrastructure generation this application is deployed on (mk3.0 or mk3.1). Read-only.
+     */
+    nodeGeneration?: string;
     spec: ApplicationSpec;
     /**
      * Application status computed from events
@@ -272,7 +276,28 @@ export type Application = {
 export type ApplicationWritable = {
     events?: CoreEventsWritable;
     metadata: MetadataWritable;
+    /**
+     * Infrastructure generation this application is deployed on (mk3.0 or mk3.1). Read-only.
+     */
+    nodeGeneration?: string;
     spec: ApplicationSpec;
+};
+
+/**
+ * Configuration for a single application extension. The fields used depend on the extension key; for ai.blaxel.experimental/bind-to-sandbox only "sandbox" is used.
+ */
+export type ApplicationExtension = {
+    /**
+     * Name of the sandbox this application binds to (used by the ai.blaxel.experimental/bind-to-sandbox extension).
+     */
+    sandbox?: string;
+};
+
+/**
+ * Map of experimental, opt-in application extensions keyed by fully-qualified extension name (e.g. "ai.blaxel.experimental/bind-to-sandbox").
+ */
+export type ApplicationExtensions = {
+    [key: string]: ApplicationExtension;
 };
 
 /**
@@ -306,9 +331,26 @@ export type ApplicationSpec = {
      */
     enabled?: boolean;
     /**
+     * Environment variables for the application
+     */
+    envs?: Array<Env>;
+    extensions?: ApplicationExtensions;
+    /**
+     * Container image for the application. The backend generates a revision from the spec-level compute (image, memory, envs, port) on every create/update — clients set the compute here, exactly like agents and functions, and never craft revisions by hand.
+     */
+    image?: string;
+    /**
+     * Memory allocation in megabytes for the application (default 2048). Determines CPU allocation (CPU = memory / 2048).
+     */
+    memory?: number;
+    /**
      * Port the application listens on (default 8080)
      */
     port?: number;
+    /**
+     * When true, the application proxies to an existing sandbox (the active revision image is the sandbox name) instead of building and deploying its own compute. Proxy applications have no deployment pipeline and are always reported as deployed. Deprecated — prefer the ai.blaxel.experimental/bind-to-sandbox extension.
+     */
+    proxy?: boolean;
     /**
      * Region where the application is deployed (e.g. us-pdx-1, eu-lon-1)
      */
@@ -321,6 +363,34 @@ export type ApplicationSpec = {
 export type Applications = Array<Application>;
 
 export type ApplicationsWritable = Array<ApplicationWritable>;
+
+/**
+ * Changelog entry shown in the controlplane UI.
+ */
+export type ChangelogEntry = {
+    /**
+     * Markdown body for the changelog entry.
+     */
+    content?: string;
+    /**
+     * Release date for the changelog entry in YYYY-MM-DD format.
+     */
+    date?: string;
+    /**
+     * Changelog entry title.
+     */
+    title?: string;
+};
+
+/**
+ * Latest changelog entries shown in the controlplane UI.
+ */
+export type ChangelogResponse = {
+    /**
+     * Latest changelog entries, newest first.
+     */
+    entries?: Array<ChangelogEntry>;
+};
 
 /**
  * Configuration
@@ -2152,6 +2222,10 @@ export type LiteVolumeWritable = {
 export type LiteVolumeMetadata = {
     createdAt?: string;
     displayName?: string;
+    /**
+     * Caller-owned identifier for external lookups.
+     */
+    externalId?: string;
     name?: string;
     updatedAt?: string;
 };
@@ -2766,6 +2840,10 @@ export type PendingInvitationRender = {
      * The date and time when the invitation expires
      */
     expiresAt?: string;
+    /**
+     * Opaque invitation identifier
+     */
+    invitationId?: string;
     /**
      * Invitation date
      */
@@ -3390,6 +3468,10 @@ export type Region = {
      */
     location?: string;
     /**
+     * Whether this region supports mk3.1 (blaxel nodes). Required for Application and Job deployments.
+     */
+    mk31Available?: boolean;
+    /**
      * Region name
      */
     name?: string;
@@ -3631,6 +3713,10 @@ export type Sandbox = {
      */
     readonly lastUsedAt?: string;
     metadata: Metadata;
+    /**
+     * Infrastructure generation this sandbox is deployed on (mk3.0 or mk3.1). Read-only.
+     */
+    nodeGeneration?: string;
     spec: SandboxSpec;
     /**
      * Current state of the sandbox (read-only, managed by the system)
@@ -3645,6 +3731,10 @@ export type Sandbox = {
 export type SandboxWritable = {
     events?: CoreEventsWritable;
     metadata: MetadataWritable;
+    /**
+     * Infrastructure generation this sandbox is deployed on (mk3.0 or mk3.1). Read-only.
+     */
+    nodeGeneration?: string;
     spec: SandboxSpec;
     /**
      * Current state of the sandbox (read-only, managed by the system)
@@ -3755,6 +3845,58 @@ export type SandboxError = {
 };
 
 /**
+ * Request body for forking a sandbox into an application. Creates a new application or adds a canary revision to an existing one.
+ */
+export type SandboxForkRequest = {
+    /**
+     * Custom domain for the application
+     */
+    customDomain?: string;
+    /**
+     * Port to expose from the sandbox
+     */
+    port?: number;
+    /**
+     * URL prefix for the application
+     */
+    prefix?: string;
+    /**
+     * Snapshot ID to fork from. When set, the application revision references this snapshot.
+     */
+    snapshotId?: string;
+    /**
+     * Name of the target application to create or update
+     */
+    targetName: string;
+    /**
+     * Target resource type to fork into
+     */
+    targetType: string;
+    /**
+     * Traffic percentage for canary deployment (0-100). When set on an existing target, creates a new revision with this traffic percentage.
+     */
+    traffic?: number;
+};
+
+/**
+ * Response returned after forking a sandbox. Contains either the new sandbox or application depending on the fork type.
+ */
+export type SandboxForkResponse = {
+    /**
+     * Name of the created or updated resource
+     */
+    name?: string;
+    /**
+     * The snapshot ID the fork was created from
+     */
+    snapshotId?: string;
+    /**
+     * Type of resource that was created (sandbox or application)
+     */
+    type?: 'sandbox' | 'application';
+};
+
+/**
  * Lifecycle configuration controlling automatic sandbox deletion based on idle time, max age, or specific dates
  */
 export type SandboxLifecycle = {
@@ -3824,7 +3966,7 @@ export type SandboxRuntime = {
      */
     expires?: string;
     /**
-     * Extra arguments for sandbox kernel selection. Supported keys: 'iptables', 'nvme', 'nfs'. Values: 'enabled' or 'disabled'. Determines which kernel variant the sandbox runs on. Immutable after creation.
+     * Extra arguments for kernel selection. Supported keys: 'iptables', 'nfs' (mk3.0), 'tun' (mk3.1). Values: 'enabled' or 'disabled'. Determines which kernel variant the workload runs on. Immutable after creation.
      */
     extraArgs?: {
         [key: string]: string;
@@ -3847,16 +3989,6 @@ export type SandboxRuntime = {
      */
     ttl?: string;
 };
-
-/**
- * List of scheduled tasks for automated process execution inside the sandbox. Supports recurring cron expressions, one-off datetime targets, and sleep durations.
- */
-export type SandboxSchedule = Array<SandboxScheduleEntry>;
-
-/**
- * List of scheduled tasks for automated process execution inside the sandbox. Supports recurring cron expressions, one-off datetime targets, and sleep durations.
- */
-export type SandboxScheduleWritable = Array<SandboxScheduleEntryWritable>;
 
 /**
  * A scheduled task that executes a process inside the sandbox at specified times. Stored in the dedicated schedules table (no longer embedded in the sandbox spec).
@@ -4844,7 +4976,7 @@ export type WorkspaceUser = {
 export type BlaxelVersion = string;
 
 /**
- * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+ * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
  */
 export type PaginationAnchor = 'end';
 
@@ -4889,7 +5021,7 @@ export type ListAgentsData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
     };
@@ -5140,7 +5272,7 @@ export type ListApplicationsData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
     };
@@ -5381,10 +5513,26 @@ export type ListApplicationRevisionsResponses = {
     /**
      * successful operation
      */
-    200: Array<RevisionMetadata>;
+    200: Array<AppRevision>;
 };
 
 export type ListApplicationRevisionsResponse = ListApplicationRevisionsResponses[keyof ListApplicationRevisionsResponses];
+
+export type GetChangelogData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/changelog';
+};
+
+export type GetChangelogResponses = {
+    /**
+     * Latest changelog entries
+     */
+    200: ChangelogResponse;
+};
+
+export type GetChangelogResponse = GetChangelogResponses[keyof GetChangelogResponses];
 
 export type GetConfigurationData = {
     body?: never;
@@ -5539,9 +5687,13 @@ export type ListDrivesData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
+        /**
+         * Filter drives by external ID. When set, only drives matching this caller-owned identifier are returned.
+         */
+        externalId?: string;
     };
     url: '/drives';
 };
@@ -5711,6 +5863,46 @@ export type CreateDriveAccessTokenResponses = {
 };
 
 export type CreateDriveAccessTokenResponse = CreateDriveAccessTokenResponses[keyof CreateDriveAccessTokenResponses];
+
+export type GetDriveByExternalIdData = {
+    body?: never;
+    path: {
+        /**
+         * Caller-owned external identifier for the drive
+         */
+        externalId: string;
+    };
+    query?: never;
+    url: '/drives/by-external-id/{externalId}';
+};
+
+export type GetDriveByExternalIdErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden - Insufficient permissions to view drives
+     */
+    403: unknown;
+    /**
+     * Drive not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetDriveByExternalIdResponses = {
+    /**
+     * successful operation
+     */
+    200: Drive;
+};
+
+export type GetDriveByExternalIdResponse = GetDriveByExternalIdResponses[keyof GetDriveByExternalIdResponses];
 
 export type GetDriveJwksData = {
     body?: never;
@@ -5892,7 +6084,7 @@ export type ListFunctionsData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
     };
@@ -6753,7 +6945,7 @@ export type ListJobsData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
     };
@@ -7149,7 +7341,7 @@ export type ListModelsData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
     };
@@ -7493,7 +7685,7 @@ export type ListPoliciesData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
     };
@@ -7671,7 +7863,7 @@ export type ListSandboxesData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
         /**
@@ -7890,23 +8082,10 @@ export type UpdateSandboxResponses = {
 export type UpdateSandboxResponse = UpdateSandboxResponses[keyof UpdateSandboxResponses];
 
 export type ForkSandboxData = {
-    body: {
-        /**
-         * Target name for the forked resource
-         */
-        name: string;
-        /**
-         * Target type: 'sandbox' or 'application'
-         */
-        type: 'sandbox' | 'application';
-        /**
-         * Snapshot ID to fork from (required)
-         */
-        snapshotId: string;
-    };
+    body: SandboxForkRequest;
     path: {
         /**
-         * Name of the source sandbox
+         * Name of the sandbox to fork
          */
         sandboxName: string;
     };
@@ -7916,15 +8095,15 @@ export type ForkSandboxData = {
 
 export type ForkSandboxErrors = {
     /**
-     * Bad request
+     * Bad request - Invalid fork parameters
      */
     400: _Error;
     /**
-     * Not found - Sandbox does not exist
+     * Not found - Source sandbox does not exist
      */
     404: _Error;
     /**
-     * Conflict - Target sandbox already exists
+     * Conflict - Target sandbox already exists (only for type sandbox)
      */
     409: _Error;
     /**
@@ -7937,9 +8116,9 @@ export type ForkSandboxError = ForkSandboxErrors[keyof ForkSandboxErrors];
 
 export type ForkSandboxResponses = {
     /**
-     * successful operation
+     * Fork created successfully
      */
-    200: Sandbox | Application;
+    200: SandboxForkResponse;
 };
 
 export type ForkSandboxResponse = ForkSandboxResponses[keyof ForkSandboxResponses];
@@ -9045,9 +9224,13 @@ export type ListVolumesData = {
          */
         q?: string;
         /**
-         * Start from a known pagination boundary. `end` is only supported for `createdAt:desc` listings and returns the oldest page directly without walking every cursor from the first page.
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
+        /**
+         * Filter volumes by external ID. When set, only volumes matching this caller-owned identifier are returned.
+         */
+        externalId?: string;
     };
     url: '/volumes';
 };
@@ -9227,6 +9410,48 @@ export type UpdateVolumeResponses = {
 };
 
 export type UpdateVolumeResponse = UpdateVolumeResponses[keyof UpdateVolumeResponses];
+
+export type GetVolumeByExternalIdData = {
+    body?: never;
+    path: {
+        /**
+         * Caller-owned external identifier for the volume
+         */
+        externalId: string;
+    };
+    query?: never;
+    url: '/volumes/by-external-id/{externalId}';
+};
+
+export type GetVolumeByExternalIdErrors = {
+    /**
+     * Unauthorized - Invalid or missing authentication credentials
+     */
+    401: _Error;
+    /**
+     * Forbidden - Insufficient permissions to view volumes
+     */
+    403: _Error;
+    /**
+     * Not found - No active volume with this external ID
+     */
+    404: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type GetVolumeByExternalIdError = GetVolumeByExternalIdErrors[keyof GetVolumeByExternalIdErrors];
+
+export type GetVolumeByExternalIdResponses = {
+    /**
+     * successful operation
+     */
+    200: Volume;
+};
+
+export type GetVolumeByExternalIdResponse = GetVolumeByExternalIdResponses[keyof GetVolumeByExternalIdResponses];
 
 export type ListVpcsData = {
     body?: never;
@@ -9652,55 +9877,6 @@ export type UpdateWorkspaceResponses = {
 };
 
 export type UpdateWorkspaceResponse = UpdateWorkspaceResponses[keyof UpdateWorkspaceResponses];
-
-export type DeclineWorkspaceInvitationData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the workspace
-         */
-        workspaceName: string;
-    };
-    query?: never;
-    url: '/workspaces/{workspaceName}/decline';
-};
-
-export type DeclineWorkspaceInvitationResponses = {
-    /**
-     * Invitation successfully declined
-     */
-    200: PendingInvitation;
-};
-
-export type DeclineWorkspaceInvitationResponse = DeclineWorkspaceInvitationResponses[keyof DeclineWorkspaceInvitationResponses];
-
-export type AcceptWorkspaceInvitationData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the workspace
-         */
-        workspaceName: string;
-    };
-    query?: never;
-    url: '/workspaces/{workspaceName}/join';
-};
-
-export type AcceptWorkspaceInvitationErrors = {
-    /**
-     * Workspace or invitation not found
-     */
-    404: unknown;
-};
-
-export type AcceptWorkspaceInvitationResponses = {
-    /**
-     * Invitation successfully accepted
-     */
-    200: PendingInvitationAccept;
-};
-
-export type AcceptWorkspaceInvitationResponse = AcceptWorkspaceInvitationResponses[keyof AcceptWorkspaceInvitationResponses];
 
 export type LeaveWorkspaceData = {
     body?: never;
