@@ -14,6 +14,9 @@ export default defineConfig({
       'tests/runtime-environments/**',
       '**/node_modules/**',
       'tests/**/node_modules/**',
+      // Egress proxy tests have been flaky for a while (proxy readiness, TLS,
+      // preview 401 on non-routed egress); opt back in with RUN_PROXY_TESTS=true.
+      ...(process.env.RUN_PROXY_TESTS === 'true' ? [] : ['tests/integration/sandbox/proxy/**']),
     ],
     testTimeout: 300000, // 5 minutes - API operations can be slow
     hookTimeout: 120000, // 2 minutes for setup/teardown

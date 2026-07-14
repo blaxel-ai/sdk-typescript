@@ -7,6 +7,10 @@ import { SandboxInstance, VolumeInstance } from "@blaxel/core"
 export default function globalSetup() {
   // Return the teardown function
   return async () => {
+    if (process.env.SKIP_CLEANUP === "1") {
+      console.log("\nSKIP_CLEANUP=1: skipping global cleanup, test resources are left alive for debugging")
+      return
+    }
     console.log("\n🧹 Cleaning up test resources...")
 
     // Clean up sandboxes with test labels
