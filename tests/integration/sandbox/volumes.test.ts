@@ -7,6 +7,10 @@ describe('Sandbox Volume Operations', () => {
   const createdVolumes: string[] = []
 
   afterAll(async () => {
+    if (process.env.SKIP_CLEANUP === '1') {
+      console.log('SKIP_CLEANUP=1: skipping teardown. Sandboxes left alive:', createdSandboxes, 'volumes:', createdVolumes)
+      return
+    }
     // Clean up sandboxes in parallel and wait for full deletion
     await Promise.all(
       createdSandboxes.map(async (name) => {
