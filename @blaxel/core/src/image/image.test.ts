@@ -621,6 +621,14 @@ describe("ImageInstance sandbox-api preparation", () => {
     );
   });
 
+  it("includes storageMb in sandbox payloads for image builds", () => {
+    const image = ImageInstance.fromRegistry("python:3.11-slim");
+    // @ts-expect-error - accessing private method for testing
+    const payload = image._createSandboxPayload("image-storage", 4096, 102400);
+
+    expect(payload.spec?.runtime?.storageMb).toBe(102400);
+  });
+
   it("does not duplicate sandbox-api if base image is sandbox", () => {
     const image = ImageInstance.fromRegistry("ghcr.io/blaxel-ai/sandbox:latest");
     // @ts-expect-error - accessing private method for testing
