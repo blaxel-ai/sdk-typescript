@@ -6,6 +6,10 @@ describe('Sandbox Lifecycle and Expiration', () => {
   const createdSandboxes: string[] = []
 
   afterAll(async () => {
+    if (process.env.SKIP_CLEANUP === '1') {
+      console.log('SKIP_CLEANUP=1: skipping teardown. Sandboxes left alive:', createdSandboxes)
+      return
+    }
     // Clean up all sandboxes in parallel
     await Promise.all(
       createdSandboxes.map(async (name) => {
