@@ -77,6 +77,50 @@ describe('Drive Operations', () => {
       expect(drive.name).toBe(name)
     })
 
+    it('gets and lists drives by externalId', async () => {
+      const name = uniqueName("drive-ext-id")
+      const externalId = `drive-ext-${Date.now()}`
+
+      await DriveInstance.create({
+        name,
+        externalId,
+        size: 10,
+        region: defaultRegion,
+        labels: defaultLabels,
+      })
+      createdDrives.push(name)
+
+      const drive = await DriveInstance.getByExternalId(externalId)
+      expect(drive.name).toBe(name)
+      expect(drive.metadata.externalId).toBe(externalId)
+
+      const drives = await DriveInstance.list({ externalId })
+      const found = drives.data.find(d => d.name === name)
+      expect(found).toBeDefined()
+      expect(found!.metadata.externalId).toBe(externalId)
+    })
+
+    it('updates a drive externalId', async () => {
+      const name = uniqueName("drive-ext-update")
+      const externalId1 = `drive-upd1-${Date.now()}`
+      const externalId2 = `drive-upd2-${Date.now()}`
+
+      const drive = await DriveInstance.create({
+        name,
+        externalId: externalId1,
+        size: 10,
+        region: defaultRegion,
+        labels: defaultLabels,
+      })
+      createdDrives.push(name)
+
+      await drive.update({ externalId: externalId2 })
+
+      const updated = await DriveInstance.getByExternalId(externalId2)
+      expect(updated.name).toBe(name)
+      expect(updated.metadata.externalId).toBe(externalId2)
+    })
+
     it('lists drives', async () => {
       const name = uniqueName("drive-list")
       await DriveInstance.create({
