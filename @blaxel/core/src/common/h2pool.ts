@@ -196,12 +196,16 @@ export class H2Pool {
   ): Promise<http2.ClientHttp2Session | null> {
     let attempts = s.entries.length;
     while (attempts-- > 0 && s.entries.length > 0) {
-      const entry = s.entries[s.cursor % s.entries.length];
+      const idx = s.cursor % s.entries.length;
+      const entry = s.entries[idx];
       s.cursor = (s.cursor + 1) % Number.MAX_SAFE_INTEGER;
       if (!entry) continue;
 
       if (this.isClosed(entry.session)) {
         this.removeEntry(s, entry);
+        // Splicing shifts the next element into `idx`; rewind so we don't skip
+        // it (the advanced cursor would otherwise jump past it).
+        if (s.entries.length > 0) s.cursor = idx;
         continue;
       }
       if (!this.isIdle(entry)) {
@@ -216,6 +220,7 @@ export class H2Pool {
       // Ping failed on an idle session: drop and close it so a fresh one is
       // opened in its place (the eviction 'close' listener is a no-op re-remove).
       this.removeEntry(s, entry);
+      if (s.entries.length > 0) s.cursor = idx;
       if (!this.isClosed(entry.session)) entry.session.close();
     }
     return null;
@@ -267,10 +272,12 @@ export class H2Pool {
     if (!s || s.entries.length === 0) return null;
     let attempts = s.entries.length;
     while (attempts-- > 0 && s.entries.length > 0) {
-      const entry = s.entries[s.cursor % s.entries.length];
+      const idx = s.cursor % s.entries.length;
+      const entry = s.entries[idx];
       s.cursor = (s.cursor + 1) % Number.MAX_SAFE_INTEGER;
       if (this.isClosed(entry.session)) {
         this.removeEntry(s, entry);
+        if (s.entries.length > 0) s.cursor = idx;
         continue;
       }
       if (this.isIdle(entry)) continue;
@@ -301,8 +308,12 @@ export class H2Pool {
 
     const fast = await this.pickLiveEntry(s);
     if (fast) {
+      // Top up the rest of the pool in the background. warm() fills to the cap
+      // in one call and re-checks `entries + inflight < max` before each
+      // establish, so it converges quickly and never overshoots even when
+      // several concurrent get()s take this path.
       if (max > 1 && s.entries.length + s.inflight.size < max) {
-        void this.startEstablish(domain, s);
+        this.warm(domain);
       }
       return fast;
     }
