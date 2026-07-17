@@ -25,8 +25,29 @@ export async function establishH2(sniHostname: string): Promise<http2.ClientHttp
   return Promise.race([attempt, timeout]).finally(() => clearTimeout(timer));
 }
 
+// Round-robin cursor per hostname so successive warm connections to the same
+// edge domain (the multi-session pool) land on different resolved addresses.
+// Everything behind CloudFront terminates the same cert, so we keep the SNI
+// servername fixed and only vary the dialed IP — spreading connections across
+// edge PoPs / proxies instead of pinning every session to the first A record.
+const addressCursor = new Map<string, number>();
+
+async function resolveRotatingAddress(hostname: string): Promise<string> {
+  try {
+    const records = await dns.lookup(hostname, { all: true });
+    if (records.length > 0) {
+      const i = (addressCursor.get(hostname) ?? 0) % records.length;
+      addressCursor.set(hostname, i + 1);
+      return records[i].address;
+    }
+  } catch {
+    // fall through to single lookup below
+  }
+  return (await dns.lookup(hostname)).address;
+}
+
 async function _establishH2(sniHostname: string): Promise<http2.ClientHttp2Session> {
-  const { address } = await dns.lookup(sniHostname);
+  const address = await resolveRotatingAddress(sniHostname);
 
   const tlsSocket = tls.connect({
     host: address,

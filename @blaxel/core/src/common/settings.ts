@@ -96,6 +96,16 @@ export type Config = {
    */
   h2ConnectionWindowSize?: number;
   /**
+   * Number of HTTP/2 sessions to keep warm per edge/control-plane domain. The
+   * pool round-robins requests across these sessions, so hundreds of concurrent
+   * creates/execs spread across several connections (and, with DNS fan-out,
+   * several proxies) instead of funnelling through one session capped by
+   * SETTINGS_MAX_CONCURRENT_STREAMS. Warmed proactively on create()/startup so
+   * calls ride an already-open connection. Defaults to 10; env `BL_H2_POOL_SIZE`.
+   * Values `< 1` are treated as 1.
+   */
+  h2PoolSize?: number;
+  /**
    * Client credentials for OAuth2 client_credentials flow.
    *
    * Accepts either:
@@ -450,6 +460,21 @@ class Settings {
       }
     }
     return 32 * 1024 * 1024;
+  }
+
+  get h2PoolSize(): number {
+    const fromConfig = this.config.h2PoolSize;
+    if (typeof fromConfig === "number") {
+      return fromConfig > 0 ? Math.floor(fromConfig) : 1;
+    }
+    const value = env.BL_H2_POOL_SIZE;
+    if (value) {
+      const parsed = parseInt(value, 10);
+      if (!Number.isNaN(parsed) && parsed > 0) {
+        return parsed;
+      }
+    }
+    return 10;
   }
 
   get fsPartRetries(): number {

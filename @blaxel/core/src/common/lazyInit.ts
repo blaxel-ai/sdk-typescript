@@ -50,17 +50,27 @@ export function ensureAutoloaded(): void {
 
   if (isNode && !isBrowser && !settings.disableH2) {
     try {
-      // Pre-warm edge H2 for the configured region so the first
-      // SandboxInstance.create() gets an instant data-plane session via the
-      // pool. Control-plane H2 is intentionally not warmed; its cold burst
-      // relies on pool deduplication instead.
-      const region = settings.region;
-      if (region) {
-        import("./h2pool.js").then(({ h2Pool }) => {
+      // Pre-warm the H2 pool so the first create()/exec() rides an already-open
+      // connection. warm() opens up to `settings.h2PoolSize` sessions per
+      // domain, so a burst of creates spreads across several connections
+      // (and, via DNS fan-out, several proxies) instead of one saturated one.
+      import("./h2pool.js").then(({ h2Pool }) => {
+        // Data-plane edge for the configured region (execs / fs / process).
+        const region = settings.region;
+        if (region) {
           const edgeSuffix = settings.env === "prod" ? "bl.run" : "runv2.blaxel.dev";
           h2Pool.warm(`any.${region}.${edgeSuffix}`);
-        }).catch(() => {});
-      }
+        }
+        // Control-plane host (create path); best-effort — only used by the
+        // pooled control-plane wrapper on runtimes without native fetch H2.
+        if (!settings.disableControlPlaneH2) {
+          try {
+            h2Pool.warm(new URL(settings.baseUrl).hostname);
+          } catch {
+            // ignore malformed baseUrl
+          }
+        }
+      }).catch(() => {});
     } catch {
       // Silently ignore warming failures
     }
