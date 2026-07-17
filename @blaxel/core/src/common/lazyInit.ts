@@ -50,22 +50,24 @@ export function ensureAutoloaded(): void {
 
   if (isNode && !isBrowser && !settings.disableH2) {
     try {
-      // Pre-warm the H2 pool so the first create()/exec() rides an already-open
-      // connection. warm() opens up to `settings.h2PoolSize` sessions per
-      // domain, so a burst of creates spreads across several connections
-      // (and, via DNS fan-out, several proxies) instead of one saturated one.
+      // Pre-warm a SINGLE H2 connection per host so the first create()/exec()
+      // rides an already-open connection. We deliberately warm only one (not
+      // the full `settings.h2PoolSize`): the pool grows on demand from get(),
+      // so eagerly opening N here would fire a handshake storm that slows the
+      // very first calls it is meant to speed up. The pool fans out to the cap
+      // only once concurrency actually demands it.
       import("./h2pool.js").then(({ h2Pool }) => {
         // Data-plane edge for the configured region (execs / fs / process).
         const region = settings.region;
         if (region) {
           const edgeSuffix = settings.env === "prod" ? "bl.run" : "runv2.blaxel.dev";
-          h2Pool.warm(`any.${region}.${edgeSuffix}`);
+          h2Pool.warm(`any.${region}.${edgeSuffix}`, 1);
         }
         // Control-plane host (create path); best-effort — only used by the
         // pooled control-plane wrapper on runtimes without native fetch H2.
         if (!settings.disableControlPlaneH2) {
           try {
-            h2Pool.warm(new URL(settings.baseUrl).hostname);
+            h2Pool.warm(new URL(settings.baseUrl).hostname, 1);
           } catch {
             // ignore malformed baseUrl
           }

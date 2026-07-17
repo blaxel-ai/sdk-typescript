@@ -46,15 +46,30 @@ const DEFAULT_PING_TIMEOUT_MS = 500;
  * SETTINGS_MAX_CONCURRENT_STREAMS. With `maxConnections = 1` it behaves exactly
  * like the previous single-session pool.
  *
- * - `warm(domain)` fills the domain up to `maxConnections` in the background
- *   (fire-and-forget); safe to call repeatedly.
+ * Growth is DEMAND-DRIVEN, not eager: the pool keeps a single warm connection
+ * under sequential/low load and only fans out toward `maxConnections` while the
+ * number of in-flight requests for a domain exceeds the live session count.
+ * Eagerly opening N connections would fire a TLS-handshake storm that competes
+ * with — and slows — every request in the low-concurrency case, giving no
+ * benefit (one connection multiplexes fine when nothing else is in flight).
+ *
+ * - `warm(domain, count?)` fills the domain up to `count` (default
+ *   `maxConnections`) in the background (fire-and-forget); safe to call
+ *   repeatedly. Startup/create-path warming passes `1` to keep just one warm
+ *   connection ready.
  * - `get(domain)` reuses a live warm session (round-robin), joins an in-flight
- *   warming, or establishes one on demand.
+ *   warming, or establishes one on demand, and grows the pool by at most one
+ *   connection when concurrent demand exceeds current capacity.
+ * - `noteRequestStart` / `noteRequestEnd` track per-domain in-flight request
+ *   count so `get()` can size the pool to observed concurrency.
  * - `tryGet(domain)` is a non-blocking cache check (round-robin, no establish).
  * - Closed / GOAWAY'd sessions are evicted automatically.
  */
 export class H2Pool {
   private domains = new Map<string, DomainState>();
+  // Per-domain in-flight request count (maintained by the h2fetch gateway via
+  // noteRequestStart/noteRequestEnd) — the demand signal that drives growth.
+  private active = new Map<string, number>();
   private _establish: EstablishFn | null = null;
   private readonly maxIdleMs: number;
   private readonly pingTimeoutMs: number;
@@ -76,6 +91,33 @@ export class H2Pool {
   private resolveMax(): number {
     const n = Math.floor(this.maxConnections());
     return Number.isFinite(n) && n > 0 ? n : 1;
+  }
+
+  /** Record that a request for `domain` has begun (demand signal for growth). */
+  noteRequestStart(domain: string): void {
+    this.active.set(domain, (this.active.get(domain) ?? 0) + 1);
+  }
+
+  /** Record that a request for `domain` has finished. */
+  noteRequestEnd(domain: string): void {
+    const n = (this.active.get(domain) ?? 0) - 1;
+    if (n > 0) this.active.set(domain, n);
+    else this.active.delete(domain);
+  }
+
+  /**
+   * Open at most ONE more session, and only when the in-flight request count
+   * for `domain` exceeds the current live-or-in-flight session count (and we're
+   * below the cap). Under sequential load demand never exceeds capacity, so the
+   * pool stays at a single warm connection; a concurrent burst fans it out one
+   * connection per get() until demand is covered or the cap is reached.
+   */
+  private growIfNeeded(domain: string, s: DomainState, max: number): void {
+    if (max <= 1) return;
+    const live = s.entries.length + s.inflight.size;
+    if (live >= max) return;
+    const demand = this.active.get(domain) ?? 0;
+    if (demand > live) void this.startEstablish(domain, s);
   }
 
   private state(domain: string): DomainState {
@@ -249,16 +291,20 @@ export class H2Pool {
 
   /**
    * Fire-and-forget background warming: opens sessions until the domain has
-   * `maxConnections` live-or-in-flight. Safe to call repeatedly.
+   * `count` (default `maxConnections`, clamped to the cap) live-or-in-flight.
+   * Startup/create-path callers pass `1` to keep a single warm connection
+   * ready without triggering an eager multi-connection handshake storm. Safe
+   * to call repeatedly.
    */
-  warm(domain: string): void {
+  warm(domain: string, count?: number): void {
     const max = this.resolveMax();
+    const target = Math.min(count ?? max, max);
     const s = this.state(domain);
     // Drop closed sessions so warming refills them.
     for (let i = s.entries.length - 1; i >= 0; i--) {
       if (this.isClosed(s.entries[i].session)) s.entries.splice(i, 1);
     }
-    while (s.entries.length + s.inflight.size < max) {
+    while (s.entries.length + s.inflight.size < target) {
       void this.startEstablish(domain, s);
     }
   }
@@ -298,9 +344,10 @@ export class H2Pool {
 
   /**
    * Get a live H2 session for `domain`. Reuses a warm session (round-robin),
-   * joins in-flight warming, or establishes one. When the pool is below
-   * `maxConnections` it also tops up the remaining slots in the background so
-   * repeated calls converge on a full, load-balanced pool.
+   * joins in-flight warming, or establishes one. Grows the pool by at most one
+   * connection per call, and only when concurrent demand exceeds the current
+   * session count (see `growIfNeeded`), so sequential load stays on a single
+   * warm connection while a burst fans out toward `maxConnections`.
    */
   async get(domain: string): Promise<http2.ClientHttp2Session | null> {
     const s = this.state(domain);
@@ -308,13 +355,7 @@ export class H2Pool {
 
     const fast = await this.pickLiveEntry(s);
     if (fast) {
-      // Top up the rest of the pool in the background. warm() fills to the cap
-      // in one call and re-checks `entries + inflight < max` before each
-      // establish, so it converges quickly and never overshoots even when
-      // several concurrent get()s take this path.
-      if (max > 1 && s.entries.length + s.inflight.size < max) {
-        this.warm(domain);
-      }
+      this.growIfNeeded(domain, s, max);
       return fast;
     }
 
@@ -322,7 +363,10 @@ export class H2Pool {
     if (s.inflight.size > 0) {
       await Promise.allSettled([...s.inflight]);
       const afterWarm = await this.pickLiveEntry(s);
-      if (afterWarm) return afterWarm;
+      if (afterWarm) {
+        this.growIfNeeded(domain, s, max);
+        return afterWarm;
+      }
     }
 
     // Establish fresh (deduped via inflight for concurrent callers).

@@ -234,9 +234,11 @@ export class SandboxInstance {
 
     const edgeDomain = SandboxInstance.edgeDomainForRegion(sandbox.spec?.region);
 
-    // Kick off warming so h2Pool.get() can join it during the API call
+    // Kick off warming of a single edge connection so h2Pool.get() can join it
+    // during the API call. Only one — the pool grows on demand, so warming the
+    // full pool size here would add handshakes that compete with this create.
     if (edgeDomain && !settings.disableH2) {
-      import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.warm(edgeDomain)).catch(() => { });
+      import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.warm(edgeDomain, 1)).catch(() => { });
     }
 
     const [createResult, h2Session] = await Promise.all([

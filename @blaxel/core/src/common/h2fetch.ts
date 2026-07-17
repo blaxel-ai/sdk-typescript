@@ -204,6 +204,10 @@ async function h2GatewayRequest(
   ) => Promise<Response>,
   fallback: () => Promise<Response>,
 ): Promise<Response> {
+  // Record this request as in-flight for the domain so the pool can size the
+  // number of warm connections to observed concurrency (demand-driven growth):
+  // sequential load stays on one connection, a burst fans out toward the cap.
+  pool.noteRequestStart(domain);
   // Take the slot here, but hand its release to the send path: it is held for
   // the OPEN-STREAM lifetime and freed on the stream terminal (ENG-2678). A
   // request that never opens a stream on the shared session (the fallback goes
@@ -240,6 +244,10 @@ async function h2GatewayRequest(
     // release the slot so a failed request never pins it. Idempotent.
     rel();
     throw err;
+  } finally {
+    // The request is no longer in the get()/headers phase: drop it from the
+    // per-domain demand count. Runs once on every terminal path.
+    pool.noteRequestEnd(domain);
   }
 }
 

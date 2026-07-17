@@ -101,17 +101,49 @@ describe("H2Pool multi-session", () => {
     }
   });
 
-  it("get() converges to a full pool without an explicit warm()", async () => {
+  it("sequential get() stays on a single connection (no eager growth)", async () => {
     const made = makePool(3);
     pool = made.pool;
 
-    // First get establishes one; subsequent gets top up toward maxConnections.
+    // Growth is demand-driven: with no concurrent in-flight requests, repeated
+    // sequential gets reuse the one warm connection instead of opening more.
     await pool.get(DOMAIN);
     await pool.get(DOMAIN);
     await pool.get(DOMAIN);
     await tick();
+    await tick();
 
+    expect(made.established.length).toBe(1);
+  });
+
+  it("concurrent demand fans the pool out toward maxConnections", async () => {
+    const made = makePool(3);
+    pool = made.pool;
+
+    // Simulate the h2fetch gateway marking several requests in-flight for the
+    // domain, then a burst of concurrent get()s. Demand > live capacity, so the
+    // pool grows one connection per get() up to the cap.
+    pool.noteRequestStart(DOMAIN);
+    pool.noteRequestStart(DOMAIN);
+    pool.noteRequestStart(DOMAIN);
+    pool.noteRequestStart(DOMAIN);
+    await Promise.all([
+      pool.get(DOMAIN),
+      pool.get(DOMAIN),
+      pool.get(DOMAIN),
+      pool.get(DOMAIN),
+    ]);
+    await tick();
+    await tick();
+    await tick();
+
+    // Never exceeds the cap even though demand (4) is higher.
     expect(made.established.length).toBe(3);
+
+    pool.noteRequestEnd(DOMAIN);
+    pool.noteRequestEnd(DOMAIN);
+    pool.noteRequestEnd(DOMAIN);
+    pool.noteRequestEnd(DOMAIN);
   });
 
   it("maxConnections = 1 keeps single-session behavior (one connection reused)", async () => {
