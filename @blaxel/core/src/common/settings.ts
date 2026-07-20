@@ -36,6 +36,10 @@ export type Config = {
   proxy?: string;
   apikey?: string;
   workspace?: string;
+  /**
+   * Disables the SDK-managed HTTP/2 transport. Defaults to `true`; set this to
+   * `false` (or `BL_DISABLE_H2=0`) to opt back into H2.
+   */
   disableH2?: boolean;
   /**
    * Disables only the control-plane HTTP/2 wrapper, leaving data-plane (edge)
@@ -180,11 +184,6 @@ function getOsArch(): string {
   }
 
   return "browser/unknown";
-}
-
-function isDenoRuntime(): boolean {
-  const runtime = globalThis as typeof globalThis & { Deno?: unknown };
-  return typeof runtime.Deno !== "undefined";
 }
 
 class Settings {
@@ -366,7 +365,7 @@ class Settings {
     if (value) {
       return ["1", "true", "yes", "on"].includes(value.toLowerCase());
     }
-    return isDenoRuntime();
+    return true;
   }
 
   // Control-plane-only escape hatch: disables the control-plane H2 wrapper

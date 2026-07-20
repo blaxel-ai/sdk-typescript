@@ -30,3 +30,24 @@ describe('Settings.apiVersion', () => {
     }
   });
 });
+
+describe('Settings.disableH2', () => {
+  afterEach(async () => {
+    delete (env as Record<string, unknown>).BL_DISABLE_H2;
+    const { settings } = await import('./settings.js');
+    delete settings.config.disableH2;
+  });
+
+  it('disables H2 by default', async () => {
+    delete (env as Record<string, unknown>).BL_DISABLE_H2;
+    const { settings } = await import('./settings.js');
+    delete settings.config.disableH2;
+    expect(settings.disableH2).toBe(true);
+  });
+
+  it('allows H2 to be explicitly enabled', async () => {
+    const { settings } = await import('./settings.js');
+    settings.config.disableH2 = false;
+    expect(settings.disableH2).toBe(false);
+  });
+});
