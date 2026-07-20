@@ -146,7 +146,7 @@ export function normalizeVolumes(volumes?: (VolumeBinding | VolumeAttachment)[])
         volumeAttachment.type = volume.type;
       }
       if (volumeAttachment.type === 'ephemeral') {
-        if (typeof volume.sizeMb !== 'number' || volume.sizeMb <= 0) {
+        if (typeof volume.sizeMb !== 'number' || !(volume.sizeMb > 0)) {
           throw new Error(`Ephemeral volume '${volume.name}' must have a positive 'sizeMb': ${JSON.stringify(volume)}`);
         }
         volumeAttachment.sizeMb = volume.sizeMb;
