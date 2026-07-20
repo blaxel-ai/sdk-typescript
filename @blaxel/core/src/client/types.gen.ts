@@ -21,6 +21,28 @@ export type AgentWritable = {
 };
 
 /**
+ * Cursor-paginated list of agents. Returned starting with API version 2026-04-28; older API versions return a bare array of agents instead.
+ */
+export type AgentList = {
+    /**
+     * Page of agents.
+     */
+    data?: Array<Agent>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * Cursor-paginated list of agents. Returned starting with API version 2026-04-28; older API versions return a bare array of agents instead.
+ */
+export type AgentListWritable = {
+    /**
+     * Page of agents.
+     */
+    data?: Array<AgentWritable>;
+    meta?: PaginationMeta;
+};
+
+/**
  * Runtime configuration defining how the AI agent is deployed and scaled globally
  */
 export type AgentRuntime = {
@@ -147,6 +169,226 @@ export type ApiKeyWritable = TimeFields & OwnerFields & {
 };
 
 /**
+ * A single application revision containing the deployed image and configuration
+ */
+export type AppRevision = {
+    /**
+     * When this revision was created
+     */
+    createdAt?: string;
+    /**
+     * Who created this revision
+     */
+    createdBy?: string;
+    /**
+     * Environment variables for this revision
+     */
+    envs?: Array<Env>;
+    /**
+     * Unique revision identifier
+     */
+    id?: string;
+    /**
+     * Container image for this revision (mandatory)
+     */
+    image: string;
+    /**
+     * Memory allocation in megabytes. Determines CPU allocation (CPU = memory / 2048).
+     */
+    memory?: number;
+    /**
+     * Port the application listens on for this revision (default uses spec-level port or 8080)
+     */
+    port?: number;
+    /**
+     * Snapshot ID this revision was forked from (optional, only set when created via fork)
+     */
+    snapshot?: string;
+};
+
+/**
+ * Routing configuration controlling which revision is active and canary traffic splitting
+ */
+export type AppRevisionConfiguration = {
+    /**
+     * Active revision id
+     */
+    active?: string;
+    /**
+     * Canary revision id
+     */
+    canary?: string;
+    /**
+     * Canary revision percent (0-100)
+     */
+    canaryPercent?: number;
+    /**
+     * Sticky session TTL in seconds (0 = disabled)
+     */
+    stickySessionTtl?: number;
+    /**
+     * Traffic percentage for deployment
+     */
+    traffic?: number;
+};
+
+export type AppRevisions = Array<AppRevision>;
+
+/**
+ * A single URL entry for the application. If the domain is a wildcard custom domain (e.g. *.sandbox.vybe.build), use subdomain to pick a specific subdomain. If the domain is a direct custom domain (e.g. app.vybe.build), subdomain is not needed.
+ */
+export type AppUrl = {
+    /**
+     * Custom domain (must be a verified custom domain in the workspace). Can be a wildcard domain (e.g. sandbox.vybe.build registered as *.sandbox.vybe.build) or a direct domain (e.g. app.vybe.build).
+     */
+    domain: string;
+    /**
+     * Subdomain to use with a wildcard custom domain (optional)
+     */
+    subdomain?: string;
+};
+
+/**
+ * URL configuration for the application. Each entry defines a custom URL through which the application is accessible. The domain must be a verified custom domain in the workspace.
+ */
+export type AppUrls = Array<AppUrl>;
+
+/**
+ * Long-running application deployment that runs your custom code as a publicly accessible endpoint. Applications are always public and use mk3 generation.
+ */
+export type Application = {
+    events?: CoreEvents;
+    metadata: Metadata;
+    /**
+     * Infrastructure generation this application is deployed on (mk3.0 or mk3.1).
+     */
+    readonly nodeGeneration?: string;
+    spec: ApplicationSpec;
+    /**
+     * Application status computed from events
+     */
+    readonly status?: string;
+};
+
+/**
+ * Long-running application deployment that runs your custom code as a publicly accessible endpoint. Applications are always public and use mk3 generation.
+ */
+export type ApplicationWritable = {
+    events?: CoreEventsWritable;
+    metadata: MetadataWritable;
+    spec: ApplicationSpec;
+};
+
+/**
+ * Configuration for a single application extension. The fields used depend on the extension key; for ai.blaxel.experimental/bind-to-sandbox only "sandbox" is used.
+ */
+export type ApplicationExtension = {
+    /**
+     * Name of the sandbox this application binds to (used by the ai.blaxel.experimental/bind-to-sandbox extension).
+     */
+    sandbox?: string;
+};
+
+/**
+ * Map of experimental, opt-in application extensions keyed by fully-qualified extension name (e.g. "ai.blaxel.experimental/bind-to-sandbox").
+ */
+export type ApplicationExtensions = {
+    [key: string]: ApplicationExtension;
+};
+
+/**
+ * Cursor-paginated list of applications. Returned starting with API version 2026-04-28; older API versions return a bare array of applications instead.
+ */
+export type ApplicationList = {
+    /**
+     * Page of applications.
+     */
+    data?: Array<Application>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * Cursor-paginated list of applications. Returned starting with API version 2026-04-28; older API versions return a bare array of applications instead.
+ */
+export type ApplicationListWritable = {
+    /**
+     * Page of applications.
+     */
+    data?: Array<ApplicationWritable>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * Configuration for an application including revision management, URL routing, and deployment region
+ */
+export type ApplicationSpec = {
+    /**
+     * When false, the application is disabled and will not serve requests
+     */
+    enabled?: boolean;
+    /**
+     * Environment variables for the application
+     */
+    envs?: Array<Env>;
+    extensions?: ApplicationExtensions;
+    /**
+     * Container image for the application. The backend generates a revision from the spec-level compute (image, memory, envs, port) on every create/update — clients set the compute here, exactly like agents and functions, and never craft revisions by hand.
+     */
+    image?: string;
+    /**
+     * Memory allocation in megabytes for the application (default 2048). Determines CPU allocation (CPU = memory / 2048).
+     */
+    memory?: number;
+    /**
+     * Port the application listens on (default 8080)
+     */
+    port?: number;
+    /**
+     * When true, the application proxies to an existing sandbox (the active revision image is the sandbox name) instead of building and deploying its own compute. Proxy applications have no deployment pipeline and are always reported as deployed. Deprecated — prefer the ai.blaxel.experimental/bind-to-sandbox extension.
+     */
+    proxy?: boolean;
+    /**
+     * Region where the application is deployed (e.g. us-pdx-1, eu-lon-1)
+     */
+    region?: string;
+    revision?: AppRevisionConfiguration;
+    revisions?: AppRevisions;
+    urls?: AppUrls;
+};
+
+export type Applications = Array<Application>;
+
+export type ApplicationsWritable = Array<ApplicationWritable>;
+
+/**
+ * Changelog entry shown in the controlplane UI.
+ */
+export type ChangelogEntry = {
+    /**
+     * Markdown body for the changelog entry.
+     */
+    content?: string;
+    /**
+     * Release date for the changelog entry in YYYY-MM-DD format.
+     */
+    date?: string;
+    /**
+     * Changelog entry title.
+     */
+    title?: string;
+};
+
+/**
+ * Latest changelog entries shown in the controlplane UI.
+ */
+export type ChangelogResponse = {
+    /**
+     * Latest changelog entries, newest first.
+     */
+    entries?: Array<ChangelogEntry>;
+};
+
+/**
  * Configuration
  */
 export type Configuration = {
@@ -158,6 +400,10 @@ export type Configuration = {
      * Countries
      */
     countries?: Array<Country>;
+    /**
+     * Auto-detected closest region based on viewer geolocation (from CloudFront headers). Empty when geo headers are not available.
+     */
+    detectedRegion?: string;
     /**
      * Private locations managed with blaxel operator
      */
@@ -368,6 +614,10 @@ export type CustomDomainMetadata = TimeFields & OwnerFields & {
      */
     name?: string;
     /**
+     * If this custom domain is shared from another workspace of the same account, this field contains the name of the source (owning) workspace. Empty for owned domains.
+     */
+    readonly sharedFromWorkspace?: string;
+    /**
      * Workspace name
      */
     workspace?: string;
@@ -393,6 +643,24 @@ export type CustomDomainMetadataWritable = TimeFields & OwnerFields & {
 };
 
 /**
+ * A workspace (or the whole account) a custom domain is shared with
+ */
+export type CustomDomainShareTarget = {
+    /**
+     * Share status; always "active" for same-account custom domain shares.
+     */
+    status: string;
+    /**
+     * The workspace the domain is shared with, or "account" for an account-wide share.
+     */
+    workspace: string;
+    /**
+     * Display name of the target workspace (empty for an account-wide share).
+     */
+    workspaceDisplayName?: string;
+};
+
+/**
  * Custom domain specification
  */
 export type CustomDomainSpec = {
@@ -400,6 +668,14 @@ export type CustomDomainSpec = {
      * CNAME target for the domain
      */
     cnameRecords?: string;
+    /**
+     * Type of custom domain (previews or applications)
+     */
+    domainType?: 'previews' | 'applications';
+    /**
+     * Preview ID to route to when a preview lookup fails on this custom domain
+     */
+    fallbackPreviewId?: string;
     /**
      * Last verification attempt timestamp
      */
@@ -412,6 +688,12 @@ export type CustomDomainSpec = {
      * Current status of the domain (pending, verified, failed)
      */
     status?: 'pending' | 'verified' | 'failed';
+    /**
+     * Subject Alternative Names (SANs) for the ACM certificate. Only applicable for application domains.
+     */
+    subjectAlternativeNames?: Array<{
+        [key: string]: unknown;
+    }>;
     /**
      * Map of TXT record names to values for domain verification
      */
@@ -433,6 +715,14 @@ export type CustomDomainSpecWritable = {
      */
     cnameRecords?: string;
     /**
+     * Type of custom domain (previews or applications)
+     */
+    domainType?: 'previews' | 'applications';
+    /**
+     * Preview ID to route to when a preview lookup fails on this custom domain
+     */
+    fallbackPreviewId?: string;
+    /**
      * Region that the custom domain is associated with
      */
     region?: string;
@@ -440,6 +730,12 @@ export type CustomDomainSpecWritable = {
      * Current status of the domain (pending, verified, failed)
      */
     status?: 'pending' | 'verified' | 'failed';
+    /**
+     * Subject Alternative Names (SANs) for the ACM certificate. Only applicable for application domains.
+     */
+    subjectAlternativeNames?: Array<{
+        [key: string]: unknown;
+    }>;
     /**
      * Map of TXT record names to values for domain verification
      */
@@ -473,6 +769,48 @@ export type DriveWritable = {
 };
 
 /**
+ * Cursor-paginated list of drives. Returned starting with API version 2026-04-28; older API versions return a bare array.
+ */
+export type DriveList = {
+    /**
+     * Page of drives.
+     */
+    data?: Array<Drive>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * Cursor-paginated list of drives. Returned starting with API version 2026-04-28; older API versions return a bare array.
+ */
+export type DriveListWritable = {
+    /**
+     * Page of drives.
+     */
+    data?: Array<DriveWritable>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * Permission that controls which workloads can access a drive. A workload must have ALL specified labels (AND logic). Permissions are evaluated with OR logic — the first matching permission grants access.
+ */
+export type DrivePermission = {
+    /**
+     * Labels that the workload must have. All labels must match (AND logic). Empty labels match all workloads.
+     */
+    labels?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Access mode granted by this permission
+     */
+    mode?: 'read' | 'read-write';
+    /**
+     * Subfolder path to restrict access to. Defaults to / (full drive).
+     */
+    path?: string;
+};
+
+/**
  * Immutable drive configuration set at creation time
  */
 export type DriveSpec = {
@@ -480,6 +818,10 @@ export type DriveSpec = {
      * The internal infrastructure resource identifier for this drive (bucket name)
      */
     readonly infrastructureId?: string;
+    /**
+     * Permissions controlling which workloads can access this drive. Empty means all workloads in the workspace can access the drive. Maximum 3 permissions.
+     */
+    permissions?: Array<DrivePermission>;
     /**
      * Deployment region for the drive (e.g., us-pdx-1, eu-lon-1). Must match the region of resources it attaches to.
      */
@@ -494,6 +836,10 @@ export type DriveSpec = {
  * Immutable drive configuration set at creation time
  */
 export type DriveSpecWritable = {
+    /**
+     * Permissions controlling which workloads can access this drive. Empty means all workloads in the workspace can access the drive. Maximum 3 permissions.
+     */
+    permissions?: Array<DrivePermission>;
     /**
      * Deployment region for the drive (e.g., us-pdx-1, eu-lon-1). Must match the region of resources it attaches to.
      */
@@ -596,6 +942,13 @@ export type EgressGatewaySpec = {
      * Region where the egress gateway is provisioned (e.g. us-pdx-1, eu-lon-1)
      */
     region: string;
+};
+
+/**
+ * Sandboxes currently bound to each egress gateway. Returned by GET /egressgateways/usage so the egress-IPs UI can render attachment counts without fetching the sandboxes listing full. Keys are gateway names; values are sandbox names.
+ */
+export type EgressGatewayUsage = {
+    [key: string]: Array<string>;
 };
 
 /**
@@ -783,6 +1136,16 @@ export type ExpirationPolicy = {
 };
 
 /**
+ * Firewall configuration specifying which network lockdown rulesets to apply. Valid rulesets are "default" (no-op), "proxy" (restrict egress to proxy), and "dedicated-ip" (restrict egress to dedicated IP gateway).
+ */
+export type FirewallConfig = {
+    /**
+     * List of firewall rulesets to apply. Valid values: "default" (no-op), "proxy" (restrict egress to proxy), "dedicated-ip" (restrict egress to dedicated IP gateway).
+     */
+    rulesets?: Array<string>;
+};
+
+/**
  * A type of hardware available for deployments
  */
 export type Flavor = {
@@ -841,6 +1204,28 @@ export type FunctionWritable = {
 };
 
 /**
+ * Cursor-paginated list of MCP server functions. Returned starting with API version 2026-04-28; older API versions return a bare array.
+ */
+export type FunctionList = {
+    /**
+     * Page of functions.
+     */
+    data?: Array<_Function>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * Cursor-paginated list of MCP server functions. Returned starting with API version 2026-04-28; older API versions return a bare array.
+ */
+export type FunctionListWritable = {
+    /**
+     * Page of functions.
+     */
+    data?: Array<FunctionWritable>;
+    meta?: PaginationMeta;
+};
+
+/**
  * Runtime configuration defining how the MCP server function is deployed and scaled
  */
 export type FunctionRuntime = {
@@ -868,6 +1253,7 @@ export type FunctionRuntime = {
      * Minimum instances to keep warm. Set to 1+ to eliminate cold starts, 0 for scale-to-zero.
      */
     minScale?: number;
+    ports?: Ports;
     /**
      * Transport compatibility for the MCP, can be "websocket" or "http-stream"
      */
@@ -1318,6 +1704,28 @@ export type JobExecutionWritable = {
 };
 
 /**
+ * Cursor-paginated list of job executions. Returned starting with API version 2026-04-28; older API versions keep the legacy offset-based contract and return a bare array.
+ */
+export type JobExecutionList = {
+    /**
+     * Page of job executions.
+     */
+    data?: Array<JobExecution>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * Cursor-paginated list of job executions. Returned starting with API version 2026-04-28; older API versions keep the legacy offset-based contract and return a bare array.
+ */
+export type JobExecutionListWritable = {
+    /**
+     * Page of job executions.
+     */
+    data?: Array<JobExecutionWritable>;
+    meta?: PaginationMeta;
+};
+
+/**
  * Job execution metadata
  */
 export type JobExecutionMetadata = {
@@ -1587,6 +1995,28 @@ export type JobExecutionTaskCondition = {
 };
 
 /**
+ * Cursor-paginated list of an execution's tasks. Tasks are derived from event history; pagination slices the in-memory list and the cursor is a base64-JSON offset bound to (workspace, job, execution).
+ */
+export type JobExecutionTaskList = {
+    /**
+     * Page of execution tasks.
+     */
+    data?: Array<JobExecutionTask>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * Cursor-paginated list of an execution's tasks. Tasks are derived from event history; pagination slices the in-memory list and the cursor is a base64-JSON offset bound to (workspace, job, execution).
+ */
+export type JobExecutionTaskListWritable = {
+    /**
+     * Page of execution tasks.
+     */
+    data?: Array<JobExecutionTaskWritable>;
+    meta?: PaginationMeta;
+};
+
+/**
  * Job execution task metadata
  */
 export type JobExecutionTaskMetadata = {
@@ -1644,6 +2074,28 @@ export type JobExecutionTaskSpec = {
  * Job execution task status
  */
 export type JobExecutionTaskStatus = 'unspecified' | 'pending' | 'reconciling' | 'failed' | 'succeeded' | 'running' | 'cancelled';
+
+/**
+ * Cursor-paginated list of batch jobs. Returned starting with API version 2026-04-28; older API versions return a bare array.
+ */
+export type JobList = {
+    /**
+     * Page of jobs.
+     */
+    data?: Array<Job>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * Cursor-paginated list of batch jobs. Returned starting with API version 2026-04-28; older API versions return a bare array.
+ */
+export type JobListWritable = {
+    /**
+     * Page of jobs.
+     */
+    data?: Array<JobWritable>;
+    meta?: PaginationMeta;
+};
 
 /**
  * Runtime configuration defining how batch job tasks are executed with parallelism and retry settings
@@ -1747,6 +2199,68 @@ export type JobVolume = {
 };
 
 export type JobVolumes = Array<JobVolume>;
+
+/**
+ * LiteVolume is the listing-shape projection of a Volume. Drops events to keep page payloads small.
+ */
+export type LiteVolume = {
+    metadata?: LiteVolumeMetadata;
+    spec?: LiteVolumeSpec;
+    state?: VolumeState;
+    /**
+     * Computed status of the volume.
+     */
+    status?: string;
+    /**
+     * Termination timestamp for soft-deleted volumes.
+     */
+    terminatedAt?: string;
+};
+
+/**
+ * LiteVolume is the listing-shape projection of a Volume. Drops events to keep page payloads small.
+ */
+export type LiteVolumeWritable = {
+    metadata?: LiteVolumeMetadata;
+    spec?: LiteVolumeSpec;
+    state?: VolumeStateWritable;
+    /**
+     * Computed status of the volume.
+     */
+    status?: string;
+    /**
+     * Termination timestamp for soft-deleted volumes.
+     */
+    terminatedAt?: string;
+};
+
+/**
+ * Compact metadata for a Volume, returned in listing responses.
+ */
+export type LiteVolumeMetadata = {
+    createdAt?: string;
+    displayName?: string;
+    /**
+     * Caller-owned identifier for external lookups.
+     */
+    externalId?: string;
+    name?: string;
+    updatedAt?: string;
+};
+
+/**
+ * Compact spec for a Volume, returned in listing responses.
+ */
+export type LiteVolumeSpec = {
+    /**
+     * Region the volume is provisioned in.
+     */
+    region?: string;
+    /**
+     * Volume size in gigabytes.
+     */
+    size?: number;
+};
 
 /**
  * Location availability for policies
@@ -1918,6 +2432,10 @@ export type Metadata = TimeFields & OwnerFields & {
      * Human-readable name for display in the UI. Can contain spaces and special characters, max 63 characters.
      */
     displayName?: string;
+    /**
+     * Caller-owned identifier for external lookups. Max 64 chars, alphanumeric + dash.
+     */
+    externalId?: string;
     labels?: MetadataLabels;
     /**
      * Unique identifier for the resource within the workspace. Must be lowercase alphanumeric with hyphens, max 49 characters. Immutable after creation.
@@ -1945,6 +2463,10 @@ export type MetadataWritable = TimeFields & OwnerFields & {
      * Human-readable name for display in the UI. Can contain spaces and special characters, max 63 characters.
      */
     displayName?: string;
+    /**
+     * Caller-owned identifier for external lookups. Max 64 chars, alphanumeric + dash.
+     */
+    externalId?: string;
     labels?: MetadataLabels;
     /**
      * Unique identifier for the resource within the workspace. Must be lowercase alphanumeric with hyphens, max 49 characters. Immutable after creation.
@@ -1977,6 +2499,28 @@ export type ModelWritable = {
     metadata: MetadataWritable;
     spec: ModelSpec;
     status?: Status;
+};
+
+/**
+ * Cursor-paginated list of model gateway endpoints. Returned starting with API version 2026-04-28; older API versions return a bare array.
+ */
+export type ModelList = {
+    /**
+     * Page of models.
+     */
+    data?: Array<Model>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * Cursor-paginated list of model gateway endpoints. Returned starting with API version 2026-04-28; older API versions return a bare array.
+ */
+export type ModelListWritable = {
+    /**
+     * Page of models.
+     */
+    data?: Array<ModelWritable>;
+    meta?: PaginationMeta;
 };
 
 /**
@@ -2050,7 +2594,7 @@ export type OAuth = {
 };
 
 /**
- * Owner fields for Persistance
+ * Owner fields for Persistence
  */
 export type OwnerFields = {
     /**
@@ -2061,6 +2605,24 @@ export type OwnerFields = {
      * The user or service account who updated the resource
      */
     readonly updatedBy?: string;
+};
+
+/**
+ * Pagination metadata returned alongside a page of listing results. Always present on listing endpoints starting with API version 2026-04-28.
+ */
+export type PaginationMeta = {
+    /**
+     * True when more pages are available beyond the current one.
+     */
+    hasMore?: boolean;
+    /**
+     * Opaque cursor to pass back as the `cursor` query param for the next page. Empty when there are no more pages.
+     */
+    nextCursor?: string;
+    /**
+     * Total number of items in the workspace, ignoring the current page's filters. Lets the UI render "page X of Y" without walking the cursor chain. Computed from the hash-only metadata.workspace GSI count, so search (`q`) does not narrow it.
+     */
+    total?: number;
 };
 
 /**
@@ -2297,6 +2859,10 @@ export type PendingInvitationRender = {
      */
     expiresAt?: string;
     /**
+     * Opaque invitation identifier
+     */
+    invitationId?: string;
+    /**
      * Invitation date
      */
     invitedAt?: string;
@@ -2387,6 +2953,7 @@ export type PoliciesList = Array<string>;
 export type Policy = {
     metadata: Metadata;
     spec: PolicySpec;
+    usage?: PolicyUsageCounts;
 };
 
 /**
@@ -2395,6 +2962,29 @@ export type Policy = {
 export type PolicyWritable = {
     metadata: MetadataWritable;
     spec: PolicySpec;
+    usage?: PolicyUsageCounts;
+};
+
+/**
+ * Cursor-paginated list of policies. Returned starting with API version 2026-04-28; older API versions return a bare array.
+ */
+export type PolicyList = {
+    /**
+     * Page of policies.
+     */
+    data?: Array<Policy>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * Cursor-paginated list of policies. Returned starting with API version 2026-04-28; older API versions return a bare array.
+ */
+export type PolicyListWritable = {
+    /**
+     * Page of policies.
+     */
+    data?: Array<PolicyWritable>;
+    meta?: PaginationMeta;
 };
 
 /**
@@ -2449,7 +3039,7 @@ export type PolicyMaxTokens = {
 /**
  * PolicyResourceType is a type of resource, e.g. model, function, etc.
  */
-export type PolicyResourceType = 'model' | 'function' | 'agent' | 'sandbox';
+export type PolicyResourceType = 'model' | 'function' | 'agent' | 'sandbox' | 'application';
 
 /**
  * PolicyResourceTypes is a local type that wraps a slice of PolicyResourceType
@@ -2472,6 +3062,53 @@ export type PolicySpec = {
      * Policy type, can be location or flavor
      */
     type?: 'location' | 'flavor' | 'maxToken';
+};
+
+/**
+ * Per-resource counts of how many resources reference a policy. Computed by the policies listing endpoint to avoid client-side fan-out across the agents/models/functions/sandboxes/jobs listings.
+ */
+export type PolicyUsageCounts = {
+    agents?: number;
+    functions?: number;
+    jobs?: number;
+    models?: number;
+    sandboxes?: number;
+};
+
+/**
+ * Resources currently referencing a policy. Returned by GET /policies/{name}/usages so the policies UI can render attachments without fetching the agents/models/functions listings full.
+ */
+export type PolicyUsages = {
+    /**
+     * Names of agents whose spec.policies contains this policy.
+     */
+    agents?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Names of functions whose spec.policies contains this policy.
+     */
+    functions?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Names of jobs whose spec.policies contains this policy.
+     */
+    jobs?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Names of models whose spec.policies contains this policy.
+     */
+    models?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Names of sandboxes whose spec.policies contains this policy.
+     */
+    sandboxes?: Array<{
+        [key: string]: unknown;
+    }>;
 };
 
 /**
@@ -2746,9 +3383,17 @@ export type PrivateLocation = {
  */
 export type ProxyConfig = {
     /**
+     * List of allowed external domains (allowlist). When set, only these domains are reachable. Supports wildcards (e.g. *.s3.amazonaws.com).
+     */
+    allowedDomains?: Array<string>;
+    /**
      * Domains that bypass the proxy entirely via the NO_PROXY directive. Traffic to these destinations goes direct, not through the CONNECT tunnel. Supports wildcards. Note that localhost, private ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16), 169.254.169.254, .local and .internal are always bypassed by default.
      */
     bypass?: Array<string>;
+    /**
+     * List of forbidden external domains (denylist). When set, all domains except these are reachable. Supports wildcards (e.g. *.malware.com). If both allowedDomains and forbiddenDomains are set, allowedDomains takes precedence.
+     */
+    forbiddenDomains?: Array<string>;
     /**
      * Per-destination routing rules with header/body injection and secrets. Use destinations ["*"] for global rules that apply to all destinations.
      */
@@ -2840,6 +3485,10 @@ export type Region = {
      * Region display name
      */
     location?: string;
+    /**
+     * Whether this region supports mk3.1 (blaxel nodes). Required for Application and Job deployments.
+     */
+    mk31Available?: boolean;
     /**
      * Region name
      */
@@ -3082,6 +3731,10 @@ export type Sandbox = {
      */
     readonly lastUsedAt?: string;
     metadata: Metadata;
+    /**
+     * Infrastructure generation this sandbox is deployed on (mk3.0 or mk3.1).
+     */
+    readonly nodeGeneration?: string;
     spec: SandboxSpec;
     /**
      * Current state of the sandbox (read-only, managed by the system)
@@ -3109,7 +3762,7 @@ export type SandboxWritable = {
  */
 export type SandboxDefinition = {
     /**
-     * Categories of the defintion
+     * Categories of the definition
      */
     categories?: Array<{
         [key: string]: unknown;
@@ -3119,7 +3772,7 @@ export type SandboxDefinition = {
      */
     coming_soon?: boolean;
     /**
-     * Description of the defintion
+     * Description of the definition
      */
     description?: string;
     /**
@@ -3143,7 +3796,7 @@ export type SandboxDefinition = {
      */
     image?: string;
     /**
-     * Long description of the defintion
+     * Long description of the definition
      */
     longDescription?: string;
     /**
@@ -3206,6 +3859,58 @@ export type SandboxError = {
 };
 
 /**
+ * Request body for forking a sandbox into an application. Creates a new application or adds a canary revision to an existing one.
+ */
+export type SandboxForkRequest = {
+    /**
+     * Custom domain for the application
+     */
+    customDomain?: string;
+    /**
+     * Port to expose from the sandbox
+     */
+    port?: number;
+    /**
+     * URL prefix for the application
+     */
+    prefix?: string;
+    /**
+     * Snapshot ID to fork from. When set, the application revision references this snapshot.
+     */
+    snapshotId?: string;
+    /**
+     * Name of the target application to create or update
+     */
+    targetName: string;
+    /**
+     * Target resource type to fork into
+     */
+    targetType: string;
+    /**
+     * Traffic percentage for canary deployment (0-100). When set on an existing target, creates a new revision with this traffic percentage.
+     */
+    traffic?: number;
+};
+
+/**
+ * Response returned after forking a sandbox. Contains either the new sandbox or application depending on the fork type.
+ */
+export type SandboxForkResponse = {
+    /**
+     * Name of the created or updated resource
+     */
+    name?: string;
+    /**
+     * The snapshot ID the fork was created from
+     */
+    snapshotId?: string;
+    /**
+     * Type of resource that was created (sandbox or application)
+     */
+    type?: 'sandbox' | 'application';
+};
+
+/**
  * Lifecycle configuration controlling automatic sandbox deletion based on idle time, max age, or specific dates
  */
 export type SandboxLifecycle = {
@@ -3220,19 +3925,46 @@ export type SandboxLifecycle = {
 };
 
 /**
- * Network configuration for a sandbox including domain filtering, egress IP binding, and proxy settings
+ * Cursor-paginated list of sandboxes. Returned starting with API version 2026-04-28; older API versions return a bare array.
+ */
+export type SandboxList = {
+    /**
+     * Page of sandboxes. Items use the lite shape (no inline event history) to keep the page payload small, matching the unpaginated response.
+     */
+    data?: Array<Sandbox>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * Cursor-paginated list of sandboxes. Returned starting with API version 2026-04-28; older API versions return a bare array.
+ */
+export type SandboxListWritable = {
+    /**
+     * Page of sandboxes. Items use the lite shape (no inline event history) to keep the page payload small, matching the unpaginated response.
+     */
+    data?: Array<SandboxWritable>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * Network configuration for a sandbox including subnet, firewall rulesets, domain filtering, egress IP binding, and proxy settings
  */
 export type SandboxNetwork = {
     /**
-     * List of allowed external domains (allowlist). When set, only these domains are reachable. Supports wildcards (e.g. *.s3.amazonaws.com).
+     * Deprecated: use proxy.allowedDomains instead. List of allowed external domains (allowlist). Kept for backward compatibility.
      */
     allowedDomains?: Array<string>;
     egress?: EgressConfig;
+    firewall?: FirewallConfig;
     /**
-     * List of forbidden external domains (denylist). When set, all domains except these are reachable. Supports wildcards (e.g. *.malware.com). If both allowedDomains and forbiddenDomains are set, allowedDomains takes precedence.
+     * Deprecated: use proxy.forbiddenDomains instead. List of forbidden external domains (denylist). Kept for backward compatibility.
      */
     forbiddenDomains?: Array<string>;
     proxy?: ProxyConfig;
+    /**
+     * Subnet name for the sandbox. Takes priority over any subnet derived from egress config. Defaults to "default" when absent.
+     */
+    subnet?: string;
 };
 
 /**
@@ -3248,7 +3980,7 @@ export type SandboxRuntime = {
      */
     expires?: string;
     /**
-     * Extra arguments for sandbox kernel selection. Supported keys: 'iptables', 'nvme'. Values: 'enabled' or 'disabled'. Determines which kernel variant the sandbox runs on. Immutable after creation.
+     * Extra arguments for kernel selection. Supported keys: 'iptables', 'nfs' (mk3.0), 'tun' (mk3.1). Values: 'enabled' or 'disabled'. Determines which kernel variant the workload runs on. Immutable after creation.
      */
     extraArgs?: {
         [key: string]: string;
@@ -3267,10 +3999,246 @@ export type SandboxRuntime = {
      */
     terminationGracePeriodSeconds?: number;
     /**
-     * Time-to-live duration after which the sandbox is automatically deleted (e.g., '30m', '24h', '7d')
+     * Max-age from creation: the sandbox is deleted this long after it is created, regardless of activity (not an idle timeout). Units s, m, h, d, w (e.g., '30m', '24h', '7d', '2w'). For idle-based cleanup, use a lifecycle expiration policy of type ttl-idle.
      */
     ttl?: string;
 };
+
+/**
+ * A scheduled task that executes a process inside the sandbox at specified times. Stored in the dedicated schedules table (no longer embedded in the sandbox spec).
+ */
+export type SandboxScheduleEntry = {
+    /**
+     * Creation timestamp (read-only).
+     */
+    readonly createdAt?: string;
+    /**
+     * Unique identifier for this schedule within its sandbox. Auto-generated if not provided.
+     */
+    id?: string;
+    input?: SandboxScheduleInput;
+    /**
+     * Maximum number of execution records kept for this schedule. Once reached, recording a new execution deletes the oldest. Defaults to 100.
+     */
+    maxExecutions?: number;
+    /**
+     * Type of schedule timing. 'cron' for recurring (5-field expression), 'at' for a specific RFC 3339 datetime, 'sleep' for a duration from now (resolved to 'at' on creation).
+     */
+    type?: 'cron' | 'at' | 'sleep';
+    /**
+     * Timing value. For 'cron': a 5-field cron expression (e.g. '0 8 * * 1-5'). For 'at': an RFC 3339 datetime (e.g. '2026-07-01T09:00:00Z'). For 'sleep': a duration (e.g. '2h', '30m', '7d').
+     */
+    value?: string;
+};
+
+/**
+ * A scheduled task that executes a process inside the sandbox at specified times. Stored in the dedicated schedules table (no longer embedded in the sandbox spec).
+ */
+export type SandboxScheduleEntryWritable = {
+    /**
+     * Unique identifier for this schedule within its sandbox. Auto-generated if not provided.
+     */
+    id?: string;
+    input?: SandboxScheduleInput;
+    /**
+     * Maximum number of execution records kept for this schedule. Once reached, recording a new execution deletes the oldest. Defaults to 100.
+     */
+    maxExecutions?: number;
+    /**
+     * Type of schedule timing. 'cron' for recurring (5-field expression), 'at' for a specific RFC 3339 datetime, 'sleep' for a duration from now (resolved to 'at' on creation).
+     */
+    type?: 'cron' | 'at' | 'sleep';
+    /**
+     * Timing value. For 'cron': a 5-field cron expression (e.g. '0 8 * * 1-5'). For 'at': an RFC 3339 datetime (e.g. '2026-07-01T09:00:00Z'). For 'sleep': a duration (e.g. '2h', '30m', '7d').
+     */
+    value?: string;
+};
+
+/**
+ * Cursor-paginated list of a sandbox's schedule definitions.
+ */
+export type SandboxScheduleEntryList = {
+    /**
+     * Page of schedule definitions.
+     */
+    data?: Array<SandboxScheduleEntry>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * Cursor-paginated list of a sandbox's schedule definitions.
+ */
+export type SandboxScheduleEntryListWritable = {
+    /**
+     * Page of schedule definitions.
+     */
+    data?: Array<SandboxScheduleEntryWritable>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * One recorded execution of a sandbox schedule. statusCode is the HTTP status from submitting the command to the sandbox (the scheduler does not wait for the command to finish). Stored in the dedicated scheduleexecutions table.
+ */
+export type SandboxScheduleExecution = {
+    /**
+     * Creation timestamp (read-only).
+     */
+    readonly createdAt?: string;
+    /**
+     * RFC 3339 time at which the command was submitted.
+     */
+    executedAt?: string;
+    /**
+     * Unique id of this execution within the schedule.
+     */
+    id?: string;
+    /**
+     * Name of the process started in the sandbox for this execution, used to look up its logs.
+     */
+    processName?: string;
+    /**
+     * Id of the schedule this execution belongs to.
+     */
+    scheduleId?: string;
+    /**
+     * HTTP status code returned when the scheduled command was submitted to the sandbox (0 if the sandbox could not be reached). 2xx/3xx means the command was accepted.
+     */
+    statusCode?: number;
+    /**
+     * Process timeout in seconds for this execution. The UI uses it to scope the log view to [executedAt, executedAt+timeout]. 0 when the schedule set no timeout.
+     */
+    timeout?: number;
+};
+
+/**
+ * One recorded execution of a sandbox schedule. statusCode is the HTTP status from submitting the command to the sandbox (the scheduler does not wait for the command to finish). Stored in the dedicated scheduleexecutions table.
+ */
+export type SandboxScheduleExecutionWritable = {
+    /**
+     * RFC 3339 time at which the command was submitted.
+     */
+    executedAt?: string;
+    /**
+     * Unique id of this execution within the schedule.
+     */
+    id?: string;
+    /**
+     * Name of the process started in the sandbox for this execution, used to look up its logs.
+     */
+    processName?: string;
+    /**
+     * Id of the schedule this execution belongs to.
+     */
+    scheduleId?: string;
+    /**
+     * HTTP status code returned when the scheduled command was submitted to the sandbox (0 if the sandbox could not be reached). 2xx/3xx means the command was accepted.
+     */
+    statusCode?: number;
+    /**
+     * Process timeout in seconds for this execution. The UI uses it to scope the log view to [executedAt, executedAt+timeout]. 0 when the schedule set no timeout.
+     */
+    timeout?: number;
+};
+
+/**
+ * Cursor-paginated list of a sandbox's schedule execution history (across all its schedules).
+ */
+export type SandboxScheduleExecutionList = {
+    /**
+     * Page of schedule executions.
+     */
+    data?: Array<SandboxScheduleExecution>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * Cursor-paginated list of a sandbox's schedule execution history (across all its schedules).
+ */
+export type SandboxScheduleExecutionListWritable = {
+    /**
+     * Page of schedule executions.
+     */
+    data?: Array<SandboxScheduleExecutionWritable>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * Process execution configuration for a scheduled sandbox task
+ */
+export type SandboxScheduleInput = {
+    /**
+     * Shell command to execute inside the sandbox
+     */
+    command?: string;
+    /**
+     * Environment variables to set for the process. May contain secrets, so values are encrypted at rest and masked in API responses unless an admin requests show_secrets=true.
+     */
+    env?: {
+        [key: string]: string;
+    };
+    /**
+     * Keep the sandbox alive (disable scale-to-zero) while the process runs. Defaults to true.
+     */
+    keepAlive?: boolean;
+    /**
+     * Optional name for the process (used to retrieve status/logs)
+     */
+    name?: string;
+    /**
+     * Timeout in seconds for the process. Defaults to 600 (10 minutes). Set to 0 for no timeout.
+     */
+    timeout?: number;
+    /**
+     * Working directory for the command
+     */
+    workingDir?: string;
+};
+
+/**
+ * A point-in-time snapshot of a sandbox that can be used for forking into a new sandbox or application.
+ */
+export type SandboxSnapshot = {
+    /**
+     * When the snapshot was created
+     */
+    createdAt: string;
+    /**
+     * Who created the snapshot
+     */
+    createdBy?: string;
+    /**
+     * Unique snapshot identifier
+     */
+    id: string;
+    /**
+     * Optional human-readable name for the snapshot
+     */
+    name?: string;
+    /**
+     * Name of the source sandbox
+     */
+    sandboxName: string;
+    /**
+     * Status of the snapshot (pending, ready, failed)
+     */
+    status: string;
+    /**
+     * Workspace of the source sandbox
+     */
+    workspace: string;
+};
+
+/**
+ * Request body for creating a snapshot of a sandbox. Captures the current sandbox state.
+ */
+export type SandboxSnapshotRequest = {
+    /**
+     * Optional human-readable name for the snapshot
+     */
+    name?: string;
+};
+
+export type SandboxSnapshots = Array<SandboxSnapshot>;
 
 /**
  * Configuration for a sandbox including its image, memory, ports, region, and lifecycle policies
@@ -3288,6 +4256,10 @@ export type SandboxSpec = {
     region?: string;
     runtime?: SandboxRuntime;
     volumes?: VolumeAttachments;
+    /**
+     * VPC name for the sandbox. Defaults to "default" when absent.
+     */
+    vpc?: string;
 };
 
 /**
@@ -3376,7 +4348,7 @@ export type TemplateVariable = {
 };
 
 /**
- * Time fields for Persistance
+ * Time fields for Persistence
  */
 export type TimeFields = {
     /**
@@ -3399,7 +4371,7 @@ export type Trigger = {
      */
     enabled?: boolean;
     /**
-     * The id of the trigger
+     * Identifier of the trigger. Optional — the server auto-generates a unique id when one is not provided, and disambiguates duplicates within a resource.
      */
     id?: string;
     /**
@@ -3418,7 +4390,7 @@ export type TriggerWritable = {
      */
     enabled?: boolean;
     /**
-     * The id of the trigger
+     * Identifier of the trigger. Optional — the server auto-generates a unique id when one is not provided, and disambiguates duplicates within a resource.
      */
     id?: string;
     /**
@@ -3572,7 +4544,7 @@ export type VolumeWritable = {
 };
 
 /**
- * Configuration for attaching a persistent volume to a sandbox at a specific filesystem path
+ * Configuration for attaching a volume to a sandbox at a specific filesystem path. Defaults to a persistent volume; set type to "ephemeral" for disk-backed scratch space created with the sandbox and destroyed when it stops.
  */
 export type VolumeAttachment = {
     /**
@@ -3580,16 +4552,46 @@ export type VolumeAttachment = {
      */
     mountPath?: string;
     /**
-     * Name of the volume resource to attach (must exist in the same workspace and region)
+     * For persistent volumes, the name of the volume resource to attach (must exist in the same workspace and region). For ephemeral volumes, an identifier used to reference the volume internally.
      */
     name?: string;
     /**
      * If true, the volume is mounted read-only and cannot be modified by the sandbox
      */
     readOnly?: boolean;
+    /**
+     * Storage capacity in megabytes. Required for ephemeral volumes, ignored for persistent volumes.
+     */
+    sizeMb?: number;
+    /**
+     * Type of volume. Defaults to "persistent" (an existing volume resource). Use "ephemeral" for temporary disk-backed storage created with the sandbox.
+     */
+    type?: 'persistent' | 'ephemeral';
 };
 
 export type VolumeAttachments = Array<VolumeAttachment>;
+
+/**
+ * Cursor-paginated list of volumes. Returned starting with API version 2026-04-28; older API versions return a bare array. Items use the lite shape (no inline event history).
+ */
+export type VolumeList = {
+    /**
+     * Page of volumes.
+     */
+    data?: Array<LiteVolume>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * Cursor-paginated list of volumes. Returned starting with API version 2026-04-28; older API versions return a bare array. Items use the lite shape (no inline event history).
+ */
+export type VolumeListWritable = {
+    /**
+     * Page of volumes.
+     */
+    data?: Array<LiteVolumeWritable>;
+    meta?: PaginationMeta;
+};
 
 /**
  * Immutable volume configuration set at creation time (size and region cannot be changed after creation)
@@ -3795,6 +4797,7 @@ export type Workspace = TimeFields & OwnerFields & {
      * Group-to-role mappings for directory sync (SCIM) group membership
      */
     groupMappings?: Array<GroupWorkspaceMapping>;
+    hipaaInfo?: WorkspaceHipaaInfo;
     /**
      * Autogenerated unique workspace id
      */
@@ -3808,6 +4811,12 @@ export type Workspace = TimeFields & OwnerFields & {
      * Workspace write region
      */
     region?: string;
+    /**
+     * Per-resource counts (agents, functions, models, sandboxes, policies, jobs, volumes, drives, volumetemplates, integrationconnections, previews, customdomains, serviceaccounts, images). Only populated when GetWorkspace is called with ?countResources=true.
+     */
+    readonly resourceCounts?: {
+        [key: string]: number;
+    };
     runtime?: WorkspaceRuntime;
     /**
      * Workspace status (created, account_binded, account_configured, workspace_configured, ready, error)
@@ -3835,6 +4844,7 @@ export type WorkspaceWritable = TimeFields & OwnerFields & {
      * Group-to-role mappings for directory sync (SCIM) group membership
      */
     groupMappings?: Array<GroupWorkspaceMapping>;
+    hipaaInfo?: WorkspaceHipaaInfoWritable;
     labels?: MetadataLabels;
     /**
      * Workspace name
@@ -3870,6 +4880,56 @@ export type WorkspaceAvailability = {
 };
 
 /**
+ * HIPAA compliance state for a workspace. `accountEnabled` mirrors the account-level `hipaa_compliance` addon (set server-side from operator tooling and Stripe billing events). `unsafe` records a per-workspace opt-out toggled from workspace settings; absent when the account does not have the addon.
+ */
+export type WorkspaceHipaaInfo = {
+    /**
+     * True when the parent account has the HIPAA compliance addon active. Set server-side from operator tooling and Stripe billing events; cannot be changed from workspace settings.
+     */
+    accountEnabled?: boolean;
+    unsafe?: WorkspaceHipaaUnsafe;
+};
+
+/**
+ * HIPAA compliance state for a workspace. `accountEnabled` mirrors the account-level `hipaa_compliance` addon (set server-side from operator tooling and Stripe billing events). `unsafe` records a per-workspace opt-out toggled from workspace settings; absent when the account does not have the addon.
+ */
+export type WorkspaceHipaaInfoWritable = {
+    /**
+     * True when the parent account has the HIPAA compliance addon active. Set server-side from operator tooling and Stripe billing events; cannot be changed from workspace settings.
+     */
+    accountEnabled?: boolean;
+    unsafe?: WorkspaceHipaaUnsafeWritable;
+};
+
+/**
+ * Per-workspace HIPAA opt-out record. Toggled from workspace settings; the backend stamps `updatedBy` and `updatedAt`.
+ */
+export type WorkspaceHipaaUnsafe = {
+    /**
+     * True marks this workspace as HIPAA-unsafe (NOT compliant), overriding the account-level addon. False marks the workspace as HIPAA compliant.
+     */
+    enabled?: boolean;
+    /**
+     * RFC3339 timestamp when the opt-out was last toggled. Stamped server-side.
+     */
+    readonly updatedAt?: string;
+    /**
+     * User id (sub) of the actor that last toggled this opt-out. Stamped server-side.
+     */
+    readonly updatedBy?: string;
+};
+
+/**
+ * Per-workspace HIPAA opt-out record. Toggled from workspace settings; the backend stamps `updatedBy` and `updatedAt`.
+ */
+export type WorkspaceHipaaUnsafeWritable = {
+    /**
+     * True marks this workspace as HIPAA-unsafe (NOT compliant), overriding the account-level addon. False marks the workspace as HIPAA compliant.
+     */
+    enabled?: boolean;
+};
+
+/**
  * Runtime configuration for the workspace infrastructure
  */
 export type WorkspaceRuntime = {
@@ -3877,6 +4937,17 @@ export type WorkspaceRuntime = {
      * Infrastructure generation version for the workspace (affects available features and deployment behavior)
      */
     generation?: string;
+    sandbox?: WorkspaceSandboxSettings;
+};
+
+/**
+ * Workspace-wide sandbox configuration that applies to all sandbox deployments in the workspace.
+ */
+export type WorkspaceSandboxSettings = {
+    /**
+     * When true, sandbox deployments in this workspace set SANDBOX_DISABLE_PROCESS_LOGGING=true to disable per-process stdout/stderr logging. Requires sandbox-api v0.2.28+.
+     */
+    disableProcessLogging?: boolean;
 };
 
 /**
@@ -3921,10 +4992,61 @@ export type WorkspaceUser = {
     sub?: string;
 };
 
+/**
+ * API version (e.g., 2026-04-16). Defaults to the earliest stable version if omitted. See https://docs.blaxel.ai/api-reference/introduction#api-versioning.
+ */
+export type BlaxelVersion = string;
+
+/**
+ * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
+ */
+export type PaginationAnchor = 'end';
+
+/**
+ * Opaque cursor returned by a previous response's meta.nextCursor. Only valid for the same query (workspace + filters); the server rejects cursors bound to a different query or older than 24h. Omit on the first page.
+ */
+export type PaginationCursor = string;
+
+/**
+ * Maximum number of items to return per page. Defaults to 50, clamped to 200.
+ */
+export type PaginationLimit = number;
+
+/**
+ * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+ */
+export type PaginationQuery = string;
+
+/**
+ * Sort spec, formatted as `<key>:<direction>`. Allowed values are `createdAt:desc` (default), `createdAt:asc`, `name:asc`, `name:desc`. The cursor fingerprint is bound to the sort, so a cursor opened with one value cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+ */
+export type PaginationSort = 'createdAt:desc' | 'createdAt:asc' | 'name:asc' | 'name:desc';
+
 export type ListAgentsData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Opaque cursor returned by a previous response's meta.nextCursor. Only valid for the same query (workspace + filters); the server rejects cursors bound to a different query or older than 24h. Omit on the first page.
+         */
+        cursor?: string;
+        /**
+         * Maximum number of items to return per page. Defaults to 50, clamped to 200.
+         */
+        limit?: number;
+        /**
+         * Sort spec, formatted as `<key>:<direction>`. Allowed values are `createdAt:desc` (default), `createdAt:asc`, `name:asc`, `name:desc`. The cursor fingerprint is bound to the sort, so a cursor opened with one value cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        sort?: 'createdAt:desc' | 'createdAt:asc' | 'name:asc' | 'name:desc';
+        /**
+         * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        q?: string;
+        /**
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
+         */
+        anchor?: 'end';
+    };
     url: '/agents';
 };
 
@@ -3949,7 +5071,7 @@ export type ListAgentsResponses = {
     /**
      * successful operation
      */
-    200: Array<Agent>;
+    200: AgentList;
 };
 
 export type ListAgentsResponse = ListAgentsResponses[keyof ListAgentsResponses];
@@ -4151,6 +5273,289 @@ export type ListAgentRevisionsResponses = {
 
 export type ListAgentRevisionsResponse = ListAgentRevisionsResponses[keyof ListAgentRevisionsResponses];
 
+export type ListApplicationsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Opaque cursor returned by a previous response's meta.nextCursor. Only valid for the same query (workspace + filters); the server rejects cursors bound to a different query or older than 24h. Omit on the first page.
+         */
+        cursor?: string;
+        /**
+         * Maximum number of items to return per page. Defaults to 50, clamped to 200.
+         */
+        limit?: number;
+        /**
+         * Sort spec, formatted as `<key>:<direction>`. Allowed values are `createdAt:desc` (default), `createdAt:asc`, `name:asc`, `name:desc`. The cursor fingerprint is bound to the sort, so a cursor opened with one value cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        sort?: 'createdAt:desc' | 'createdAt:asc' | 'name:asc' | 'name:desc';
+        /**
+         * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        q?: string;
+        /**
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
+         */
+        anchor?: 'end';
+    };
+    url: '/applications';
+};
+
+export type ListApplicationsErrors = {
+    /**
+     * Unauthorized - Invalid or missing authentication credentials
+     */
+    401: _Error;
+    /**
+     * Forbidden - Insufficient permissions to list applications
+     */
+    403: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type ListApplicationsError = ListApplicationsErrors[keyof ListApplicationsErrors];
+
+export type ListApplicationsResponses = {
+    /**
+     * successful operation
+     */
+    200: ApplicationList;
+};
+
+export type ListApplicationsResponse = ListApplicationsResponses[keyof ListApplicationsResponses];
+
+export type CreateApplicationData = {
+    body: ApplicationWritable;
+    path?: never;
+    query?: never;
+    url: '/applications';
+};
+
+export type CreateApplicationErrors = {
+    /**
+     * Bad request - Invalid application configuration
+     */
+    400: _Error;
+    /**
+     * Unauthorized - Invalid or missing authentication credentials
+     */
+    401: _Error;
+    /**
+     * Forbidden - Insufficient permissions to create applications
+     */
+    403: _Error;
+    /**
+     * Conflict - Application with this name already exists
+     */
+    409: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type CreateApplicationError = CreateApplicationErrors[keyof CreateApplicationErrors];
+
+export type CreateApplicationResponses = {
+    /**
+     * successful operation
+     */
+    200: Application;
+};
+
+export type CreateApplicationResponse = CreateApplicationResponses[keyof CreateApplicationResponses];
+
+export type DeleteApplicationData = {
+    body?: never;
+    path: {
+        /**
+         * Unique name identifier of the application
+         */
+        applicationName: string;
+    };
+    query?: never;
+    url: '/applications/{applicationName}';
+};
+
+export type DeleteApplicationErrors = {
+    /**
+     * Unauthorized - Invalid or missing authentication credentials
+     */
+    401: _Error;
+    /**
+     * Forbidden - Insufficient permissions to delete this application
+     */
+    403: _Error;
+    /**
+     * Not found - Application does not exist
+     */
+    404: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type DeleteApplicationError = DeleteApplicationErrors[keyof DeleteApplicationErrors];
+
+export type DeleteApplicationResponses = {
+    /**
+     * successful operation
+     */
+    200: Application;
+};
+
+export type DeleteApplicationResponse = DeleteApplicationResponses[keyof DeleteApplicationResponses];
+
+export type GetApplicationData = {
+    body?: never;
+    path: {
+        /**
+         * Unique name identifier of the application
+         */
+        applicationName: string;
+    };
+    query?: never;
+    url: '/applications/{applicationName}';
+};
+
+export type GetApplicationErrors = {
+    /**
+     * Unauthorized - Invalid or missing authentication credentials
+     */
+    401: _Error;
+    /**
+     * Forbidden - Insufficient permissions to view this application
+     */
+    403: _Error;
+    /**
+     * Not found - Application does not exist
+     */
+    404: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type GetApplicationError = GetApplicationErrors[keyof GetApplicationErrors];
+
+export type GetApplicationResponses = {
+    /**
+     * successful operation
+     */
+    200: Application;
+};
+
+export type GetApplicationResponse = GetApplicationResponses[keyof GetApplicationResponses];
+
+export type UpdateApplicationData = {
+    body: ApplicationWritable;
+    path: {
+        /**
+         * Unique name identifier of the application
+         */
+        applicationName: string;
+    };
+    query?: never;
+    url: '/applications/{applicationName}';
+};
+
+export type UpdateApplicationErrors = {
+    /**
+     * Bad request - Invalid application configuration
+     */
+    400: _Error;
+    /**
+     * Unauthorized - Invalid or missing authentication credentials
+     */
+    401: _Error;
+    /**
+     * Forbidden - Insufficient permissions to update this application
+     */
+    403: _Error;
+    /**
+     * Not found - Application does not exist
+     */
+    404: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type UpdateApplicationError = UpdateApplicationErrors[keyof UpdateApplicationErrors];
+
+export type UpdateApplicationResponses = {
+    /**
+     * successful operation
+     */
+    200: Application;
+};
+
+export type UpdateApplicationResponse = UpdateApplicationResponses[keyof UpdateApplicationResponses];
+
+export type CreateApplicationCustomDomainData = {
+    body: CustomDomainWritable;
+    path: {
+        /**
+         * Name of the application
+         */
+        applicationName: string;
+    };
+    query?: never;
+    url: '/applications/{applicationName}/customdomains';
+};
+
+export type CreateApplicationCustomDomainResponses = {
+    /**
+     * successful operation
+     */
+    200: CustomDomain;
+};
+
+export type CreateApplicationCustomDomainResponse = CreateApplicationCustomDomainResponses[keyof CreateApplicationCustomDomainResponses];
+
+export type ListApplicationRevisionsData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the application
+         */
+        applicationName: string;
+    };
+    query?: never;
+    url: '/applications/{applicationName}/revisions';
+};
+
+export type ListApplicationRevisionsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<AppRevision>;
+};
+
+export type ListApplicationRevisionsResponse = ListApplicationRevisionsResponses[keyof ListApplicationRevisionsResponses];
+
+export type GetChangelogData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/changelog';
+};
+
+export type GetChangelogResponses = {
+    /**
+     * Latest changelog entries
+     */
+    200: ChangelogResponse;
+};
+
+export type GetChangelogResponse = GetChangelogResponses[keyof GetChangelogResponses];
+
 export type GetConfigurationData = {
     body?: never;
     path?: never;
@@ -4262,6 +5667,107 @@ export type UpdateCustomDomainResponses = {
 
 export type UpdateCustomDomainResponse = UpdateCustomDomainResponses[keyof UpdateCustomDomainResponses];
 
+export type ListCustomDomainSharesData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the custom domain
+         */
+        domainName: string;
+    };
+    query?: never;
+    url: '/customdomains/{domainName}/share';
+};
+
+export type ListCustomDomainSharesErrors = {
+    /**
+     * custom domain not found
+     */
+    404: unknown;
+};
+
+export type ListCustomDomainSharesResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<CustomDomainShareTarget>;
+};
+
+export type ListCustomDomainSharesResponse = ListCustomDomainSharesResponses[keyof ListCustomDomainSharesResponses];
+
+export type ShareCustomDomainData = {
+    body: {
+        /**
+         * Name of the workspace to share the domain with, or "account" to share with every workspace of the account.
+         */
+        targetWorkspace: string;
+    };
+    path: {
+        /**
+         * Name of the custom domain
+         */
+        domainName: string;
+    };
+    query?: never;
+    url: '/customdomains/{domainName}/share';
+};
+
+export type ShareCustomDomainErrors = {
+    /**
+     * invalid request
+     */
+    400: unknown;
+    /**
+     * custom domain not found
+     */
+    404: unknown;
+    /**
+     * custom domain conflict in target workspace
+     */
+    409: unknown;
+};
+
+export type ShareCustomDomainResponses = {
+    /**
+     * successful operation
+     */
+    200: CustomDomain;
+};
+
+export type ShareCustomDomainResponse = ShareCustomDomainResponses[keyof ShareCustomDomainResponses];
+
+export type UnshareCustomDomainData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the custom domain
+         */
+        domainName: string;
+        /**
+         * Name of the target workspace, or "account" for an account-wide share.
+         */
+        targetWorkspace: string;
+    };
+    query?: never;
+    url: '/customdomains/{domainName}/share/{targetWorkspace}';
+};
+
+export type UnshareCustomDomainErrors = {
+    /**
+     * custom domain or share not found
+     */
+    404: unknown;
+};
+
+export type UnshareCustomDomainResponses = {
+    /**
+     * successful operation
+     */
+    200: CustomDomain;
+};
+
+export type UnshareCustomDomainResponse = UnshareCustomDomainResponses[keyof UnshareCustomDomainResponses];
+
 export type VerifyCustomDomainData = {
     body?: never;
     path: {
@@ -4286,7 +5792,32 @@ export type VerifyCustomDomainResponse = VerifyCustomDomainResponses[keyof Verif
 export type ListDrivesData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Opaque cursor returned by a previous response's meta.nextCursor. Only valid for the same query (workspace + filters); the server rejects cursors bound to a different query or older than 24h. Omit on the first page.
+         */
+        cursor?: string;
+        /**
+         * Maximum number of items to return per page. Defaults to 50, clamped to 200.
+         */
+        limit?: number;
+        /**
+         * Sort spec, formatted as `<key>:<direction>`. Allowed values are `createdAt:desc` (default), `createdAt:asc`, `name:asc`, `name:desc`. The cursor fingerprint is bound to the sort, so a cursor opened with one value cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        sort?: 'createdAt:desc' | 'createdAt:asc' | 'name:asc' | 'name:desc';
+        /**
+         * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        q?: string;
+        /**
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
+         */
+        anchor?: 'end';
+        /**
+         * Filter drives by external ID. When set, only drives matching this caller-owned identifier are returned.
+         */
+        externalId?: string;
+    };
     url: '/drives';
 };
 
@@ -4301,7 +5832,7 @@ export type ListDrivesResponses = {
     /**
      * successful operation
      */
-    200: Array<Drive>;
+    200: DriveList;
 };
 
 export type ListDrivesResponse = ListDrivesResponses[keyof ListDrivesResponses];
@@ -4456,6 +5987,46 @@ export type CreateDriveAccessTokenResponses = {
 
 export type CreateDriveAccessTokenResponse = CreateDriveAccessTokenResponses[keyof CreateDriveAccessTokenResponses];
 
+export type GetDriveByExternalIdData = {
+    body?: never;
+    path: {
+        /**
+         * Caller-owned external identifier for the drive
+         */
+        externalId: string;
+    };
+    query?: never;
+    url: '/drives/by-external-id/{externalId}';
+};
+
+export type GetDriveByExternalIdErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden - Insufficient permissions to view drives
+     */
+    403: unknown;
+    /**
+     * Drive not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetDriveByExternalIdResponses = {
+    /**
+     * successful operation
+     */
+    200: Drive;
+};
+
+export type GetDriveByExternalIdResponse = GetDriveByExternalIdResponses[keyof GetDriveByExternalIdResponses];
+
 export type GetDriveJwksData = {
     body?: never;
     path?: never;
@@ -4491,6 +6062,22 @@ export type ListAllEgressGatewaysResponses = {
 };
 
 export type ListAllEgressGatewaysResponse = ListAllEgressGatewaysResponses[keyof ListAllEgressGatewaysResponses];
+
+export type GetEgressGatewayUsageData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/egressgateways/usage';
+};
+
+export type GetEgressGatewayUsageResponses = {
+    /**
+     * successful operation
+     */
+    200: EgressGatewayUsage;
+};
+
+export type GetEgressGatewayUsageResponse = GetEgressGatewayUsageResponses[keyof GetEgressGatewayUsageResponses];
 
 export type ListAllEgressIpsData = {
     body?: never;
@@ -4602,7 +6189,28 @@ export type TestFeatureFlagResponse = TestFeatureFlagResponses[keyof TestFeature
 export type ListFunctionsData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Opaque cursor returned by a previous response's meta.nextCursor. Only valid for the same query (workspace + filters); the server rejects cursors bound to a different query or older than 24h. Omit on the first page.
+         */
+        cursor?: string;
+        /**
+         * Maximum number of items to return per page. Defaults to 50, clamped to 200.
+         */
+        limit?: number;
+        /**
+         * Sort spec, formatted as `<key>:<direction>`. Allowed values are `createdAt:desc` (default), `createdAt:asc`, `name:asc`, `name:desc`. The cursor fingerprint is bound to the sort, so a cursor opened with one value cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        sort?: 'createdAt:desc' | 'createdAt:asc' | 'name:asc' | 'name:desc';
+        /**
+         * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        q?: string;
+        /**
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
+         */
+        anchor?: 'end';
+    };
     url: '/functions';
 };
 
@@ -4627,7 +6235,7 @@ export type ListFunctionsResponses = {
     /**
      * successful operation
      */
-    200: Array<_Function>;
+    200: FunctionList;
 };
 
 export type ListFunctionsResponse = ListFunctionsResponses[keyof ListFunctionsResponses];
@@ -5442,7 +7050,28 @@ export type GetIntegrationConnectionModelResponses = {
 export type ListJobsData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Opaque cursor returned by a previous response's meta.nextCursor. Only valid for the same query (workspace + filters); the server rejects cursors bound to a different query or older than 24h. Omit on the first page.
+         */
+        cursor?: string;
+        /**
+         * Maximum number of items to return per page. Defaults to 50, clamped to 200.
+         */
+        limit?: number;
+        /**
+         * Sort spec, formatted as `<key>:<direction>`. Allowed values are `createdAt:desc` (default), `createdAt:asc`, `name:asc`, `name:desc`. The cursor fingerprint is bound to the sort, so a cursor opened with one value cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        sort?: 'createdAt:desc' | 'createdAt:asc' | 'name:asc' | 'name:desc';
+        /**
+         * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        q?: string;
+        /**
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
+         */
+        anchor?: 'end';
+    };
     url: '/jobs';
 };
 
@@ -5450,7 +7079,7 @@ export type ListJobsResponses = {
     /**
      * successful operation
      */
-    200: Array<Job>;
+    200: JobList;
 };
 
 export type ListJobsResponse = ListJobsResponses[keyof ListJobsResponses];
@@ -5553,9 +7182,21 @@ export type ListJobExecutionsData = {
          */
         limit?: number;
         /**
-         * Page offset
+         * Page offset (legacy, ignored when Blaxel-Version >= 2026-04-28)
          */
         offset?: number;
+        /**
+         * Opaque cursor returned by a previous response's meta.nextCursor. Only valid for the same query (workspace + filters); the server rejects cursors bound to a different query or older than 24h. Omit on the first page.
+         */
+        cursor?: string;
+        /**
+         * Sort spec, formatted as `<key>:<direction>`. Allowed values are `createdAt:desc` (default), `createdAt:asc`, `name:asc`, `name:desc`. The cursor fingerprint is bound to the sort, so a cursor opened with one value cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        sort?: 'createdAt:desc' | 'createdAt:asc' | 'name:asc' | 'name:desc';
+        /**
+         * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        q?: string;
     };
     url: '/jobs/{jobId}/executions';
 };
@@ -5575,7 +7216,7 @@ export type ListJobExecutionsResponses = {
     /**
      * successful operation
      */
-    200: Array<JobExecution>;
+    200: JobExecutionList;
 };
 
 export type ListJobExecutionsResponse = ListJobExecutionsResponses[keyof ListJobExecutionsResponses];
@@ -5692,6 +7333,63 @@ export type GetJobExecutionResponses = {
 
 export type GetJobExecutionResponse = GetJobExecutionResponses[keyof GetJobExecutionResponses];
 
+export type ListJobExecutionTasksData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the job
+         */
+        jobId: string;
+        /**
+         * Execution id
+         */
+        executionId: string;
+    };
+    query?: {
+        /**
+         * Opaque cursor returned by a previous response's meta.nextCursor. Only valid for the same query (workspace + filters); the server rejects cursors bound to a different query or older than 24h. Omit on the first page.
+         */
+        cursor?: string;
+        /**
+         * Maximum number of items to return per page. Defaults to 50, clamped to 200.
+         */
+        limit?: number;
+        /**
+         * Sort spec, formatted as `<key>:<direction>`. Allowed values are `createdAt:desc` (default), `createdAt:asc`, `name:asc`, `name:desc`. The cursor fingerprint is bound to the sort, so a cursor opened with one value cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        sort?: 'createdAt:desc' | 'createdAt:asc' | 'name:asc' | 'name:desc';
+        /**
+         * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        q?: string;
+    };
+    url: '/jobs/{jobId}/executions/{executionId}/tasks';
+};
+
+export type ListJobExecutionTasksErrors = {
+    /**
+     * bad request
+     */
+    400: unknown;
+    /**
+     * job or execution not found
+     */
+    404: unknown;
+    /**
+     * internal server error
+     */
+    500: unknown;
+};
+
+export type ListJobExecutionTasksResponses = {
+    /**
+     * successful operation
+     */
+    200: JobExecutionTaskList;
+};
+
+export type ListJobExecutionTasksResponse = ListJobExecutionTasksResponses[keyof ListJobExecutionTasksResponses];
+
 export type ListJobRevisionsData = {
     body?: never;
     path: {
@@ -5748,7 +7446,28 @@ export type ListMcpHubDefinitionsResponse = ListMcpHubDefinitionsResponses[keyof
 export type ListModelsData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Opaque cursor returned by a previous response's meta.nextCursor. Only valid for the same query (workspace + filters); the server rejects cursors bound to a different query or older than 24h. Omit on the first page.
+         */
+        cursor?: string;
+        /**
+         * Maximum number of items to return per page. Defaults to 50, clamped to 200.
+         */
+        limit?: number;
+        /**
+         * Sort spec, formatted as `<key>:<direction>`. Allowed values are `createdAt:desc` (default), `createdAt:asc`, `name:asc`, `name:desc`. The cursor fingerprint is bound to the sort, so a cursor opened with one value cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        sort?: 'createdAt:desc' | 'createdAt:asc' | 'name:asc' | 'name:desc';
+        /**
+         * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        q?: string;
+        /**
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
+         */
+        anchor?: 'end';
+    };
     url: '/models';
 };
 
@@ -5773,7 +7492,7 @@ export type ListModelsResponses = {
     /**
      * successful operation
      */
-    200: Array<Model>;
+    200: ModelList;
 };
 
 export type ListModelsResponse = ListModelsResponses[keyof ListModelsResponses];
@@ -6071,7 +7790,28 @@ export type DeclineImageShareResponse = DeclineImageShareResponses[keyof Decline
 export type ListPoliciesData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Opaque cursor returned by a previous response's meta.nextCursor. Only valid for the same query (workspace + filters); the server rejects cursors bound to a different query or older than 24h. Omit on the first page.
+         */
+        cursor?: string;
+        /**
+         * Maximum number of items to return per page. Defaults to 50, clamped to 200.
+         */
+        limit?: number;
+        /**
+         * Sort spec, formatted as `<key>:<direction>`. Allowed values are `createdAt:desc` (default), `createdAt:asc`, `name:asc`, `name:desc`. The cursor fingerprint is bound to the sort, so a cursor opened with one value cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        sort?: 'createdAt:desc' | 'createdAt:asc' | 'name:asc' | 'name:desc';
+        /**
+         * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        q?: string;
+        /**
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
+         */
+        anchor?: 'end';
+    };
     url: '/policies';
 };
 
@@ -6079,7 +7819,7 @@ export type ListPoliciesResponses = {
     /**
      * successful operation
      */
-    200: Array<Policy>;
+    200: PolicyList;
 };
 
 export type ListPoliciesResponse = ListPoliciesResponses[keyof ListPoliciesResponses];
@@ -6163,6 +7903,27 @@ export type UpdatePolicyResponses = {
 
 export type UpdatePolicyResponse = UpdatePolicyResponses[keyof UpdatePolicyResponses];
 
+export type GetPolicyUsagesData = {
+    body?: never;
+    path: {
+        /**
+         * Unique name identifier of the policy
+         */
+        policyName: string;
+    };
+    query?: never;
+    url: '/policies/{policyName}/usages';
+};
+
+export type GetPolicyUsagesResponses = {
+    /**
+     * successful operation
+     */
+    200: PolicyUsages;
+};
+
+export type GetPolicyUsagesResponse = GetPolicyUsagesResponses[keyof GetPolicyUsagesResponses];
+
 export type ListPublicIpsData = {
     body?: never;
     path?: never;
@@ -6203,7 +7964,36 @@ export type ListSandboxHubDefinitionsResponse = ListSandboxHubDefinitionsRespons
 export type ListSandboxesData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * If true, include terminated sandboxes in the response. Defaults to false.
+         */
+        showTerminated?: boolean;
+        /**
+         * Opaque cursor returned by a previous response's meta.nextCursor. Only valid for the same query (workspace + filters); the server rejects cursors bound to a different query or older than 24h. Omit on the first page.
+         */
+        cursor?: string;
+        /**
+         * Maximum number of items to return per page. Defaults to 50, clamped to 200.
+         */
+        limit?: number;
+        /**
+         * Sort spec, formatted as `<key>:<direction>`. Allowed values are `createdAt:desc` (default), `createdAt:asc`, `name:asc`, `name:desc`. The cursor fingerprint is bound to the sort, so a cursor opened with one value cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        sort?: 'createdAt:desc' | 'createdAt:asc' | 'name:asc' | 'name:desc';
+        /**
+         * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        q?: string;
+        /**
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
+         */
+        anchor?: 'end';
+        /**
+         * Filter sandboxes by external ID. When set, only sandboxes matching this caller-owned identifier are returned.
+         */
+        externalId?: string;
+    };
     url: '/sandboxes';
 };
 
@@ -6228,7 +8018,7 @@ export type ListSandboxesResponses = {
     /**
      * successful operation
      */
-    200: Array<Sandbox>;
+    200: SandboxList;
 };
 
 export type ListSandboxesResponse = ListSandboxesResponses[keyof ListSandboxesResponses];
@@ -6414,6 +8204,48 @@ export type UpdateSandboxResponses = {
 
 export type UpdateSandboxResponse = UpdateSandboxResponses[keyof UpdateSandboxResponses];
 
+export type ForkSandboxData = {
+    body: SandboxForkRequest;
+    path: {
+        /**
+         * Name of the sandbox to fork
+         */
+        sandboxName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/fork';
+};
+
+export type ForkSandboxErrors = {
+    /**
+     * Bad request - Invalid fork parameters
+     */
+    400: _Error;
+    /**
+     * Not found - Source sandbox does not exist
+     */
+    404: _Error;
+    /**
+     * Conflict - Target sandbox already exists (only for type sandbox)
+     */
+    409: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type ForkSandboxError = ForkSandboxErrors[keyof ForkSandboxErrors];
+
+export type ForkSandboxResponses = {
+    /**
+     * Fork created successfully
+     */
+    200: SandboxForkResponse;
+};
+
+export type ForkSandboxResponse = ForkSandboxResponses[keyof ForkSandboxResponses];
+
 export type ListSandboxPreviewsData = {
     body?: never;
     path: {
@@ -6443,7 +8275,12 @@ export type CreateSandboxPreviewData = {
          */
         sandboxName: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Force creation by replacing conflicting previews that use the same custom domain prefix URL
+         */
+        force?: boolean;
+    };
     url: '/sandboxes/{sandboxName}/previews';
 };
 
@@ -6614,6 +8451,326 @@ export type DeleteSandboxPreviewTokenResponses = {
 };
 
 export type DeleteSandboxPreviewTokenResponse = DeleteSandboxPreviewTokenResponses[keyof DeleteSandboxPreviewTokenResponses];
+
+export type ListSandboxScheduleExecutionsData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+    };
+    query?: {
+        /**
+         * Number of items per page
+         */
+        limit?: number;
+        /**
+         * Opaque cursor returned by a previous response's meta.nextCursor. Only valid for the same query (workspace + filters); the server rejects cursors bound to a different query or older than 24h. Omit on the first page.
+         */
+        cursor?: string;
+        /**
+         * Sort spec, formatted as `<key>:<direction>`. Allowed values are `createdAt:desc` (default), `createdAt:asc`, `name:asc`, `name:desc`. The cursor fingerprint is bound to the sort, so a cursor opened with one value cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        sort?: 'createdAt:desc' | 'createdAt:asc' | 'name:asc' | 'name:desc';
+        /**
+         * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        q?: string;
+    };
+    url: '/sandboxes/{sandboxName}/schedule-executions';
+};
+
+export type ListSandboxScheduleExecutionsResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxScheduleExecutionList;
+};
+
+export type ListSandboxScheduleExecutionsResponse = ListSandboxScheduleExecutionsResponses[keyof ListSandboxScheduleExecutionsResponses];
+
+export type ListSandboxSchedulesData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+    };
+    query?: {
+        /**
+         * Number of items per page
+         */
+        limit?: number;
+        /**
+         * Opaque cursor returned by a previous response's meta.nextCursor. Only valid for the same query (workspace + filters); the server rejects cursors bound to a different query or older than 24h. Omit on the first page.
+         */
+        cursor?: string;
+        /**
+         * Sort spec, formatted as `<key>:<direction>`. Allowed values are `createdAt:desc` (default), `createdAt:asc`, `name:asc`, `name:desc`. The cursor fingerprint is bound to the sort, so a cursor opened with one value cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        sort?: 'createdAt:desc' | 'createdAt:asc' | 'name:asc' | 'name:desc';
+        /**
+         * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        q?: string;
+        /**
+         * Filter schedules by timing type. Only cron and at are stored (sleep resolves to at on creation); any other value is ignored.
+         */
+        type?: 'cron' | 'at';
+    };
+    url: '/sandboxes/{sandboxName}/schedules';
+};
+
+export type ListSandboxSchedulesResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxScheduleEntryList;
+};
+
+export type ListSandboxSchedulesResponse = ListSandboxSchedulesResponses[keyof ListSandboxSchedulesResponses];
+
+export type CreateSandboxScheduleData = {
+    body: SandboxScheduleEntryWritable;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/schedules';
+};
+
+export type CreateSandboxScheduleResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxScheduleEntry;
+};
+
+export type CreateSandboxScheduleResponse = CreateSandboxScheduleResponses[keyof CreateSandboxScheduleResponses];
+
+export type DeleteSandboxScheduleData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+        /**
+         * Id of the Schedule
+         */
+        scheduleId: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/schedules/{scheduleId}';
+};
+
+export type DeleteSandboxScheduleResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxScheduleEntry;
+};
+
+export type DeleteSandboxScheduleResponse = DeleteSandboxScheduleResponses[keyof DeleteSandboxScheduleResponses];
+
+export type GetSandboxScheduleData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+        /**
+         * Id of the Schedule
+         */
+        scheduleId: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/schedules/{scheduleId}';
+};
+
+export type GetSandboxScheduleResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxScheduleEntry;
+};
+
+export type GetSandboxScheduleResponse = GetSandboxScheduleResponses[keyof GetSandboxScheduleResponses];
+
+export type UpdateSandboxScheduleData = {
+    body: SandboxScheduleEntryWritable;
+    path: {
+        /**
+         * Name of the Sandbox
+         */
+        sandboxName: string;
+        /**
+         * Id of the Schedule
+         */
+        scheduleId: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/schedules/{scheduleId}';
+};
+
+export type UpdateSandboxScheduleResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxScheduleEntry;
+};
+
+export type UpdateSandboxScheduleResponse = UpdateSandboxScheduleResponses[keyof UpdateSandboxScheduleResponses];
+
+export type ListSandboxSnapshotsData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the sandbox
+         */
+        sandboxName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/snapshots';
+};
+
+export type ListSandboxSnapshotsErrors = {
+    /**
+     * Not found - Sandbox does not exist
+     */
+    404: _Error;
+};
+
+export type ListSandboxSnapshotsError = ListSandboxSnapshotsErrors[keyof ListSandboxSnapshotsErrors];
+
+export type ListSandboxSnapshotsResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxSnapshots;
+};
+
+export type ListSandboxSnapshotsResponse = ListSandboxSnapshotsResponses[keyof ListSandboxSnapshotsResponses];
+
+export type CreateSandboxSnapshotData = {
+    body: SandboxSnapshotRequest;
+    path: {
+        /**
+         * Name of the sandbox to snapshot
+         */
+        sandboxName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/snapshots';
+};
+
+export type CreateSandboxSnapshotErrors = {
+    /**
+     * Not found - Sandbox does not exist
+     */
+    404: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type CreateSandboxSnapshotError = CreateSandboxSnapshotErrors[keyof CreateSandboxSnapshotErrors];
+
+export type CreateSandboxSnapshotResponses = {
+    /**
+     * Snapshot created successfully
+     */
+    200: SandboxSnapshot;
+};
+
+export type CreateSandboxSnapshotResponse = CreateSandboxSnapshotResponses[keyof CreateSandboxSnapshotResponses];
+
+export type DeleteSandboxSnapshotData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the sandbox
+         */
+        sandboxName: string;
+        /**
+         * ID of the snapshot to delete
+         */
+        snapshotId: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/snapshots/{snapshotId}';
+};
+
+export type DeleteSandboxSnapshotErrors = {
+    /**
+     * Not found - Snapshot does not exist
+     */
+    404: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type DeleteSandboxSnapshotError = DeleteSandboxSnapshotErrors[keyof DeleteSandboxSnapshotErrors];
+
+export type DeleteSandboxSnapshotResponses = {
+    /**
+     * Snapshot deleted successfully
+     */
+    204: void;
+};
+
+export type DeleteSandboxSnapshotResponse = DeleteSandboxSnapshotResponses[keyof DeleteSandboxSnapshotResponses];
+
+export type GetSandboxByExternalIdData = {
+    body?: never;
+    path: {
+        /**
+         * Caller-owned external identifier for the sandbox
+         */
+        externalId: string;
+    };
+    query?: never;
+    url: '/sandboxes/by-external-id/{externalId}';
+};
+
+export type GetSandboxByExternalIdErrors = {
+    /**
+     * Unauthorized - Invalid or missing authentication credentials
+     */
+    401: _Error;
+    /**
+     * Forbidden - Insufficient permissions to view sandboxes
+     */
+    403: _Error;
+    /**
+     * Not found - No active sandbox with this external ID
+     */
+    404: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type GetSandboxByExternalIdError = GetSandboxByExternalIdErrors[keyof GetSandboxByExternalIdErrors];
+
+export type GetSandboxByExternalIdResponses = {
+    /**
+     * successful operation
+     */
+    200: Sandbox;
+};
+
+export type GetSandboxByExternalIdResponse = GetSandboxByExternalIdResponses[keyof GetSandboxByExternalIdResponses];
 
 export type GetWorkspaceServiceAccountsData = {
     body?: never;
@@ -7172,7 +9329,32 @@ export type DeleteVolumeTemplateVersionResponse = DeleteVolumeTemplateVersionRes
 export type ListVolumesData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Opaque cursor returned by a previous response's meta.nextCursor. Only valid for the same query (workspace + filters); the server rejects cursors bound to a different query or older than 24h. Omit on the first page.
+         */
+        cursor?: string;
+        /**
+         * Maximum number of items to return per page. Defaults to 50, clamped to 200.
+         */
+        limit?: number;
+        /**
+         * Sort spec, formatted as `<key>:<direction>`. Allowed values are `createdAt:desc` (default), `createdAt:asc`, `name:asc`, `name:desc`. The cursor fingerprint is bound to the sort, so a cursor opened with one value cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        sort?: 'createdAt:desc' | 'createdAt:asc' | 'name:asc' | 'name:desc';
+        /**
+         * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        q?: string;
+        /**
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
+         */
+        anchor?: 'end';
+        /**
+         * Filter volumes by external ID. When set, only volumes matching this caller-owned identifier are returned.
+         */
+        externalId?: string;
+    };
     url: '/volumes';
 };
 
@@ -7197,7 +9379,7 @@ export type ListVolumesResponses = {
     /**
      * successful operation
      */
-    200: Array<Volume>;
+    200: VolumeList;
 };
 
 export type ListVolumesResponse = ListVolumesResponses[keyof ListVolumesResponses];
@@ -7351,6 +9533,48 @@ export type UpdateVolumeResponses = {
 };
 
 export type UpdateVolumeResponse = UpdateVolumeResponses[keyof UpdateVolumeResponses];
+
+export type GetVolumeByExternalIdData = {
+    body?: never;
+    path: {
+        /**
+         * Caller-owned external identifier for the volume
+         */
+        externalId: string;
+    };
+    query?: never;
+    url: '/volumes/by-external-id/{externalId}';
+};
+
+export type GetVolumeByExternalIdErrors = {
+    /**
+     * Unauthorized - Invalid or missing authentication credentials
+     */
+    401: _Error;
+    /**
+     * Forbidden - Insufficient permissions to view volumes
+     */
+    403: _Error;
+    /**
+     * Not found - No active volume with this external ID
+     */
+    404: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type GetVolumeByExternalIdError = GetVolumeByExternalIdErrors[keyof GetVolumeByExternalIdErrors];
+
+export type GetVolumeByExternalIdResponses = {
+    /**
+     * successful operation
+     */
+    200: Volume;
+};
+
+export type GetVolumeByExternalIdResponse = GetVolumeByExternalIdResponses[keyof GetVolumeByExternalIdResponses];
 
 export type ListVpcsData = {
     body?: never;
@@ -7692,7 +9916,12 @@ export type GetWorkspaceData = {
          */
         workspaceName: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * When true, the response includes a resourceCounts map with the number of agents, functions, models, sandboxes, policies, jobs, volumes, volumetemplates, integrationconnections, previews, customdomains, serviceaccounts and images currently in this workspace. Off by default — each count is one extra indexed query.
+         */
+        countResources?: boolean;
+    };
     url: '/workspaces/{workspaceName}';
 };
 
@@ -7771,55 +10000,6 @@ export type UpdateWorkspaceResponses = {
 };
 
 export type UpdateWorkspaceResponse = UpdateWorkspaceResponses[keyof UpdateWorkspaceResponses];
-
-export type DeclineWorkspaceInvitationData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the workspace
-         */
-        workspaceName: string;
-    };
-    query?: never;
-    url: '/workspaces/{workspaceName}/decline';
-};
-
-export type DeclineWorkspaceInvitationResponses = {
-    /**
-     * Invitation successfully declined
-     */
-    200: PendingInvitation;
-};
-
-export type DeclineWorkspaceInvitationResponse = DeclineWorkspaceInvitationResponses[keyof DeclineWorkspaceInvitationResponses];
-
-export type AcceptWorkspaceInvitationData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the workspace
-         */
-        workspaceName: string;
-    };
-    query?: never;
-    url: '/workspaces/{workspaceName}/join';
-};
-
-export type AcceptWorkspaceInvitationErrors = {
-    /**
-     * Workspace or invitation not found
-     */
-    404: unknown;
-};
-
-export type AcceptWorkspaceInvitationResponses = {
-    /**
-     * Invitation successfully accepted
-     */
-    200: PendingInvitationAccept;
-};
-
-export type AcceptWorkspaceInvitationResponse = AcceptWorkspaceInvitationResponses[keyof AcceptWorkspaceInvitationResponses];
 
 export type LeaveWorkspaceData = {
     body?: never;

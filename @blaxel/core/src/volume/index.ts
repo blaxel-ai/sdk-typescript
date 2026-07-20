@@ -1,14 +1,17 @@
-import { createVolume, deleteVolume, getVolume, listVolumes, updateVolume, Volume } from "../client/index.js";
+import { createVolume, deleteVolume, getVolume, listVolumes, updateVolume, type ListVolumesData, type Volume } from "../client/index.js";
+import { createPaginatedList } from "../common/pagination.js";
 import { settings } from "../common/settings.js";
 
-export interface VolumeCreateConfiguration {
+export type VolumeListQuery = NonNullable<ListVolumesData["query"]>;
+
+export type VolumeCreateConfiguration = {
   name?: string;
   displayName?: string;
   labels?: Record<string, string>;
   size?: number; // Size in MB
   region?: string; // AWS region
   template?: string; // Template
-}
+};
 
 export class VolumeInstance {
   constructor(private volume: Volume) {}
@@ -107,9 +110,46 @@ export class VolumeInstance {
     return new VolumeInstance(data);
   }
 
-  static async list() {
-    const { data } = await listVolumes({ throwOnError: true });
-    return data.map((volume) => new VolumeInstance(volume));
+  /**
+   * List one page of volumes.
+   *
+   * The returned page exposes `data` for the current page, `meta` for cursor
+   * metadata, and helpers to fetch more pages only when you need them.
+   *
+   * @example
+   * ```ts
+   * const page = await VolumeInstance.list({ limit: 50 });
+   *
+   * for (const volume of page.data) {
+   *   console.log(volume.name);
+   * }
+   *
+   * const nextPage = await page.nextPage();
+   * ```
+   *
+   * @example
+   * ```ts
+   * const page = await VolumeInstance.list({ limit: 100 });
+   *
+   * for await (const volume of page) {
+   *   console.log(volume.name);
+   * }
+   * ```
+   */
+  static async list(query?: VolumeListQuery) {
+    const fetchPage = async (pageQuery?: VolumeListQuery) => {
+      const { data } = await listVolumes({
+        query: pageQuery,
+        throwOnError: true,
+      });
+      return data;
+    };
+    return createPaginatedList({
+      response: await fetchPage(query),
+      fetchPage,
+      mapItem: (volume) => new VolumeInstance(volume as Volume),
+      query,
+    });
   }
 
   static async delete(volumeName: string) {

@@ -7,11 +7,15 @@ import { SandboxInstance, VolumeInstance } from "@blaxel/core"
 export default function globalSetup() {
   // Return the teardown function
   return async () => {
+    if (process.env.SKIP_CLEANUP === "1") {
+      console.log("\nSKIP_CLEANUP=1: skipping global cleanup, test resources are left alive for debugging")
+      return
+    }
     console.log("\n🧹 Cleaning up test resources...")
 
     // Clean up sandboxes with test labels
     try {
-      const sandboxes = await SandboxInstance.list()
+      const sandboxes = await (await SandboxInstance.list()).autoPagingToArray({ limit: 10000 })
       for (const sb of sandboxes) {
         if (sb.status === "TERMINATED") {
           continue
@@ -31,7 +35,7 @@ export default function globalSetup() {
 
     // Clean up volumes with test labels
     try {
-      const volumes = await VolumeInstance.list()
+      const volumes = await (await VolumeInstance.list()).autoPagingToArray({ limit: 10000 })
       for (const vol of volumes) {
         const labels = vol.metadata.labels || {}
         if (labels["env"] === "integration-test") {

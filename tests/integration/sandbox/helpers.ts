@@ -1,4 +1,5 @@
-import { SandboxInstance, VolumeInstance } from "@blaxel/core"
+import { SandboxInstance, settings, VolumeInstance } from "@blaxel/core"
+import { expect } from 'vitest'
 
 /**
  * Environment-aware configuration
@@ -21,6 +22,16 @@ export const defaultLabels = {
  */
 export function uniqueName(prefix: string = "test"): string {
   return `${prefix}-${crypto.randomUUID().replace(/-/g, '').substring(0, 8)}`
+}
+
+/**
+ * Whether an opt-in slow test flag is enabled. Defaults for every flag live in
+ * vitest.config.ts (test.env), all "false". Use with describe.runIf/it.runIf,
+ * e.g. describe.runIf(isSlowTestEnabled("RUN_SLOW_SCHEDULES"))(...).
+ */
+export function isSlowTestEnabled(flag: string): boolean {
+  const v = process.env[flag]
+  return v === "true" || v === "1"
 }
 
 /**
@@ -103,6 +114,75 @@ export async function waitForVolumeDeletion(volumeName: string, maxAttempts: num
  */
 export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+type SandboxTtlEnforcement = {
+  /** True on accounts where the control plane re-applies a floor TTL (tier_0/free, `sandbox_enforced_ttl=1`). */
+  enforced: boolean
+  /** The TTL string (e.g. "7d") the server re-applies whenever ttl/expires is unset, when enforced. */
+  defaultTtl: string
+}
+
+let cachedTtlEnforcement: SandboxTtlEnforcement | null = null
+
+/**
+ * Resolves whether the current workspace's account enforces a minimum sandbox TTL.
+ *
+ * On enforced accounts (tier_0/free by default), the control plane's
+ * `Sandbox.ApplyDefaultTTL` re-stamps a default TTL (e.g. "7d") any time
+ * `spec.runtime.ttl` comes back nil after unmarshalling -- which is indistinguishable
+ * from an explicit `updateTtl(name, null)` clear. So on these accounts, clearing the
+ * TTL does not result in no TTL; it results in the tier's default TTL. Tests that
+ * assert "TTL cleared" must account for this instead of asserting falsy unconditionally.
+ *
+ * There's no generated SDK client for the quotas endpoint yet, so this does a raw
+ * fetch: GET /workspaces/{name} for accountId, then GET /quotas/account/{accountId}.
+ * Result is cached for the process lifetime since it's account-wide, not per-sandbox.
+ */
+export async function getSandboxTtlEnforcement(): Promise<SandboxTtlEnforcement> {
+  if (cachedTtlEnforcement) return cachedTtlEnforcement
+
+  const fallback: SandboxTtlEnforcement = { enforced: false, defaultTtl: "" }
+
+  try {
+    const workspaceRes = await fetch(`${settings.baseUrl}/workspaces/${settings.workspace}`, {
+      headers: settings.headers,
+    })
+    if (!workspaceRes.ok) return (cachedTtlEnforcement = fallback)
+
+    const workspace = await workspaceRes.json() as { accountId?: string }
+    if (!workspace.accountId) return (cachedTtlEnforcement = fallback)
+
+    const quotasRes = await fetch(`${settings.baseUrl}/quotas/account/${workspace.accountId}`, {
+      headers: settings.headers,
+    })
+    if (!quotasRes.ok) return (cachedTtlEnforcement = fallback)
+
+    const quotas = await quotasRes.json() as Array<{ resourceType: string; value: number }>
+    const enforcedValue = quotas.find(q => q.resourceType === "sandbox_enforced_ttl")?.value ?? 0
+    const sandboxTtlDays = quotas.find(q => q.resourceType === "sandbox_ttl")?.value ?? 0
+
+    return (cachedTtlEnforcement = {
+      enforced: enforcedValue !== 0,
+      defaultTtl: sandboxTtlDays > 0 ? `${sandboxTtlDays}d` : "",
+    })
+  } catch {
+    return (cachedTtlEnforcement = fallback)
+  }
+}
+
+/**
+ * Asserts a sandbox's ttl matches what "cleared" means for the current account:
+ * falsy on unenforced accounts, or the account's floor TTL on enforced (free-tier) accounts.
+ */
+export async function expectTtlCleared(ttl: string | null | undefined): Promise<void> {
+  const { enforced, defaultTtl } = await getSandboxTtlEnforcement()
+  if (enforced) {
+    expect(defaultTtl).toBeTruthy()
+    expect(ttl).toBe(defaultTtl)
+  } else {
+    expect(ttl).toBeFalsy()
+  }
 }
 
 /**

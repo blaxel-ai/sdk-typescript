@@ -7,6 +7,10 @@ describe('Sandbox Volume Operations', () => {
   const createdVolumes: string[] = []
 
   afterAll(async () => {
+    if (process.env.SKIP_CLEANUP === '1') {
+      console.log('SKIP_CLEANUP=1: skipping teardown. Sandboxes left alive:', createdSandboxes, 'volumes:', createdVolumes)
+      return
+    }
     // Clean up sandboxes in parallel and wait for full deletion
     await Promise.all(
       createdSandboxes.map(async (name) => {
@@ -136,10 +140,44 @@ describe('Sandbox Volume Operations', () => {
       createdVolumes.push(name)
 
       const volumes = await VolumeInstance.list()
-      expect(Array.isArray(volumes)).toBe(true)
+      expect(Array.isArray(volumes.data)).toBe(true)
 
-      const found = volumes.find(v => v.name === name)
+      const found = volumes.data.find(v => v.name === name)
       expect(found).toBeDefined()
+    })
+
+    it('paginates volumes with cursor, nextPage and autoPaging', async () => {
+      // Ensure at least two volumes exist so a page size of 1 spans multiple pages
+      const a = uniqueName("volume-page-a")
+      const b = uniqueName("volume-page-b")
+      await VolumeInstance.create({ name: a, size: 1024, region: defaultRegion, labels: defaultLabels })
+      createdVolumes.push(a)
+      await VolumeInstance.create({ name: b, size: 1024, region: defaultRegion, labels: defaultLabels })
+      createdVolumes.push(b)
+
+      // First page with limit 1 must report more pages and expose a cursor
+      const page1 = await VolumeInstance.list({ limit: 1 })
+      expect(page1.data.length).toBe(1)
+      expect(page1.hasMore).toBe(true)
+      expect(page1.nextCursor).toBeTruthy()
+
+      // Next page must be a different item (no repeated cursor, no duplicate)
+      const page2 = await page1.nextPage()
+      expect(page2).not.toBeNull()
+      expect(page2!.data.length).toBeGreaterThanOrEqual(1)
+      expect(page2!.data[0].name).not.toBe(page1.data[0].name)
+
+      // Auto-paging with a small page size walks every page without duplicates
+      const walked = await (await VolumeInstance.list({ limit: 1 })).autoPagingToArray({ limit: 100000 })
+      const names = walked.map(v => v.name)
+      expect(new Set(names).size).toBe(names.length) // no duplicates across pages
+      expect(names).toContain(a)
+      expect(names).toContain(b)
+      // Both created volumes land on different pages (page size is 1), so finding
+      // both proves the auto-pager advances past the first page. We don't compare
+      // against a second unbounded listing: the workspace is shared, so concurrent
+      // create/delete from other tests makes an exact total count flaky.
+      expect(walked.length).toBeGreaterThan(1)
     })
 
     it('deletes a volume', async () => {

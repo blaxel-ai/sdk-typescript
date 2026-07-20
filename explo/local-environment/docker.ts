@@ -528,7 +528,7 @@ export class LocalSandboxInstance extends SandboxInstance {
 
   static async updateTtl(
     sandboxName: string,
-    _ttl: string
+    _ttl: string | null
   ): Promise<LocalSandboxInstance> {
     // TTL has no meaning locally -- just return the instance
     return LocalSandboxInstance.get(sandboxName);
@@ -536,7 +536,7 @@ export class LocalSandboxInstance extends SandboxInstance {
 
   static async updateLifecycle(
     sandboxName: string,
-    _lifecycle: any
+    _lifecycle: any | null
   ): Promise<LocalSandboxInstance> {
     return LocalSandboxInstance.get(sandboxName);
   }

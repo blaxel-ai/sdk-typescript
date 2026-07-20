@@ -1,11 +1,15 @@
 import { describe, it, expect, afterAll } from 'vitest'
 import { SandboxInstance, updateSandbox, Sandbox } from "@blaxel/core"
-import { uniqueName, defaultImage, defaultLabels, defaultRegion, sleep, waitForSandboxDeployed, retry } from './helpers.js'
+import { uniqueName, defaultImage, defaultLabels, defaultRegion, sleep, waitForSandboxDeployed, retry, expectTtlCleared } from './helpers.js'
 
 describe('Sandbox Lifecycle and Expiration', () => {
   const createdSandboxes: string[] = []
 
   afterAll(async () => {
+    if (process.env.SKIP_CLEANUP === '1') {
+      console.log('SKIP_CLEANUP=1: skipping teardown. Sandboxes left alive:', createdSandboxes)
+      return
+    }
     // Clean up all sandboxes in parallel
     await Promise.all(
       createdSandboxes.map(async (name) => {
@@ -311,6 +315,110 @@ describe('Sandbox Lifecycle and Expiration', () => {
       const content = await finalSandbox.fs.read(testFilePath)
       expect(content).toBe(testContent)
     })
+
+    it('updateTtl with null clears the TTL and preserves files', async () => {
+      const name = uniqueName("clear-ttl-null")
+      const testFilePath = "/tmp/clear-ttl-null-test.txt"
+      const testContent = `clear-ttl-null-content-${Date.now()}`
+
+      // Create sandbox with an initial TTL
+      const sandbox = await SandboxInstance.create({
+        name,
+        image: defaultImage,
+        region: defaultRegion,
+        ttl: "10m",
+        labels: defaultLabels,
+      })
+      createdSandboxes.push(name)
+
+      // Write a file to the sandbox
+      await sandbox.fs.write(testFilePath, testContent)
+      expect(await sandbox.fs.read(testFilePath)).toBe(testContent)
+
+      // Clear the TTL by passing null
+      await SandboxInstance.updateTtl(name, null)
+
+      await waitForSandboxDeployed(name)
+      const updatedSandbox = await SandboxInstance.get(name)
+
+      // TTL should be cleared on the server (or reset to the account's enforced
+      // floor TTL on tier_0/free accounts -- see expectTtlCleared)
+      await expectTtlCleared(updatedSandbox.spec.runtime?.ttl)
+
+      // File should still exist (no recreation)
+      expect(await updatedSandbox.fs.read(testFilePath)).toBe(testContent)
+    })
+
+    it('clearing a short TTL keeps the sandbox alive and content intact past its original expiration', { timeout: 120000 }, async () => {
+      const name = uniqueName("clear-ttl-keepalive")
+      const testFilePath = "/tmp/clear-ttl-keepalive-test.txt"
+      const testContent = `clear-ttl-keepalive-content-${Date.now()}`
+
+      // Create with a short 20s TTL
+      const sandbox = await SandboxInstance.create({
+        name,
+        image: defaultImage,
+        region: defaultRegion,
+        ttl: "20s",
+        labels: defaultLabels,
+      })
+      createdSandboxes.push(name)
+      expect(sandbox.spec.runtime?.ttl).toBe("20s")
+
+      // Write a file before clearing the TTL
+      await sandbox.fs.write(testFilePath, testContent)
+      expect(await sandbox.fs.read(testFilePath)).toBe(testContent)
+
+      // Clear the TTL before it expires
+      await SandboxInstance.updateTtl(name, null)
+      await waitForSandboxDeployed(name)
+      // TTL should be cleared (or reset to the account's enforced floor TTL on
+      // tier_0/free accounts -- either way it must be far beyond the 20s window below)
+      await expectTtlCleared((await SandboxInstance.get(name)).spec.runtime?.ttl)
+
+      // Wait well past the original 20s window
+      await sleep(25000)
+
+      // Sandbox must still be alive — it would be TERMINATED if the clear had not taken effect
+      const stillAlive = await SandboxInstance.get(name)
+      expect(stillAlive.status).not.toBe("TERMINATED")
+
+      // And its content must be untouched (no recreation, no termination)
+      expect(await stillAlive.fs.read(testFilePath)).toBe(testContent)
+    })
+
+    it('updateTtl with empty string clears the TTL and preserves files', async () => {
+      const name = uniqueName("clear-ttl-empty")
+      const testFilePath = "/tmp/clear-ttl-empty-test.txt"
+      const testContent = `clear-ttl-empty-content-${Date.now()}`
+
+      // Create sandbox with an initial TTL
+      const sandbox = await SandboxInstance.create({
+        name,
+        image: defaultImage,
+        region: defaultRegion,
+        ttl: "10m",
+        labels: defaultLabels,
+      })
+      createdSandboxes.push(name)
+
+      // Write a file to the sandbox
+      await sandbox.fs.write(testFilePath, testContent)
+      expect(await sandbox.fs.read(testFilePath)).toBe(testContent)
+
+      // Clear the TTL by passing an empty string
+      await SandboxInstance.updateTtl(name, "")
+
+      await waitForSandboxDeployed(name)
+      const updatedSandbox = await SandboxInstance.get(name)
+
+      // TTL should be cleared on the server (or reset to the account's enforced
+      // floor TTL on tier_0/free accounts -- see expectTtlCleared)
+      await expectTtlCleared(updatedSandbox.spec.runtime?.ttl)
+
+      // File should still exist (no recreation)
+      expect(await updatedSandbox.fs.read(testFilePath)).toBe(testContent)
+    })
   })
 
   describe('updateLifecycle preserves sandbox state', () => {
@@ -400,6 +508,42 @@ describe('Sandbox Lifecycle and Expiration', () => {
       // File should still be there
       const content = await updatedSandbox.fs.read(testFilePath)
       expect(content).toBe(testContent)
+    })
+
+    it('updateLifecycle with null clears the lifecycle and preserves files', async () => {
+      const name = uniqueName("clear-lifecycle-null")
+      const testFilePath = "/tmp/clear-lifecycle-null-test.txt"
+      const testContent = `clear-lifecycle-null-content-${Date.now()}`
+
+      // Create sandbox with an initial lifecycle policy
+      const sandbox = await SandboxInstance.create({
+        name,
+        image: defaultImage,
+        region: defaultRegion,
+        lifecycle: {
+          expirationPolicies: [
+            { type: "ttl-max-age", value: "10m", action: "delete" }
+          ]
+        },
+        labels: defaultLabels,
+      })
+      createdSandboxes.push(name)
+
+      // Write a file to the sandbox
+      await sandbox.fs.write(testFilePath, testContent)
+      expect(await sandbox.fs.read(testFilePath)).toBe(testContent)
+
+      // Clear the lifecycle by passing null
+      await SandboxInstance.updateLifecycle(name, null)
+
+      await waitForSandboxDeployed(name)
+      const updatedSandbox = await SandboxInstance.get(name)
+
+      // Lifecycle should be cleared on the server
+      expect(updatedSandbox.spec.lifecycle?.expirationPolicies ?? []).toHaveLength(0)
+
+      // File should still exist (no recreation)
+      expect(await updatedSandbox.fs.read(testFilePath)).toBe(testContent)
     })
   })
 
