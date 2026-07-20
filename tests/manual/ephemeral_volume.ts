@@ -12,14 +12,14 @@
 //   npx tsx -e "import('@blaxel/core').then(m => m.SandboxInstance.delete('<name>'))"
 //
 // Requires the `generation_mk31` feature flag enabled on the workspace.
+// Credentials are picked up automatically via @blaxel/core autoload (local
+// config / env), so BL_WORKSPACE / BL_API_KEY are not required here.
 //
 // Run (after `npm run build` in @blaxel/core):
 //
-//   BL_WORKSPACE=... BL_API_KEY=... \
 //   npx tsx tests/manual/ephemeral_volume.ts
 //
 // Env vars:
-//   BL_WORKSPACE, BL_API_KEY   credentials (required)
 //   NAME                       sandbox name (default: ephemeral-<random>)
 //   VOLUME                     ephemeral volume name (default: scratch)
 //   SIZE_MB                    ephemeral volume size in MB (default 1024)
@@ -31,7 +31,7 @@
 // Must be set BEFORE importing @blaxel/core.
 process.env.BL_DISABLE_H2 = process.env.BL_DISABLE_H2 ?? "1"
 
-import { SandboxInstance, settings } from "@blaxel/core"
+import { SandboxInstance } from "@blaxel/core"
 import { v4 as uuidv4 } from "uuid"
 
 const VOLUME = process.env.VOLUME || "scratch"
@@ -60,9 +60,6 @@ async function run(sbx: SandboxInstance, command: string, label: string): Promis
 }
 
 async function main() {
-  if (!settings.workspace) throw new Error("BL_WORKSPACE must be set")
-  if (!process.env.BL_API_KEY) throw new Error("BL_API_KEY must be set")
-
   const name = process.env.NAME || uniqueName("ephemeral")
   const t0 = Date.now()
 
