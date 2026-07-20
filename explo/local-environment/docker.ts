@@ -9,7 +9,6 @@
  */
 
 import { execSync } from "child_process";
-import { v4 as uuidv4 } from "uuid";
 import type {
   Metadata,
   Port,
@@ -108,7 +107,7 @@ function resolveHostPort(containerId: string, containerPort: number): number {
 }
 
 function generateFakeToken(): string {
-  return `local-tok-${uuidv4().replace(/-/g, "")}`;
+  return `local-tok-${crypto.randomUUID().replace(/-/g, "")}`;
 }
 
 function nowIso(): string {
@@ -203,7 +202,7 @@ class LocalSessions {
 
   async create(options: SessionCreateOptions = {}): Promise<SessionWithToken> {
     const expiresAt = options.expiresAt ?? new Date(Date.now() + 24 * 60 * 60 * 1000);
-    const sessionName = `session-${Date.now()}-${uuidv4().replace(/-/g, "").substring(0, 6)}`;
+    const sessionName = `session-${Date.now()}-${crypto.randomUUID().replace(/-/g, "").substring(0, 6)}`;
 
     const preview = await this.localPreviews.create({
       metadata: { name: sessionName },
@@ -366,7 +365,7 @@ export class LocalSandboxInstance extends SandboxInstance {
   static async create(
     opts: LocalSandboxOptions = {}
   ): Promise<LocalSandboxInstance> {
-    const name = opts.name ?? `sandbox-${uuidv4().replace(/-/g, "").substring(0, 8)}`;
+    const name = opts.name ?? `sandbox-${crypto.randomUUID().replace(/-/g, "").substring(0, 8)}`;
     const image = opts.image ?? "blaxel/base-image:latest";
     const memory = opts.memory ?? 4096;
     const ports = opts.ports ?? [];

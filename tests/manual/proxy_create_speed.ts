@@ -1,12 +1,11 @@
 import { SandboxInstance } from "@blaxel/core"
-import { v4 as uuidv4 } from "uuid"
 
 const IMAGE = "blaxel/base-image:latest"
 const LABELS = { env: "manual-test", "created-by": "proxy-create-speed-test" }
 const EXEC_TIMEOUT_MS = 30_000
 
 function uniqueName(prefix: string): string {
-  return `${prefix}-${uuidv4().replace(/-/g, "").substring(0, 8)}`
+  return `${prefix}-${crypto.randomUUID().replace(/-/g, "").substring(0, 8)}`
 }
 
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {

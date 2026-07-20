@@ -11,7 +11,6 @@
 
 import { describe, it, expect, afterAll, beforeAll } from "vitest"
 import { SandboxInstance } from "@blaxel/core"
-import { v4 as uuidv4 } from "uuid"
 import { LocalSandboxInstance } from "./docker.js"
 
 // ---------------------------------------------------------------------------
@@ -30,7 +29,7 @@ const BLAXEL_IMAGE = "blaxel/base-image:latest"
 const BLAXEL_REGION = process.env.BL_ENV === "dev" ? "eu-dub-1" : "us-was-1"
 
 function uniqueName(prefix: string): string {
-  return `${prefix}-${uuidv4().replace(/-/g, "").substring(0, 8)}`
+  return `${prefix}-${crypto.randomUUID().replace(/-/g, "").substring(0, 8)}`
 }
 
 const defaultLabels = {
