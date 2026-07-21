@@ -213,7 +213,7 @@ export class ImageInstance {
     let options: PipInstallOptions = {};
     let packages: string[];
     if (args.length > 0 && typeof args[0] === "object") {
-      options = args[0] as PipInstallOptions;
+      options = args[0];
       packages = args.slice(1) as string[];
     } else {
       packages = args as string[];
@@ -240,7 +240,7 @@ export class ImageInstance {
     let options: AptInstallOptions = {};
     let packages: string[];
     if (args.length > 0 && typeof args[0] === "object") {
-      options = args[0] as AptInstallOptions;
+      options = args[0];
       packages = args.slice(1) as string[];
     } else {
       packages = args as string[];
@@ -266,7 +266,7 @@ export class ImageInstance {
     let options: ApkAddOptions = {};
     let packages: string[];
     if (args.length > 0 && typeof args[0] === "object") {
-      options = args[0] as ApkAddOptions;
+      options = args[0];
       packages = args.slice(1) as string[];
     } else {
       packages = args as string[];
@@ -298,7 +298,7 @@ export class ImageInstance {
     let options: NpmInstallOptions = {};
     let packages: string[];
     if (args.length > 0 && typeof args[0] === "object") {
-      options = args[0] as NpmInstallOptions;
+      options = args[0];
       packages = args.slice(1) as string[];
     } else {
       packages = args as string[];
@@ -343,7 +343,7 @@ export class ImageInstance {
     let options: GemInstallOptions = {};
     let packages: string[];
     if (args.length > 0 && typeof args[0] === "object") {
-      options = args[0] as GemInstallOptions;
+      options = args[0];
       packages = args.slice(1) as string[];
     } else {
       packages = args as string[];
@@ -364,7 +364,7 @@ export class ImageInstance {
     let options: CargoInstallOptions = {};
     let packages: string[];
     if (args.length > 0 && typeof args[0] === "object") {
-      options = args[0] as CargoInstallOptions;
+      options = args[0];
       packages = args.slice(1) as string[];
     } else {
       packages = args as string[];
@@ -393,7 +393,7 @@ export class ImageInstance {
     let options: ComposerInstallOptions = {};
     let packages: string[];
     if (args.length > 0 && typeof args[0] === "object") {
-      options = args[0] as ComposerInstallOptions;
+      options = args[0];
       packages = args.slice(1) as string[];
     } else {
       packages = args as string[];
@@ -418,7 +418,7 @@ export class ImageInstance {
     let options: UvInstallOptions = {};
     let packages: string[];
     if (args.length > 0 && typeof args[0] === "object") {
-      options = args[0] as UvInstallOptions;
+      options = args[0];
       packages = args.slice(1) as string[];
     } else {
       packages = args as string[];
