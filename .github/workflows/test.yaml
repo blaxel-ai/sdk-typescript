@@ -131,8 +131,11 @@ jobs:
             version: "1.3.11"   # the exact fix: H2 back on
           - runtime: bun
             version: "latest"   # newest: H2 on
+          # The SDK's deno.json uses nodeModulesDir: "manual", which only exists
+          # in Deno 2.x (1.x expects a boolean and cannot parse it), so the
+          # supported range is 2.x. Pin the 2.0 floor and track latest 2.x.
           - runtime: deno
-            version: "v1.x"
+            version: "v2.0.0"
           - runtime: deno
             version: "v2.x"
     steps:
