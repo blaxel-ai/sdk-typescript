@@ -131,6 +131,10 @@ let cachedTlsCert: { cert: Buffer; key: Buffer } | null = null;
  * protection / secret scanners and is needless key material). Requires
  * `openssl` on PATH, present on macOS and the CI runners.
  */
+export function getTestTlsCert(): { cert: Buffer; key: Buffer } {
+  return loadFixtures();
+}
+
 function loadFixtures(): { cert: Buffer; key: Buffer } {
   if (cachedTlsCert) return cachedTlsCert;
   const dir = mkdtempSync(join(tmpdir(), "h2-fault-cert-"));
