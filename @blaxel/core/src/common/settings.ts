@@ -5,6 +5,7 @@ import { Credentials, MissingCredentials } from "../authentication/credentials.j
 import { authentication } from "../authentication/index.js";
 import { env } from "../common/env.js";
 import { CredentialsError } from "../common/errors.js";
+import { isBrokenBunH2Runtime } from "../common/h2-runtime.js";
 import { logger } from "../common/logger.js";
 import { fs, os, path } from "../common/node.js";
 
@@ -124,12 +125,9 @@ const BLAXEL_API_VERSION = "2026-04-28";
 // session freezes after exactly 65535 cumulative body bytes and every request
 // on it hangs until the edge resets the streams (~330s).
 // Fixed in Bun 1.3.11: https://bun.com/blog/bun-v1.3.11
-function isBrokenBunH2() {
-  const v = globalThis.process?.versions?.bun;
-  if (!v) return false;
-  const [maj = 0, min = 0, patch = 0] = v.split("-")[0].split(".").map(Number);
-  return maj < 1 || (maj === 1 && (min < 3 || (min === 3 && patch < 11)));
-}
+// The version gate lives in ./h2-runtime.ts so settings, unit tests, and the
+// cross-runtime environment tests share ONE definition.
+const isBrokenBunH2 = isBrokenBunH2Runtime;
 
 // Warn at most once when H2 is force-disabled on a broken Bun runtime.
 let brokenBunH2Warned = false;

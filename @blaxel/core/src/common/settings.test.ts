@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ApiKey } from '../authentication/apikey.js';
 import { env } from './env.js';
+import { isBrokenBunH2Runtime } from './h2-runtime.js';
 
 describe('Settings.apiVersion', () => {
   beforeEach(() => {
@@ -38,12 +39,10 @@ describe('Settings.disableH2', () => {
     delete settings.config.disableH2;
   });
 
-  const onBrokenBun = (() => {
-    const v = globalThis.process?.versions?.bun;
-    if (!v) return false;
-    const [maj = 0, min = 0, patch = 0] = v.split('.').map(Number);
-    return maj < 1 || (maj === 1 && (min < 3 || (min === 3 && patch < 11)));
-  })();
+  // On a broken-Bun runtime the getter force-returns true regardless of
+  // config/env, so the "H2 on by default" expectations below do not hold there.
+  // Use the SAME predicate the getter uses so the skip and the behavior agree.
+  const onBrokenBun = isBrokenBunH2Runtime();
 
   it.skipIf(onBrokenBun)('enables H2 by default', async () => {
     delete (env as Record<string, unknown>).BL_DISABLE_H2;
