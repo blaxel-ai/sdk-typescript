@@ -2,7 +2,7 @@ import { DriveInstance, SandboxInstance } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
 import { defaultImage, defaultLabels, uniqueName, waitForSandboxDeletion } from './helpers.js'
 
-const defaultRegion = process.env.BL_ENV !== 'dev' ? 'us-was-1' : 'eu-dub-1' // Only region for drives right now
+const defaultRegion = process.env.BL_DRIVE_REGION || (process.env.BL_ENV !== 'dev' ? 'us-was-1' : 'eu-dub-1') // Only region for drives right now
 
 describe('Drive Operations', () => {
   const createdSandboxes: string[] = []
@@ -88,10 +88,44 @@ describe('Drive Operations', () => {
       createdDrives.push(name)
 
       const drives = await DriveInstance.list()
-      expect(Array.isArray(drives)).toBe(true)
+      expect(Array.isArray(drives.data)).toBe(true)
 
-      const found = drives.find(d => d.name === name)
+      const found = drives.data.find(d => d.name === name)
       expect(found).toBeDefined()
+    })
+
+    it('paginates drives with cursor, nextPage and autoPaging', async () => {
+      // Ensure at least two drives exist so a page size of 1 spans multiple pages
+      const a = uniqueName("drive-page-a")
+      const b = uniqueName("drive-page-b")
+      await DriveInstance.create({ name: a, size: 10, region: defaultRegion, labels: defaultLabels })
+      createdDrives.push(a)
+      await DriveInstance.create({ name: b, size: 10, region: defaultRegion, labels: defaultLabels })
+      createdDrives.push(b)
+
+      // First page with limit 1 must report more pages and expose a cursor
+      const page1 = await DriveInstance.list({ limit: 1 })
+      expect(page1.data.length).toBe(1)
+      expect(page1.hasMore).toBe(true)
+      expect(page1.nextCursor).toBeTruthy()
+
+      // Next page must be a different item (no repeated cursor, no duplicate)
+      const page2 = await page1.nextPage()
+      expect(page2).not.toBeNull()
+      expect(page2!.data.length).toBeGreaterThanOrEqual(1)
+      expect(page2!.data[0].name).not.toBe(page1.data[0].name)
+
+      // Auto-paging with a small page size walks every page without duplicates
+      const walked = await (await DriveInstance.list({ limit: 1 })).autoPagingToArray({ limit: 100000 })
+      const names = walked.map(d => d.name)
+      expect(new Set(names).size).toBe(names.length) // no duplicates across pages
+      expect(names).toContain(a)
+      expect(names).toContain(b)
+      // Both created drives land on different pages (page size is 1), so finding
+      // both proves the auto-pager advances past the first page. We don't compare
+      // against a second unbounded listing: the workspace is shared, so concurrent
+      // create/delete from other tests makes an exact total count flaky.
+      expect(walked.length).toBeGreaterThan(1)
     })
 
     it('updates a drive', async () => {

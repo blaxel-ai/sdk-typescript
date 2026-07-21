@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { SandboxInstance } from "@blaxel/core"
-import { uniqueName, defaultImage, defaultLabels, sleep } from './helpers.js'
+import { uniqueName, defaultImage, defaultLabels, defaultRegion, sleep } from './helpers.js'
 
 describe('Sandbox Session Operations', () => {
   let sandbox: SandboxInstance
@@ -10,6 +10,7 @@ describe('Sandbox Session Operations', () => {
     sandbox = await SandboxInstance.create({
       name: sandboxName,
       image: defaultImage,
+      region: defaultRegion,
       memory: 2048,
       labels: defaultLabels,
     })

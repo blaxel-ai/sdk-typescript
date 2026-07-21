@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { CodeInterpreter } from "@blaxel/core"
-import { uniqueName, defaultLabels } from './helpers.js'
+import { uniqueName, defaultLabels, defaultRegion } from './helpers.js'
 
 describe('CodeInterpreter Operations', () => {
   let interpreter: CodeInterpreter
@@ -9,11 +9,16 @@ describe('CodeInterpreter Operations', () => {
   beforeAll(async () => {
     interpreter = await CodeInterpreter.create({
       name: interpreterName,
+      region: defaultRegion,
       labels: defaultLabels,
     })
   }, 180000) // 3 minute timeout for interpreter creation
 
   afterAll(async () => {
+    if (process.env.SKIP_CLEANUP === '1') {
+      console.log('SKIP_CLEANUP=1: skipping teardown. Interpreter left alive:', interpreter?.metadata.name)
+      return
+    }
     if (interpreter?.metadata.name) {
       try {
         await CodeInterpreter.delete(interpreter.metadata.name)
@@ -149,6 +154,10 @@ describe('CodeInterpreter Operations', () => {
     const cineNames: string[] = []
 
     afterAll(async () => {
+      if (process.env.SKIP_CLEANUP === '1') {
+        console.log('SKIP_CLEANUP=1: skipping teardown. Interpreters left alive:', cineNames)
+        return
+      }
       await Promise.all(
         cineNames.map(async (name) => {
           try {
@@ -164,7 +173,7 @@ describe('CodeInterpreter Operations', () => {
       const name = uniqueName("ci-cine")
       cineNames.push(name)
 
-      const ci = await CodeInterpreter.createIfNotExists({ name, labels: defaultLabels })
+      const ci = await CodeInterpreter.createIfNotExists({ name, region: defaultRegion, labels: defaultLabels })
 
       expect(ci.metadata.name).toBe(name)
       expect(ci).toBeInstanceOf(CodeInterpreter)
@@ -174,8 +183,8 @@ describe('CodeInterpreter Operations', () => {
       const name = uniqueName("ci-cine-existing")
       cineNames.push(name)
 
-      const first = await CodeInterpreter.create({ name, labels: defaultLabels })
-      const second = await CodeInterpreter.createIfNotExists({ name, labels: defaultLabels })
+      const first = await CodeInterpreter.create({ name, region: defaultRegion, labels: defaultLabels })
+      const second = await CodeInterpreter.createIfNotExists({ name, region: defaultRegion, labels: defaultLabels })
 
       expect(second.metadata.name).toBe(first.metadata.name)
       expect(second).toBeInstanceOf(CodeInterpreter)
@@ -185,7 +194,7 @@ describe('CodeInterpreter Operations', () => {
       const name = uniqueName("ci-cine-run")
       cineNames.push(name)
 
-      const ci = await CodeInterpreter.createIfNotExists({ name, labels: defaultLabels })
+      const ci = await CodeInterpreter.createIfNotExists({ name, region: defaultRegion, labels: defaultLabels })
 
       const stdoutLines: string[] = []
       await ci.runCode("print('hello from createIfNotExists')", {

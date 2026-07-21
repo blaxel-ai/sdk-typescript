@@ -1,6 +1,8 @@
 import { Sandbox } from "../../client/types.gen.js";
 import { fs } from "../../common/node.js";
 import { settings } from "../../common/settings.js";
+import { withUploadSlot } from "../../common/h2fetch.js";
+import { isTransientResetError, retryOnTransientReset } from "../../common/transient-retry.js";
 import { SandboxAction } from "../action.js";
 import { ContentSearchResponse, deleteFilesystemByPath, deleteFilesystemMultipartByUploadIdAbort, Directory, FindResponse, FuzzySearchResponse, getFilesystemByPath, getFilesystemContentSearchByPath, getFilesystemFindByPath, getFilesystemSearchByPath, getWatchFilesystemByPath, MultipartInitiateResponse, MultipartPartInfo, MultipartUploadPartResponse, postFilesystemMultipartByUploadIdComplete, postFilesystemMultipartInitiateByPath, putFilesystemByPath, PutFilesystemByPathError, putFilesystemMultipartByUploadIdPart, SuccessResponse } from "../client/index.js";
 import { SandboxProcess } from "../process/index.js";
@@ -9,7 +11,46 @@ import { CopyResponse, FilesystemFindOptions, FilesystemGrepOptions, FilesystemS
 // Multipart upload constants
 const MULTIPART_THRESHOLD = 5 * 1024 * 1024; // 5MB
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB per part
-const MAX_PARALLEL_UPLOADS = 20; // Number of parallel part uploads
+const MAX_PARALLEL_UPLOADS = 3; // Number of parallel part uploads
+
+// The transient-reset classifier and retry loop live in
+// common/transient-retry.ts, shared with the idempotent sandbox-op retry
+// (read/list/etc.) so every path judges "transient" identically. These aliases
+// preserve the import surface the ENG-2680 fault tests already depend on.
+export const isTransientUploadError = isTransientResetError;
+export function retryOnTransient<T>(fn: () => Promise<T>): Promise<T> {
+  // Upload path keeps its own (lower) fsPartRetries budget; the shared helper
+  // otherwise defaults to the higher idempotent-read budget (sandboxReadRetries).
+  return retryOnTransientReset(fn, { retries: settings.fsPartRetries });
+}
+
+async function blobFromReadableStream(stream: ReadableStream<Uint8Array>): Promise<Blob> {
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (value) chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return new Blob(chunks);
+}
+
+async function normalizeBinaryDownload(data: unknown, response: Response): Promise<Blob> {
+  if (data instanceof Blob) return data;
+  if (typeof data === "string") return new Blob([data]);
+  if (data instanceof ArrayBuffer) return new Blob([data]);
+  if (ArrayBuffer.isView(data)) {
+    const bytes = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    return new Blob([bytes]);
+  }
+  if (data instanceof ReadableStream) return blobFromReadableStream(data);
+  if (response.body) return blobFromReadableStream(response.body);
+  throw new Error(`Unsupported binary download response: ${data === null ? "null" : typeof data}`);
+}
 
 export class SandboxFileSystem extends SandboxAction {
   constructor(sandbox: Sandbox, private process: SandboxProcess) {
@@ -19,12 +60,11 @@ export class SandboxFileSystem extends SandboxAction {
 
   async mkdir(path: string, permissions: string = "0755"): Promise<SuccessResponse> {
     path = this.formatPath(path);
-    const { response, data, error } = await putFilesystemByPath({
+    const { response, data, error } = await putFilesystemByPath(this.withClient({
       path: { path },
       body: { isDirectory: true, permissions },
       baseUrl: this.url,
-      client: this.client,
-    });
+    }));
     this.handleResponseError(response, data, error);
     return data as SuccessResponse;
   }
@@ -42,12 +82,11 @@ export class SandboxFileSystem extends SandboxAction {
     }
 
     // Use regular upload for small files
-    const { response, data, error } = await putFilesystemByPath({
+    const { response, data, error } = await putFilesystemByPath(this.withClient({
       path: { path },
       body: { content },
       baseUrl: this.url,
-      client: this.client,
-    });
+    }));
     this.handleResponseError(response, data, error);
     return data as SuccessResponse;
   }
@@ -95,32 +134,49 @@ export class SandboxFileSystem extends SandboxAction {
       return await this.uploadWithMultipart(path, fileBlob, "0644");
     }
 
-    // Use regular upload for small files
-    const formData = new FormData();
-    formData.append("file", fileBlob, "test-binary.bin");
-    formData.append("permissions", "0644");
-    formData.append("path", path);
-
-    // Build URL
+    // Use regular upload for small files. Run the PUT under the same upload
+    // reliability wrapper as multipart parts: bound concurrency (ENG-2680) and
+    // retry transient connection resets (ECONNRESET/GOAWAY/ENHANCE_YOUR_CALM). A
+    // PUT of the same bytes to the same path is idempotent, so retry is safe.
+    // The FormData is rebuilt per attempt so a retried request has a fresh body.
     let url = `${this.url}/filesystem/${path}`;
     if (this.forcedUrl) {
       url = `${this.forcedUrl.toString()}/filesystem/${path}`;
     }
 
-    const response = await this.h2Fetch(url, {
-      method: 'PUT',
-      headers: {
-        ...settings.headers,
-      },
-      body: formData,
-    });
+    const h2Domain = this.sandbox?.h2Domain;
+    const putOnce = async (): Promise<SuccessResponse> => {
+      const formData = new FormData();
+      formData.append("file", fileBlob, "test-binary.bin");
+      formData.append("permissions", "0644");
+      formData.append("path", path);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to write binary: ${response.status} ${errorText}`);
-    }
+      // A forceUrl (session-token) sandbox carries its own headers and must not
+      // require global credentials; settings.headers now throws without them
+      // (ENG-2698). Mirror streamLogs/execWithStreaming, which already pick
+      // sandbox.headers for forceUrl sessions.
+      const headers = this.sandbox.forceUrl ? this.sandbox.headers : settings.headers;
+      const response = await this.h2Fetch(url, {
+        method: 'PUT',
+        headers: {
+          ...headers,
+        },
+        body: formData,
+      });
 
-    return await response.json() as SuccessResponse;
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to write binary: ${response.status} ${errorText}`);
+      }
+
+      return await response.json() as SuccessResponse;
+    };
+
+    // Acquire the upload slot per-attempt INSIDE the retry so the per-domain cap
+    // bounds in-flight streams, not retry sequences: the slot is released during
+    // backoff, so a failing PUT never pins a slot while it sleeps (Mendral review).
+    const putWithSlot = h2Domain ? () => withUploadSlot(h2Domain, putOnce) : putOnce;
+    return retryOnTransient(putWithSlot);
   }
 
   async writeTree(files: SandboxFilesystemFile[], destinationPath: string | null = null) {
@@ -132,7 +188,6 @@ export class SandboxFileSystem extends SandboxAction {
         }, {} as Record<string, string>),
       },
       baseUrl: this.url,
-      client: this.client,
     }
     const path = this.formatPath(destinationPath ?? "")
     const { response, data, error } = await this.client.put<Directory, PutFilesystemByPathError>({
@@ -148,33 +203,36 @@ export class SandboxFileSystem extends SandboxAction {
 
   async read(path: string): Promise<string> {
     path = this.formatPath(path);
-    const { response, data, error } = await getFilesystemByPath({
-      path: { path },
-      baseUrl: this.url,
-      client: this.client,
+    // Idempotent GET: self-heal a transient connection reset (e.g. first call
+    // after sandbox resume). Non-transient errors (404, etc.) are not retried.
+    return retryOnTransientReset(async () => {
+      const { response, data, error } = await getFilesystemByPath(this.withClient({
+        path: { path },
+        baseUrl: this.url,
+      }));
+      this.handleResponseError(response, data, error);
+      if (data && 'content' in data) {
+        return data.content;
+      }
+      throw new Error("Unsupported file type");
     });
-    this.handleResponseError(response, data, error);
-    if (data && 'content' in data) {
-      return data.content;
-    }
-    throw new Error("Unsupported file type");
   }
 
   async readBinary(path: string): Promise<Blob> {
     path = this.formatPath(path);
-    const { response, data, error } = await getFilesystemByPath({
-      path: { path },
-      baseUrl: this.url,
-      client: this.client,
-      headers: {
-        'Accept': 'application/octet-stream',
-      },
+    // Idempotent GET: self-heal a transient connection reset.
+    return retryOnTransientReset(async () => {
+      const { response, data, error } = await getFilesystemByPath(this.withClient({
+        path: { path },
+        baseUrl: this.url,
+        headers: {
+          'Accept': 'application/octet-stream',
+        },
+        parseAs: 'blob',
+      }));
+      this.handleResponseError(response, data, error);
+      return normalizeBinaryDownload(data, response);
     });
-    this.handleResponseError(response, data, error);
-    if (typeof data === 'string') {
-      return new Blob([data]);
-    }
-    return data as Blob;
   }
 
   async download(src: string, destinationPath: string, { mode = 0o644 }: { mode?: number } = {}): Promise<void> {
@@ -189,28 +247,30 @@ export class SandboxFileSystem extends SandboxAction {
 
   async rm(path: string, recursive: boolean = false): Promise<SuccessResponse> {
     path = this.formatPath(path);
-    const { response, data, error } = await deleteFilesystemByPath({
+    const { response, data, error } = await deleteFilesystemByPath(this.withClient({
       path: { path },
       query: { recursive },
       baseUrl: this.url,
-      client: this.client,
-    });
+    }));
     this.handleResponseError(response, data, error);
     return data as SuccessResponse;
   }
 
   async ls(path: string): Promise<Directory> {
     path = this.formatPath(path);
-    const { response, data, error } = await getFilesystemByPath({
-      path: { path },
-      baseUrl: this.url,
-      client: this.client,
+    // Idempotent GET: self-heal a transient connection reset (the file-tree
+    // refresh that customers hit as intermittent 500s after sandbox resume).
+    return retryOnTransientReset(async () => {
+      const { response, data, error } = await getFilesystemByPath(this.withClient({
+        path: { path },
+        baseUrl: this.url,
+      }));
+      this.handleResponseError(response, data, error);
+      if (!data || !('files' in data || 'subdirectories' in data)) {
+        throw new Error(JSON.stringify({ error: "Directory not found" }));
+      }
+      return data as Directory;
     });
-    this.handleResponseError(response, data, error);
-    if (!data || !('files' in data || 'subdirectories' in data)) {
-      throw new Error(JSON.stringify({ error: "Directory not found" }));
-    }
-    return data as Directory;
   }
 
   async search(
@@ -240,15 +300,15 @@ export class SandboxFileSystem extends SandboxAction {
       queryParams.excludeHidden = options.excludeHidden;
     }
 
-    const result = await getFilesystemSearchByPath({
-      path: { path: formattedPath },
-      query: queryParams,
-      baseUrl: this.url,
-      client: this.client,
+    return retryOnTransientReset(async () => {
+      const result = await getFilesystemSearchByPath(this.withClient({
+        path: { path: formattedPath },
+        query: queryParams,
+        baseUrl: this.url,
+      }));
+      this.handleResponseError(result.response, result.data, result.error);
+      return result.data as FuzzySearchResponse;
     });
-
-    this.handleResponseError(result.response, result.data, result.error);
-    return result.data as FuzzySearchResponse;
   }
 
   async find(
@@ -281,14 +341,15 @@ export class SandboxFileSystem extends SandboxAction {
       queryParams.excludeHidden = options.excludeHidden;
     }
 
-    const result = await getFilesystemFindByPath({
-      path: { path: formattedPath },
-      query: queryParams,
-      baseUrl: this.url,
-      client: this.client,
+    return retryOnTransientReset(async () => {
+      const result = await getFilesystemFindByPath(this.withClient({
+        path: { path: formattedPath },
+        query: queryParams,
+        baseUrl: this.url,
+      }));
+      this.handleResponseError(result.response, result.data, result.error);
+      return result.data as FindResponse;
     });
-    this.handleResponseError(result.response, result.data, result.error);
-    return result.data as FindResponse;
   }
 
   async grep(
@@ -325,15 +386,15 @@ export class SandboxFileSystem extends SandboxAction {
       queryParams.excludeDirs = options.excludeDirs.join(',');
     }
 
-    const result = await getFilesystemContentSearchByPath({
-      path: { path: formattedPath },
-      query: queryParams,
-      baseUrl: this.url,
-      client: this.client,
+    return retryOnTransientReset(async () => {
+      const result = await getFilesystemContentSearchByPath(this.withClient({
+        path: { path: formattedPath },
+        query: queryParams,
+        baseUrl: this.url,
+      }));
+      this.handleResponseError(result.response, result.data, result.error);
+      return result.data as ContentSearchResponse;
     });
-
-    this.handleResponseError(result.response, result.data, result.error);
-    return result.data as ContentSearchResponse;
   }
 
   async cp(source: string, destination: string, { maxWait = 180000 }: { maxWait?: number } = {}): Promise<CopyResponse> {
@@ -369,14 +430,13 @@ export class SandboxFileSystem extends SandboxAction {
       if (options?.ignore) {
         query.ignore = options.ignore.join(",");
       }
-      const { response, data, error } = await getWatchFilesystemByPath({
-        client: this.client,
+      const { response, data, error } = await getWatchFilesystemByPath(this.withClient({
         path: { path },
         query,
         baseUrl: this.url,
         parseAs: 'stream',
         signal: controller.signal,
-      });
+      }));
       if (error) throw new Error(error instanceof Error ? error.message : JSON.stringify(error));
       const stream: ReadableStream | null = (data as unknown as ReadableStream) ?? response.body;
       if (!stream) throw new Error('No stream returned');
@@ -447,47 +507,43 @@ export class SandboxFileSystem extends SandboxAction {
   private async initiateMultipartUpload(path: string, permissions: string = "0644"): Promise<MultipartInitiateResponse> {
     path = this.formatPath(path);
 
-    const { data } = await postFilesystemMultipartInitiateByPath({
+    const { data } = await postFilesystemMultipartInitiateByPath(this.withClient({
       path: { path },
       body: { permissions },
       baseUrl: this.url,
-      client: this.client,
       throwOnError: true,
-    });
+    }));
     return data;
   }
 
   private async uploadPart(uploadId: string, partNumber: number, fileBlob: Blob): Promise<MultipartUploadPartResponse> {
 
-    const { data } = await putFilesystemMultipartByUploadIdPart({
+    const { data } = await putFilesystemMultipartByUploadIdPart(this.withClient({
       path: { uploadId },
       query: { partNumber },
       body: { file: fileBlob },
       baseUrl: this.url,
-      client: this.client,
       throwOnError: true,
-    });
+    }));
     return data;
   }
 
   private async completeMultipartUpload(uploadId: string, parts: Array<MultipartPartInfo>): Promise<SuccessResponse> {
-    const { data } = await postFilesystemMultipartByUploadIdComplete({
+    const { data } = await postFilesystemMultipartByUploadIdComplete(this.withClient({
       path: { uploadId },
       body: { parts },
       baseUrl: this.url,
-      client: this.client,
       throwOnError: true,
-    });
+    }));
     return data;
   }
 
   private async abortMultipartUpload(uploadId: string): Promise<SuccessResponse> {
-    const { data } = await deleteFilesystemMultipartByUploadIdAbort({
+    const { data } = await deleteFilesystemMultipartByUploadIdAbort(this.withClient({
       path: { uploadId },
       baseUrl: this.url,
-      client: this.client,
       throwOnError: true,
-    });
+    }));
     return data;
   }
 
@@ -507,6 +563,13 @@ export class SandboxFileSystem extends SandboxAction {
       const numParts = Math.ceil(size / CHUNK_SIZE);
       const parts: Array<MultipartPartInfo> = [];
 
+      // Bound concurrent upload-part streams on the shared H2 connection so many
+      // parts (within and across files) cannot burst past the server's
+      // rapid-reset limit (ENG-2680). Scoped to uploads; default cap is 2. With
+      // no h2Domain the parts go over globalThis.fetch on separate connections,
+      // so the shared-connection cap does not apply.
+      const h2Domain = this.sandbox?.h2Domain;
+
       // Upload parts in batches for parallel processing
       for (let i = 0; i < numParts; i += MAX_PARALLEL_UPLOADS) {
         const batch: Array<Promise<MultipartUploadPartResponse>> = [];
@@ -517,8 +580,11 @@ export class SandboxFileSystem extends SandboxAction {
           const end = Math.min(start + CHUNK_SIZE, size);
           const chunk = blob.slice(start, end);
 
-
-          batch.push(this.uploadPart(uploadId, partNumber, chunk));
+          // Slot acquired per-attempt inside the retry (see writeBinary): bounds
+          // concurrent part streams, not retry sequences; freed during backoff.
+          const doPart = () => this.uploadPart(uploadId, partNumber, chunk);
+          const partWithSlot = h2Domain ? () => withUploadSlot(h2Domain, doPart) : doPart;
+          batch.push(retryOnTransient(partWithSlot));
         }
 
         // Wait for batch to complete

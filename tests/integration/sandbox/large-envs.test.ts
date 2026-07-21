@@ -1,6 +1,6 @@
 import { SandboxInstance, VolumeInstance } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
-import { defaultImage, defaultLabels, uniqueName, waitForSandboxDeletion, waitForVolumeDeletion } from './helpers.js'
+import { defaultImage, defaultLabels, defaultRegion, uniqueName, waitForSandboxDeletion, waitForVolumeDeletion } from './helpers.js'
 
 describe('Sandbox Large Environment Variables', () => {
   const createdSandboxes: string[] = []
@@ -69,6 +69,7 @@ describe('Sandbox Large Environment Variables', () => {
         const sandbox = await SandboxInstance.create({
           name,
           image: defaultImage,
+          region: defaultRegion,
           envs,
           labels: defaultLabels,
         })
@@ -128,6 +129,7 @@ describe('Sandbox Large Environment Variables', () => {
     const volume = await VolumeInstance.create({
       name: volumeName,
       size: 1024, // 1GB
+      region: defaultRegion,
       labels: defaultLabels,
     })
     createdVolumes.push(volumeName)
@@ -137,6 +139,7 @@ describe('Sandbox Large Environment Variables', () => {
     const sandbox1 = await SandboxInstance.create({
       name: sandboxName1,
       image: defaultImage,
+      region: defaultRegion,
       envs,
       volumes: [
         {
@@ -198,6 +201,7 @@ describe('Sandbox Large Environment Variables', () => {
     const sandbox2 = await SandboxInstance.create({
       name: sandboxName2,
       image: defaultImage,
+      region: defaultRegion,
       envs,
       volumes: [
         {
@@ -244,6 +248,7 @@ describe('Sandbox Large Environment Variables', () => {
     const sandbox = await SandboxInstance.create({
       name: sandboxName,
       image: defaultImage,
+      region: defaultRegion,
       envs,
       labels: defaultLabels,
     })
@@ -324,6 +329,7 @@ describe('Sandbox Large Environment Variables', () => {
     const sandbox = await SandboxInstance.create({
       name: sandboxName,
       image: defaultImage,
+      region: defaultRegion,
       envs: specialEnvs,
       labels: defaultLabels,
     })
@@ -360,6 +366,7 @@ describe('Sandbox Large Environment Variables', () => {
     const sandbox = await SandboxInstance.create({
       name,
       image: defaultImage,
+      region: defaultRegion,
       envs,
       labels: defaultLabels,
     })

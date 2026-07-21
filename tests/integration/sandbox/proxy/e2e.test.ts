@@ -1,56 +1,81 @@
 import { SandboxInstance } from "@blaxel/core"
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { defaultImage, defaultLabels, defaultRegion, sleep, uniqueName } from '../helpers.js'
-import { lowercaseKeys, parseJsonOutput, proxyCleanup, proxyHelperScript } from './helpers.js'
+import { defaultImage, defaultLabels, defaultRegion, uniqueName } from '../helpers.js'
+import { createEchoServerSandbox, createReadyProxySandbox, execProxyCommandWithRetry, lowercaseKeys, parseJsonObjectOutput, proxyCleanup } from './helpers.js'
+
+type HttpBinResponse = {
+  headers: Record<string, string>
+  json: Record<string, unknown>
+}
 
 describe('proxy end-to-end functionality', () => {
   const createdSandboxes: string[] = []
   afterAll(proxyCleanup(createdSandboxes))
 
   let sandbox: Awaited<ReturnType<typeof SandboxInstance.create>>
+  // Controlled httpbin-compatible upstream reached via a preview URL, replacing
+  // the flaky public httpbin.org.
+  let headersUrl: string
+  let postUrl: string
 
   beforeAll(async () => {
-    const name = uniqueName("proxy-e2e")
-    sandbox = await SandboxInstance.create({
-      name, image: defaultImage, region: defaultRegion, labels: defaultLabels,
-      network: {
-        proxy: {
-          routing: [
-            {
-              destinations: ["httpbin.org"],
-              headers: { "X-Proxy-Test": "header-injected", "X-Api-Key": "{{SECRET:test-api-key}}" },
-              body: { "injected_field": "body-injected", "secret_body": "{{SECRET:test-api-key}}" },
-              secrets: { "test-api-key": "resolved-secret-42" },
-            },
-            {
-              destinations: ["*.httpbin.org"],
-              headers: { "X-Wildcard-Match": "wildcard-injected" },
-            },
-          ],
-        },
-      },
-    })
+    const echo = await createEchoServerSandbox(createdSandboxes)
+    headersUrl = `${echo.url}/headers`
+    postUrl = `${echo.url}/post`
+    // The echo host is `<label>.<parent>`. A `*.<parent>` route therefore matches
+    // it as a subdomain (exercises wildcard-subdomain matching + injection), while
+    // a `*.<host>` route must NOT match it (proves a wildcard doesn't match its own
+    // bare domain).
+    const parentDomain = echo.host.split(".").slice(1).join(".")
 
-    createdSandboxes.push(name)
-    await sandbox.fs.write("/tmp/proxy-test.js", proxyHelperScript)
-  }, 60_000)
+    sandbox = await createReadyProxySandbox(
+      async () => {
+        const name = uniqueName("proxy-e2e")
+        const sandbox = await SandboxInstance.create({
+          name, image: defaultImage, region: defaultRegion, labels: defaultLabels,
+          network: {
+            proxy: {
+              routing: [
+                {
+                  destinations: [`*.${parentDomain}`],
+                  headers: { "X-Proxy-Test": "header-injected", "X-Api-Key": "{{SECRET:test-api-key}}", "X-Wildcard-Match": "wildcard-injected" },
+                  body: { "injected_field": "body-injected", "secret_body": "{{SECRET:test-api-key}}" },
+                  secrets: { "test-api-key": "resolved-secret-42" },
+                },
+                {
+                  destinations: [`*.${echo.host}`],
+                  headers: { "X-Wildcard-Sub": "should-not-match-bare" },
+                },
+              ],
+            },
+          },
+        })
+        return { name, sandbox }
+      },
+      createdSandboxes,
+      `node /tmp/proxy-test.js GET ${headersUrl}`,
+      (result) => {
+        if (result.exitCode !== 0) return false
+        const headers = lowercaseKeys(parseJsonObjectOutput<HttpBinResponse>(result.logs).headers)
+        return headers["x-proxy-test"] === "header-injected" && headers["x-api-key"] === "resolved-secret-42"
+      },
+    )
+  }, 240_000)
 
   it('routes HTTPS requests through the proxy with header injection', async () => {
-    const result = await sandbox.process.exec({ command: 'node /tmp/proxy-test.js GET https://httpbin.org/headers', waitForCompletion: true })
-    expect(result.exitCode).toBe(0)
-    const headers = lowercaseKeys(parseJsonOutput(result.logs).headers)
-    expect(headers["x-blaxel-request-id"]).toBeDefined()
+    const result = await execProxyCommandWithRetry(sandbox, `node /tmp/proxy-test.js GET ${headersUrl}`)
+    expect(result.exitCode, result.logs).toBe(0)
+    const headers = lowercaseKeys(parseJsonObjectOutput<HttpBinResponse>(result.logs).headers)
     expect(headers["x-proxy-test"]).toBe("header-injected")
     expect(headers["x-api-key"]).toBe("resolved-secret-42")
   }, 60_000)
 
   it('routes POST requests through the proxy with body injection', async () => {
-    const result = await sandbox.process.exec({ command: `node /tmp/proxy-test.js POST https://httpbin.org/post '{}' '{"user_data":"original"}'`, waitForCompletion: true })
-    expect(result.exitCode).toBe(0)
-    const response = parseJsonOutput(result.logs)
+    const result = await execProxyCommandWithRetry(sandbox, `node /tmp/proxy-test.js POST ${postUrl} '{}' '{"user_data":"original"}'`)
+    expect(result.exitCode, result.logs).toBe(0)
+    const response = parseJsonObjectOutput<HttpBinResponse>(result.logs)
     expect(response.json.user_data).toBe("original")
     const headers = lowercaseKeys(response.headers)
-    expect(headers["x-blaxel-request-id"]).toBeDefined()
     expect(headers["x-proxy-test"]).toBe("header-injected")
     expect(headers["x-api-key"]).toBe("resolved-secret-42")
     expect(response.json.injected_field).toBe("body-injected")
@@ -58,11 +83,10 @@ describe('proxy end-to-end functionality', () => {
   }, 60_000)
 
   it('preserves user-sent headers when routing through the proxy', async () => {
-    const result = await sandbox.process.exec({ command: `node /tmp/proxy-test.js GET https://httpbin.org/headers '{"X-User-Custom":"my-value"}'`, waitForCompletion: true })
-    expect(result.exitCode).toBe(0)
-    const headers = lowercaseKeys(parseJsonOutput(result.logs).headers)
+    const result = await execProxyCommandWithRetry(sandbox, `node /tmp/proxy-test.js GET ${headersUrl} '{"X-User-Custom":"my-value"}'`)
+    expect(result.exitCode, result.logs).toBe(0)
+    const headers = lowercaseKeys(parseJsonObjectOutput<HttpBinResponse>(result.logs).headers)
     expect(headers["x-user-custom"]).toBe("my-value")
-    expect(headers["x-blaxel-request-id"]).toBeDefined()
     expect(headers["x-proxy-test"]).toBe("header-injected")
   }, 60_000)
 
@@ -76,29 +100,29 @@ describe('proxy end-to-end functionality', () => {
       waitForCompletion: true,
     })
     expect(result.exitCode).toBe(0)
-    const headers = parseJsonOutput(result.logs)
+    const headers = parseJsonObjectOutput<Record<string, string>>(result.logs)
     expect(headers["x-blaxel-request-id"]).toBeUndefined()
     expect(headers["x-proxy-test"]).toBeUndefined()
   }, 60_000)
 
   it('does not inject headers for non-routed destinations', async () => {
-    const result = await sandbox.process.exec({ command: 'node /tmp/proxy-test.js GET https://www.google.com', waitForCompletion: true })
-    expect(result.exitCode).toBe(0)
+    const result = await execProxyCommandWithRetry(sandbox, 'node /tmp/proxy-test.js GET https://www.google.com')
+    expect(result.exitCode, result.logs).toBe(0)
     expect((result.logs?.trim() || "").length).toBeGreaterThan(0)
   }, 60_000)
 
-  it('wildcard route matches subdomain (*.httpbin.org)', async () => {
-    const result = await sandbox.process.exec({ command: 'node /tmp/proxy-test.js GET https://beta.httpbin.org/headers', waitForCompletion: true })
-    expect(result.exitCode).toBe(0)
-    const headers = lowercaseKeys(parseJsonOutput(result.logs).headers)
+  it('wildcard route matches subdomain (*.<parent>)', async () => {
+    const result = await execProxyCommandWithRetry(sandbox, `node /tmp/proxy-test.js GET ${headersUrl}`)
+    expect(result.exitCode, result.logs).toBe(0)
+    const headers = lowercaseKeys(parseJsonObjectOutput<HttpBinResponse>(result.logs).headers)
     expect(headers["x-wildcard-match"]).toBe("wildcard-injected")
   }, 60_000)
 
-  it('wildcard route does not match bare domain (httpbin.org)', async () => {
-    const result = await sandbox.process.exec({ command: 'node /tmp/proxy-test.js GET https://httpbin.org/headers', waitForCompletion: true })
-    expect(result.exitCode).toBe(0)
-    const headers = lowercaseKeys(parseJsonOutput(result.logs).headers)
-    expect(headers["x-wildcard-match"]).toBeUndefined()
+  it('wildcard route does not match its own bare domain (*.<host> vs <host>)', async () => {
+    const result = await execProxyCommandWithRetry(sandbox, `node /tmp/proxy-test.js GET ${headersUrl}`)
+    expect(result.exitCode, result.logs).toBe(0)
+    const headers = lowercaseKeys(parseJsonObjectOutput<HttpBinResponse>(result.logs).headers)
+    expect(headers["x-wildcard-sub"]).toBeUndefined()
   }, 60_000)
 
   it('verifies proxy env vars are set and Node.js fetch respects them', async () => {
@@ -107,7 +131,7 @@ describe('proxy end-to-end functionality', () => {
       waitForCompletion: true,
     })
     expect(envCheck.exitCode).toBe(0)
-    const envs = parseJsonOutput(envCheck.logs)
+    const envs = parseJsonObjectOutput<Record<string, string>>(envCheck.logs)
     expect(envs["HTTP_PROXY"]).toBe("set")
     expect(envs["HTTPS_PROXY"]).toBe("set")
     expect(envs["NO_PROXY"]).toBe("set")

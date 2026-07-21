@@ -38,7 +38,7 @@ describe.skipIf(skipTest)('ClientCredentials token auto-refresh', () => {
     const processWithRetrySpy = vi.spyOn(ClientCredentials.prototype as never, 'processWithRetry')
 
     const list1 = await SandboxInstance.list()
-    expect(Array.isArray(list1)).toBe(true)
+    expect(Array.isArray(list1.data)).toBe(true)
 
     expect(creds.token).toBeTruthy()
     expect(authenticateSpy).toHaveBeenCalled()
@@ -54,7 +54,7 @@ describe.skipIf(skipTest)('ClientCredentials token auto-refresh', () => {
     creds.currentPromise = null
 
     const list2 = await SandboxInstance.list()
-    expect(Array.isArray(list2)).toBe(true)
+    expect(Array.isArray(list2.data)).toBe(true)
 
     expect(authenticateSpy).toHaveBeenCalled()
     expect(needRefreshSpy).toHaveBeenCalled()

@@ -20,16 +20,18 @@ describe('Sandbox CRUD Operations', () => {
 
   describe('create', () => {
     it('creates a sandbox with default settings', async () => {
-      const sandbox = await SandboxInstance.create({ labels: defaultLabels })
+      const sandbox = await SandboxInstance.create({ region: defaultRegion, labels: defaultLabels })
       if (sandbox.metadata.name) createdSandboxes.push(sandbox.metadata.name)
 
+      // Unnamed creations no longer generate a client-side name; the server
+      // assigns one (ENG-3931), so we only assert a name came back.
       expect(sandbox.metadata.name).toBeDefined()
-      expect(sandbox.metadata.name).toMatch(/^sandbox-/)
+      expect(sandbox.metadata.name).toBeTruthy()
     })
 
     it('creates a sandbox with custom name', async () => {
       const name = uniqueName("custom")
-      const sandbox = await SandboxInstance.create({ name, labels: defaultLabels })
+      const sandbox = await SandboxInstance.create({ name, region: defaultRegion, labels: defaultLabels })
       createdSandboxes.push(name)
 
       expect(sandbox.metadata.name).toBe(name)
@@ -40,6 +42,7 @@ describe('Sandbox CRUD Operations', () => {
       const sandbox = await SandboxInstance.create({
         name,
         image: defaultImage,
+        region: defaultRegion,
         labels: defaultLabels,
       })
       createdSandboxes.push(name)
@@ -52,6 +55,7 @@ describe('Sandbox CRUD Operations', () => {
       await SandboxInstance.create({
         name,
         image: defaultImage,
+        region: defaultRegion,
         memory: 8192,
         labels: defaultLabels,
       })
@@ -65,6 +69,7 @@ describe('Sandbox CRUD Operations', () => {
       const name = uniqueName("labels-test")
       const labelsSandbox = await SandboxInstance.create({
         name,
+        region: defaultRegion,
         labels: { ...defaultLabels, "env": "test", "purpose": "integration" }
       })
       createdSandboxes.push(name)
@@ -78,6 +83,7 @@ describe('Sandbox CRUD Operations', () => {
       const config: SandboxCreateConfiguration = {
         name,
         image: defaultImage,
+        region: defaultRegion,
         memory: 2048,
         ports: [
           { name: "web", target: 3000 },
@@ -98,6 +104,7 @@ describe('Sandbox CRUD Operations', () => {
       await SandboxInstance.create({
         name,
         image: defaultImage,
+        region: defaultRegion,
         envs: [
           { name: "NODE_ENV", value: "test" },
           { name: "DEBUG", value: "true" },
@@ -129,7 +136,7 @@ describe('Sandbox CRUD Operations', () => {
       const concurrentCalls = 5
 
       const promises = Array.from({ length: concurrentCalls }, () =>
-        SandboxInstance.create({ name, labels: defaultLabels })
+        SandboxInstance.create({ name, region: defaultRegion, labels: defaultLabels })
           .then(sb => ({ sandbox: sb, error: null }))
           .catch((err: Error) => ({ sandbox: null, error: err }))
       )
@@ -158,7 +165,7 @@ describe('Sandbox CRUD Operations', () => {
   describe('createIfNotExists', () => {
     it('creates a new sandbox if it does not exist', async () => {
       const name = uniqueName("cine")
-      const sandbox = await SandboxInstance.createIfNotExists({ name, labels: defaultLabels })
+      const sandbox = await SandboxInstance.createIfNotExists({ name, region: defaultRegion, labels: defaultLabels })
       createdSandboxes.push(name)
 
       expect(sandbox.metadata.name).toBe(name)
@@ -168,11 +175,11 @@ describe('Sandbox CRUD Operations', () => {
       const name = uniqueName("cine-existing")
 
       // Create first
-      const first = await SandboxInstance.create({ name, labels: defaultLabels })
+      const first = await SandboxInstance.create({ name, region: defaultRegion, labels: defaultLabels })
       createdSandboxes.push(name)
 
       // createIfNotExists should return the same sandbox
-      const second = await SandboxInstance.createIfNotExists({ name, labels: defaultLabels })
+      const second = await SandboxInstance.createIfNotExists({ name, region: defaultRegion, labels: defaultLabels })
 
       expect(second.metadata.name).toBe(first.metadata.name)
     })
@@ -182,7 +189,7 @@ describe('Sandbox CRUD Operations', () => {
       const concurrentCalls = 5
 
       const promises = Array.from({ length: concurrentCalls }, () =>
-        SandboxInstance.createIfNotExists({ name, labels: defaultLabels })
+        SandboxInstance.createIfNotExists({ name, region: defaultRegion, labels: defaultLabels })
           .then(sb => ({ sandbox: sb, error: null }))
           .catch((err: Error) => ({ sandbox: null, error: err }))
       )
@@ -205,13 +212,13 @@ describe('Sandbox CRUD Operations', () => {
       const name = uniqueName("cine-existing-concurrent")
 
       // First, create the sandbox
-      const originalSandbox = await SandboxInstance.create({ name, labels: defaultLabels })
+      const originalSandbox = await SandboxInstance.create({ name, region: defaultRegion, labels: defaultLabels })
       createdSandboxes.push(name)
 
       // Then send 5 concurrent createIfNotExists calls
       const concurrentCalls = 5
       const promises = Array.from({ length: concurrentCalls }, () =>
-        SandboxInstance.createIfNotExists({ name, labels: defaultLabels })
+        SandboxInstance.createIfNotExists({ name, region: defaultRegion, labels: defaultLabels })
       )
 
       const results = await Promise.all(promises)
@@ -228,7 +235,7 @@ describe('Sandbox CRUD Operations', () => {
   describe('get', () => {
     it('retrieves an existing sandbox', async () => {
       const name = uniqueName("get-test")
-      await SandboxInstance.create({ name, labels: defaultLabels })
+      await SandboxInstance.create({ name, region: defaultRegion, labels: defaultLabels })
       createdSandboxes.push(name)
 
       const retrieved = await SandboxInstance.get(name)
@@ -245,21 +252,55 @@ describe('Sandbox CRUD Operations', () => {
   describe('list', () => {
     it('lists all sandboxes', async () => {
       const name = uniqueName("list-test")
-      await SandboxInstance.create({ name, labels: defaultLabels })
+      await SandboxInstance.create({ name, region: defaultRegion, labels: defaultLabels })
       createdSandboxes.push(name)
 
       const sandboxes = await SandboxInstance.list()
-      expect(Array.isArray(sandboxes)).toBe(true)
+      expect(Array.isArray(sandboxes.data)).toBe(true)
 
-      const found = sandboxes.find(s => s.metadata.name === name)
+      const found = sandboxes.data.find(s => s.metadata.name === name)
       expect(found).toBeDefined()
+    })
+
+    it('paginates sandboxes with cursor, nextPage and autoPaging', async () => {
+      // Ensure at least two sandboxes exist so a page size of 1 spans multiple pages
+      const a = uniqueName("sandbox-page-a")
+      const b = uniqueName("sandbox-page-b")
+      await SandboxInstance.create({ name: a, region: defaultRegion, labels: defaultLabels })
+      createdSandboxes.push(a)
+      await SandboxInstance.create({ name: b, region: defaultRegion, labels: defaultLabels })
+      createdSandboxes.push(b)
+
+      // First page with limit 1 must report more pages and expose a cursor
+      const page1 = await SandboxInstance.list({ limit: 1 })
+      expect(page1.data.length).toBe(1)
+      expect(page1.hasMore).toBe(true)
+      expect(page1.nextCursor).toBeTruthy()
+
+      // Next page must advance via the cursor (a fresh, non-empty page)
+      const page2 = await page1.nextPage()
+      expect(page2).not.toBeNull()
+      expect(page2!.data.length).toBeGreaterThanOrEqual(1)
+
+      // Auto-paging with a small page size walks past the first page and reaches
+      // both created sandboxes. Unlike drives/volumes we do NOT assert "no
+      // duplicates across pages": the listSandboxes endpoint orders on a volatile
+      // field (sandboxes change state continuously), so with limit:1 the cursor
+      // is not a stable keyset and can revisit items across pages. The duplicates
+      // are a backend pagination limitation, not an SDK bug -- the cursor helper
+      // is identical to the drive/volume paths that paginate cleanly.
+      const walked = await (await SandboxInstance.list({ limit: 1 })).autoPagingToArray({ limit: 100000 })
+      const names = walked.map(s => s.metadata.name)
+      expect(names).toContain(a)
+      expect(names).toContain(b)
+      expect(walked.length).toBeGreaterThan(1)
     })
   })
 
   describe('delete', () => {
     it('deletes an existing sandbox', async () => {
       const name = uniqueName("delete-test")
-      await SandboxInstance.create({ name, labels: defaultLabels })
+      await SandboxInstance.create({ name, region: defaultRegion, labels: defaultLabels })
 
       await SandboxInstance.delete(name)
 
@@ -270,7 +311,7 @@ describe('Sandbox CRUD Operations', () => {
 
     it('can delete using instance method', async () => {
       const name = uniqueName("delete-instance")
-      const sandbox = await SandboxInstance.create({ name, labels: defaultLabels })
+      const sandbox = await SandboxInstance.create({ name, region: defaultRegion, labels: defaultLabels })
 
       await sandbox.delete()
 
@@ -283,7 +324,7 @@ describe('Sandbox CRUD Operations', () => {
   describe('updateMetadata', () => {
     it('updates sandbox labels', async () => {
       const name = uniqueName("update-meta")
-      await SandboxInstance.create({ name, labels: defaultLabels })
+      await SandboxInstance.create({ name, region: defaultRegion, labels: defaultLabels })
       createdSandboxes.push(name)
 
       const updated = await SandboxInstance.updateMetadata(name, {
@@ -295,7 +336,7 @@ describe('Sandbox CRUD Operations', () => {
 
     it('updates sandbox displayName', async () => {
       const name = uniqueName("update-display")
-      await SandboxInstance.create({ name, labels: defaultLabels })
+      await SandboxInstance.create({ name, region: defaultRegion, labels: defaultLabels })
       createdSandboxes.push(name)
 
       const updated = await SandboxInstance.updateMetadata(name, {
@@ -309,7 +350,7 @@ describe('Sandbox CRUD Operations', () => {
   describe('wait', () => {
     it('waits for sandbox to be ready', async () => {
       const name = uniqueName("wait-test")
-      const sandbox = await SandboxInstance.create({ name, labels: defaultLabels })
+      const sandbox = await SandboxInstance.create({ name, region: defaultRegion, labels: defaultLabels })
       createdSandboxes.push(name)
 
 

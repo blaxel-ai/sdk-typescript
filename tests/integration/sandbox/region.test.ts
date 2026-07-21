@@ -4,8 +4,9 @@ import { defaultImage, defaultLabels, defaultRegion, env, uniqueName, waitForSan
 
 const backendDefaultRegion = env === "dev" ? "eu-dub-1" : "us-pdx-1"
 const alternateRegion = env === "dev" ? "eu-dub-2" : "eu-lon-1"
+const describeWhenRegionUnset = process.env.BL_REGION ? describe.skip : describe
 
-describe('BL_REGION Environment Variable Auto-Fill', () => {
+describeWhenRegionUnset('BL_REGION Environment Variable Auto-Fill', () => {
   const createdSandboxes: string[] = []
   const createdVolumes: string[] = []
   const originalRegion = process.env.BL_REGION

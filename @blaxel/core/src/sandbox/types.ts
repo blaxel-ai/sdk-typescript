@@ -24,6 +24,8 @@ export interface VolumeBinding {
   name: string; // Name of the volume to attach
   mountPath: string; // Path where the volume should be mounted
   readOnly?: boolean; // Whether the volume is mounted as read-only
+  type?: "persistent" | "ephemeral"; // Volume type, defaults to "persistent"
+  sizeMb?: number; // Storage capacity in MB, required for ephemeral volumes
 }
 
 export type SandboxConfiguration = {
@@ -31,11 +33,17 @@ export type SandboxConfiguration = {
   headers?: Record<string, string>;
   params?: Record<string, string>;
   h2Session?: http2.ClientHttp2Session | null;
+  h2Domain?: string | null;
 } & Sandbox;
 
 export type SandboxUpdateMetadata = {
   labels?: Record<string, string>;
   displayName?: string;
+  externalId?: string;
+}
+
+export type SandboxUpdateNetwork = {
+  network?: SandboxNetwork;
 }
 
 export type SandboxCreateConfiguration = {
@@ -53,6 +61,7 @@ export type SandboxCreateConfiguration = {
   snapshotEnabled?: boolean;
   labels?: Record<string, string>;
   extraArgs?: Record<string, string>;
+  externalId?: string;
 }
 
 export function normalizePorts(ports?: (Port | Record<string, any>)[]): Port[] | undefined {
@@ -131,6 +140,19 @@ export function normalizeVolumes(volumes?: (VolumeBinding | VolumeAttachment)[])
         mountPath: volume.mountPath,
         readOnly: 'readOnly' in volume ? volume.readOnly : false
       };
+
+      // Ephemeral volumes carry a type and a required size (in MB)
+      if ('type' in volume && volume.type) {
+        volumeAttachment.type = volume.type;
+      }
+      if (volumeAttachment.type === 'ephemeral') {
+        if (typeof volume.sizeMb !== 'number' || !(volume.sizeMb > 0)) {
+          throw new Error(`Ephemeral volume '${volume.name}' must have a positive 'sizeMb': ${JSON.stringify(volume)}`);
+        }
+        volumeAttachment.sizeMb = volume.sizeMb;
+      } else if ('sizeMb' in volume && typeof volume.sizeMb === 'number') {
+        volumeAttachment.sizeMb = volume.sizeMb;
+      }
 
       volumeObjects.push(volumeAttachment);
     } else {

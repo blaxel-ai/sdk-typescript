@@ -1,7 +1,7 @@
 import { SandboxInstance } from "@blaxel/core"
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { defaultImage, defaultLabels, defaultRegion, uniqueName } from '../helpers.js'
-import { proxyCleanup } from './helpers.js'
+import { createEchoServerSandbox, proxyCleanup } from './helpers.js'
 
 describe('proxy e2e with Claude Code agent', () => {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -13,14 +13,19 @@ describe('proxy e2e with Claude Code agent', () => {
   afterAll(proxyCleanup(createdSandboxes))
 
   let claudeSandbox: Awaited<ReturnType<typeof SandboxInstance.create>>
+  // Controlled httpbin-compatible upstream reached via a preview URL.
+  let echoUrl: string
 
   beforeAll(async () => {
+    const echo = await createEchoServerSandbox(createdSandboxes)
+    echoUrl = echo.url
+
     const name = uniqueName("proxy-claude")
     claudeSandbox = await SandboxInstance.create({
       name, image: defaultImage, region: defaultRegion, labels: defaultLabels,
       envs: [{ name: "ANTHROPIC_API_KEY", value: process.env.ANTHROPIC_API_KEY! }],
       network: {
-        proxy: { routing: [{ destinations: ["httpbin.org"], headers: { "X-Agent-Test": "claude-injected" } }] },
+        proxy: { routing: [{ destinations: [echo.host], headers: { "X-Agent-Test": "claude-injected" } }] },
       },
     })
     createdSandboxes.push(name)
@@ -47,7 +52,7 @@ describe('proxy e2e with Claude Code agent', () => {
 
   it('agent makes outbound call through the proxy with header injection', async () => {
     const result = await claudeSandbox.process.exec({
-      command: `su - agent -c "${claudeEnv} && claude --dangerously-skip-permissions -p \\"Run: curl -s https://httpbin.org/headers — then print the full JSON output.\\" --output-format text" 2>&1`,
+      command: `su - agent -c "${claudeEnv} && claude --dangerously-skip-permissions -p \\"Run: curl -s ${echoUrl}/headers — then print the full JSON output.\\" --output-format text" 2>&1`,
       waitForCompletion: true,
     })
     expect(result.exitCode).toBe(0)

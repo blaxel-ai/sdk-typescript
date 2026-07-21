@@ -8,11 +8,10 @@ export class SandboxSystem extends SandboxAction {
   }
 
   async upgrade(body?: UpgradeRequest): Promise<PostUpgradeResponse> {
-    const { response, data, error } = await postUpgrade({
+    const { response, data, error } = await postUpgrade(this.withClient({
       baseUrl: this.url,
-      client: this.client,
       body,
-    });
+    }));
     this.handleResponseError(response, data, error);
     return data as PostUpgradeResponse;
   }

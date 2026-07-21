@@ -1,10 +1,29 @@
 import yaml from 'yaml';
 import { ApiKey } from "../authentication/apikey.js";
 import { ClientCredentials } from "../authentication/clientcredentials.js";
-import { Credentials } from "../authentication/credentials.js";
+import { Credentials, MissingCredentials } from "../authentication/credentials.js";
 import { authentication } from "../authentication/index.js";
 import { env } from "../common/env.js";
+import { CredentialsError } from "../common/errors.js";
+import { isBrokenBunH2Runtime } from "../common/h2-runtime.js";
+import { logger } from "../common/logger.js";
 import { fs, os, path } from "../common/node.js";
+
+/**
+ * Build an actionable "credentials missing" message naming exactly which piece
+ * is absent, based on the env vars currently set.
+ */
+function missingCredentialsMessage(): string {
+  const hasWorkspace = !!env.BL_WORKSPACE;
+  const hasApiKey = !!env.BL_API_KEY;
+  if (hasWorkspace && !hasApiKey) {
+    return "Blaxel API key is missing. Set the BL_API_KEY environment variable, or run `bl login`, to authenticate (BL_WORKSPACE is already set).";
+  }
+  if (hasApiKey && !hasWorkspace) {
+    return "Blaxel workspace is missing. Set the BL_WORKSPACE environment variable, or run `bl login`, to authenticate (BL_API_KEY is already set).";
+  }
+  return "No Blaxel credentials found. Set the BL_API_KEY and BL_WORKSPACE environment variables, or run `bl login`.";
+}
 
 /**
  * Client credentials as a `{ clientId, clientSecret }` pair.
@@ -19,6 +38,71 @@ export type Config = {
   proxy?: string;
   apikey?: string;
   workspace?: string;
+  /**
+   * Disables the SDK-managed HTTP/2 transport. Defaults to `false` (H2 on);
+   * set this to `true` (or `BL_DISABLE_H2=1`) to opt out of H2. Note that H2 is
+   * always force-disabled on Bun < 1.3.11, which has a broken H2 flow-control
+   * implementation, regardless of this setting.
+   */
+  disableH2?: boolean;
+  /**
+   * Disables only the control-plane HTTP/2 wrapper, leaving data-plane (edge)
+   * H2 untouched. Use this to route control-plane calls (api.blaxel.{ai,dev})
+   * over native fetch while keeping sandbox/data-plane traffic on the H2 pool.
+   * The global `disableH2` flag still wins: when it is true, both planes use
+   * native fetch regardless of this value. Defaults to `false` (wrapper on).
+   */
+  disableControlPlaneH2?: boolean;
+  /**
+   * Forces the control-plane HTTP/2 wrapper on even when the runtime's native
+   * fetch already negotiates HTTP/2 (undici >= 8 / Node 26+), where it is
+   * otherwise skipped as redundant. Mainly for exercising the pooled path on a
+   * modern runtime. `disableH2` and `disableControlPlaneH2` still win.
+   * Defaults to `false`.
+   */
+  forceControlPlaneH2?: boolean;
+  /**
+   * Maximum number of concurrent in-flight HTTP/2 requests across the shared
+   * H2 session pool. `0` or `undefined` means unlimited (current behavior).
+   */
+  maxConcurrentH2Requests?: number;
+  /**
+   * Maximum number of concurrent in-flight multipart upload-part requests per
+   * edge domain on the shared H2 connection. Defaults to 2 (the measured value
+   * that stops concurrent large uploads tripping ENHANCE_YOUR_CALM). Scoped to
+   * the upload-part path only; non-upload traffic is unaffected. `0` disables it.
+   */
+  maxConcurrentUploadH2Requests?: number;
+  /**
+   * Retry attempts for transient connection resets (ECONNRESET, GOAWAY,
+   * ENHANCE_YOUR_CALM, etc.) on file uploads. Covers both small single-PUT
+   * uploads and multipart parts; both are idempotent writes and safe to retry.
+   * Defaults to 3. Set `0` to disable.
+   */
+  fsPartRetries?: number;
+  /**
+   * Retry attempts for transient connection resets on IDEMPOTENT sandbox reads
+   * (fs.read/readBinary/ls/search/find/grep, drives.list, process.get/list/logs).
+   * Higher than the upload default so a later attempt can span a multi-second
+   * sandbox cold-start/standby wake (the window a first-call read reset falls in).
+   * Defaults to 5. Set `0` to disable. Never applied to non-idempotent ops
+   * (process.exec, drives.mount, etc.).
+   */
+  sandboxReadRetries?: number;
+  /**
+   * Per-stream HTTP/2 flow-control window in bytes, advertised to the server as
+   * SETTINGS_INITIAL_WINDOW_SIZE. Node defaults this to 64KB, which caps a single
+   * download at window/RTT (~3MB/s at 20ms RTT) regardless of payload size.
+   * Defaults to 16MB so large reads are bandwidth-bound, not latency-bound.
+   */
+  h2StreamWindowSize?: number;
+  /**
+   * Connection-level HTTP/2 flow-control window in bytes, applied via
+   * session.setLocalWindowSize(). Node defaults this to 64KB and never grows it,
+   * so it throttles the WHOLE session (shared across all streams) — which is why
+   * adding read concurrency does not help. Defaults to 32MB.
+   */
+  h2ConnectionWindowSize?: number;
   /**
    * Client credentials for OAuth2 client_credentials flow.
    *
@@ -35,7 +119,18 @@ export type Config = {
 const BUILD_VERSION = "__BUILD_VERSION__";
 const BUILD_COMMIT = "__BUILD_COMMIT__";
 const BUILD_SENTRY_DSN = "__BUILD_SENTRY_DSN__";
-const BLAXEL_API_VERSION = "2026-04-16";
+const BLAXEL_API_VERSION = "2026-04-28";
+
+// Bun < 1.3.11 never sends connection-level WINDOW_UPDATE: the pooled h2
+// session freezes after exactly 65535 cumulative body bytes and every request
+// on it hangs until the edge resets the streams (~330s).
+// Fixed in Bun 1.3.11: https://bun.com/blog/bun-v1.3.11
+// The version gate lives in ./h2-runtime.ts so settings, unit tests, and the
+// cross-runtime environment tests share ONE definition.
+const isBrokenBunH2 = isBrokenBunH2Runtime;
+
+// Warn at most once when H2 is force-disabled on a broken Bun runtime.
+let brokenBunH2Warned = false;
 
 // Cache for config.yaml tracking value
 let configTrackingValue: boolean | null = null;
@@ -217,6 +312,7 @@ class Settings {
   }
 
   get headers(): Record<string, string> {
+    this.assertCredentials();
     const osArch = getOsArch();
     return {
       "x-blaxel-authorization": this.authorization,
@@ -276,7 +372,169 @@ class Settings {
     return env.BL_REGION || undefined;
   }
 
+  get disableH2(): boolean {
+    // Broken Bun versions hang on the pooled H2 session; force H2 off there
+    // regardless of config/env and warn once so the choice is visible.
+    if (isBrokenBunH2()) {
+      if (!brokenBunH2Warned) {
+        brokenBunH2Warned = true;
+        logger.warn(
+          `Detected Bun ${globalThis.process?.versions?.bun} which never sends ` +
+          `connection-level HTTP/2 WINDOW_UPDATE: the pooled H2 session freezes ` +
+          `after 65535 cumulative body bytes and requests hang until the edge ` +
+          `resets the streams (~330s). Disabling H2 (fixed in Bun 1.3.11: ` +
+          `https://bun.com/blog/bun-v1.3.11).`
+        );
+      }
+      return true;
+    }
+    if (typeof this.config.disableH2 === "boolean") {
+      return this.config.disableH2;
+    }
+    const value = env.BL_DISABLE_H2;
+    if (value) {
+      return ["1", "true", "yes", "on"].includes(value.toLowerCase());
+    }
+    return false;
+  }
+
+  // Control-plane-only escape hatch: disables the control-plane H2 wrapper
+  // without affecting data-plane (edge) H2. `disableH2` is the global override
+  // and is checked separately by callers, so it always wins.
+  get disableControlPlaneH2(): boolean {
+    if (typeof this.config.disableControlPlaneH2 === "boolean") {
+      return this.config.disableControlPlaneH2;
+    }
+    const value = env.BL_DISABLE_CONTROL_PLANE_H2;
+    if (value) {
+      return ["1", "true", "yes", "on"].includes(value.toLowerCase());
+    }
+    return false;
+  }
+
+  // Forces the control-plane H2 wrapper on even when native fetch already
+  // supports H2 (undici >= 7). `disableH2`/`disableControlPlaneH2` still win.
+  get forceControlPlaneH2(): boolean {
+    if (typeof this.config.forceControlPlaneH2 === "boolean") {
+      return this.config.forceControlPlaneH2;
+    }
+    const value = env.BL_FORCE_CONTROL_PLANE_H2;
+    if (value) {
+      return ["1", "true", "yes", "on"].includes(value.toLowerCase());
+    }
+    return false;
+  }
+
+  get maxConcurrentH2Requests(): number {
+    if (typeof this.config.maxConcurrentH2Requests === "number") {
+      return this.config.maxConcurrentH2Requests;
+    }
+    const value = env.BL_MAX_H2_INFLIGHT;
+    if (value) {
+      const parsed = parseInt(value, 10);
+      if (!Number.isNaN(parsed)) {
+        return parsed;
+      }
+    }
+    return 0;
+  }
+
+  get maxConcurrentUploadH2Requests(): number {
+    if (typeof this.config.maxConcurrentUploadH2Requests === "number") {
+      return this.config.maxConcurrentUploadH2Requests;
+    }
+    const value = env.BL_MAX_UPLOAD_H2_INFLIGHT;
+    if (value) {
+      const parsed = parseInt(value, 10);
+      if (!Number.isNaN(parsed)) {
+        return parsed;
+      }
+    }
+    return 2;
+  }
+
+  get h2StreamWindowSize(): number {
+    if (typeof this.config.h2StreamWindowSize === "number") {
+      return this.config.h2StreamWindowSize;
+    }
+    const value = env.BL_H2_STREAM_WINDOW;
+    if (value) {
+      const parsed = parseInt(value, 10);
+      if (!Number.isNaN(parsed) && parsed > 0) {
+        return parsed;
+      }
+    }
+    return 16 * 1024 * 1024;
+  }
+
+  get h2ConnectionWindowSize(): number {
+    if (typeof this.config.h2ConnectionWindowSize === "number") {
+      return this.config.h2ConnectionWindowSize;
+    }
+    const value = env.BL_H2_CONNECTION_WINDOW;
+    if (value) {
+      const parsed = parseInt(value, 10);
+      if (!Number.isNaN(parsed) && parsed > 0) {
+        return parsed;
+      }
+    }
+    return 32 * 1024 * 1024;
+  }
+
+  get fsPartRetries(): number {
+    if (typeof this.config.fsPartRetries === "number") {
+      return this.config.fsPartRetries;
+    }
+    const value = env.BL_FS_PART_RETRIES;
+    if (value) {
+      const parsed = parseInt(value, 10);
+      if (!Number.isNaN(parsed)) {
+        return parsed;
+      }
+    }
+    return 3;
+  }
+
+  get sandboxReadRetries(): number {
+    if (typeof this.config.sandboxReadRetries === "number") {
+      return this.config.sandboxReadRetries;
+    }
+    const value = env.BL_SANDBOX_READ_RETRIES;
+    if (value) {
+      const parsed = parseInt(value, 10);
+      if (!Number.isNaN(parsed)) {
+        return parsed;
+      }
+    }
+    return 5;
+  }
+
+  /**
+   * Fail fast with a clear, actionable error when credentials are missing or
+   * incomplete, instead of sending empty workspace/authorization headers and
+   * surfacing a misleading server-side "workspace is required". Skipped for
+   * `forceUrl` sandbox sessions, which carry their own headers and never read
+   * `settings.headers`. Leaves `workspace` itself non-throwing so telemetry
+   * tagging stays safe.
+   */
+  private assertCredentials() {
+    const hasConfigCredentials = !!(
+      this.config.apikey ||
+      this.config.apiKey ||
+      this.config.clientCredentials
+    );
+    if (!hasConfigCredentials && this.credentials instanceof MissingCredentials) {
+      throw new CredentialsError(missingCredentialsMessage());
+    }
+    if (!this.workspace) {
+      throw new CredentialsError(
+        "Blaxel workspace is missing. Set the BL_WORKSPACE environment variable, or run `bl login`, to authenticate your requests."
+      );
+    }
+  }
+
   async authenticate() {
+    this.assertCredentials();
     await this.credentials.authenticate();
   }
 }

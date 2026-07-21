@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@blaxel/core": "file:../../../@blaxel/core"
+  },
+  "devDependencies": {}
+}

@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { SandboxInstance } from "@blaxel/core"
-import { uniqueName, defaultImage, defaultLabels, sleep } from './helpers.js'
+import { uniqueName, defaultImage, defaultLabels, defaultRegion, sleep } from './helpers.js'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import { stat, readFile } from 'fs/promises'
@@ -17,6 +17,7 @@ describe('Sandbox Filesystem Operations', () => {
     sandbox = await SandboxInstance.create({
       name: sandboxName,
       image: defaultImage,
+      region: defaultRegion,
       memory: 2048,
       labels: defaultLabels,
     })
@@ -289,7 +290,7 @@ describe('Sandbox Filesystem Operations', () => {
       expect(result).toBe(content)
     })
 
-    it('uploads large text file (> 1MB) via multipart', async () => {
+    it('uploads medium text file below multipart threshold via regular upload', async () => {
       const content = "Large file content line. ".repeat(50000) // ~1.2MB
       const path = "/tmp/large-upload.txt"
 
@@ -300,7 +301,7 @@ describe('Sandbox Filesystem Operations', () => {
       expect(result).toBe(content)
     })
 
-    it('uploads large binary file via multipart', async () => {
+    it('uploads medium binary file below multipart threshold via regular upload', async () => {
       const size = 2 * 1024 * 1024 // 2MB
       const binaryContent = new Uint8Array(size)
       // Fill with pattern for verification
@@ -326,6 +327,25 @@ describe('Sandbox Filesystem Operations', () => {
 
       const result = await sandbox.fs.read(path)
       expect(result.length).toBe(content.length)
+    })
+
+    it('uploads binary file above multipart threshold with multiple parts', async () => {
+      const size = 6 * 1024 * 1024 // 6MB
+      const binaryContent = new Uint8Array(size)
+      for (let i = 0; i < size; i++) {
+        binaryContent[i] = i % 251
+      }
+      const path = "/tmp/very-large-binary-upload.bin"
+
+      await sandbox.fs.writeBinary(path, binaryContent)
+
+      const blob = await sandbox.fs.readBinary(path)
+      const result = new Uint8Array(await blob.arrayBuffer())
+
+      expect(result.length).toBe(size)
+      expect(result[0]).toBe(0)
+      expect(result[251]).toBe(0)
+      expect(result[size - 1]).toBe((size - 1) % 251)
     })
   })
 

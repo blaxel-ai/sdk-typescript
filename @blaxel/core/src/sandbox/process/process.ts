@@ -1,6 +1,7 @@
 import { Sandbox } from "../../client/types.gen.js";
 import { settings } from "../../common/settings.js";
 import { SandboxAction } from "../action.js";
+import { retryOnTransientReset } from "../../common/transient-retry.js";
 import { DeleteProcessByIdentifierKillResponse, DeleteProcessByIdentifierResponse, GetProcessByIdentifierResponse, GetProcessResponse, PostProcessResponse, ProcessRequest, deleteProcessByIdentifier, deleteProcessByIdentifierKill, getProcess, getProcessByIdentifier, getProcessByIdentifierLogs, postProcess } from "../client/index.js";
 import { ProcessRequestWithLog, ProcessResponseWithLog } from "../types.js";
 
@@ -124,11 +125,10 @@ export class SandboxProcess extends SandboxAction {
     if (shouldWaitForCompletion && (onLog || onStdout || onStderr)) {
       return await this.execWithStreaming(process, { onLog, onStdout, onStderr });
     } else {
-      const { response, data, error } = await postProcess({
+      const { response, data, error } = await postProcess(this.withClient({
         body: process,
         baseUrl: this.url,
-        client: this.client,
-      });
+      }));
       this.handleResponseError(response, data, error);
       const result = data as PostProcessResponse;
       if (onLog || onStdout || onStderr) {
@@ -332,51 +332,58 @@ export class SandboxProcess extends SandboxAction {
   }
 
   async get(identifier: string): Promise<GetProcessByIdentifierResponse> {
-    const { response, data, error } = await getProcessByIdentifier({
-      path: { identifier },
-      baseUrl: this.url,
-      client: this.client,
+    // Idempotent GET: self-heal a transient connection reset (also makes the
+    // wait() poll loop resilient). exec() stays un-retried — it is a
+    // non-idempotent POST and retrying it duplicates the process (ENG-2340).
+    return retryOnTransientReset(async () => {
+      const { response, data, error } = await getProcessByIdentifier(this.withClient({
+        path: { identifier },
+        baseUrl: this.url,
+      }));
+      this.handleResponseError(response, data, error);
+      return data as GetProcessByIdentifierResponse;
     });
-    this.handleResponseError(response, data, error);
-    return data as GetProcessByIdentifierResponse;
   }
 
   async list(): Promise<GetProcessResponse> {
-    const { response, data, error } = await getProcess({
-      baseUrl: this.url,
-      client: this.client,
+    // Idempotent GET: self-heal a transient connection reset.
+    return retryOnTransientReset(async () => {
+      const { response, data, error } = await getProcess(this.withClient({
+        baseUrl: this.url,
+      }));
+      this.handleResponseError(response, data, error);
+      return data as GetProcessResponse;
     });
-    this.handleResponseError(response, data, error);
-    return data as GetProcessResponse;
   }
 
   async stop(identifier: string): Promise<DeleteProcessByIdentifierResponse> {
-    const { response, data, error } = await deleteProcessByIdentifier({
+    const { response, data, error } = await deleteProcessByIdentifier(this.withClient({
       path: { identifier },
       baseUrl: this.url,
-      client: this.client,
-    });
+    }));
     this.handleResponseError(response, data, error);
     return data as DeleteProcessByIdentifierResponse;
   }
 
   async kill(identifier: string): Promise<DeleteProcessByIdentifierKillResponse> {
-    const { response, data, error } = await deleteProcessByIdentifierKill({
+    const { response, data, error } = await deleteProcessByIdentifierKill(this.withClient({
       path: { identifier },
       baseUrl: this.url,
-      client: this.client,
-    });
+    }));
     this.handleResponseError(response, data, error);
     return data as DeleteProcessByIdentifierKillResponse;
   }
 
   async logs(identifier: string, type: "stdout" | "stderr" | "all" = "all"): Promise<string> {
-    const { response, data, error } = await getProcessByIdentifierLogs({
-      path: { identifier },
-      baseUrl: this.url,
-      client: this.client,
+    // Idempotent GET: self-heal a transient connection reset.
+    const data = await retryOnTransientReset(async () => {
+      const { response, data, error } = await getProcessByIdentifierLogs(this.withClient({
+        path: { identifier },
+        baseUrl: this.url,
+      }));
+      this.handleResponseError(response, data, error);
+      return data;
     });
-    this.handleResponseError(response, data, error);
     if (type === "all") {
       return data?.logs || "";
     } else if (type === "stdout") {
@@ -387,4 +394,3 @@ export class SandboxProcess extends SandboxAction {
     throw new Error("Unsupported log type");
   }
 }
-

@@ -1,6 +1,6 @@
 import { createSandbox, SandboxInstance } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
-import { defaultLabels, uniqueName, waitForSandboxDeletion } from './helpers.js'
+import { defaultLabels, defaultRegion, uniqueName, waitForSandboxDeletion } from './helpers.js'
 
 // Set to true to enable custom Docker image tests
 const ENABLE_CUSTOM_DOCKER_TESTS = process.env.ENABLE_CUSTOM_DOCKER_TESTS === 'true' || false
@@ -30,6 +30,7 @@ describe('Sandbox Image Tests', () => {
         body: {
           metadata: { name, labels: defaultLabels },
           spec: {
+            region: defaultRegion,
             runtime: {
               memory: 4096
               // Note: image is intentionally omitted here
@@ -58,6 +59,7 @@ describe('Sandbox Image Tests', () => {
       // When using the SDK's create method, it should automatically fill in a default image
       const sandbox = await SandboxInstance.create({
         name,
+        region: defaultRegion,
         labels: defaultLabels
         // Note: image is intentionally omitted here
       }, { safe: true })
@@ -84,6 +86,7 @@ describe('Sandbox Image Tests', () => {
       const sandbox = await SandboxInstance.create({
         name,
         image: "blaxel/base-image",
+        region: defaultRegion,
         labels: defaultLabels
       }, { safe: true })
       createdSandboxes.push(name)
@@ -105,6 +108,7 @@ describe('Sandbox Image Tests', () => {
       const sandbox = await SandboxInstance.create({
         name,
         image: "blaxel/base-image:latest",
+        region: defaultRegion,
         labels: defaultLabels
       }, { safe: true })
       createdSandboxes.push(name)
@@ -131,6 +135,7 @@ describe('Sandbox Image Tests', () => {
         SandboxInstance.create({
           name,
           image: randomImage,
+          region: defaultRegion,
           labels: defaultLabels
         }, { safe: true })
       ).rejects.toThrow()
@@ -149,23 +154,26 @@ describe('Sandbox Image Tests', () => {
         SandboxInstance.create({
           name,
           image: invalidImage,
+          region: defaultRegion,
           labels: defaultLabels
         }, { safe: true })
       ).rejects.toThrow()
     })
 
-    it('fails with non-existent registry', async () => {
-      const name = uniqueName("bad-registry")
-      const badRegistryImage = "fake-registry.example.com/image:latest"
+    // This is working now, as we allow to build a sandbox from an external registry
+    // it('fails with non-existent registry', async () => {
+    //   const name = uniqueName("bad-registry")
+    //   const badRegistryImage = "fake-registry.example.com/image:latest"
 
-      await expect(
-        SandboxInstance.create({
-          name,
-          image: badRegistryImage,
-          labels: defaultLabels
-        }, { safe: true })
-      ).rejects.toThrow()
-    })
+    //   await expect(
+    //     SandboxInstance.create({
+    //       name,
+    //       image: badRegistryImage,
+    //       region: defaultRegion,
+    //       labels: defaultLabels
+    //     }, { safe: true })
+    //   ).rejects.toThrow()
+    // })
 
     it('fails with blaxel/base-image:notexistingtag', async () => {
       const name = uniqueName("bad-tag")
@@ -175,6 +183,7 @@ describe('Sandbox Image Tests', () => {
         SandboxInstance.create({
           name,
           image: invalidTagImage,
+          region: defaultRegion,
           labels: defaultLabels
         }, { safe: true })
       ).rejects.toThrow()
@@ -193,6 +202,7 @@ describe('Sandbox Image Tests', () => {
       const sandbox = await SandboxInstance.create({
         name,
         image: "docker",
+        region: defaultRegion,
         labels: defaultLabels
       }, { safe: true })
       createdSandboxes.push(name)
@@ -214,6 +224,7 @@ describe('Sandbox Image Tests', () => {
       const sandbox = await SandboxInstance.create({
         name,
         image: "docker:latest",
+        region: defaultRegion,
         labels: defaultLabels
       }, { safe: true })
       createdSandboxes.push(name)
@@ -235,6 +246,7 @@ describe('Sandbox Image Tests', () => {
       const sandbox = await SandboxInstance.create({
         name,
         image: "docker:lqyszf5qx5pe",
+        region: defaultRegion,
         labels: defaultLabels
       }, { safe: true })
       createdSandboxes.push(name)
@@ -256,6 +268,7 @@ describe('Sandbox Image Tests', () => {
       const sandbox = await SandboxInstance.create({
         name,
         image: "sandbox/docker",
+        region: defaultRegion,
         labels: defaultLabels
       }, { safe: true })
       createdSandboxes.push(name)
@@ -277,6 +290,7 @@ describe('Sandbox Image Tests', () => {
       const sandbox = await SandboxInstance.create({
         name,
         image: "sandbox/docker:latest",
+        region: defaultRegion,
         labels: defaultLabels
       }, { safe: true })
       createdSandboxes.push(name)
@@ -298,6 +312,7 @@ describe('Sandbox Image Tests', () => {
       const sandbox = await SandboxInstance.create({
         name,
         image: "sandbox/docker:lqyszf5qx5pe",
+        region: defaultRegion,
         labels: defaultLabels
       }, { safe: true })
       createdSandboxes.push(name)

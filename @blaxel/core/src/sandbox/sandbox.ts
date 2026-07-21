@@ -1,6 +1,8 @@
-import { v4 as uuidv4 } from "uuid";
-import { createSandbox, deleteSandbox, getSandbox, listSandboxes, SandboxLifecycle, Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
+import type http2 from "http2";
+import { createSandbox, deleteSandbox, getSandbox, getSandboxByExternalId, listSandboxes, type ListSandboxesData, type SandboxLifecycle, type Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
+import { backoffDelayMs } from "../common/transient-retry.js";
+import { createPaginatedList } from "../common/pagination.js";
 import { settings } from "../common/settings.js";
 import { SandboxCodegen } from "./codegen/index.js";
 import { SandboxDrive } from "./drive/index.js";
@@ -8,27 +10,67 @@ import { SandboxFileSystem } from "./filesystem/index.js";
 import { SandboxNetwork } from "./network/index.js";
 import { SandboxPreviews } from "./preview.js";
 import { SandboxProcess } from "./process/index.js";
+import { SandboxSchedules } from "./schedule.js";
 import { SandboxSessions } from "./session.js";
 import { SandboxSystem } from "./system.js";
-import { normalizeEnvs, normalizePorts, normalizeVolumes, SandboxConfiguration, SandboxCreateConfiguration, SandboxUpdateMetadata, SessionWithToken } from "./types.js";
+import { normalizeEnvs, normalizePorts, normalizeVolumes, SandboxConfiguration, SandboxCreateConfiguration, SandboxUpdateMetadata, SandboxUpdateNetwork, SessionWithToken } from "./types.js";
+
+const NON_REUSABLE_SANDBOX_STATUSES = new Set([
+  "FAILED",
+  "TERMINATED",
+  "TERMINATING",
+  "DELETING",
+  "DEACTIVATING",
+]);
+
+export type SandboxListQuery = NonNullable<ListSandboxesData["query"]>;
+
+// Statuses that resolve on their own (a delete or deactivation in flight). The control
+// plane keeps answering 409 to creates while the record is in one of these, so retrying
+// instantly burns the whole attempt budget inside the window. Terminal statuses
+// (FAILED, TERMINATED) accept a create immediately and are not listed here.
+const TRANSIENT_SANDBOX_STATUSES = new Set([
+  "TERMINATING",
+  "DELETING",
+  "DEACTIVATING",
+]);
+const TRANSIENT_STATUS_MAX_WAIT_MS = 30_000;
+const TRANSIENT_STATUS_POLL_MS = 500;
+
+// A create that outlives the edge's 60s origin-read timeout gets a 504 from
+// CloudFront while the control plane keeps deploying the sandbox for up to
+// 300s (ENG-3662 timeout ladder inversion). The 504 body is edge HTML with no
+// usable payload, so the record is polled instead until it settles.
+// Polling backs off exponentially (1s, 2s, 4s, then 5s + jitter) so a fleet of
+// clients stuck in this window does not hammer the control plane every second.
+const CREATE_GATEWAY_TIMEOUT_MAX_WAIT_MS = 120_000;
+const CREATE_GATEWAY_TIMEOUT_BASE_POLL_MS = 1_000;
+const CREATE_GATEWAY_TIMEOUT_MAX_POLL_MS = 5_000;
+
+const isSandboxNotFound = (e: unknown): boolean => {
+  if (typeof e !== "object" || e === null) return false;
+  const candidate = e as { code?: unknown; status?: unknown };
+  return candidate.code === 404 || candidate.code === "404" || candidate.status === 404;
+};
 
 export class SandboxInstance {
   fs: SandboxFileSystem;
   network: SandboxNetwork;
   process: SandboxProcess;
   previews: SandboxPreviews;
+  schedules: SandboxSchedules;
   sessions: SandboxSessions;
   codegen: SandboxCodegen;
   system: SandboxSystem;
   drives: SandboxDrive;
-  /* eslint-disable @typescript-eslint/no-explicit-any */
-  h2Session: any;
+  h2Session: http2.ClientHttp2Session | null;
 
   constructor(private sandbox: SandboxConfiguration) {
     this.process = new SandboxProcess(sandbox);
     this.fs = new SandboxFileSystem(sandbox, this.process);
     this.network = new SandboxNetwork(sandbox);
     this.previews = new SandboxPreviews(sandbox);
+    this.schedules = new SandboxSchedules(sandbox);
     this.sessions = new SandboxSessions(sandbox);
     this.codegen = new SandboxCodegen(sandbox);
     this.system = new SandboxSystem(sandbox);
@@ -56,24 +98,33 @@ export class SandboxInstance {
     return this.sandbox.lastUsedAt;
   }
 
+  get h2Domain() {
+    return this.sandbox.h2Domain ?? null;
+  }
+
   /**
    * Warm and attach an H2 session based on the sandbox's region.
    * Shared by create(), get(), list(), and update helpers.
    */
   private static async attachH2Session(instance: SandboxInstance): Promise<SandboxInstance> {
-    const region = instance.spec?.region;
-    if (!region) return instance;
-    const edgeSuffix = settings.env === "prod" ? "bl.run" : "runv2.blaxel.dev";
-    const edgeDomain = `any.${region}.${edgeSuffix}`;
+    const edgeDomain = SandboxInstance.edgeDomainForRegion(instance.spec?.region);
+    if (!edgeDomain || settings.disableH2) return instance;
     try {
       const { h2Pool } = await import("../common/h2pool.js");
       const h2Session = await h2Pool.get(edgeDomain);
       instance.h2Session = h2Session;
       instance.sandbox.h2Session = h2Session;
+      instance.sandbox.h2Domain = edgeDomain;
     } catch {
       // H2 warming is best-effort; fall back to regular fetch
     }
     return instance;
+  }
+
+  private static edgeDomainForRegion(region?: string): string | null {
+    if (!region) return null;
+    const edgeSuffix = settings.env === "prod" ? "bl.run" : "runv2.blaxel.dev";
+    return `any.${region}.${edgeSuffix}`;
   }
 
   get expiresIn() {
@@ -92,13 +143,15 @@ export class SandboxInstance {
   }
 
   /* eslint-disable */
-  async wait({maxWait = 60000, interval = 1000}: {maxWait?: number, interval?: number} = {}) {
+  async wait({ maxWait = 60000, interval = 1000 }: { maxWait?: number, interval?: number } = {}) {
     logger.warn("⚠️  Warning: sandbox.wait() is deprecated. You don't need to wait for the sandbox to be deployed anymore.");
     return this;
   }
 
-  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = false }: { safe?: boolean } = {}) {
-    const defaultName = `sandbox-${uuidv4().replace(/-/g, '').substring(0, 8)}`
+  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = false, createIfNotExist = false }: { safe?: boolean, createIfNotExist?: boolean } = {}) {
+    // No client-side default name: when the caller omits a name we send the
+    // creation without metadata.name so the server can assign one and unnamed
+    // creations become eligible for warm sandbox pools (ENG-3931).
     const defaultImage = `blaxel/base-image:latest`
     const defaultMemory = 4096
 
@@ -118,7 +171,6 @@ export class SandboxInstance {
       'extraArgs' in sandbox
     ) {
       if (!sandbox) sandbox = {} as SandboxCreateConfiguration
-      if (!sandbox.name) sandbox.name = defaultName
       if (!sandbox.image) sandbox.image = defaultImage
       if (!sandbox.memory) sandbox.memory = defaultMemory
 
@@ -140,7 +192,7 @@ export class SandboxInstance {
       const extraArgs = sandbox.extraArgs;
 
       sandbox = {
-        metadata: { name: sandbox.name, labels: sandbox.labels },
+        metadata: { name: sandbox.name, labels: sandbox.labels, externalId: sandbox.externalId },
         spec: {
           region: region,
           runtime: {
@@ -167,7 +219,8 @@ export class SandboxInstance {
 
     sandbox = sandbox as SandboxModel
     if (!sandbox.metadata) {
-      sandbox.metadata = { name: defaultName };
+      // Leave name unset so the server assigns one (ENG-3931).
+      sandbox.metadata = {} as SandboxModel["metadata"];
     }
     if (!sandbox.spec) {
       sandbox.spec = { runtime: { image: defaultImage, memory: defaultMemory } };
@@ -179,23 +232,33 @@ export class SandboxInstance {
     sandbox.spec.runtime.image = sandbox.spec.runtime.image || defaultImage;
     sandbox.spec.runtime.memory = sandbox.spec.runtime.memory || defaultMemory;
 
-    const edgeSuffix = settings.env === "prod" ? "bl.run" : "runv2.blaxel.dev";
-    const edgeDomain = sandbox.spec?.region ? `any.${sandbox.spec.region}.${edgeSuffix}` : null;
+    const edgeDomain = SandboxInstance.edgeDomainForRegion(sandbox.spec?.region);
 
     // Kick off warming so h2Pool.get() can join it during the API call
-    if (edgeDomain) {
-      import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.warm(edgeDomain)).catch(() => {});
+    if (edgeDomain && !settings.disableH2) {
+      import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.warm(edgeDomain)).catch(() => { });
     }
 
-    const [{ data }, h2Session] = await Promise.all([
+    const [createResult, h2Session] = await Promise.all([
       createSandbox({
         body: sandbox,
-        throwOnError: true,
+        query: createIfNotExist ? { createIfNotExist } : undefined,
       }),
-      edgeDomain ? import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.get(edgeDomain)).catch(() => null) : Promise.resolve(null),
+      edgeDomain && !settings.disableH2 ? import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.get(edgeDomain)).catch(() => null) : Promise.resolve(null),
     ]);
+    let data = createResult.data;
+    if (createResult.error !== undefined) {
+      const name = sandbox.metadata.name;
+      if (createResult.response.status === 504 && name) {
+        // The edge gave up on the connection but the creation is still running
+        // server-side; wait for the record instead of failing (ENG-3662).
+        data = await SandboxInstance.waitAfterCreateGatewayTimeout(name, createResult.error);
+      } else {
+        throw createResult.error;
+      }
+    }
     // Inject the H2 session into the config so subsystems can use it
-    const config = { ...data, h2Session } as SandboxConfiguration;
+    const config = { ...data, h2Session, h2Domain: settings.disableH2 ? null : edgeDomain } as SandboxConfiguration;
     const instance = new SandboxInstance(config);
     instance.h2Session = h2Session;
     // Note: H2 session already attached via Promise.all above, no need for attachH2Session()
@@ -203,7 +266,10 @@ export class SandboxInstance {
     if (safe) {
       try {
         await instance.fs.ls('/')
-      } catch {}
+      } catch (err) {
+        await SandboxInstance.delete(instance.metadata.name!).catch(() => { });
+        throw err;
+      }
     }
     return instance;
   }
@@ -219,10 +285,55 @@ export class SandboxInstance {
     return SandboxInstance.attachH2Session(instance);
   }
 
-  static async list() {
-    const { data } = await listSandboxes({throwOnError: true}) as { response: Response; data: SandboxModel[] };
-    const instances = data.map((sandbox) => new SandboxInstance(sandbox));
-    return Promise.all(instances.map((instance) => SandboxInstance.attachH2Session(instance)));
+  static async getByExternalId(externalId: string) {
+    const { data } = await getSandboxByExternalId({
+      path: { externalId },
+      throwOnError: true,
+    });
+    const instance = new SandboxInstance(data);
+    return SandboxInstance.attachH2Session(instance);
+  }
+
+  /**
+   * List one page of sandboxes.
+   *
+   * The returned page exposes `data` for the current page, `meta` for cursor
+   * metadata, and helpers to fetch more pages only when you need them.
+   *
+   * @example
+   * ```ts
+   * const page = await SandboxInstance.list({ limit: 50 });
+   *
+   * for (const sandbox of page.data) {
+   *   console.log(sandbox.metadata.name);
+   * }
+   *
+   * const nextPage = await page.nextPage();
+   * ```
+   *
+   * @example
+   * ```ts
+   * const page = await SandboxInstance.list({ limit: 100 });
+   *
+   * for await (const sandbox of page) {
+   *   console.log(sandbox.metadata.name);
+   * }
+   * ```
+   */
+  static async list(query?: SandboxListQuery) {
+    const fetchPage = async (pageQuery?: SandboxListQuery) => {
+      const { data } = await listSandboxes({
+        query: pageQuery,
+        throwOnError: true,
+      });
+      return data;
+    };
+    return createPaginatedList({
+      response: await fetchPage(query),
+      fetchPage,
+      mapItem: (sandbox) => SandboxInstance.attachH2Session(new SandboxInstance(sandbox)),
+      query,
+    });
   }
 
   static async delete(sandboxName: string) {
@@ -238,6 +349,8 @@ export class SandboxInstance {
   async delete() {
     // Don't close the H2 session — it's shared via h2Pool
     this.h2Session = null;
+    this.sandbox.h2Session = null;
+    this.sandbox.h2Domain = null;
     return await SandboxInstance.delete(this.metadata.name!);
   }
 
@@ -253,9 +366,9 @@ export class SandboxInstance {
     return SandboxInstance.attachH2Session(instance);
   }
 
-  static async updateTtl(sandboxName: string, ttl: string) {
+  static async updateTtl(sandboxName: string, ttl: string | null) {
     const sandbox = await SandboxInstance.get(sandboxName);
-    const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, runtime: { ...sandbox.spec.runtime, ttl } } } as SandboxModel
+    const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, runtime: { ...sandbox.spec.runtime, ttl: ttl === '' ? null : ttl ?? null } } } as SandboxModel
     const { data } = await updateSandbox({
       path: { sandboxName },
       body,
@@ -265,9 +378,9 @@ export class SandboxInstance {
     return SandboxInstance.attachH2Session(instance);
   }
 
-  static async updateLifecycle(sandboxName: string, lifecycle: SandboxLifecycle) {
+  static async updateLifecycle(sandboxName: string, lifecycle: SandboxLifecycle | null) {
     const sandbox = await SandboxInstance.get(sandboxName);
-    const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, lifecycle } } as SandboxModel
+    const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, lifecycle: lifecycle ?? null } } as SandboxModel
     const { data } = await updateSandbox({
       path: { sandboxName },
       body,
@@ -277,30 +390,133 @@ export class SandboxInstance {
     return SandboxInstance.attachH2Session(instance);
   }
 
+
+  static async updateNetwork(sandboxName: string, network: SandboxUpdateNetwork) {
+    const sandbox = await SandboxInstance.get(sandboxName);
+    const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, network: network.network } } as SandboxModel
+    const { data } = await updateSandbox({
+      path: { sandboxName },
+      body,
+      throwOnError: true,
+    });
+    const instance = new SandboxInstance(data);
+    return SandboxInstance.attachH2Session(instance);
+  }
 
   static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration) {
-    try {
-      return await this.create(sandbox);
-    } catch (e) {
-      if (typeof e === "object" && e !== null && "code" in e && (e.code === 409 || e.code === 'SANDBOX_ALREADY_EXISTS')) {
-        const name = 'name' in sandbox ? sandbox.name : (sandbox as SandboxModel).metadata.name
-        if (!name) {
-          throw new Error("Sandbox name is required");
-        }
-
-        // Get the existing sandbox to check its status
-        const sandboxInstance = await this.get(name);
-
-          // If the sandbox is TERMINATED, treat it as not existing
-          if (sandboxInstance.status === "TERMINATED") {
-            // Create a new sandbox - backend will handle cleanup of the terminated one
-            return await this.create(sandbox);
+    const ATTEMPTS = 3;
+    let lastStatus = "unknown";
+    // The 'vanished' window (create 409s while get 404s) is driven by the same
+    // transient causes as 'dying': an in-flight delete finishing, or a
+    // concurrent create whose row is not readable yet. Give it the same time
+    // budget as waitWhileSandboxDying instead of burning the attempt budget
+    // 500ms apart (~1s total), which threw on deletes taking >1s (ENG-3667).
+    const vanishedDeadline = Date.now() + TRANSIENT_STATUS_MAX_WAIT_MS;
+    for (let i = 0; i < ATTEMPTS; ++i) {
+      const finalAttempt = i === ATTEMPTS - 1;
+      try {
+        return await this.create(sandbox, { createIfNotExist: true });
+      } catch (e) {
+        if (typeof e === "object" && e !== null && "code" in e && (e.code === 409 || e.code === 'SANDBOX_ALREADY_EXISTS')) {
+          const name = 'name' in sandbox ? sandbox.name : (sandbox as SandboxModel).metadata.name
+          if (!name) {
+            throw new Error("Sandbox name is required");
           }
 
-        // Otherwise return the existing running sandbox
-        return sandboxInstance;
+          // The controlplane tags the creation-lock 409 with
+          // reason=CREATION_IN_PROGRESS when the conflict comes from a
+          // concurrent create still in flight (ENG-3776). The field is absent
+          // on older controlplanes and on real row conflicts, so it only
+          // sharpens the give-up error; the polling behavior is the same.
+          const creationInProgress = (e as { reason?: unknown }).reason === "CREATION_IN_PROGRESS";
+
+          // Get the existing sandbox to check its status
+          let sandboxInstance: SandboxInstance;
+          try {
+            sandboxInstance = await this.get(name);
+          } catch (getError) {
+            if (isSandboxNotFound(getError)) {
+              // The record vanished between the create conflict and this status check.
+              lastStatus = creationInProgress ? "creation in progress" : "vanished";
+              if (Date.now() < vanishedDeadline) {
+                // Inside the transient window: poll without consuming attempts.
+                await new Promise((resolve) => setTimeout(resolve, TRANSIENT_STATUS_POLL_MS));
+                --i;
+              } else if (!finalAttempt) {
+                await new Promise((resolve) => setTimeout(resolve, TRANSIENT_STATUS_POLL_MS));
+              }
+              continue;
+            }
+            throw getError;
+          }
+
+          // Recreate instead of returning sandbox records that cannot be reused.
+          if (!NON_REUSABLE_SANDBOX_STATUSES.has(sandboxInstance.status ?? "")) {
+            return sandboxInstance;
+          }
+
+          // A delete or deactivation in flight rejects creates until it finishes;
+          // wait it out instead of burning the remaining attempts inside the window.
+          // No point waiting after the last attempt: nothing will use the result.
+          lastStatus = sandboxInstance.status ?? "unknown";
+          if (TRANSIENT_SANDBOX_STATUSES.has(lastStatus) && !finalAttempt) {
+            await this.waitWhileSandboxDying(name);
+          }
+
+          // Retry creation. We want the same error handling on the retry as creates can race.
+          continue;
+        }
+        throw e;
       }
-      throw e;
+    }
+    throw new Error(`Unable to create sandbox after ${ATTEMPTS} attempts. Last conflicting status: ${lastStatus}.`);
+  }
+
+  // Poll the record after a create was cut by the edge with a 504 while the
+  // control plane is still deploying it. Resolves with the sandbox once it
+  // reaches DEPLOYED; throws on FAILED or once the wait budget is spent.
+  private static async waitAfterCreateGatewayTimeout(name: string, createError: unknown): Promise<SandboxModel> {
+    logger.debug(`Sandbox ${name} creation timed out at the edge (504); polling the record while it finishes deploying`);
+    const deadline = Date.now() + CREATE_GATEWAY_TIMEOUT_MAX_WAIT_MS;
+    let attempt = 0;
+    while (Date.now() < deadline) {
+      attempt++;
+      await new Promise((resolve) =>
+        setTimeout(resolve, backoffDelayMs(attempt, CREATE_GATEWAY_TIMEOUT_BASE_POLL_MS, CREATE_GATEWAY_TIMEOUT_MAX_POLL_MS)),
+      );
+      let current: SandboxModel;
+      try {
+        const { data } = await getSandbox({ path: { sandboxName: name }, throwOnError: true });
+        current = data;
+      } catch (e) {
+        // The record can lag behind the accepted create; keep waiting on 404.
+        if (isSandboxNotFound(e)) continue;
+        throw e;
+      }
+      if (current.status === "DEPLOYED") return current;
+      if (current.status === "FAILED") {
+        throw new Error(`Sandbox ${name} failed to deploy after the create timed out at the edge (504).`);
+      }
+    }
+    throw createError;
+  }
+
+  // Poll the record until an in-flight delete/deactivation settles (or the record
+  // disappears), bounded by TRANSIENT_STATUS_MAX_WAIT_MS. Errors from get (e.g. 404
+  // once the record is gone) end the wait: the caller's create retry decides next.
+  private static async waitWhileSandboxDying(name: string): Promise<void> {
+    const deadline = Date.now() + TRANSIENT_STATUS_MAX_WAIT_MS;
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, TRANSIENT_STATUS_POLL_MS));
+      try {
+        const current = await this.get(name);
+        if (!TRANSIENT_SANDBOX_STATUSES.has(current.status ?? "")) {
+          return;
+        }
+        logger.debug(`Sandbox ${name} still ${current.status}; waiting for the record to settle before recreating`);
+      } catch {
+        return;
+      }
     }
   }
 
