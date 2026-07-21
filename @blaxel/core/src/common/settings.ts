@@ -127,7 +127,7 @@ const BLAXEL_API_VERSION = "2026-04-28";
 function isBrokenBunH2() {
   const v = globalThis.process?.versions?.bun;
   if (!v) return false;
-  const [maj = 0, min = 0, patch = 0] = v.split(".").map(Number);
+  const [maj = 0, min = 0, patch = 0] = v.split("-")[0].split(".").map(Number);
   return maj < 1 || (maj === 1 && (min < 3 || (min === 3 && patch < 11)));
 }
 
