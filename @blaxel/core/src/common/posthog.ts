@@ -129,86 +129,104 @@ function getDistinctID(): string {
 	return state.distinct_id;
 }
 
+type SDKInstallTrackerOptions = {
+	getApiKey: () => string;
+	isTrackingEnabled: () => boolean;
+	getVersion: () => string;
+	isNode: () => boolean;
+	loadState: () => TelemetryState;
+	saveState: (state: TelemetryState) => void;
+	getDistinctId: () => string;
+	fetch: typeof globalThis.fetch;
+	getSignal: () => AbortSignal | undefined;
+};
+
 /**
- * Send an event to PostHog via HTTP POST. Fire-and-forget.
+ * Create an SDK install tracker. Exported from this internal module so delivery
+ * and deduplication behavior can be tested without build-time credentials.
  */
-function capturePosthogEvent(
-	event: string,
-	properties: Record<string, string>,
-): void {
-	const apiKey = getPosthogKey();
-	if (!apiKey) {
-		return;
-	}
+export function createSDKInstallTracker(options: SDKInstallTrackerOptions) {
+	const pendingVersions = new Set<string>();
 
-	const distinctId = getDistinctID();
+	return function track(): Promise<void> | undefined {
+		const apiKey = options.getApiKey();
+		if (!apiKey || !options.isTrackingEnabled() || !options.isNode()) {
+			return;
+		}
 
-	const payload = {
-		api_key: apiKey,
-		event,
-		distinct_id: distinctId,
-		timestamp: new Date().toISOString(),
-		properties,
+		const version = options.getVersion();
+		if (
+			!version ||
+			version === "unknown" ||
+			version === "__BUILD_VERSION__"
+		) {
+			return;
+		}
+
+		const state = options.loadState();
+		const stateKey = "typescript";
+		if (state.sdks?.[stateKey] === version || pendingVersions.has(version)) {
+			return;
+		}
+
+		pendingVersions.add(version);
+		return (async () => {
+			try {
+				const payload = {
+					api_key: apiKey,
+					event: "Installed SDK",
+					distinct_id: options.getDistinctId(),
+					timestamp: new Date().toISOString(),
+					properties: {
+						language: "typescript",
+						sdk: "core",
+						version,
+					},
+				};
+				const response = await options.fetch(`${POSTHOG_HOST}/capture/`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify(payload),
+					signal: options.getSignal(),
+				});
+
+				if (!response.ok) {
+					return;
+				}
+
+				state.sdks ??= {};
+				state.sdks[stateKey] = version;
+				options.saveState(state);
+			} catch {
+				// Telemetry must never break the SDK. A later call may retry.
+			} finally {
+				pendingVersions.delete(version);
+			}
+		})();
 	};
-
-	try {
-		fetch(`${POSTHOG_HOST}/capture/`, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify(payload),
-			signal: AbortSignal.timeout(5000),
-		}).catch(() => {
-			// Silently fail - telemetry should never break the SDK
-		});
-	} catch {
-		// Silently fail
-	}
 }
+
+const sdkInstallTracker = createSDKInstallTracker({
+	getApiKey: getPosthogKey,
+	isTrackingEnabled: () => settings.tracking,
+	getVersion: () => settings.version,
+	isNode: () =>
+		typeof process !== "undefined" && Boolean(process.versions?.node),
+	loadState: loadTelemetryState,
+	saveState: saveTelemetryState,
+	getDistinctId: getDistinctID,
+	fetch: (...args) => globalThis.fetch(...args),
+	getSignal: () =>
+		typeof AbortSignal !== "undefined" &&
+		typeof AbortSignal.timeout === "function"
+			? AbortSignal.timeout(5000)
+			: undefined,
+});
 
 /**
  * Track SDK installation. Fires "Installed SDK" once per new version.
  * Called during SDK autoload.
  */
 export function trackSDKInstalled(): void {
-	const apiKey = getPosthogKey();
-	if (!apiKey) {
-		return;
-	}
-
-	// Only track if tracking is enabled
-	if (!settings.tracking) {
-		return;
-	}
-
-	const sdkVersion = settings.version;
-	if (
-		!sdkVersion ||
-		sdkVersion === "unknown" ||
-		sdkVersion === "__BUILD_VERSION__"
-	) {
-		return;
-	}
-
-	// Only run in Node.js (not in browsers)
-	if (typeof process === "undefined" || !process.versions?.node) {
-		return;
-	}
-
-	const state = loadTelemetryState();
-	const sdkName = "typescript";
-
-	if (state.sdks && state.sdks[sdkName] === sdkVersion) {
-		return; // Already tracked this version
-	}
-
-	capturePosthogEvent("Installed SDK", {
-		version: sdkVersion,
-		language: sdkName,
-	});
-
-	if (!state.sdks) {
-		state.sdks = {};
-	}
-	state.sdks[sdkName] = sdkVersion;
-	saveTelemetryState(state);
+	void sdkInstallTracker();
 }
