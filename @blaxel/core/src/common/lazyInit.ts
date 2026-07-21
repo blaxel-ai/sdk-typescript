@@ -1,6 +1,7 @@
 import { client } from "../client/client.gen.js";
 import { client as clientSandbox } from "../sandbox/client/client.gen.js";
 import { controlPlaneFetch } from "./controlPlaneFetch.js";
+import { trackSDKInstalled } from "./posthog.js";
 import { initSentry } from "./sentry.js";
 import { settings } from "./settings.js";
 
@@ -42,6 +43,13 @@ export function ensureAutoloaded(): void {
 
   // Initialize Sentry for SDK error tracking.
   initSentry();
+
+  // Track SDK installation (fires once per new version).
+  try {
+    trackSDKInstalled();
+  } catch {
+    // Silently ignore - telemetry should never break the SDK
+  }
 
   // Background H2 connection warming (Node.js only)
   const isNode = typeof process !== "undefined" && process.versions != null && process.versions.node != null;
