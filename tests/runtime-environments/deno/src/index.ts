@@ -98,9 +98,9 @@ function installFakeSandboxFetch() {
 function testCoreImports() {
   console.log("✅ @blaxel/core env:", typeof env);
   console.log("✅ @blaxel/core SandboxInstance:", typeof SandboxInstance);
-  console.log("✅ @blaxel/core Deno disables H2:", settings.disableH2);
+  console.log("✅ @blaxel/core Deno disableH2:", settings.disableH2);
   assert(typeof SandboxInstance === "function", "SandboxInstance import failed");
-  assert(settings.disableH2 === true, "Deno runtime should disable SDK H2 by default");
+  assert(settings.disableH2 === false, "Deno runtime should enable SDK H2 by default");
 }
 
 async function testSandboxGeneratedActions() {
