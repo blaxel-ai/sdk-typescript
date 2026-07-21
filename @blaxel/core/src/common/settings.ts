@@ -5,6 +5,7 @@ import { Credentials, MissingCredentials } from "../authentication/credentials.j
 import { authentication } from "../authentication/index.js";
 import { env } from "../common/env.js";
 import { CredentialsError } from "../common/errors.js";
+import { logger } from "../common/logger.js";
 import { fs, os, path } from "../common/node.js";
 
 /**
@@ -37,8 +38,10 @@ export type Config = {
   apikey?: string;
   workspace?: string;
   /**
-   * Disables the SDK-managed HTTP/2 transport. Defaults to `true`; set this to
-   * `false` (or `BL_DISABLE_H2=0`) to opt back into H2.
+   * Disables the SDK-managed HTTP/2 transport. Defaults to `false` (H2 on);
+   * set this to `true` (or `BL_DISABLE_H2=1`) to opt out of H2. Note that H2 is
+   * always force-disabled on Bun < 1.3.11, which has a broken H2 flow-control
+   * implementation, regardless of this setting.
    */
   disableH2?: boolean;
   /**
@@ -116,6 +119,20 @@ const BUILD_VERSION = "__BUILD_VERSION__";
 const BUILD_COMMIT = "__BUILD_COMMIT__";
 const BUILD_SENTRY_DSN = "__BUILD_SENTRY_DSN__";
 const BLAXEL_API_VERSION = "2026-04-28";
+
+// Bun < 1.3.11 never sends connection-level WINDOW_UPDATE: the pooled h2
+// session freezes after exactly 65535 cumulative body bytes and every request
+// on it hangs until the edge resets the streams (~330s).
+// Fixed in Bun 1.3.11: https://bun.com/blog/bun-v1.3.11
+function isBrokenBunH2() {
+  const v = globalThis.process?.versions?.bun;
+  if (!v) return false;
+  const [maj = 0, min = 0, patch = 0] = v.split(".").map(Number);
+  return maj < 1 || (maj === 1 && (min < 3 || (min === 3 && patch < 11)));
+}
+
+// Warn at most once when H2 is force-disabled on a broken Bun runtime.
+let brokenBunH2Warned = false;
 
 // Cache for config.yaml tracking value
 let configTrackingValue: boolean | null = null;
@@ -358,6 +375,21 @@ class Settings {
   }
 
   get disableH2(): boolean {
+    // Broken Bun versions hang on the pooled H2 session; force H2 off there
+    // regardless of config/env and warn once so the choice is visible.
+    if (isBrokenBunH2()) {
+      if (!brokenBunH2Warned) {
+        brokenBunH2Warned = true;
+        logger.warn(
+          `Detected Bun ${globalThis.process?.versions?.bun} which never sends ` +
+          `connection-level HTTP/2 WINDOW_UPDATE: the pooled H2 session freezes ` +
+          `after 65535 cumulative body bytes and requests hang until the edge ` +
+          `resets the streams (~330s). Disabling H2 (fixed in Bun 1.3.11: ` +
+          `https://bun.com/blog/bun-v1.3.11).`
+        );
+      }
+      return true;
+    }
     if (typeof this.config.disableH2 === "boolean") {
       return this.config.disableH2;
     }
@@ -365,7 +397,7 @@ class Settings {
     if (value) {
       return ["1", "true", "yes", "on"].includes(value.toLowerCase());
     }
-    return true;
+    return false;
   }
 
   // Control-plane-only escape hatch: disables the control-plane H2 wrapper

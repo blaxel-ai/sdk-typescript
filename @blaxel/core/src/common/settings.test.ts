@@ -38,16 +38,23 @@ describe('Settings.disableH2', () => {
     delete settings.config.disableH2;
   });
 
-  it('disables H2 by default', async () => {
+  const onBrokenBun = (() => {
+    const v = globalThis.process?.versions?.bun;
+    if (!v) return false;
+    const [maj = 0, min = 0, patch = 0] = v.split('.').map(Number);
+    return maj < 1 || (maj === 1 && (min < 3 || (min === 3 && patch < 11)));
+  })();
+
+  it.skipIf(onBrokenBun)('enables H2 by default', async () => {
     delete (env as Record<string, unknown>).BL_DISABLE_H2;
     const { settings } = await import('./settings.js');
     delete settings.config.disableH2;
-    expect(settings.disableH2).toBe(true);
+    expect(settings.disableH2).toBe(false);
   });
 
-  it('allows H2 to be explicitly enabled', async () => {
+  it.skipIf(onBrokenBun)('allows H2 to be explicitly disabled', async () => {
     const { settings } = await import('./settings.js');
-    settings.config.disableH2 = false;
-    expect(settings.disableH2).toBe(false);
+    settings.config.disableH2 = true;
+    expect(settings.disableH2).toBe(true);
   });
 });
