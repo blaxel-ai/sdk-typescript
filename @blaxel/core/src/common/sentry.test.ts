@@ -36,6 +36,23 @@ function makeApplicationError(): Error {
   return error;
 }
 
+function makeTraversalStackError(): Error {
+  const sdkFrame = makeSdkError().stack
+    ?.split("\n")
+    .find((line) => line.includes("sentry.test"));
+  if (!sdkFrame) throw new Error("Expected a real SDK test frame");
+
+  const forgedFrame = sdkFrame.replace(
+    /([\\/])src\1common\1sentry\.test\.ts/,
+    "$1src$1..$1private$1customer-secret.ts"
+  );
+  if (forgedFrame === sdkFrame) throw new Error("Expected to forge the SDK frame path");
+
+  const error = new Error("application secret");
+  error.stack = ["Error: application secret", forgedFrame].join("\n");
+  return error;
+}
+
 type CapturedEvent = {
   exception: {
     values: Array<{
@@ -161,6 +178,37 @@ describe("SDK Sentry boundary", () => {
     const { initSentry } = await import("./sentry.js");
     initSentry();
     emitUncaughtExceptionMonitor(makeApplicationError());
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a forged owned path containing parent traversal", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { initSentry } = await import("./sentry.js");
+    initSentry();
+    emitUncaughtExceptionMonitor(makeTraversalStackError());
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("contains delivery setup failures without creating an unhandled rejection", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal(
+      "AbortController",
+      class FailingAbortController {
+        constructor() {
+          throw new Error("host AbortController failure");
+        }
+      }
+    );
+
+    const { flushSentry, initSentry } = await import("./sentry.js");
+    initSentry();
+    emitUncaughtExceptionMonitor(makeSdkError());
+    await flushSentry();
 
     expect(fetchMock).not.toHaveBeenCalled();
   });

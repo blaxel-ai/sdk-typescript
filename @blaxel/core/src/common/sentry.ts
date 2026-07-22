@@ -44,6 +44,7 @@ const SAFE_ERROR_NAMES = new Set([
 
 const MAX_IN_FLIGHT_EVENTS = 20;
 const DELIVERY_TIMEOUT_MS = 500;
+const SAFE_FILENAME_SEGMENT = /^[A-Za-z0-9._-]+$/;
 
 let sentryInitialized = false;
 let handlersRegistered = false;
@@ -128,11 +129,31 @@ function isRuntimeFrame(filename: string): boolean {
   return filename.startsWith("node:") || filename.startsWith("internal/");
 }
 
+function ownedRelativeFilename(filename: string): string | null {
+  if (!sdkPackageRoot) return null;
+
+  for (const directory of OWNED_PACKAGE_DIRECTORIES) {
+    const prefix = `${sdkPackageRoot}${directory}`;
+    if (!filename.startsWith(prefix)) continue;
+
+    const relativeFilename = filename.slice(sdkPackageRoot.length).replace(/^\/+/, "");
+    const segments = relativeFilename.split("/");
+    if (
+      segments.length > 0 &&
+      segments.every(
+        (segment) =>
+          segment !== "." && segment !== ".." && SAFE_FILENAME_SEGMENT.test(segment)
+      )
+    ) {
+      return relativeFilename;
+    }
+  }
+
+  return null;
+}
+
 function isOwnedFilename(filename: string): boolean {
-  if (!sdkPackageRoot) return false;
-  return OWNED_PACKAGE_DIRECTORIES.some((directory) =>
-    filename.startsWith(`${sdkPackageRoot}${directory}`)
-  );
+  return ownedRelativeFilename(filename) !== null;
 }
 
 /**
@@ -160,9 +181,7 @@ function sanitizeFunctionName(name: string): string {
 }
 
 function sanitizeOwnedFrame(frame: ParsedFrame): ParsedFrame {
-  const relativeFilename = sdkPackageRoot
-    ? frame.filename.slice(sdkPackageRoot.length).replace(/^\/+/, "")
-    : "unknown";
+  const relativeFilename = ownedRelativeFilename(frame.filename) ?? "unknown";
 
   return {
     function: sanitizeFunctionName(frame.function),
@@ -277,9 +296,11 @@ async function sendToSentry(event: SentryEvent): Promise<void> {
 function scheduleDelivery(event: SentryEvent): void {
   if (inFlightDeliveries.size >= MAX_IN_FLIGHT_EVENTS) return;
 
-  const delivery = sendToSentry(event);
+  // Contain rejections from setup that occurs before sendToSentry's internal
+  // fetch guard (for example, a host-provided AbortController implementation).
+  const delivery = sendToSentry(event).catch(() => undefined);
   inFlightDeliveries.add(delivery);
-  void delivery.finally(() => inFlightDeliveries.delete(delivery));
+  void delivery.then(() => inFlightDeliveries.delete(delivery));
 }
 
 function captureException(error: Error): void {
