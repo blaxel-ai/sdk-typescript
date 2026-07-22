@@ -1,5 +1,11 @@
 // Test Deno runtime compatibility against the local @blaxel/core package.
-import { env, SandboxInstance, settings } from "@blaxel/core";
+import {
+  detectBunVersion,
+  env,
+  isBrokenBunVersion,
+  SandboxInstance,
+  settings,
+} from "@blaxel/core";
 
 type ProcessResponse = {
   command: string;
@@ -100,7 +106,53 @@ function testCoreImports() {
   console.log("✅ @blaxel/core SandboxInstance:", typeof SandboxInstance);
   console.log("✅ @blaxel/core Deno disableH2:", settings.disableH2);
   assert(typeof SandboxInstance === "function", "SandboxInstance import failed");
+  // Deno is not Bun: the broken-Bun H2 gate must never trip here, so H2 stays
+  // on by default. (detectBunVersion reads process.versions.bun, which Deno
+  // never sets even though it shims process.)
+  assert(
+    detectBunVersion() === undefined,
+    "Deno must not be detected as a Bun runtime",
+  );
+  assert(
+    isBrokenBunVersion(detectBunVersion()) === false,
+    "Deno must never be classified as a broken-Bun H2 runtime",
+  );
   assert(settings.disableH2 === false, "Deno runtime should enable SDK H2 by default");
+}
+
+// Push a body well past the 65535-byte HTTP/2 connection window through Deno's
+// own HTTP path to prove the runtime moves large bodies without the freeze the
+// Bun bug caused. Uses real fetch (outside the fake-sandbox monkeypatch).
+async function testLargeBodyRoundTrip() {
+  const size = 200_000; // ~3x the 65535 connection window
+  const payload = "a".repeat(size);
+
+  const controller = new AbortController();
+  const server = Deno.serve(
+    { port: 0, signal: controller.signal, onListen: () => {} },
+    async (request: Request) => {
+      const body = await request.text();
+      return new Response(body);
+    },
+  );
+  // @ts-ignore - addr is present for a TCP listener
+  const port: number = server.addr.port;
+  try {
+    const res = await fetch(`http://localhost:${port}/echo`, {
+      method: "POST",
+      body: payload,
+    });
+    const echoed = await res.text();
+    assert(
+      echoed.length === size,
+      `large-body round-trip truncated: sent ${size}, got ${echoed.length}`,
+    );
+    assert(echoed === payload, "large-body round-trip corrupted the payload");
+    console.log(`✅ Large-body round-trip OK (${size} bytes, > 65535 window)`);
+  } finally {
+    controller.abort();
+    await server.finished;
+  }
 }
 
 async function testSandboxGeneratedActions() {
@@ -180,6 +232,7 @@ async function main() {
   testCoreImports();
   await testSandboxGeneratedActions();
   await testDenoSpecific();
+  await testLargeBodyRoundTrip();
 
   console.log("==========================================");
   console.log("✅ Deno runtime sandbox compatibility checks passed");
