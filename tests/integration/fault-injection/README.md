@@ -54,8 +54,19 @@ It explicitly does **NOT**:
 ## Files
 
 - `h2-fault-server.ts` — the controllable server + `startH2FaultServer()`.
+  Also exports `getTestTlsCert()` so other loopback H2 tests can reuse the
+  runtime-generated localhost cert.
 - `h2-fault-server.test.ts` — harness self-test (baseline, GOAWAY, RST
   ENHANCE_YOUR_CALM, low `maxConcurrentStreams`).
+- `h2-flow-control-length.test.ts` — connection-level flow-control + body-length
+  suite for the Bun 65535 freeze. Observes the wire: a default client advertises
+  exactly the 65535-byte connection window Bun never grows, `setLocalWindowSize`
+  (what `h2warm.ts` does) raises it far above that, bodies spanning the boundary
+  transfer byte-perfect, and content-length framing is exact at every length.
+  The version gate itself is unit-tested in
+  `@blaxel/core/src/common/h2-runtime.test.ts` (exhaustive Bun/Deno matrix), and
+  the per-runtime behavior is asserted across real Bun/Deno versions in CI's
+  `h2-runtime-version-matrix` job via `tests/runtime-environments/**`.
 - `fixtures/localhost-cert.pem`, `fixtures/localhost-key.pem` — **test-only**
   self-signed cert for `CN=localhost` (`subjectAltName` DNS:localhost,
   IP:127.0.0.1). Clients connect with `rejectUnauthorized: false`. Not used
