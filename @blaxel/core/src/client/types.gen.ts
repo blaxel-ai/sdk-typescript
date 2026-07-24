@@ -260,9 +260,9 @@ export type Application = {
     events?: CoreEvents;
     metadata: Metadata;
     /**
-     * Infrastructure generation this application is deployed on (mk3.0 or mk3.1). Read-only.
+     * Infrastructure generation this application is deployed on (mk3.0 or mk3.1).
      */
-    nodeGeneration?: string;
+    readonly nodeGeneration?: string;
     spec: ApplicationSpec;
     /**
      * Application status computed from events
@@ -276,10 +276,6 @@ export type Application = {
 export type ApplicationWritable = {
     events?: CoreEventsWritable;
     metadata: MetadataWritable;
-    /**
-     * Infrastructure generation this application is deployed on (mk3.0 or mk3.1). Read-only.
-     */
-    nodeGeneration?: string;
     spec: ApplicationSpec;
 };
 
@@ -618,6 +614,10 @@ export type CustomDomainMetadata = TimeFields & OwnerFields & {
      */
     name?: string;
     /**
+     * If this custom domain is shared from another workspace of the same account, this field contains the name of the source (owning) workspace. Empty for owned domains.
+     */
+    readonly sharedFromWorkspace?: string;
+    /**
      * Workspace name
      */
     workspace?: string;
@@ -640,6 +640,24 @@ export type CustomDomainMetadataWritable = TimeFields & OwnerFields & {
      * Workspace name
      */
     workspace?: string;
+};
+
+/**
+ * A workspace (or the whole account) a custom domain is shared with
+ */
+export type CustomDomainShareTarget = {
+    /**
+     * Share status; always "active" for same-account custom domain shares.
+     */
+    status: string;
+    /**
+     * The workspace the domain is shared with, or "account" for an account-wide share.
+     */
+    workspace: string;
+    /**
+     * Display name of the target workspace (empty for an account-wide share).
+     */
+    workspaceDisplayName?: string;
 };
 
 /**
@@ -3714,9 +3732,9 @@ export type Sandbox = {
     readonly lastUsedAt?: string;
     metadata: Metadata;
     /**
-     * Infrastructure generation this sandbox is deployed on (mk3.0 or mk3.1). Read-only.
+     * Infrastructure generation this sandbox is deployed on (mk3.0 or mk3.1).
      */
-    nodeGeneration?: string;
+    readonly nodeGeneration?: string;
     spec: SandboxSpec;
     /**
      * Current state of the sandbox (read-only, managed by the system)
@@ -3731,10 +3749,6 @@ export type Sandbox = {
 export type SandboxWritable = {
     events?: CoreEventsWritable;
     metadata: MetadataWritable;
-    /**
-     * Infrastructure generation this sandbox is deployed on (mk3.0 or mk3.1). Read-only.
-     */
-    nodeGeneration?: string;
     spec: SandboxSpec;
     /**
      * Current state of the sandbox (read-only, managed by the system)
@@ -4530,7 +4544,7 @@ export type VolumeWritable = {
 };
 
 /**
- * Configuration for attaching a persistent volume to a sandbox at a specific filesystem path
+ * Configuration for attaching a volume to a sandbox at a specific filesystem path. Defaults to a persistent volume; set type to "ephemeral" for disk-backed scratch space created with the sandbox and destroyed when it stops.
  */
 export type VolumeAttachment = {
     /**
@@ -4538,13 +4552,21 @@ export type VolumeAttachment = {
      */
     mountPath?: string;
     /**
-     * Name of the volume resource to attach (must exist in the same workspace and region)
+     * For persistent volumes, the name of the volume resource to attach (must exist in the same workspace and region). For ephemeral volumes, an identifier used to reference the volume internally.
      */
     name?: string;
     /**
      * If true, the volume is mounted read-only and cannot be modified by the sandbox
      */
     readOnly?: boolean;
+    /**
+     * Storage capacity in megabytes. Required for ephemeral volumes, ignored for persistent volumes.
+     */
+    sizeMb?: number;
+    /**
+     * Type of volume. Defaults to "persistent" (an existing volume resource). Use "ephemeral" for temporary disk-backed storage created with the sandbox.
+     */
+    type?: 'persistent' | 'ephemeral';
 };
 
 export type VolumeAttachments = Array<VolumeAttachment>;
@@ -5644,6 +5666,107 @@ export type UpdateCustomDomainResponses = {
 };
 
 export type UpdateCustomDomainResponse = UpdateCustomDomainResponses[keyof UpdateCustomDomainResponses];
+
+export type ListCustomDomainSharesData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the custom domain
+         */
+        domainName: string;
+    };
+    query?: never;
+    url: '/customdomains/{domainName}/share';
+};
+
+export type ListCustomDomainSharesErrors = {
+    /**
+     * custom domain not found
+     */
+    404: unknown;
+};
+
+export type ListCustomDomainSharesResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<CustomDomainShareTarget>;
+};
+
+export type ListCustomDomainSharesResponse = ListCustomDomainSharesResponses[keyof ListCustomDomainSharesResponses];
+
+export type ShareCustomDomainData = {
+    body: {
+        /**
+         * Name of the workspace to share the domain with, or "account" to share with every workspace of the account.
+         */
+        targetWorkspace: string;
+    };
+    path: {
+        /**
+         * Name of the custom domain
+         */
+        domainName: string;
+    };
+    query?: never;
+    url: '/customdomains/{domainName}/share';
+};
+
+export type ShareCustomDomainErrors = {
+    /**
+     * invalid request
+     */
+    400: unknown;
+    /**
+     * custom domain not found
+     */
+    404: unknown;
+    /**
+     * custom domain conflict in target workspace
+     */
+    409: unknown;
+};
+
+export type ShareCustomDomainResponses = {
+    /**
+     * successful operation
+     */
+    200: CustomDomain;
+};
+
+export type ShareCustomDomainResponse = ShareCustomDomainResponses[keyof ShareCustomDomainResponses];
+
+export type UnshareCustomDomainData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the custom domain
+         */
+        domainName: string;
+        /**
+         * Name of the target workspace, or "account" for an account-wide share.
+         */
+        targetWorkspace: string;
+    };
+    query?: never;
+    url: '/customdomains/{domainName}/share/{targetWorkspace}';
+};
+
+export type UnshareCustomDomainErrors = {
+    /**
+     * custom domain or share not found
+     */
+    404: unknown;
+};
+
+export type UnshareCustomDomainResponses = {
+    /**
+     * successful operation
+     */
+    200: CustomDomain;
+};
+
+export type UnshareCustomDomainResponse = UnshareCustomDomainResponses[keyof UnshareCustomDomainResponses];
 
 export type VerifyCustomDomainData = {
     body?: never;
