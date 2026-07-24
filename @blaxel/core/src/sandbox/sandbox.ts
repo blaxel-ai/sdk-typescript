@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from "uuid";
 import type http2 from "http2";
 import { createSandbox, deleteSandbox, getSandbox, getSandboxByExternalId, listSandboxes, type ListSandboxesData, type SandboxLifecycle, type Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
@@ -150,7 +149,9 @@ export class SandboxInstance {
   }
 
   static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = false, createIfNotExist = false }: { safe?: boolean, createIfNotExist?: boolean } = {}) {
-    const defaultName = `sandbox-${uuidv4().replace(/-/g, '').substring(0, 8)}`
+    // No client-side default name: when the caller omits a name we send the
+    // creation without metadata.name so the server can assign one and unnamed
+    // creations become eligible for warm sandbox pools (ENG-3931).
     const defaultImage = `blaxel/base-image:latest`
     const defaultMemory = 4096
 
@@ -170,7 +171,6 @@ export class SandboxInstance {
       'extraArgs' in sandbox
     ) {
       if (!sandbox) sandbox = {} as SandboxCreateConfiguration
-      if (!sandbox.name) sandbox.name = defaultName
       if (!sandbox.image) sandbox.image = defaultImage
       if (!sandbox.memory) sandbox.memory = defaultMemory
 
@@ -219,7 +219,8 @@ export class SandboxInstance {
 
     sandbox = sandbox as SandboxModel
     if (!sandbox.metadata) {
-      sandbox.metadata = { name: defaultName };
+      // Leave name unset so the server assigns one (ENG-3931).
+      sandbox.metadata = {} as SandboxModel["metadata"];
     }
     if (!sandbox.spec) {
       sandbox.spec = { runtime: { image: defaultImage, memory: defaultMemory } };

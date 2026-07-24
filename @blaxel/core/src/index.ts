@@ -4,6 +4,7 @@ export * from "./application/index.js";
 export * from "./client/client.js";
 export * from "./common/autoload.js";
 export * from "./common/env.js";
+export * from "./common/h2-runtime.js";
 export * from "./common/node.js";
 export * from "./common/errors.js";
 export * from "./common/internal.js";
