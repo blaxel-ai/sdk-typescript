@@ -12,10 +12,15 @@
  *      `source.fork(appName, { targetType: "application" })`. This produces a
  *      proxy application that rebinds to the (forked) sandbox — it inherits the
  *      source sandbox's image / memory / envs / port.
- *   5. Wait for the application to report DEPLOYED, then call its public run URL
- *      (`<runUrl>/<workspace>/applications/<appName>`) and assert it serves the
- *      app — the fork carried the running server across.
+ *   5. Wait for the application to report DEPLOYED, read its auto-generated URL
+ *      from `application.metadata.url`, call it, and assert it serves the app —
+ *      the fork carried the running server across.
  *   6. Clean up every resource that was created (application + sandbox).
+ *
+ * Custom URL (optional): set BL_APP_CUSTOM_DOMAIN (a verified custom domain in
+ * the workspace) and, for a wildcard domain, BL_APP_PREFIX. When set, the fork
+ * is created with that custom URL and the test also asserts the app is reachable
+ * through it. Without it, only the auto-generated `metadata.url` is exercised.
  *
  * This lives under tests/manual (not the automated suite) because it spins up a
  * real sandbox and forks it into a real application, which is far slower than
@@ -32,7 +37,7 @@
  *   npx tsx tests/manual/fork-application.ts
  */
 
-import { ApplicationInstance, SandboxInstance, settings } from "@blaxel/core"
+import { ApplicationInstance, SandboxInstance } from "@blaxel/core"
 
 // Self-contained helpers (this script runs under `tsx`, not vitest, so it must
 // not import from the integration test helpers, which pull in vitest).
@@ -67,6 +72,11 @@ const BASE_IMAGE = "blaxel/base-image:latest"
 const APP_PORT = 3000
 const SERVER_PATH = "/app/server.js"
 const EXPECTED_BODY = "hello-from-blaxel-fork-app-test"
+
+// Optional custom URL for the application fork (must be a verified custom domain
+// in the workspace). BL_APP_PREFIX is the subdomain to use with a wildcard domain.
+const CUSTOM_DOMAIN = process.env.BL_APP_CUSTOM_DOMAIN
+const CUSTOM_PREFIX = process.env.BL_APP_PREFIX
 
 // A tiny HTTP server, written into the sandbox at runtime, that answers on APP_PORT.
 const SERVER_JS =
@@ -125,26 +135,30 @@ async function assertReachable(label: string, url: string): Promise<void> {
   console.log(`  ${label} is reachable and serving the app ✔`)
 }
 
-async function waitForApplicationDeployed(name: string): Promise<void> {
+// Wait until the application is DEPLOYED and its auto-generated URL is populated,
+// then return that URL (metadata.url — the v2 URL, same field sandboxes expose).
+async function waitForApplicationUrl(name: string): Promise<string> {
   for (let i = 0; i < 60; i++) {
     const app = await ApplicationInstance.get(name)
     const status = app.status ?? "UNKNOWN"
-    if (status === "DEPLOYED") {
-      console.log(`  application ${name} is DEPLOYED`)
-      return
-    }
     if (status === "FAILED") {
       throw new Error(`application ${name} deployment FAILED`)
     }
+    const url = app.metadata.url
+    if (status === "DEPLOYED" && url) {
+      console.log(`  application ${name} is DEPLOYED`)
+      return url
+    }
     await sleep(2000)
   }
-  throw new Error(`application ${name} did not reach DEPLOYED in time`)
+  throw new Error(`application ${name} did not reach DEPLOYED with a URL in time`)
 }
 
-// The default (no custom domain) public run URL of an application, matching the
-// pattern the SDK uses for agents/functions: <runUrl>/<workspace>/applications/<name>.
-function applicationUrl(name: string): string {
-  return `${settings.runUrl}/${settings.workspace}/applications/${name}`
+// The custom URL the application is reachable through when forked with a custom
+// domain: <prefix>.<domain> for a wildcard domain, else the domain directly.
+function customUrl(domain: string, prefix?: string): string {
+  const host = prefix ? `${prefix}.${domain}` : domain
+  return `https://${host}`
 }
 
 async function main() {
@@ -167,9 +181,14 @@ async function main() {
 
     // 4. Fork the source sandbox into an application via the SandboxInstance helper.
     console.log(`Forking sandbox ${sourceName} -> application ${appName}`)
+    if (CUSTOM_DOMAIN) {
+      console.log(`  with custom domain: ${customUrl(CUSTOM_DOMAIN, CUSTOM_PREFIX)}`)
+    }
     const fork = await source.fork(appName, {
       targetType: "application",
       port: APP_PORT,
+      ...(CUSTOM_DOMAIN ? { customDomain: CUSTOM_DOMAIN } : {}),
+      ...(CUSTOM_PREFIX ? { prefix: CUSTOM_PREFIX } : {}),
     })
     createdApplications.push(appName)
     console.log(`  forked into ${fork.type}: ${fork.name}`)
@@ -177,12 +196,19 @@ async function main() {
       throw new Error(`expected fork.type "application", got "${fork.type}"`)
     }
 
-    // 5. Wait for the application to deploy, then call its public URL.
+    // 5. Wait for the application to deploy, then call its auto-generated URL.
     console.log("Waiting for the application to deploy...")
-    await waitForApplicationDeployed(appName)
+    const appUrl = await waitForApplicationUrl(appName)
 
-    console.log("Calling the application's public URL...")
-    await assertReachable("application", applicationUrl(appName))
+    console.log("Calling the application's URL...")
+    await assertReachable("application (metadata.url)", appUrl)
+
+    // If a custom domain was supplied at fork time, assert the app is also
+    // reachable through it.
+    if (CUSTOM_DOMAIN) {
+      console.log("Calling the application's custom URL...")
+      await assertReachable("application (custom URL)", customUrl(CUSTOM_DOMAIN, CUSTOM_PREFIX))
+    }
 
     console.log(
       "\n✅ Fork-to-application flow succeeded: the application is callable at its URL.",
