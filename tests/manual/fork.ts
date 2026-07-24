@@ -2,18 +2,21 @@
  * Manual end-to-end test for the Sandbox fork feature.
  *
  * Flow:
- *   1. Build a source sandbox from a base image with a tiny HTTP server baked in.
- *   2. Start the server inside the sandbox and expose it through a public preview.
+ *   1. Create a source sandbox from the base image (blaxel/base-image, an Alpine
+ *      image that ships Node) — no image build required.
+ *   2. Write a tiny HTTP server into the sandbox, start it, and expose it through
+ *      a public preview.
  *   3. Call the source preview over HTTP and assert it serves the app (not the
  *      sandbox platform page).
  *   4. Fork the source sandbox into a brand-new sandbox.
- *   5. Start the server on the fork and expose it through its own public preview.
- *   6. Call the fork preview over HTTP and assert it serves the app too.
+ *   5. Write + start the server on the fork and expose it through its own public
+ *      preview (process/filesystem state is not assumed to survive the fork).
+ *   6. Call both previews over HTTP and assert each serves the app.
  *   7. Clean up every resource that was created.
  *
- * This lives under tests/manual (not the automated suite) because it builds an
- * image and spins up two real sandboxes, which is far slower than the 1-minute
- * budget for integration tests.
+ * This lives under tests/manual (not the automated suite) because it spins up
+ * two real sandboxes and forks between them, which is far slower than the
+ * 1-minute budget for integration tests.
  *
  * IMPORTANT: the app listens on port 3000, NOT 8080. Port 8080 is reserved by
  * the sandbox's own API server, so a preview pointed at 8080 returns the Blaxel
@@ -26,11 +29,7 @@
  *   npx tsx tests/manual/fork.ts
  */
 
-import {
-  SandboxInstance,
-  ImageInstance,
-  forkSandbox,
-} from "@blaxel/core"
+import { SandboxInstance } from "@blaxel/core"
 
 // Self-contained helpers (this script runs under `tsx`, not vitest, so it must
 // not import from the integration test helpers, which pull in vitest).
@@ -61,24 +60,12 @@ async function fetchWithRetry(
   throw new Error(`fetch ${url} failed after ${retries} retries: ${String(lastError)}`)
 }
 
-async function waitForSandboxDeployed(name: string, maxAttempts: number): Promise<boolean> {
-  for (let i = 0; i < maxAttempts; i++) {
-    try {
-      const sandbox = await SandboxInstance.get(name)
-      if (sandbox.status === "DEPLOYED") return true
-      if (sandbox.status === "FAILED") return false
-    } catch {
-      // not visible yet during fork processing
-    }
-    await sleep(2000)
-  }
-  return false
-}
-
+const BASE_IMAGE = "blaxel/base-image:latest"
 const APP_PORT = 3000
+const SERVER_PATH = "/app/server.js"
 const EXPECTED_BODY = "hello-from-blaxel-fork-test"
 
-// A tiny HTTP server, baked into the image, that answers on APP_PORT.
+// A tiny HTTP server, written into the sandbox at runtime, that answers on APP_PORT.
 const SERVER_JS =
   `const http = require("http");` +
   `http.createServer((req, res) => { res.writeHead(200); res.end("${EXPECTED_BODY}"); })` +
@@ -92,18 +79,23 @@ async function startServerAndPreview(
   sandbox: SandboxInstance,
   previewName: string,
 ): Promise<string> {
-  // Start the server (baked at /app/server.js) without waiting for completion.
+  // Write the server file (fork does not guarantee filesystem/process state, so
+  // we (re)write and start it explicitly on every sandbox).
+  await sandbox.fs.write(SERVER_PATH, SERVER_JS)
+
+  // Start the server without waiting for completion.
   await sandbox.process.exec({
-    command: `node /app/server.js`,
+    command: `node ${SERVER_PATH}`,
     waitForCompletion: false,
   })
 
   // Give the server a moment to bind the port.
   await sleep(3000)
 
-  // Sanity check that the server answers from inside the sandbox.
+  // Sanity check that the server answers from inside the sandbox. The base
+  // image ships Node but not curl.
   const check = (await sandbox.process.exec({
-    command: `curl -s http://localhost:${APP_PORT}`,
+    command: `node -e 'require("http").get("http://localhost:${APP_PORT}", (res) => { let body = ""; res.on("data", (chunk) => body += chunk); res.on("end", () => { process.stdout.write(body); process.exit(res.statusCode === 200 && body === "${EXPECTED_BODY}" ? 0 : 1); }); }).on("error", () => process.exit(1))'`,
     waitForCompletion: true,
   })) as { logs?: string }
   if (!check.logs?.includes(EXPECTED_BODY)) {
@@ -136,53 +128,34 @@ async function assertPreviewReachable(label: string, url: string): Promise<void>
 
 async function main() {
   try {
-    // 1. Build the source sandbox from a base image with the server baked in.
-    console.log(`Building source sandbox: ${sourceName}`)
-    // base64-encode the payload so the server source is decoupled from shell
-    // quoting (no risk of quotes/`$`/backticks in the JS breaking the command).
-    const serverB64 = Buffer.from(SERVER_JS, "utf8").toString("base64")
-    const image = ImageInstance.fromRegistry("node:20-slim")
-      .workdir("/app")
-      .runCommands(`echo ${serverB64} | base64 -d > /app/server.js`)
-      .expose(APP_PORT)
-
-    const built = await image.build({
+    // 1. Create the source sandbox from the base image (no image build).
+    console.log(`Creating source sandbox: ${sourceName}`)
+    const source = await SandboxInstance.create({
       name: sourceName,
+      image: BASE_IMAGE,
       memory: 2048,
-      timeout: 600000,
-      onStatusChange: (status) => console.log(`  build status: ${status}`),
-      sandboxVersion: "latest",
+      ports: [{ target: APP_PORT, protocol: "HTTP" }],
     })
     createdSandboxes.push(sourceName)
-    if (built.status !== "DEPLOYED") {
-      throw new Error(`Source sandbox failed to deploy: ${built.status}`)
-    }
 
-    const source = await SandboxInstance.get(sourceName)
-
-    // 2 + 3. Start server, expose preview, and call it.
+    // 2 + 3. Write + start server, expose preview, and call it.
     console.log("Starting server + preview on the source sandbox...")
     const sourceUrl = await startServerAndPreview(source, "src-preview")
     await assertPreviewReachable("source", sourceUrl)
 
-    // 4. Fork the source sandbox into a new sandbox.
+    // 4. Fork the source sandbox into a new sandbox via the SandboxInstance helper.
     console.log(`Forking ${sourceName} -> ${forkName}`)
-    const { data: fork } = await forkSandbox({
-      path: { sandboxName: sourceName },
-      body: { targetName: forkName, targetType: "sandbox" },
-      throwOnError: true,
-    })
+    const fork = await source.fork(forkName, { targetType: "sandbox" })
     createdSandboxes.push(forkName)
-    console.log(`  forked into ${fork?.type}: ${fork?.name}`)
+    console.log(`  forked into ${fork.type}: ${fork.name}`)
 
-    const deployed = await waitForSandboxDeployed(forkName, 90)
-    if (!deployed) throw new Error(`Forked sandbox ${forkName} did not deploy`)
     const forked = await SandboxInstance.get(forkName)
 
-    // 5 + 6. Start server, expose a preview on the fork, and call it.
+    // 5 + 6. Write + start server, expose a preview on the fork, and call it.
     console.log("Starting server + preview on the forked sandbox...")
     const forkUrl = await startServerAndPreview(forked, "fork-preview")
     await assertPreviewReachable("fork", forkUrl)
+    await assertPreviewReachable("source after fork", sourceUrl)
 
     console.log("\n✅ Fork end-to-end flow succeeded: both previews are callable.")
   } finally {
