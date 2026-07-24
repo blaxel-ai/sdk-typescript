@@ -11,7 +11,7 @@
  *   4. Fork the source sandbox into a brand-new sandbox.
  *   5. Write + start the server on the fork and expose it through its own public
  *      preview (process/filesystem state is not assumed to survive the fork).
- *   6. Call the fork preview over HTTP and assert it serves the app too.
+ *   6. Call both previews over HTTP and assert each serves the app.
  *   7. Clean up every resource that was created.
  *
  * This lives under tests/manual (not the automated suite) because it spins up
@@ -60,20 +60,6 @@ async function fetchWithRetry(
   throw new Error(`fetch ${url} failed after ${retries} retries: ${String(lastError)}`)
 }
 
-async function waitForSandboxDeployed(name: string, maxAttempts: number): Promise<boolean> {
-  for (let i = 0; i < maxAttempts; i++) {
-    try {
-      const sandbox = await SandboxInstance.get(name)
-      if (sandbox.status === "DEPLOYED") return true
-      if (sandbox.status === "FAILED") return false
-    } catch {
-      // not visible yet during fork processing
-    }
-    await sleep(2000)
-  }
-  return false
-}
-
 const BASE_IMAGE = "blaxel/base-image:latest"
 const APP_PORT = 3000
 const SERVER_PATH = "/app/server.js"
@@ -106,9 +92,10 @@ async function startServerAndPreview(
   // Give the server a moment to bind the port.
   await sleep(3000)
 
-  // Sanity check that the server answers from inside the sandbox.
+  // Sanity check that the server answers from inside the sandbox. The base
+  // image ships Node but not curl.
   const check = (await sandbox.process.exec({
-    command: `curl -s http://localhost:${APP_PORT}`,
+    command: `node -e 'require("http").get("http://localhost:${APP_PORT}", (res) => { let body = ""; res.on("data", (chunk) => body += chunk); res.on("end", () => { process.stdout.write(body); process.exit(res.statusCode === 200 && body === "${EXPECTED_BODY}" ? 0 : 1); }); }).on("error", () => process.exit(1))'`,
     waitForCompletion: true,
   })) as { logs?: string }
   if (!check.logs?.includes(EXPECTED_BODY)) {
@@ -150,10 +137,6 @@ async function main() {
       ports: [{ target: APP_PORT, protocol: "HTTP" }],
     })
     createdSandboxes.push(sourceName)
-    if (source.status !== "DEPLOYED") {
-      const deployed = await waitForSandboxDeployed(sourceName, 90)
-      if (!deployed) throw new Error(`Source sandbox failed to deploy: ${source.status}`)
-    }
 
     // 2 + 3. Write + start server, expose preview, and call it.
     console.log("Starting server + preview on the source sandbox...")
@@ -166,14 +149,13 @@ async function main() {
     createdSandboxes.push(forkName)
     console.log(`  forked into ${fork.type}: ${fork.name}`)
 
-    const deployed = await waitForSandboxDeployed(forkName, 90)
-    if (!deployed) throw new Error(`Forked sandbox ${forkName} did not deploy`)
     const forked = await SandboxInstance.get(forkName)
 
     // 5 + 6. Write + start server, expose a preview on the fork, and call it.
     console.log("Starting server + preview on the forked sandbox...")
     const forkUrl = await startServerAndPreview(forked, "fork-preview")
     await assertPreviewReachable("fork", forkUrl)
+    await assertPreviewReachable("source after fork", sourceUrl)
 
     console.log("\n✅ Fork end-to-end flow succeeded: both previews are callable.")
   } finally {
