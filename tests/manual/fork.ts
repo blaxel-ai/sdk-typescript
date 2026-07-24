@@ -138,9 +138,12 @@ async function main() {
   try {
     // 1. Build the source sandbox from a base image with the server baked in.
     console.log(`Building source sandbox: ${sourceName}`)
+    // base64-encode the payload so the server source is decoupled from shell
+    // quoting (no risk of quotes/`$`/backticks in the JS breaking the command).
+    const serverB64 = Buffer.from(SERVER_JS, "utf8").toString("base64")
     const image = ImageInstance.fromRegistry("node:20-slim")
       .workdir("/app")
-      .runCommands(`printf '%s' '${SERVER_JS}' > /app/server.js`)
+      .runCommands(`echo ${serverB64} | base64 -d > /app/server.js`)
       .expose(APP_PORT)
 
     const built = await image.build({
