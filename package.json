@@ -32,7 +32,7 @@
     "@eslint/js": "^9.39.5",
     "@langchain/core": "^1.0.6",
     "@langchain/langgraph": "^1.0.2",
-    "@langchain/openai": "^1.1.2",
+    "@langchain/openai": "1.2.6",
     "@mastra/core": "^0.24.5",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@opentelemetry/api-logs": "^0.200.0",
