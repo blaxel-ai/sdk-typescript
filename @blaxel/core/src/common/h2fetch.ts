@@ -21,6 +21,40 @@ type H2SendOptions = {
 const MIN_H2_SESSION_MAX_LISTENERS = 64;
 const sessionsWithListenerBudget = new WeakSet<http2.ClientHttp2Session>();
 
+// Number of transparent re-sends the gateway performs for a request the peer
+// PROVABLY never processed (see `isUnprocessedRequestError`). One is enough:
+// the re-send runs on a freshly established session, so a second failure means
+// the drain is not a one-off connection recycle and the caller should see it.
+const MAX_UNPROCESSED_RESENDS = 1;
+
+type UnprocessedRequestFlag = { blaxelUnprocessedRequest?: true };
+
+/**
+ * True when the peer guaranteed it never processed the request, so re-sending it
+ * cannot duplicate a side effect — even for a non-idempotent method.
+ *
+ * HTTP/2 gives two such guarantees:
+ *   - GOAWAY carries `lastStreamID`: every stream with a higher id was not and
+ *     will not be processed (RFC 9113 §6.8).
+ *   - RST_STREAM with REFUSED_STREAM means the peer took no action on it.
+ *
+ * This is strictly stronger than `isTransientResetError` in transient-retry.ts,
+ * which classifies errors that are merely *likely* safe and therefore only
+ * covers idempotent operations.
+ */
+export function isUnprocessedRequestError(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === "object" &&
+    (error as UnprocessedRequestFlag).blaxelUnprocessedRequest === true
+  );
+}
+
+function markUnprocessed<E extends Error>(error: E): E {
+  (error as E & UnprocessedRequestFlag).blaxelUnprocessedRequest = true;
+  return error;
+}
+
 /**
  * Per-domain async semaphore that bounds the number of in-flight HTTP/2
  * requests against a single edge domain (one H2 session). The cap is keyed
@@ -181,13 +215,15 @@ export function createH2Fetch(
  *   2. get a live session from the pool,
  *   3. send the request on it,
  *   4. evict the session if the send fails after a stream was opened,
- *   5. fall back to globalThis.fetch when the pool has no usable session.
+ *   5. re-send once on a fresh session when the peer provably never processed
+ *      the request (`isUnprocessedRequestError`),
+ *   6. fall back to globalThis.fetch when the pool has no usable session.
  *
  * This is the chokepoint where reliability behavior that must protect EVERY
- * consumer belongs: the open-stream concurrency limit today, and retry,
- * timeouts, typed errors, and observability in later phases. Adding it once here
- * (instead of re-implementing it per entry point) is what stops the recurring
- * "fixed on one path, still broken on another" regressions.
+ * consumer belongs: the open-stream concurrency limit and the unprocessed-request
+ * re-send today, and timeouts, typed errors, and observability in later phases.
+ * Adding it once here (instead of re-implementing it per entry point) is what
+ * stops the recurring "fixed on one path, still broken on another" regressions.
  *
  * `send` performs the actual wire send on a live session; the caller supplies it
  * so the gateway stays agnostic to the `Request` vs `(url, init)` call shapes,
@@ -196,6 +232,33 @@ export function createH2Fetch(
  * stream is opened).
  */
 async function h2GatewayRequest(
+  pool: H2Pool,
+  domain: string,
+  send: (
+    session: http2.ClientHttp2Session,
+    options: H2SendOptions,
+  ) => Promise<Response>,
+  fallback: () => Promise<Response>,
+): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await h2GatewayAttempt(pool, domain, send, fallback);
+    } catch (err) {
+      // The peer drained the connection without processing this request (a
+      // gateway recycling the session, a rolling deploy, or a route moving).
+      // Nothing reached origin, so re-send once on a fresh session instead of
+      // surfacing a transport failure the caller cannot act on. Safe for every
+      // method — the unprocessed guarantee comes from the peer, not a guess
+      // about idempotency (unlike retryOnTransientReset).
+      if (attempt < MAX_UNPROCESSED_RESENDS && isUnprocessedRequestError(err)) {
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
+async function h2GatewayAttempt(
   pool: H2Pool,
   domain: string,
   send: (
@@ -259,7 +322,7 @@ export function createPoolBackedH2Fetch(
       pool,
       domain,
       (session, options) => _h2Request(session, input, options),
-      () => globalThis.fetch(input),
+      () => fallbackFetchForRequest(input),
     );
 }
 
@@ -354,6 +417,32 @@ function h2RequestDirectInternal(
   return _h2Send(session, h2Headers, body, init?.signal ?? null, url, init, options);
 }
 
+// A `Request` body can only be read once, so the buffered bytes are memoized
+// per Request: the gateway's unprocessed re-send calls `_h2Request` again with
+// the same object, which would otherwise throw "body already read".
+const bufferedRequestBodies = new WeakMap<Request, Buffer | undefined>();
+
+/**
+ * `globalThis.fetch` fallback for a Request whose body may already have been
+ * buffered by an earlier attempt: re-sending the consumed Request object itself
+ * would throw, so the memoized bytes are replayed instead.
+ */
+function fallbackFetchForRequest(input: Request): Promise<Response> {
+  if (!bufferedRequestBodies.has(input)) return globalThis.fetch(input);
+  // Re-wrap the original Request so every option it carries (redirect,
+  // credentials, mode, cache, ...) survives; only the body is substituted.
+  return globalThis.fetch(new Request(input, { body: bufferedRequestBodies.get(input) }));
+}
+
+async function bufferRequestBody(input: Request): Promise<Buffer | undefined> {
+  if (bufferedRequestBodies.has(input)) {
+    return bufferedRequestBodies.get(input);
+  }
+  const body = input.body ? Buffer.from(await input.arrayBuffer()) : undefined;
+  bufferedRequestBodies.set(input, body);
+  return body;
+}
+
 async function _h2Request(
   session: http2.ClientHttp2Session,
   input: Request,
@@ -373,12 +462,9 @@ async function _h2Request(
     h2Headers[key] = value;
   }
 
-  let body: Buffer | undefined;
-  if (input.body) {
-    body = Buffer.from(await input.arrayBuffer());
-    if (!h2Headers["content-length"]) {
-      h2Headers["content-length"] = body.byteLength;
-    }
+  const body = await bufferRequestBody(input);
+  if (body && !h2Headers["content-length"]) {
+    h2Headers["content-length"] = body.byteLength;
   }
 
   return _h2Send(
@@ -412,6 +498,8 @@ function _h2Send(
     let streamController: ReadableStreamDefaultController<Uint8Array> | null = null;
     let streamClosed = false;
     let req: http2.ClientHttp2Stream | null = null;
+    // `lastStreamID` from the peer's GOAWAY, once seen (null = no GOAWAY).
+    let goawayLastStreamID: number | null = null;
     let releaseSessionRef = () => {};
     // The per-domain open-stream slot (idempotent; no-op for the non-pool
     // transports). Held for the OPEN-STREAM lifetime and released alongside the
@@ -459,14 +547,47 @@ function _h2Send(
       reject(err);
     };
 
-    const onSessionClose = () => {
-      rejectBeforeResponse(new Error("HTTP/2 session closed before response"));
+    // RFC 9113 §6.8: a GOAWAY's `lastStreamID` is the highest stream the peer
+    // processed or may still process, so any stream above it was refused
+    // outright. A stream with no id never put HEADERS on the wire at all. Either
+    // way the request cannot have reached origin, which is what lets the gateway
+    // re-send it for ANY method.
+    const streamWasNeverProcessed = (): boolean => {
+      if (goawayLastStreamID === null) return false;
+      const id = req?.id;
+      if (typeof id !== "number") return true;
+      return id > goawayLastStreamID;
     };
-    const onSessionGoaway = () => {
-      rejectBeforeResponse(new Error("HTTP/2 session sent GOAWAY before response"));
+
+    // REFUSED_STREAM carries the same "took no action" guarantee as a GOAWAY
+    // above lastStreamID, and Node destroys streams the GOAWAY refused with
+    // ERR_HTTP2_GOAWAY_SESSION — whichever of the stream or session listener
+    // fires first, the error reaching the caller is flagged identically.
+    const markIfNeverProcessed = <E extends Error>(err: E): E => {
+      const streamError = err as E & { code?: string };
+      if (
+        streamWasNeverProcessed() ||
+        req?.rstCode === http2.constants.NGHTTP2_REFUSED_STREAM ||
+        streamError.code === "ERR_HTTP2_GOAWAY_SESSION"
+      ) {
+        return markUnprocessed(err);
+      }
+      return err;
+    };
+
+    const onSessionClose = () => {
+      rejectBeforeResponse(
+        markIfNeverProcessed(new Error("HTTP/2 session closed before response")),
+      );
+    };
+    const onSessionGoaway = (_errorCode?: number, lastStreamID?: number) => {
+      goawayLastStreamID = typeof lastStreamID === "number" ? lastStreamID : 0;
+      rejectBeforeResponse(
+        markIfNeverProcessed(new Error("HTTP/2 session sent GOAWAY before response")),
+      );
     };
     const onSessionError = (err: Error) => {
-      rejectBeforeResponse(err);
+      rejectBeforeResponse(markIfNeverProcessed(err));
     };
 
     session.once("close", onSessionClose);
@@ -554,7 +675,7 @@ function _h2Send(
       settled = true;
       cleanupBeforeResponseListeners();
       cleanupActiveRequest();
-      reject(err);
+      reject(markIfNeverProcessed(err));
     });
 
     if (body) {

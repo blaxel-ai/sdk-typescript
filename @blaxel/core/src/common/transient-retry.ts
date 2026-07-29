@@ -19,6 +19,15 @@ const TRANSIENT_RESET_MARKERS = [
   "HTTP/2 session sent GOAWAY before response",
 ];
 
+// HTTP statuses the edge/CDN (e.g. CloudFront) returns when it — not the
+// sandbox — fails to get a usable response from origin: 502 Bad Gateway,
+// 503 Service Unavailable, 504 Gateway Timeout. On an IDEMPOTENT request these
+// are safe to retry (the sandbox is likely waking from standby, or the edge
+// briefly could not reach origin). Retried with a small, separate budget from
+// transport resets because each attempt can itself burn the edge's ~60s
+// origin-read timeout before failing.
+export const GATEWAY_ERROR_STATUSES = new Set<number>([502, 503, 504]);
+
 // Node-level error codes (from `error.code` / `error.cause.code`) that mean
 // the connection itself dropped mid-flight and the request never completed.
 // These are safe to retry for an idempotent request.
@@ -53,18 +62,35 @@ function collectErrorText(error: unknown): { messages: string[]; codes: string[]
 // like "GOAWAY" or "ERR_HTTP2". Guarding on this stops a marker-bearing 4xx/5xx
 // body from being misread as transient and retried (the over-match Codex flagged
 // for the now default-on idempotent-read retry).
-function hasHttpResponseStatus(error: unknown): boolean {
+function getHttpResponseStatus(error: unknown): number | null {
   let current: unknown = error;
   for (let depth = 0; depth < 5 && current && typeof current === "object"; depth++) {
     const node = current as { status?: unknown; response?: { status?: unknown }; cause?: unknown };
-    if (typeof node.status === "number") return true;
-    if (node.response && typeof node.response === "object" &&
-        typeof (node.response as { status?: unknown }).status === "number") {
-      return true;
+    if (typeof node.status === "number") return node.status;
+    if (node.response && typeof node.response === "object") {
+      const responseStatus = node.response.status;
+      if (typeof responseStatus === "number") return responseStatus;
     }
     current = node.cause;
   }
-  return false;
+  return null;
+}
+
+function hasHttpResponseStatus(error: unknown): boolean {
+  return getHttpResponseStatus(error) !== null;
+}
+
+/**
+ * True when the error carries an edge gateway status (502/503/504). Unlike a
+ * transport reset (see isTransientResetError), this DOES carry an HTTP status —
+ * it is the edge failing to reach origin, not the sandbox returning an
+ * application error — so it is retried on idempotent operations with its own
+ * small budget.
+ */
+export function isRetryableGatewayError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const status = getHttpResponseStatus(error);
+  return status !== null && GATEWAY_ERROR_STATUSES.has(status);
 }
 
 /**
@@ -108,6 +134,12 @@ export function isTransientResetError(error: unknown): boolean {
 const DEFAULT_BASE_DELAY_MS = 200;
 const DEFAULT_MAX_DELAY_MS = 2000;
 
+// Gateway (502/503/504) retries get their own small budget: each attempt can
+// burn the edge's ~60s origin-read timeout before failing, so a large budget
+// would stall a caller for minutes. Two extra attempts is enough to ride out a
+// standby wake without turning a hard outage into a multi-minute hang.
+const DEFAULT_GATEWAY_RETRIES = 2;
+
 // Exponential backoff with full-jitter on top of one base delay, capped so a
 // single wait never blocks unreasonably long. Exponential (rather than linear)
 // gives a later attempt room to span a multi-second sandbox cold-start/standby
@@ -123,6 +155,12 @@ export function backoffDelayMs(attempt: number, baseDelayMs: number, maxDelayMs:
 
 export type RetryOptions = {
   retries?: number;
+  /**
+   * Retry budget for edge gateway statuses (502/503/504). Defaults to a small
+   * value (2) because each attempt can cost the edge's ~60s origin-read timeout.
+   * Set `0` to disable gateway retries.
+   */
+  gatewayRetries?: number;
   baseDelayMs?: number;
   maxDelayMs?: number;
 };
@@ -134,6 +172,11 @@ export type RetryOptions = {
  * PUT of the same bytes) — never a non-idempotent POST such as process.exec,
  * which would duplicate the side effect (ENG-2340).
  *
+ * Also retries edge gateway statuses (502/503/504) on their own small budget
+ * (`gatewayRetries`, default 2): these carry an HTTP status but come from the
+ * edge failing to reach origin (a standby wake, not an application error), so
+ * they are safe to retry on an idempotent request.
+ *
  * Defaults to `settings.sandboxReadRetries` (the higher idempotent-read budget,
  * sized for a multi-second standby wake). The upload path passes
  * `{ retries: settings.fsPartRetries }` to keep its own (lower) budget.
@@ -143,13 +186,28 @@ export async function retryOnTransientReset<T>(
   options: RetryOptions = {},
 ): Promise<T> {
   const retries = options.retries ?? settings.sandboxReadRetries;
+  const gatewayRetries = options.gatewayRetries ?? DEFAULT_GATEWAY_RETRIES;
   const baseDelayMs = options.baseDelayMs ?? DEFAULT_BASE_DELAY_MS;
   const maxDelayMs = options.maxDelayMs ?? DEFAULT_MAX_DELAY_MS;
   let attempt = 0;
+  let gatewayAttempt = 0;
   for (;;) {
     try {
       return await fn();
     } catch (error) {
+      // Edge gateway timeouts carry an HTTP status, so they are handled here
+      // rather than by the transport-reset branch (which ignores anything with
+      // a status), on their own smaller budget.
+      if (isRetryableGatewayError(error)) {
+        gatewayAttempt++;
+        if (gatewayRetries <= 0 || gatewayAttempt > gatewayRetries) {
+          throw error;
+        }
+        await new Promise<void>((resolve) =>
+          setTimeout(resolve, backoffDelayMs(gatewayAttempt, baseDelayMs, maxDelayMs)),
+        );
+        continue;
+      }
       attempt++;
       if (retries <= 0 || attempt > retries || !isTransientResetError(error)) {
         throw error;
