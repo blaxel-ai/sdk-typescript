@@ -429,12 +429,9 @@ const bufferedRequestBodies = new WeakMap<Request, Buffer | undefined>();
  */
 function fallbackFetchForRequest(input: Request): Promise<Response> {
   if (!bufferedRequestBodies.has(input)) return globalThis.fetch(input);
-  return globalThis.fetch(input.url, {
-    method: input.method,
-    headers: input.headers,
-    body: bufferedRequestBodies.get(input),
-    signal: input.signal,
-  });
+  // Re-wrap the original Request so every option it carries (redirect,
+  // credentials, mode, cache, ...) survives; only the body is substituted.
+  return globalThis.fetch(new Request(input, { body: bufferedRequestBodies.get(input) }));
 }
 
 async function bufferRequestBody(input: Request): Promise<Buffer | undefined> {
