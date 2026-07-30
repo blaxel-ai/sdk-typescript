@@ -1,5 +1,5 @@
 import type http2 from "http2";
-import { createSandbox, deleteSandbox, getSandbox, getSandboxByExternalId, listSandboxes, type ListSandboxesData, type SandboxLifecycle, type Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
+import { createSandbox, createSandboxSnapshot, deleteSandbox, deleteSandboxSnapshot, forkSandbox, getSandbox, getSandboxByExternalId, listSandboxes, listSandboxSnapshots, type ListSandboxesData, type SandboxForkResponse, type SandboxLifecycle, type Sandbox as SandboxModel, type SandboxSnapshot, type SandboxSnapshots, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
 import { backoffDelayMs } from "../common/transient-retry.js";
 import { createPaginatedList } from "../common/pagination.js";
@@ -24,6 +24,25 @@ const NON_REUSABLE_SANDBOX_STATUSES = new Set([
 ]);
 
 export type SandboxListQuery = NonNullable<ListSandboxesData["query"]>;
+
+export type SandboxForkOptions = {
+  /** Resource type to fork into. Defaults to "sandbox". */
+  targetType?: "sandbox" | "application";
+  /** Port to expose from the fork. */
+  port?: number;
+  /** Canary traffic percentage (0-100) when forking into an application. */
+  traffic?: number;
+  /** Custom domain for the application fork. */
+  customDomain?: string;
+  /** URL prefix for the application fork. */
+  prefix?: string;
+  /**
+   * Snapshot ID to fork from. When set, the fork is created from this snapshot
+   * instead of the source sandbox's live state — this is how you create a
+   * sandbox from a snapshot.
+   */
+  snapshotId?: string;
+};
 
 // Statuses that resolve on their own (a delete or deactivation in flight). The control
 // plane keeps answering 409 to creates while the record is in one of these, so retrying
@@ -140,6 +159,68 @@ export class SandboxInstance {
    */
   async fetch(port: number, path = "/", init?: RequestInit): Promise<Response> {
     return this.network.fetch(port, path, init);
+  }
+
+  /**
+   * Create a point-in-time snapshot of this sandbox. Snapshots capture the
+   * sandbox state and can be forked into new sandboxes or applications.
+   *
+   * @param name - Optional human-readable name for the snapshot.
+   */
+  async snapshot(name?: string): Promise<SandboxSnapshot> {
+    const { data } = await createSandboxSnapshot({
+      path: { sandboxName: this.metadata.name },
+      body: name ? { name } : {},
+      throwOnError: true,
+    });
+    return data;
+  }
+
+  /**
+   * List the snapshots of this sandbox.
+   */
+  async listSnapshots(): Promise<SandboxSnapshots> {
+    const { data } = await listSandboxSnapshots({
+      path: { sandboxName: this.metadata.name },
+      throwOnError: true,
+    });
+    return data;
+  }
+
+  /**
+   * Delete a snapshot of this sandbox by its ID.
+   */
+  async deleteSnapshot(snapshotId: string): Promise<void> {
+    await deleteSandboxSnapshot({
+      path: { sandboxName: this.metadata.name, snapshotId },
+      throwOnError: true,
+    });
+  }
+
+  /**
+   * Fork this sandbox into a new sandbox or application.
+   *
+   * Pass `snapshotId` to fork from a specific snapshot (create a sandbox from a
+   * snapshot) instead of the sandbox's live state.
+   *
+   * @param targetName - Name of the sandbox/application to create.
+   * @param options - Fork options (target type, port, traffic, snapshot, ...).
+   */
+  async fork(targetName: string, options: SandboxForkOptions = {}): Promise<SandboxForkResponse> {
+    const { data } = await forkSandbox({
+      path: { sandboxName: this.metadata.name },
+      body: {
+        targetName,
+        targetType: options.targetType ?? "sandbox",
+        ...(options.port !== undefined ? { port: options.port } : {}),
+        ...(options.traffic !== undefined ? { traffic: options.traffic } : {}),
+        ...(options.customDomain !== undefined ? { customDomain: options.customDomain } : {}),
+        ...(options.prefix !== undefined ? { prefix: options.prefix } : {}),
+        ...(options.snapshotId !== undefined ? { snapshotId: options.snapshotId } : {}),
+      },
+      throwOnError: true,
+    });
+    return data;
   }
 
   /* eslint-disable */

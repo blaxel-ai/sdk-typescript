@@ -419,7 +419,7 @@ import "@blaxel/telemetry";
 
 ### Error tracking
 
-The SDK includes error tracking that captures exceptions originating from the SDK itself (not your application code). It collects data including the error type, message, stack trace, SDK version, workspace name, and so on. No user or application data is collected.
+The SDK includes opt-in error tracking for unhandled exceptions whose first non-runtime frame belongs to the installed `@blaxel/core` package. Events contain an allowlisted error type, a fixed message, SDK-owned relative stack frames, the SDK version and commit, and the `dev` or `prod` environment. Raw error messages, response bodies, workspace and resource identifiers, absolute paths, and application stack frames are not collected. Caught errors, including errors logged with `console.error`, are not reported. If a browser bundler removes the package boundary from stack frames, error tracking stays disabled rather than attributing application errors to the SDK.
 
 Error tracking is off by default since v0.2.76. To explicitly disable it in older versions:
 

@@ -106,6 +106,83 @@ jobs:
       - name: Run H2 fault-injection + regression tests
         run: npx vitest run --config tests/integration/fault-injection/vitest.faultharness.config.ts
 
+      # Exhaustive Bun/Deno version-gate matrix + parse edge cases. Pure unit
+      # tests over @blaxel/core source; no network, no build.
+      - name: Run H2 runtime version-gate unit tests
+        working-directory: '@blaxel/core'
+        run: npx vitest run --config vitest.config.ts src/common/h2-runtime.test.ts src/common/settings.test.ts
+
+  h2-runtime-version-matrix:
+    name: H2 gate on ${{ matrix.runtime }} ${{ matrix.version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      # The Bun H2 freeze is a per-VERSION bug: broken < 1.3.11, fixed >= 1.3.11.
+      # This matrix runs the runtime H2 checks (which assert settings.disableH2
+      # flips at exactly the right version, and that a >65535-byte body round-
+      # trips without the freeze) across real Bun and Deno versions. Deno never
+      # trips the gate; it is here to prove a non-Bun runtime keeps H2 on.
+      matrix:
+        include:
+          - runtime: bun
+            version: "1.3.10"   # broken: pooled H2 must be force-disabled
+          - runtime: bun
+            version: "1.3.11"   # the exact fix: H2 back on
+          - runtime: bun
+            version: "latest"   # newest: H2 on
+          # The SDK's deno.json uses nodeModulesDir: "manual", which only exists
+          # in Deno 2.x (1.x expects a boolean and cannot parse it), so the
+          # supported range is 2.x. Pin the 2.0 floor and track latest 2.x.
+          - runtime: deno
+            version: "v2.0.0"
+          - runtime: deno
+            version: "v2.x"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Bun is always needed to install + build the SDK. On Bun rows it is
+      # pinned to the version under test (which also RUNS the test); on Deno
+      # rows we just need any Bun to build, so use latest.
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ matrix.runtime == 'bun' && matrix.version || 'latest' }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Deno
+        if: matrix.runtime == 'deno'
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: ${{ matrix.version }}
+
+      - name: Install and build SDK packages
+        run: |
+          bun install
+          bun run build
+
+      - name: Add Bun runtime-environment to workspace and install
+        if: matrix.runtime == 'bun'
+        run: |
+          jq '.workspaces += ["tests/runtime-environments/bun"]' package.json > package.json.tmp
+          mv package.json.tmp package.json
+          bun install
+
+      - name: Run Bun H2 gate test
+        if: matrix.runtime == 'bun'
+        working-directory: tests/runtime-environments/bun
+        run: timeout 120s bun run test
+
+      - name: Run Deno H2 gate test
+        if: matrix.runtime == 'deno'
+        working-directory: tests/runtime-environments/deno
+        run: timeout 120s deno task test
+
   integration-test:
     name: Integration Tests
     runs-on: ubuntu-latest

@@ -1,8 +1,10 @@
+import { EventEmitter } from "events";
 import { client } from "../../@blaxel/core/src/client/client.gen.js";
 import { initialize } from "../../@blaxel/core/src/common/autoload.js";
 import { controlPlaneFetch, shouldUseControlPlaneH2, undiciSupportsNativeH2 } from "../../@blaxel/core/src/common/controlPlaneFetch.js";
+import { h2Pool } from "../../@blaxel/core/src/common/h2pool.js";
 import { settings } from "../../@blaxel/core/src/common/settings.js";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 describe("control-plane H2 routing predicate", () => {
   // Proves Blaxel API hosts engage the H2 pool, which is the TLS storm fix.
@@ -118,5 +120,172 @@ describe("control-plane H2 routing predicate", () => {
       settings.setConfig(originalSettingsConfig);
       client.setConfig(originalClientConfig);
     }
+  });
+});
+
+/**
+ * Minimal ClientHttp2Session / stream stand-ins so controlPlaneFetch can be
+ * driven end-to-end (through createPoolBackedH2Fetch -> the H2 gateway ->
+ * _h2Request) without a real socket. The test emits the response lifecycle by
+ * hand.
+ */
+class MockStream extends EventEmitter {
+  public closed = false;
+  close(): void {
+    this.closed = true;
+  }
+  end(): void {
+    // no-op
+  }
+}
+
+class MockSession extends EventEmitter {
+  public closed = false;
+  public destroyed = false;
+  public lastStream: MockStream | null = null;
+  public streams: MockStream[] = [];
+  request(): MockStream {
+    const stream = new MockStream();
+    this.lastStream = stream;
+    this.streams.push(stream);
+    return stream;
+  }
+  close(): void {
+    this.closed = true;
+    this.emit("close");
+  }
+  ref(): this {
+    return this;
+  }
+  unref(): this {
+    return this;
+  }
+}
+
+const tick = () => new Promise<void>((r) => setImmediate(r));
+
+// controlPlaneFetch is the fetch hook installed on the generated client. It
+// decides, per request, whether to route through the pooled H2 wrapper or fall
+// straight to globalThis.fetch. These drive the ACTUAL function (not just the
+// pure predicate) so the routing wiring — env/config gating, the fallback, and
+// the pooled send — is covered, not just shouldUseControlPlaneH2 in isolation.
+//
+// NB: on this runner (undici 6) nativeFetchSupportsH2 is false, so a qualifying
+// Blaxel HTTPS request engages the wrapper without needing forceControlPlaneH2.
+describe("controlPlaneFetch routing (end to end)", () => {
+  afterEach(() => {
+    h2Pool.closeAll();
+    vi.restoreAllMocks();
+    delete settings.config.disableH2;
+    delete settings.config.disableControlPlaneH2;
+    delete (settings.config as Record<string, unknown>).proxy;
+  });
+
+  it.each([
+    ["a non-HTTPS URL", "http://api.blaxel.ai/v0/sandboxes"],
+    ["a non-Blaxel host", "https://api.example.com/v0/sandboxes"],
+    ["the oauth token refresh path", "https://api.blaxel.ai/v0/oauth/token"],
+  ])("falls back to globalThis.fetch for %s (no H2 stream opened)", async (_label, url) => {
+    const session = new MockSession();
+    const requestSpy = vi.spyOn(session, "request");
+    (h2Pool as unknown as { _establish: (d: string) => Promise<MockSession> })._establish =
+      () => Promise.resolve(session);
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("native"));
+
+    const res = await controlPlaneFetch(new Request(url));
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(requestSpy).not.toHaveBeenCalled();
+    await expect(res.text()).resolves.toBe("native");
+  });
+
+  it("falls back to globalThis.fetch when disableH2 is set, even for a Blaxel HTTPS host", async () => {
+    settings.config.disableH2 = true;
+    const session = new MockSession();
+    const requestSpy = vi.spyOn(session, "request");
+    (h2Pool as unknown as { _establish: (d: string) => Promise<MockSession> })._establish =
+      () => Promise.resolve(session);
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("native"));
+
+    const res = await controlPlaneFetch(new Request("https://api.blaxel.ai/v0/sandboxes"));
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(requestSpy).not.toHaveBeenCalled();
+    await expect(res.text()).resolves.toBe("native");
+  });
+
+  it("falls back to globalThis.fetch for a Blaxel host when disableControlPlaneH2 is set but data-plane H2 stays available", async () => {
+    settings.config.disableControlPlaneH2 = true;
+    const session = new MockSession();
+    const requestSpy = vi.spyOn(session, "request");
+    (h2Pool as unknown as { _establish: (d: string) => Promise<MockSession> })._establish =
+      () => Promise.resolve(session);
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("native"));
+
+    const res = await controlPlaneFetch(new Request("https://api.blaxel.ai/v0/sandboxes"));
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(requestSpy).not.toHaveBeenCalled();
+    await expect(res.text()).resolves.toBe("native");
+  });
+
+  it("routes a qualifying Blaxel HTTPS request through the pooled H2 transport (no native fetch send)", async () => {
+    const session = new MockSession();
+    (h2Pool as unknown as { _establish: (d: string) => Promise<MockSession> })._establish =
+      () => Promise.resolve(session);
+    // If the wrapper is engaged, the send goes over the H2 stream, NOT
+    // globalThis.fetch; a call here would mean an unexpected fallback.
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("native-should-not-run"));
+
+    const promise = controlPlaneFetch(
+      new Request("https://api.blaxel.ai/v0/sandboxes"),
+    );
+    await tick();
+
+    expect(session.lastStream).not.toBeNull();
+    session.lastStream!.emit("response", { ":status": 200 });
+    session.lastStream!.emit("data", Buffer.from("h2-body"));
+    session.lastStream!.emit("end");
+
+    const res = await promise;
+    expect(res.status).toBe(200);
+    await expect(res.text()).resolves.toBe("h2-body");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("reuses one pooled H2 fetch per host across calls (single established session)", async () => {
+    const sessions: MockSession[] = [];
+    (h2Pool as unknown as { _establish: (d: string) => Promise<MockSession> })._establish =
+      () => {
+        const s = new MockSession();
+        sessions.push(s);
+        return Promise.resolve(s);
+      };
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("native"));
+
+    const drive = async () => {
+      const p = controlPlaneFetch(new Request("https://api.blaxel.dev/v0/sandboxes"));
+      await tick();
+      const s = sessions.at(-1)!;
+      s.lastStream!.emit("response", { ":status": 200 });
+      s.lastStream!.emit("end");
+      return p;
+    };
+
+    await drive();
+    await drive();
+
+    // Both calls shared one pooled session for the host (warm/get dedup), so
+    // establish ran exactly once rather than per request.
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].streams).toHaveLength(2);
   });
 });

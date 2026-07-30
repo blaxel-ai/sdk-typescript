@@ -1,5 +1,18 @@
 // Test Bun runtime compatibility
-import { env, getTool, ToolOptions } from "@blaxel/core";
+import {
+  detectBunVersion,
+  env,
+  getTool,
+  isBrokenBunVersion,
+  settings,
+  ToolOptions,
+} from "@blaxel/core";
+
+function assert(condition: unknown, message: string): asserts condition {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
 
 async function testCore() {
   console.log("✅ @blaxel/core env:", typeof env);
@@ -9,6 +22,65 @@ async function testCore() {
     console.log("✅ @blaxel/core getTool:", typeof tools);
   } catch (e) {
     console.log("✅ @blaxel/core getTool error (expected):", (e as Error).message);
+  }
+}
+
+// The crux of the Bun H2 story: the SDK must force its pooled HTTP/2 transport
+// OFF on Bun < 1.3.11 (which never sends a connection-level WINDOW_UPDATE and so
+// freezes the shared session after 65535 cumulative body bytes) and leave it ON
+// on 1.3.11+. Run under a CI matrix of Bun versions, this asserts the gate flips
+// at exactly the right version — the behavior we regressed on before.
+function testH2VersionGate() {
+  const running = Bun.version;
+  const detected = detectBunVersion();
+  console.log("✅ Bun.version:", running, "| detectBunVersion:", detected);
+  assert(
+    detected === running,
+    `detectBunVersion (${detected}) should equal Bun.version (${running})`,
+  );
+
+  const expectedBroken = isBrokenBunVersion(running);
+  console.log(
+    `✅ Bun ${running} broken-H2=${expectedBroken} -> settings.disableH2=${settings.disableH2}`,
+  );
+  assert(
+    settings.disableH2 === expectedBroken,
+    `On Bun ${running}, settings.disableH2 (${settings.disableH2}) must match ` +
+      `isBrokenBunVersion (${expectedBroken}): H2 off iff the runtime is a broken Bun.`,
+  );
+}
+
+// Prove the running Bun actually moves a body well past the 65535 freeze
+// threshold without hanging. On a broken Bun the SDK sidesteps the bug by
+// disabling H2, but the runtime's own HTTP path must still round-trip a large
+// body — this is the smoke test that it does, deterministically and fast.
+async function testLargeBodyRoundTrip() {
+  const size = 200_000; // ~3x the 65535 connection window
+  const payload = "a".repeat(size);
+
+  const server = Bun.serve({
+    port: 0,
+    async fetch(request: Request) {
+      const body = await request.text();
+      return new Response(body, {
+        headers: { "content-length": String(body.length) },
+      });
+    },
+  });
+  try {
+    const res = await fetch(`http://localhost:${server.port}/echo`, {
+      method: "POST",
+      body: payload,
+    });
+    const echoed = await res.text();
+    assert(
+      echoed.length === size,
+      `large-body round-trip truncated: sent ${size}, got ${echoed.length}`,
+    );
+    assert(echoed === payload, "large-body round-trip corrupted the payload");
+    console.log(`✅ Large-body round-trip OK (${size} bytes, > 65535 window)`);
+  } finally {
+    server.stop();
   }
 }
 
@@ -37,6 +109,8 @@ async function main() {
   try {
     await testCore();
     await testBunSpecific();
+    testH2VersionGate();
+    await testLargeBodyRoundTrip();
 
     console.log("==========================================");
     console.log("✅ All imports successful with Bun runtime");

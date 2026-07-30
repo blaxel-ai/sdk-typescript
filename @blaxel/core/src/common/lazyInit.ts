@@ -15,8 +15,8 @@ let autoloaded = false;
  *     populates `BL_ENV` if the user has a dev workspace configured).
  *   - Re-apply the control-plane and sandbox clients' `baseUrl` so they
  *     target the now-env-aware endpoint.
- *   - Initialize the lightweight Sentry client (registers
- *     `uncaughtExceptionMonitor` and patches `console.error` in Node).
+ *   - Initialize the lightweight Sentry client (registers a composable
+ *     `uncaughtExceptionMonitor` handler in Node).
  *   - Pre-warm the edge H2 connection pool for `settings.region`.
  *
  * These used to run at module load, but that meant `import "@blaxel/core"`

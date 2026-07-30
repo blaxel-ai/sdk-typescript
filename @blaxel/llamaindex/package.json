@@ -51,7 +51,7 @@
 	"dependencies": {
 		"@blaxel/core": "workspace:*",
 		"@llamaindex/anthropic": "^0.3.26",
-		"@llamaindex/core": "0.6.22",
+		"@llamaindex/core": "0.6.23",
 		"@llamaindex/google": "0.3.22",
 		"@llamaindex/mistral": "^0.1.22",
 		"@llamaindex/openai": "^0.4.21",
