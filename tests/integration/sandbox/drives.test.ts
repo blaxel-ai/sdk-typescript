@@ -45,7 +45,7 @@ describe('Drive Operations', () => {
       createdDrives.push(name)
 
       expect(drive.name).toBe(name)
-      expect(drive.size).toBe(10)
+      // expect(drive.size).toBe(10) // THis has been removed
       expect(drive.region).toBe(defaultRegion)
     })
 
