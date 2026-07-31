@@ -50,6 +50,7 @@ export type SandboxCreateConfiguration = {
   name?: string;
   image?: string;
   memory?: number;
+  storageMb?: number;
   ports?: (Port | Record<string, any>)[];
   envs?: EnvVar[];
   volumes?: (VolumeBinding | VolumeAttachment)[];

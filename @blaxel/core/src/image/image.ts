@@ -38,6 +38,7 @@ export interface ImageBuildContext {
 export interface ImageBuildOptions {
   name: string;
   memory?: number;
+  storageMb?: number;
   timeout?: number;
   onStatusChange?: (status: string) => void;
   sandboxVersion?: string;
@@ -149,6 +150,7 @@ function sleep(ms: number): Promise<void> {
  * await image.build({
  *   name: "my-sandbox",
  *   memory: 4096,
+ *   storageMb: 102400,
  *   timeout: 900000,
  *   onStatusChange: console.log,
  *   sandboxVersion: "latest",
@@ -745,7 +747,7 @@ export class ImageInstance {
     });
   }
 
-  private _createSandboxPayload(name: string, memory: number = 4096): Sandbox {
+  private _createSandboxPayload(name: string, memory: number = 4096, storageMb?: number): Sandbox {
     const labels: MetadataLabels = {
       "x-blaxel-auto-generated": "true",
     };
@@ -758,6 +760,9 @@ export class ImageInstance {
     const runtime: SandboxRuntime = {
       memory,
     };
+    if (storageMb !== undefined) {
+      runtime.storageMb = storageMb;
+    }
 
     const spec: SandboxSpec = {
       runtime,
@@ -892,7 +897,14 @@ export class ImageInstance {
    * @returns The deployed Sandbox object
    */
   async build(options: ImageBuildOptions): Promise<Sandbox> {
-    const { name, memory = 4096, timeout = 900000, onStatusChange, sandboxVersion = "latest" } = options;
+    const {
+      name,
+      memory = 4096,
+      storageMb,
+      timeout = 900000,
+      onStatusChange,
+      sandboxVersion = "latest",
+    } = options;
 
     // Prepare image for sandbox deployment (add sandbox-api and entrypoint)
     const preparedImage = this._prepareForSandbox(sandboxVersion);
@@ -905,7 +917,7 @@ export class ImageInstance {
       const zipContent = await this._createZip(buildDir);
 
       // Create sandbox payload
-      const sandboxPayload = this._createSandboxPayload(name, memory);
+      const sandboxPayload = this._createSandboxPayload(name, memory, storageMb);
 
       // Create/update sandbox and get upload URL
       const { response, uploadUrl } = await this._createSandboxWithUpload(sandboxPayload);
