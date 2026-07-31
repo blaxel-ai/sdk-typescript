@@ -1,5 +1,4 @@
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import { v4 as uuidv4 } from "uuid";
 import WebSocket, { WebSocketServer } from "ws";
 import { env } from "../common/env.js";
 import { logger } from "../common/logger.js";
@@ -46,7 +45,7 @@ export class BlaxelMcpServerTransport implements Transport {
   async start(): Promise<void> {
     logger.info("Starting WebSocket Server on port " + this.port);
     this.wss.on("connection", (ws: WebSocket) => {
-      const clientId = uuidv4();
+      const clientId = crypto.randomUUID();
       this.clients.set(clientId, {
         ws,
       });

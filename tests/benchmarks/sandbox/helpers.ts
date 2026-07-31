@@ -1,5 +1,4 @@
 import { SandboxInstance, VolumeInstance } from "@blaxel/core"
-import { v4 as uuidv4 } from 'uuid'
 
 export const defaultImage = "blaxel/base-image:latest"
 
@@ -16,7 +15,7 @@ export const defaultLabels = {
  * Generate a unique sandbox name for benchmarking
  */
 export function uniqueName(prefix: string = "bench"): string {
-  return `${prefix}-${uuidv4().replace(/-/g, '').substring(0, 8)}`
+  return `${prefix}-${crypto.randomUUID().replace(/-/g, '').substring(0, 8)}`
 }
 
 /**

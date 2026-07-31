@@ -2,7 +2,6 @@ import { SandboxCreateConfiguration, SandboxInstance } from "@blaxel/core";
 import AdmZip from "adm-zip";
 import * as fs from "fs";
 import path from "path";
-import { v4 as uuidv4 } from 'uuid';
 
 
 export const sep = '--------------------------------'
@@ -23,7 +22,7 @@ export function localSandbox(sandboxName: string) {
 
 
 export async function createOrGetSandbox(config: SandboxCreateConfiguration = {}) {
-  const sandboxName = config.name || `test-${uuidv4().replace(/-/g, '').substring(0, 8)}`
+  const sandboxName = config.name || `test-${crypto.randomUUID().replace(/-/g, '').substring(0, 8)}`
   const region = config.region || process.env.BL_ENV === "dev" ? "eu-dub-1" : "us-pdx-1"
   const image = config.image || "blaxel/nextjs:latest"
   const memory = config.memory || 4096
