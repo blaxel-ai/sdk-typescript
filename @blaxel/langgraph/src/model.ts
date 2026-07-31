@@ -64,7 +64,7 @@ export const blModel = async (
 
   // mk3 models use the direct gateway URL and always speak OpenAI-compatible API
   if (modelData.spec.runtime?.generation === "mk3") {
-    const gatewayUrl = modelData.metadata.url;
+    const gatewayUrl = settings.modelGatewayUrl || modelData.metadata.url;
     if (!gatewayUrl) {
       throw new Error(`Model ${model} is mk3 but has no gateway URL in metadata`);
     }
