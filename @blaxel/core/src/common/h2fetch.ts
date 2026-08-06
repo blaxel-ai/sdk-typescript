@@ -647,7 +647,10 @@ function _h2Send(
         // Drain instead of wrapping: the stream still has to end for the h2 slot
         // to be released, but the response must carry no body.
         req.resume();
-        req.once("end", () => {
+        // `close` rather than `end`: it also fires when the drain ends on an
+        // error (RST_STREAM), which `end` does not, and the outer error handler
+        // cannot cover since the request is already settled.
+        req.once("close", () => {
           if (streamClosed) return;
           streamClosed = true;
           cleanupActiveRequest();
