@@ -17,9 +17,14 @@ import { SandboxAction } from '../../../@blaxel/core/src/sandbox/action.js';
  */
 class MockStream extends EventEmitter {
   public closed = false;
+  public resumed = false;
 
   close(): void {
     this.closed = true;
+  }
+
+  resume(): void {
+    this.resumed = true;
   }
 
   end(): void {
@@ -271,6 +276,45 @@ describe('h2fetch: no silent retry after session.request()', () => {
     session.lastStream!.emit('end');
 
     await expect(response.text()).resolves.toBe('ok');
+    expect(session.unrefCalls).toBe(2);
+  });
+
+  it('resolves a null-body status with no body instead of throwing', async () => {
+    const session = new MockSession();
+
+    const promise = h2RequestDirect(
+      asSession(session),
+      'http://example.com/resource',
+      { method: 'DELETE' },
+    );
+
+    session.lastStream!.emit('response', { ':status': 204 });
+    const response = await promise;
+
+    expect(response.status).toBe(204);
+    expect(response.body).toBeNull();
+    // Drained rather than wrapped, so the stream can still reach its terminal.
+    expect(session.lastStream!.resumed).toBe(true);
+  });
+
+  it('releases the null-body drain when the stream closes on an error', async () => {
+    const session = new MockSession();
+    markH2SessionIdleUnref(asSession(session));
+
+    const promise = h2RequestDirect(
+      asSession(session),
+      'http://example.com/resource',
+      { method: 'DELETE' },
+    );
+
+    session.lastStream!.emit('response', { ':status': 204 });
+    await expect(promise).resolves.toMatchObject({ status: 204 });
+    expect(session.unrefCalls).toBe(1);
+
+    // RST_STREAM: 'end' never comes, only 'close'.
+    session.lastStream!.emit('error', new Error('RST_STREAM'));
+    session.lastStream!.emit('close');
+
     expect(session.unrefCalls).toBe(2);
   });
 
