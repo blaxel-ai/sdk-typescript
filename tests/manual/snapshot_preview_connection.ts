@@ -39,12 +39,14 @@
  * real snapshot of it, and its whole point is the wall-clock behaviour of a live
  * connection.
  *
- * Requires: BL_WORKSPACE, BL_API_KEY
+ * Auth: whatever `bl login` left in ~/.blaxel, or BL_WORKSPACE + BL_API_KEY.
  *
  * Run:
  *   cd @blaxel/core && npm run build && cd ../..
  *   npx tsx tests/manual/snapshot_preview_connection.ts
  */
+
+import https from "node:https"
 
 import { SandboxInstance } from "@blaxel/core"
 
@@ -146,6 +148,29 @@ async function observeStream(url: string, stop: Promise<void>): Promise<StreamOb
 type Probe = { at: number; durationMs: number; ok: boolean; detail?: string }
 
 /**
+ * One GET on a brand-new TCP connection. This does NOT go through `fetch`:
+ * undici pools connections and drops `connection: close` (a forbidden header),
+ * so a fetch-based probe would ride the socket the previous probe opened and
+ * never make node-gw wake the VM — which is the whole point of these probes.
+ * `agent: false` gives every probe its own socket, closed right after.
+ */
+function getOnFreshConnection(url: string): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const request = https.request(url, { agent: false, method: "GET" }, (res) => {
+      let body = ""
+      res.setEncoding("utf8")
+      res.on("data", (chunk: string) => {
+        body += chunk
+      })
+      res.on("end", () => resolve({ status: res.statusCode ?? 0, body }))
+      res.on("error", reject)
+    })
+    request.on("error", reject)
+    request.end()
+  })
+}
+
+/**
  * Hit the preview on a fresh connection every PROBE_INTERVAL_MS until `stop`
  * resolves. New connections are the interesting ones: each one makes node-gw
  * wake the VM, which is what the snapshot used to block.
@@ -160,14 +185,13 @@ async function probeUntil(url: string, stop: Promise<void>): Promise<Probe[]> {
   while (running) {
     const at = Date.now()
     try {
-      // `connection: close` so the next probe cannot reuse this socket.
-      const res = await fetch(url, { headers: { connection: "close" } })
-      const body = await res.text()
+      const res = await getOnFreshConnection(url)
+      const ok = res.status === 200
       probes.push({
         at,
         durationMs: Date.now() - at,
-        ok: res.ok && body === READY_BODY,
-        detail: res.ok ? undefined : `status ${res.status}`,
+        ok: ok && res.body === READY_BODY,
+        detail: ok ? undefined : `status ${res.status}`,
       })
     } catch (e) {
       probes.push({ at, durationMs: Date.now() - at, ok: false, detail: (e as Error).message })
