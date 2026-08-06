@@ -18,6 +18,10 @@ type H2SendOptions = {
   releaseSlot?: () => void;
 };
 
+// Statuses the Response constructor refuses to pair with a body. Handing it one
+// throws, so a 204 (e.g. from a DELETE) would blow up instead of resolving.
+const NULL_BODY_STATUSES = new Set([101, 103, 204, 205, 304]);
+
 const MIN_H2_SESSION_MAX_LISTENERS = 64;
 const sessionsWithListenerBudget = new WeakSet<http2.ClientHttp2Session>();
 
@@ -637,6 +641,22 @@ function _h2Send(
         if (k.startsWith(":")) continue;
         if (v === undefined) continue;
         resHeaders.set(k, Array.isArray(v) ? v.join(", ") : String(v));
+      }
+
+      if (NULL_BODY_STATUSES.has(status)) {
+        // Drain instead of wrapping: the stream still has to end for the h2 slot
+        // to be released, but the response must carry no body.
+        req.resume();
+        // `close` rather than `end`: it also fires when the drain ends on an
+        // error (RST_STREAM), which `end` does not, and the outer error handler
+        // cannot cover since the request is already settled.
+        req.once("close", () => {
+          if (streamClosed) return;
+          streamClosed = true;
+          cleanupActiveRequest();
+        });
+        resolve(new Response(null, { status, headers: resHeaders }));
+        return;
       }
 
       const readable = new ReadableStream<Uint8Array>({
