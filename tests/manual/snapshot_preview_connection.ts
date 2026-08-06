@@ -88,6 +88,10 @@ const CHUNK_INTERVAL_MS = 250
 // many in-flight wake-ups instead of one straggler per snapshot.
 const PROBE_INTERVAL_MS = 250
 const OBSERVE_AFTER_MS = 5000
+// Node puts no deadline on a socket, and a probe the edge accepts but never
+// answers is precisely what this script provokes — without this the run could
+// wait on it forever instead of reporting it.
+const PROBE_TIMEOUT_MS = 30000
 
 const SERVER_JS = `
 const http = require("http");
@@ -185,14 +189,21 @@ type Probe = { at: number; durationMs: number; ok: boolean; detail?: string }
  */
 function getOnFreshConnection(url: string): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
-    const request = https.request(url, { agent: false, method: "GET" }, (res) => {
-      let body = ""
-      res.setEncoding("utf8")
-      res.on("data", (chunk: string) => {
-        body += chunk
-      })
-      res.on("end", () => resolve({ status: res.statusCode ?? 0, body }))
-      res.on("error", reject)
+    const request = https.request(
+      url,
+      { agent: false, method: "GET", timeout: PROBE_TIMEOUT_MS },
+      (res) => {
+        let body = ""
+        res.setEncoding("utf8")
+        res.on("data", (chunk: string) => {
+          body += chunk
+        })
+        res.on("end", () => resolve({ status: res.statusCode ?? 0, body }))
+        res.on("error", reject)
+      },
+    )
+    request.on("timeout", () => {
+      request.destroy(new Error(`no response within ${PROBE_TIMEOUT_MS}ms`))
     })
     request.on("error", reject)
     request.end()
@@ -313,12 +324,16 @@ async function main() {
     stopWatchers()
     const [stream, probes] = await Promise.all([streamPromise, probesPromise])
 
-    const during = probes.filter((p) => p.at >= snapshotStart && p.at <= snapshotStart + snapshotMs)
+    const snapshotEnd = snapshotStart + snapshotMs
+    // A probe counts as "during" when it was in flight at any point of the
+    // pause, not just when it started inside it: a warmup probe still waiting
+    // when the snapshot begins is exactly one of the connections that break.
+    const during = probes.filter((p) => p.at <= snapshotEnd && p.at + p.durationMs >= snapshotStart)
     const failedDuring = during.filter((p) => !p.ok)
-    const failedAfter = probes.filter((p) => p.at > snapshotStart + snapshotMs && !p.ok)
+    const failedAfter = probes.filter((p) => p.at > snapshotEnd && !p.ok)
     const slowest = probes.reduce((max, p) => Math.max(max, p.durationMs), 0)
     const gapDuringSnapshot =
-      stream.maxGapEndedAt >= snapshotStart && stream.maxGapEndedAt <= snapshotStart + snapshotMs + 2000
+      stream.maxGapEndedAt >= snapshotStart && stream.maxGapEndedAt <= snapshotEnd + 2000
 
     console.log("\n--- results ---")
     console.log(`snapshot duration:            ${snapshotMs}ms`)
