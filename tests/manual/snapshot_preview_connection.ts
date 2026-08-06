@@ -17,9 +17,13 @@
  *      - GET /            -> "ok"
  *      - GET /stream      -> one chunk every 250ms, forever (the "active
  *                            connection" the customer had open)
+ *      The server also dirties most of the guest's RAM, because the pause lasts
+ *      as long as writing out that memory: an idle sandbox snapshots in ~400ms,
+ *      which is too fast to show the bug.
  *   2. Expose it through a public preview and open the stream.
- *   3. While the stream is being consumed, fire a request every 500ms on fresh
- *      connections (each new connection is what makes node-gw wake the VM).
+ *   3. While the stream is being consumed, open a fresh connection every 250ms
+ *      without waiting for the previous one (each new connection is what makes
+ *      node-gw wake the VM, and the bug makes them pile up).
  *   4. Take a snapshot of the sandbox (this is the compute-admin snapshot).
  *   5. Keep both going for a few seconds after the snapshot returns, then report:
  *      - did the open stream survive the snapshot (or did it error/EOF)?
@@ -30,10 +34,15 @@
  * gap and the slowest request line up with the snapshot's pause — that stall is
  * the snapshot, not a broken connection.
  *
- * Symptom BEFORE the fix (vmm-manager side): every request issued during the
- * snapshot fails, because node-gw asks vmm-manager to wake the VM on each new
- * connection, that call queues behind the lock the snapshot holds, and node-gw
- * gives it 5s before failing the connection.
+ * Symptom BEFORE the fix (vmm-manager side), reproduced on us-was-1 with an ~11s
+ * pause: the already-open stream survived, but every connection opened during
+ * the pause got a 502 after ~5.28s. node-gw asks vmm-manager to wake the VM on
+ * each new connection, that call queues behind the lock the snapshot holds, and
+ * node-gw gives it 5s. So what the customer loses is not the socket they had
+ * open, it is everything the page opens next.
+ *
+ *   requests during snapshot:     44, failed: 20
+ *     failed at +778ms after 5287ms: status 502
  *
  * This lives under tests/manual because it creates a real sandbox and takes a
  * real snapshot of it, and its whole point is the wall-clock behaviour of a live
@@ -63,14 +72,34 @@ const APP_PORT = 3000
 const SERVER_PATH = "/app/server.js"
 const READY_BODY = "ok"
 
+// The pause lasts as long as firecracker needs to write out the dirty memory,
+// and the break only appears once it outlasts node-gw's 5s wake deadline. Pause
+// measured on us-was-1 against the size of the guest's dirtied RAM:
+//   idle ~0.4s · 3GB ~1.3s · 15GB ~5.4s (right at the edge) · 31GB ~11s (breaks)
+// So the default is deliberately big; override to bracket the threshold.
+const SANDBOX_MEMORY_MB = Number(process.env.MEMORY_MB ?? 32768)
+// Dirtied (not just allocated) inside the guest before the snapshot.
+const BALLAST_MB = Number(process.env.BALLAST_MB ?? SANDBOX_MEMORY_MB - 1024)
+
 // Chunk cadence of /stream, and how long we keep observing after the snapshot
 // returns (long enough to see the stream recover, short enough to stay cheap).
 const CHUNK_INTERVAL_MS = 250
-const PROBE_INTERVAL_MS = 500
+// Probes are fired on this beat and NOT awaited, so a long pause accumulates
+// many in-flight wake-ups instead of one straggler per snapshot.
+const PROBE_INTERVAL_MS = 250
 const OBSERVE_AFTER_MS = 5000
 
 const SERVER_JS = `
 const http = require("http");
+
+// Dirty pages the snapshot will have to write out. Filled (not just allocated)
+// so the pages are really resident, and kept referenced so they survive GC.
+const ballast = [];
+for (let i = 0; i < ${Math.round(BALLAST_MB / 64)}; i++) {
+  ballast.push(Buffer.alloc(64 * 1024 * 1024, i % 256));
+}
+console.log("ballast resident: ${BALLAST_MB}MB");
+
 http
   .createServer((req, res) => {
     if (req.url === "/stream") {
@@ -171,12 +200,17 @@ function getOnFreshConnection(url: string): Promise<{ status: number; body: stri
 }
 
 /**
- * Hit the preview on a fresh connection every PROBE_INTERVAL_MS until `stop`
+ * Open a fresh connection to the preview every PROBE_INTERVAL_MS until `stop`
  * resolves. New connections are the interesting ones: each one makes node-gw
- * wake the VM, which is what the snapshot used to block.
+ * wake the VM, which is what the snapshot blocks.
+ *
+ * Probes are started on the beat and NOT awaited: a probe that hangs for the
+ * whole pause must not stop the next one from being attempted, since what the
+ * bug produces is a pile of connections all waiting on the same wake-up.
  */
 async function probeUntil(url: string, stop: Promise<void>): Promise<Probe[]> {
   const probes: Probe[] = []
+  const inFlight: Promise<void>[] = []
   let running = true
   void stop.then(() => {
     running = false
@@ -184,20 +218,25 @@ async function probeUntil(url: string, stop: Promise<void>): Promise<Probe[]> {
 
   while (running) {
     const at = Date.now()
-    try {
-      const res = await getOnFreshConnection(url)
-      const ok = res.status === 200
-      probes.push({
-        at,
-        durationMs: Date.now() - at,
-        ok: ok && res.body === READY_BODY,
-        detail: ok ? undefined : `status ${res.status}`,
-      })
-    } catch (e) {
-      probes.push({ at, durationMs: Date.now() - at, ok: false, detail: (e as Error).message })
-    }
+    inFlight.push(
+      getOnFreshConnection(url).then(
+        (res) => {
+          const ok = res.status === 200
+          probes.push({
+            at,
+            durationMs: Date.now() - at,
+            ok: ok && res.body === READY_BODY,
+            detail: ok ? undefined : `status ${res.status}`,
+          })
+        },
+        (e: Error) => {
+          probes.push({ at, durationMs: Date.now() - at, ok: false, detail: e.message })
+        },
+      ),
+    )
     await sleep(PROBE_INTERVAL_MS)
   }
+  await Promise.all(inFlight)
   return probes
 }
 
@@ -211,12 +250,23 @@ async function main() {
     const sandbox = await SandboxInstance.create({
       name,
       image: BASE_IMAGE,
-      memory: 2048,
+      memory: SANDBOX_MEMORY_MB,
       ports: [{ target: APP_PORT, protocol: "HTTP" }],
     })
     created = true
 
-    await sandbox.fs.write(SERVER_PATH, SERVER_JS)
+    // `create` resolves before the sandbox API is routable, so the first call
+    // into the guest can still get a 404 from the edge ("no service on this
+    // URL"). Retry until it lands.
+    for (let i = 0; ; i++) {
+      try {
+        await sandbox.fs.write(SERVER_PATH, SERVER_JS)
+        break
+      } catch (e) {
+        if (i === 30) throw e
+        await sleep(2000)
+      }
+    }
     await sandbox.process.exec({ command: `node ${SERVER_PATH}`, waitForCompletion: false })
 
     const preview = await sandbox.previews.create({
