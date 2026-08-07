@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:integration": "vitest run tests/integration",
     "test:e2e": "vitest run tests/e2e --config vitest.e2e.config.ts",
+    "test:package-exports": "node tests/runtime-environments/package-exports.mjs",
     "test:runtime-environments": "./tests/runtime-environments/test-all.sh",
     "test:bench": "vitest bench --run"
   },

@@ -2,6 +2,7 @@ import { EventEmitter } from "events";
 import type http2 from "http2";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  createH2Fetch,
   createPoolBackedH2Fetch,
   h2RequestDirectFromPool,
 } from "../../@blaxel/core/src/common/h2fetch.js";
@@ -88,6 +89,7 @@ describe("h2TransportStats", () => {
       fetchFallbacks: 1,
       fallbacksByReason: {
         "no-session": 1,
+        "request-rejected": 0,
         "session-unusable": 0,
         "unsupported-body": 0,
       },
@@ -97,6 +99,7 @@ describe("h2TransportStats", () => {
           fetchFallbacks: 1,
           fallbacksByReason: {
             "no-session": 1,
+            "request-rejected": 0,
             "session-unusable": 0,
             "unsupported-body": 0,
           },
@@ -148,6 +151,7 @@ describe("h2TransportStats", () => {
       fetchFallbacks: 0,
       fallbacksByReason: {
         "no-session": 0,
+        "request-rejected": 0,
         "session-unusable": 0,
         "unsupported-body": 0,
       },
@@ -170,6 +174,7 @@ describe("h2TransportStats", () => {
 
     expect(h2TransportStats.snapshot().fallbacksByReason).toEqual({
       "no-session": 0,
+      "request-rejected": 0,
       "session-unusable": 1,
       "unsupported-body": 0,
     });
@@ -191,12 +196,13 @@ describe("h2TransportStats", () => {
 
     expect(h2TransportStats.snapshot().fallbacksByReason).toEqual({
       "no-session": 0,
+      "request-rejected": 0,
       "session-unusable": 0,
       "unsupported-body": 1,
     });
   });
 
-  it("counts a synchronous session request rejection as unusable", async () => {
+  it("counts a synchronous session request rejection separately", async () => {
     const pool = new H2Pool();
     const session = new MockSession();
     vi.spyOn(session, "request").mockImplementation(() => {
@@ -210,9 +216,29 @@ describe("h2TransportStats", () => {
 
     expect(h2TransportStats.snapshot().fallbacksByReason).toEqual({
       "no-session": 0,
-      "session-unusable": 1,
+      "request-rejected": 1,
+      "session-unusable": 0,
       "unsupported-body": 0,
     });
+  });
+
+  it("bounds per-domain retention without losing aggregate totals", async () => {
+    const session = new MockSession();
+    session.closed = true;
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("fallback"));
+    const request = createH2Fetch(asSession(session));
+
+    await Promise.all(
+      Array.from({ length: 101 }, (_, index) =>
+        request(new Request(`https://edge-${index}.example.com/process`)),
+      ),
+    );
+
+    const snapshot = h2TransportStats.snapshot();
+    expect(snapshot.fetchFallbacks).toBe(101);
+    expect(Object.keys(snapshot.byDomain)).toHaveLength(100);
+    expect(snapshot.byDomain["edge-0.example.com"]).toBeUndefined();
+    expect(snapshot.byDomain["edge-100.example.com"]?.fetchFallbacks).toBe(1);
   });
 
   it("preserves fallback behavior when the debug logger throws", async () => {
@@ -247,6 +273,7 @@ describe("h2TransportStats", () => {
       fetchFallbacks: 0,
       fallbacksByReason: {
         "no-session": 0,
+        "request-rejected": 0,
         "session-unusable": 0,
         "unsupported-body": 0,
       },

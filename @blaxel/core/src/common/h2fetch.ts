@@ -533,7 +533,7 @@ function _h2Send(
       releaseSlot();
       recordH2Fallback(
         options?.domain ?? new URL(fallbackUrl).hostname,
-        "session-unusable",
+        "request-rejected",
       );
       globalThis.fetch(fallbackUrl, fallbackInit).then(resolve, reject);
       return;

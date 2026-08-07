@@ -2,6 +2,7 @@ import { logger } from "./logger.js";
 
 export type H2FallbackReason =
   | "no-session"
+  | "request-rejected"
   | "session-unusable"
   | "unsupported-body";
 
@@ -24,9 +25,12 @@ export type H2TransportStats = {
 
 const emptyReasons = (): Record<H2FallbackReason, number> => ({
   "no-session": 0,
+  "request-rejected": 0,
   "session-unusable": 0,
   "unsupported-body": 0,
 });
+
+const MAX_TRACKED_DOMAINS = 100;
 
 const emptyDomainStats = (): H2TransportDomainStats => ({
   establishFailures: 0,
@@ -80,10 +84,16 @@ class H2TransportStatsStore {
 
   private forDomain(domain: string): H2TransportDomainStats {
     let stats = this.byDomain.get(domain);
-    if (!stats) {
+    if (stats) {
+      this.byDomain.delete(domain);
+    } else {
+      if (this.byDomain.size >= MAX_TRACKED_DOMAINS) {
+        const oldest = this.byDomain.keys().next().value;
+        if (oldest !== undefined) this.byDomain.delete(oldest);
+      }
       stats = emptyDomainStats();
-      this.byDomain.set(domain, stats);
     }
+    this.byDomain.set(domain, stats);
     return stats;
   }
 
@@ -98,7 +108,10 @@ class H2TransportStatsStore {
 
 const store = new H2TransportStatsStore();
 
-/** Process-wide H2 counters. Call reset() before taking an isolated measurement. */
+/**
+ * Process-wide H2 counters with aggregate totals and the 100 most recently
+ * observed domains. Call reset() before taking an isolated measurement.
+ */
 export const h2TransportStats: H2TransportStats = store;
 
 /** @internal */
