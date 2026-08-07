@@ -1,23 +1,15 @@
 import { EventEmitter } from "events";
 import type http2 from "http2";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type {
-  H2Pool as H2PoolInstance,
-  H2PoolOptions,
-} from "../../../@blaxel/core/dist/cjs/types/common/h2pool.js";
+import { H2Pool } from "../../../@blaxel/core/src/common/h2pool.js";
 
 const { establishH2Mock } = vi.hoisted(() => ({
   establishH2Mock: vi.fn<() => Promise<http2.ClientHttp2Session>>(),
 }));
 
-vi.mock("../../../@blaxel/core/dist/esm/common/h2warm.js", () => ({
+vi.mock("../../../@blaxel/core/src/common/h2warm.js", () => ({
   establishH2: establishH2Mock,
 }));
-
-// @ts-expect-error The internal ESM build does not emit co-located declarations.
-import { H2Pool as CompiledH2Pool } from "../../../@blaxel/core/dist/esm/common/h2pool.js";
-
-const H2Pool = CompiledH2Pool as new (options?: H2PoolOptions) => H2PoolInstance;
 
 const DOMAIN = "edge.concurrent-ping.example.com";
 
@@ -54,7 +46,7 @@ function tick(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
-let pool: H2PoolInstance | undefined;
+let pool: H2Pool | undefined;
 
 afterEach(() => {
   pool?.closeAll();
