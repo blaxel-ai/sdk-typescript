@@ -16,7 +16,7 @@ try {
     ["pack", "--json", "--pack-destination", tempDir],
     { cwd: coreDir, encoding: "utf8" },
   );
-  const [{ filename }] = JSON.parse(packOutput);
+  const [{ filename }] = Object.values(JSON.parse(packOutput));
   execFileSync("tar", ["-xzf", join(tempDir, filename)], { cwd: tempDir });
 
   const consumerDir = join(tempDir, "consumer");
