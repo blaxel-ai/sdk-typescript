@@ -7,6 +7,13 @@ export {
   getProcess, getProcessByIdentifier, getProcessByIdentifierLogs, getProcessByIdentifierLogsStream, PortMonitorRequest, postNetworkProcessByPidMonitor, postProcess, ProcessRequest, ProcessResponse, putFilesystemByPath, SuccessResponse
 } from "./client/index.js";
 export { ResponseError, SandboxGatewayError, isGatewayError, isGatewayTimeout } from "./action.js";
+export {
+  h2TransportStats,
+  type H2FallbackReason,
+  type H2TransportDomainStats,
+  type H2TransportStats,
+  type H2TransportStatsSnapshot,
+} from "../common/h2stats.js";
 export * from "./filesystem/index.js";
 export * from "./codegen/index.js";
 export { SandboxDrive, type DriveMountRequest, type DriveMountResponse, type DriveMountInfo, type DriveUnmountResponse } from "./drive/index.js";
@@ -18,4 +25,3 @@ export * from "./system.js";
 export * from "./types.js";
 export * from "./interpreter.js";
 // Re-export everything from client except ClientOptions to avoid conflict
-

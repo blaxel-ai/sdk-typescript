@@ -2,8 +2,10 @@ import http2 from "http2";
 import { settings } from "./settings.js";
 import type { H2Pool } from "./h2pool.js";
 import { refH2SessionForActiveRequest } from "./h2ref.js";
+import { recordH2Fallback } from "./h2stats.js";
 
 type H2SendOptions = {
+  domain?: string;
   onH2RequestCreated?: () => void;
   /**
    * Release the per-domain concurrency slot acquired by the pool-backed
@@ -202,6 +204,7 @@ export function createH2Fetch(
 ): (input: Request) => Promise<Response> {
   return (input: Request): Promise<Response> => {
     if (session.closed || session.destroyed) {
+      recordH2Fallback(new URL(input.url).hostname, "session-unusable");
       return globalThis.fetch(input);
     }
     return _h2Request(session, input);
@@ -284,6 +287,7 @@ async function h2GatewayAttempt(
       let h2RequestCreated = false;
       try {
         return await send(session, {
+          domain,
           onH2RequestCreated: () => {
             h2RequestCreated = true;
           },
@@ -301,6 +305,7 @@ async function h2GatewayAttempt(
     // No usable session: free the slot before falling back over a different
     // connection (no stream opens on the shared session).
     rel();
+    recordH2Fallback(domain, "no-session");
     return await fallback();
   } catch (err) {
     // Pre-send throw (pool.get(), Request body read, or the fallback itself):
@@ -371,6 +376,10 @@ function h2RequestDirectInternal(
     // Pre-flight fallback (session unusable): no stream opens on the shared
     // session, so free any held slot before going over globalThis.fetch.
     options?.releaseSlot?.();
+    recordH2Fallback(
+      options?.domain ?? new URL(url).hostname,
+      "session-unusable",
+    );
     return globalThis.fetch(url, init);
   }
 
@@ -411,6 +420,10 @@ function h2RequestDirectInternal(
       // nothing has been sent on the wire yet). No stream opens on the shared
       // session, so free any held slot before falling back.
       options?.releaseSlot?.();
+      recordH2Fallback(
+        options?.domain ?? parsed.hostname,
+        "unsupported-body",
+      );
       return globalThis.fetch(url, init);
     }
     if (!h2Headers["content-length"]) {
@@ -518,6 +531,10 @@ function _h2Send(
       // H2 frames were sent. No stream opened on the shared session, so free
       // the slot before retrying over globalThis.fetch.
       releaseSlot();
+      recordH2Fallback(
+        options?.domain ?? new URL(fallbackUrl).hostname,
+        session.closed || session.destroyed ? "session-unusable" : "request-rejected",
+      );
       globalThis.fetch(fallbackUrl, fallbackInit).then(resolve, reject);
       return;
     }

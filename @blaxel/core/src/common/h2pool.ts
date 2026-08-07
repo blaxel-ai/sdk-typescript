@@ -1,4 +1,5 @@
 import type http2 from "http2";
+import { recordH2EstablishFailure } from "./h2stats.js";
 
 type EstablishFn = (hostname: string) => Promise<http2.ClientHttp2Session>;
 type NowFn = () => number;
@@ -56,6 +57,23 @@ export class H2Pool {
     const session = await this._establish(domain);
     this.attachEvictionListeners(domain, session);
     return session;
+  }
+
+  private startEstablish(domain: string): Promise<http2.ClientHttp2Session | null> {
+    const pending = this.establish(domain)
+      .then((session) => {
+        this.cache(domain, session);
+        return session;
+      })
+      .catch((error) => {
+        recordH2EstablishFailure(domain, error);
+        return null;
+      })
+      .finally(() => {
+        this.inflight.delete(domain);
+      });
+    this.inflight.set(domain, pending);
+    return pending;
   }
 
   private attachEvictionListeners(
@@ -170,17 +188,7 @@ export class H2Pool {
     if (existing) return;
     if (this.inflight.has(domain)) return;
 
-    const p = this.establish(domain)
-      .then((session) => {
-        this.cache(domain, session);
-        return session;
-      })
-      .catch(() => null)
-      .finally(() => {
-        this.inflight.delete(domain);
-      });
-
-    this.inflight.set(domain, p);
+    void this.startEstablish(domain);
   }
 
   /**
@@ -231,17 +239,7 @@ export class H2Pool {
     const freshCached = this.tryGet(domain);
     if (freshCached) return freshCached;
 
-    const p = this.establish(domain)
-      .then((session) => {
-        this.cache(domain, session);
-        return session;
-      })
-      .catch(() => null)
-      .finally(() => {
-        this.inflight.delete(domain);
-      });
-    this.inflight.set(domain, p);
-    return p;
+    return this.startEstablish(domain);
   }
   /** Close all sessions (for cleanup). */
   closeAll(): void {
