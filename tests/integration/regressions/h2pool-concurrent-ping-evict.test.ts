@@ -1,13 +1,25 @@
 import { EventEmitter } from "events";
 import type http2 from "http2";
-import { afterEach, describe, expect, it } from "vitest";
-import { H2Pool } from "../../../@blaxel/core/src/common/h2pool.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type {
+  H2Pool as H2PoolInstance,
+  H2PoolOptions,
+} from "../../../@blaxel/core/dist/cjs/types/common/h2pool.js";
+
+const { establishH2Mock } = vi.hoisted(() => ({
+  establishH2Mock: vi.fn<() => Promise<http2.ClientHttp2Session>>(),
+}));
+
+vi.mock("../../../@blaxel/core/dist/esm/common/h2warm.js", () => ({
+  establishH2: establishH2Mock,
+}));
+
+// @ts-expect-error The internal ESM build does not emit co-located declarations.
+import { H2Pool as CompiledH2Pool } from "../../../@blaxel/core/dist/esm/common/h2pool.js";
+
+const H2Pool = CompiledH2Pool as new (options?: H2PoolOptions) => H2PoolInstance;
 
 const DOMAIN = "edge.concurrent-ping.example.com";
-
-type EstablishHook = {
-  _establish: () => Promise<http2.ClientHttp2Session>;
-};
 
 class PingSession extends EventEmitter {
   closed = false;
@@ -42,11 +54,12 @@ function tick(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
-let pool: H2Pool | undefined;
+let pool: H2PoolInstance | undefined;
 
 afterEach(() => {
   pool?.closeAll();
   pool = undefined;
+  establishH2Mock.mockReset();
 });
 
 describe("ENG-3017: concurrent idle H2 validation", () => {
@@ -54,8 +67,7 @@ describe("ENG-3017: concurrent idle H2 validation", () => {
     let now = 1_000;
     const session = new PingSession();
     pool = new H2Pool({ maxIdleMs: 5, pingTimeoutMs: 10_000, now: () => now });
-    (pool as unknown as EstablishHook)._establish = () =>
-      Promise.resolve(session as unknown as http2.ClientHttp2Session);
+    establishH2Mock.mockResolvedValue(session as unknown as http2.ClientHttp2Session);
 
     await pool.get(DOMAIN);
     now += 10;
@@ -74,8 +86,7 @@ describe("ENG-3017: concurrent idle H2 validation", () => {
     let now = 1_000;
     const session = new PingSession(false);
     pool = new H2Pool({ maxIdleMs: 5, now: () => now });
-    (pool as unknown as EstablishHook)._establish = () =>
-      Promise.resolve(session as unknown as http2.ClientHttp2Session);
+    establishH2Mock.mockResolvedValue(session as unknown as http2.ClientHttp2Session);
 
     await pool.get(DOMAIN);
     now += 10;

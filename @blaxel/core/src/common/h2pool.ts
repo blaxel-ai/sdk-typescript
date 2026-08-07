@@ -31,7 +31,7 @@ export class H2Pool {
   private inflight = new Map<string, Promise<http2.ClientHttp2Session | null>>();
   private validations = new Map<string, {
     session: http2.ClientHttp2Session;
-    result: Promise<PingResult>;
+    promise: Promise<PingResult>;
   }>();
   private _establish: EstablishFn | null = null;
   private readonly maxIdleMs: number;
@@ -142,15 +142,15 @@ export class H2Pool {
     session: http2.ClientHttp2Session,
   ): Promise<PingResult> {
     const existing = this.validations.get(domain);
-    if (existing?.session === session) return existing.result;
+    if (existing?.session === session) return existing.promise;
 
-    const result = this.ping(session).finally(() => {
-      if (this.validations.get(domain)?.result === result) {
+    const promise = this.ping(session).finally(() => {
+      if (this.validations.get(domain)?.promise === promise) {
         this.validations.delete(domain);
       }
     });
-    this.validations.set(domain, { session, result });
-    return result;
+    this.validations.set(domain, { session, promise });
+    return promise;
   }
 
   private async validateEntry(
