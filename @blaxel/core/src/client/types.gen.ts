@@ -129,7 +129,7 @@ export type ApiKey = TimeFields & OwnerFields & {
      */
     readonly apiKey?: string;
     /**
-     * Duration until expiration. Supports formats like '30d' (30 days), '24h' (24 hours), '1w' (1 week). If not set, the API key never expires.
+     * Duration until expiration. Supports formats like '30d' (30 days), '24h' (24 hours), '1w' (1 week). Must be positive and at most 10 years. If not set, the API key never expires.
      */
     expires_in?: string;
     /**
@@ -155,7 +155,7 @@ export type ApiKey = TimeFields & OwnerFields & {
  */
 export type ApiKeyWritable = TimeFields & OwnerFields & {
     /**
-     * Duration until expiration. Supports formats like '30d' (30 days), '24h' (24 hours), '1w' (1 week). If not set, the API key never expires.
+     * Duration until expiration. Supports formats like '30d' (30 days), '24h' (24 hours), '1w' (1 week). Must be positive and at most 10 years. If not set, the API key never expires.
      */
     expires_in?: string;
     /**
@@ -826,10 +826,6 @@ export type DriveSpec = {
      * Deployment region for the drive (e.g., us-pdx-1, eu-lon-1). Must match the region of resources it attaches to.
      */
     region?: string;
-    /**
-     * Optional size limit for the drive in GB. If not specified, drive has no size limit.
-     */
-    size?: number;
 };
 
 /**
@@ -844,10 +840,6 @@ export type DriveSpecWritable = {
      * Deployment region for the drive (e.g., us-pdx-1, eu-lon-1). Must match the region of resources it attaches to.
      */
     region?: string;
-    /**
-     * Optional size limit for the drive in GB. If not specified, drive has no size limit.
-     */
-    size?: number;
 };
 
 /**
@@ -4085,6 +4077,10 @@ export type SandboxScheduleExecution = {
      */
     readonly createdAt?: string;
     /**
+     * Reason the execution failed, naming the resource that could not be reached. Empty when the command was accepted by the sandbox.
+     */
+    error?: string;
+    /**
      * RFC 3339 time at which the command was submitted.
      */
     executedAt?: string;
@@ -4114,6 +4110,10 @@ export type SandboxScheduleExecution = {
  * One recorded execution of a sandbox schedule. statusCode is the HTTP status from submitting the command to the sandbox (the scheduler does not wait for the command to finish). Stored in the dedicated scheduleexecutions table.
  */
 export type SandboxScheduleExecutionWritable = {
+    /**
+     * Reason the execution failed, naming the resource that could not be reached. Empty when the command was accepted by the sandbox.
+     */
+    error?: string;
     /**
      * RFC 3339 time at which the command was submitted.
      */
@@ -4998,6 +4998,11 @@ export type WorkspaceUser = {
 export type BlaxelVersion = string;
 
 /**
+ * Comma-separated list of statuses to filter on (e.g. `DEPLOYED,FAILED`). Values are case-insensitive; unknown values are rejected with a 400. Selecting every status is equivalent to omitting the parameter. Bound into the cursor fingerprint so a cursor opened with one selection cannot be reused with another. Filtering itself requires the 2026-04-28 Blaxel-Version (the paginated listing); on earlier versions the value is still validated but the listing is unfiltered, except for sandboxes where it is applied on every version.
+ */
+export type ListingStatus = string;
+
+/**
  * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
  */
 export type PaginationAnchor = 'end';
@@ -5046,6 +5051,10 @@ export type ListAgentsData = {
          * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
+        /**
+         * Comma-separated list of statuses to filter on (e.g. `DEPLOYED,FAILED`). Values are case-insensitive; unknown values are rejected with a 400. Selecting every status is equivalent to omitting the parameter. Bound into the cursor fingerprint so a cursor opened with one selection cannot be reused with another. Filtering itself requires the 2026-04-28 Blaxel-Version (the paginated listing); on earlier versions the value is still validated but the listing is unfiltered, except for sandboxes where it is applied on every version.
+         */
+        status?: string;
     };
     url: '/agents';
 };
@@ -5297,6 +5306,10 @@ export type ListApplicationsData = {
          * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
+        /**
+         * Comma-separated list of statuses to filter on (e.g. `DEPLOYED,FAILED`). Values are case-insensitive; unknown values are rejected with a 400. Selecting every status is equivalent to omitting the parameter. Bound into the cursor fingerprint so a cursor opened with one selection cannot be reused with another. Filtering itself requires the 2026-04-28 Blaxel-Version (the paginated listing); on earlier versions the value is still validated but the listing is unfiltered, except for sandboxes where it is applied on every version.
+         */
+        status?: string;
     };
     url: '/applications';
 };
@@ -5817,6 +5830,10 @@ export type ListDrivesData = {
          * Filter drives by external ID. When set, only drives matching this caller-owned identifier are returned.
          */
         externalId?: string;
+        /**
+         * Comma-separated list of statuses to filter on (e.g. `DEPLOYED,FAILED`). Values are case-insensitive; unknown values are rejected with a 400. Selecting every status is equivalent to omitting the parameter. Bound into the cursor fingerprint so a cursor opened with one selection cannot be reused with another. Filtering itself requires the 2026-04-28 Blaxel-Version (the paginated listing); on earlier versions the value is still validated but the listing is unfiltered, except for sandboxes where it is applied on every version.
+         */
+        status?: string;
     };
     url: '/drives';
 };
@@ -6210,6 +6227,10 @@ export type ListFunctionsData = {
          * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
+        /**
+         * Comma-separated list of statuses to filter on (e.g. `DEPLOYED,FAILED`). Values are case-insensitive; unknown values are rejected with a 400. Selecting every status is equivalent to omitting the parameter. Bound into the cursor fingerprint so a cursor opened with one selection cannot be reused with another. Filtering itself requires the 2026-04-28 Blaxel-Version (the paginated listing); on earlier versions the value is still validated but the listing is unfiltered, except for sandboxes where it is applied on every version.
+         */
+        status?: string;
     };
     url: '/functions';
 };
@@ -7071,6 +7092,10 @@ export type ListJobsData = {
          * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
+        /**
+         * Comma-separated list of statuses to filter on (e.g. `DEPLOYED,FAILED`). Values are case-insensitive; unknown values are rejected with a 400. Selecting every status is equivalent to omitting the parameter. Bound into the cursor fingerprint so a cursor opened with one selection cannot be reused with another. Filtering itself requires the 2026-04-28 Blaxel-Version (the paginated listing); on earlier versions the value is still validated but the listing is unfiltered, except for sandboxes where it is applied on every version.
+         */
+        status?: string;
     };
     url: '/jobs';
 };
@@ -7467,6 +7492,10 @@ export type ListModelsData = {
          * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
+        /**
+         * Comma-separated list of statuses to filter on (e.g. `DEPLOYED,FAILED`). Values are case-insensitive; unknown values are rejected with a 400. Selecting every status is equivalent to omitting the parameter. Bound into the cursor fingerprint so a cursor opened with one selection cannot be reused with another. Filtering itself requires the 2026-04-28 Blaxel-Version (the paginated listing); on earlier versions the value is still validated but the listing is unfiltered, except for sandboxes where it is applied on every version.
+         */
+        status?: string;
     };
     url: '/models';
 };
@@ -7989,6 +8018,10 @@ export type ListSandboxesData = {
          * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
+        /**
+         * Comma-separated list of statuses to filter on (e.g. `DEPLOYED,FAILED`). When set it takes precedence over `showTerminated`. Unknown values are rejected with a 400. Bound into the cursor fingerprint.
+         */
+        status?: string;
         /**
          * Filter sandboxes by external ID. When set, only sandboxes matching this caller-owned identifier are returned.
          */
@@ -9354,6 +9387,10 @@ export type ListVolumesData = {
          * Filter volumes by external ID. When set, only volumes matching this caller-owned identifier are returned.
          */
         externalId?: string;
+        /**
+         * Comma-separated list of statuses to filter on (e.g. `DEPLOYED,FAILED`). Values are case-insensitive; unknown values are rejected with a 400. Selecting every status is equivalent to omitting the parameter. Bound into the cursor fingerprint so a cursor opened with one selection cannot be reused with another. Filtering itself requires the 2026-04-28 Blaxel-Version (the paginated listing); on earlier versions the value is still validated but the listing is unfiltered, except for sandboxes where it is applied on every version.
+         */
+        status?: string;
     };
     url: '/volumes';
 };

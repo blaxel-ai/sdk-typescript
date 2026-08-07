@@ -502,6 +502,10 @@ export type PostDrivesMountErrors = {
      */
     400: ErrorResponse;
     /**
+     * Conflict
+     */
+    409: ErrorResponse;
+    /**
      * Internal Server Error
      */
     500: ErrorResponse;
