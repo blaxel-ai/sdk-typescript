@@ -222,6 +222,31 @@ describe("h2TransportStats", () => {
     });
   });
 
+  it.each(["closed", "destroyed"] as const)(
+    "classifies a %s pool-backed session as unusable",
+    async (state) => {
+      const pool = new H2Pool();
+      const session = new MockSession();
+      session[state] = true;
+      vi.spyOn(session, "request").mockImplementation(() => {
+        throw new Error(`session is ${state}`);
+      });
+      withEstablish(pool, () => Promise.resolve(asSession(session)));
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("fallback"));
+      const request = createPoolBackedH2Fetch(pool, "edge.example.com");
+
+      const response = await request(new Request("https://edge.example.com/process"));
+
+      expect(await response.text()).toBe("fallback");
+      expect(h2TransportStats.snapshot().fallbacksByReason).toEqual({
+        "no-session": 0,
+        "request-rejected": 0,
+        "session-unusable": 1,
+        "unsupported-body": 0,
+      });
+    },
+  );
+
   it("bounds per-domain retention without losing aggregate totals", async () => {
     const session = new MockSession();
     session.closed = true;
