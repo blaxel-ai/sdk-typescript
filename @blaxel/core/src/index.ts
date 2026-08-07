@@ -5,6 +5,13 @@ export * from "./client/client.js";
 export * from "./common/autoload.js";
 export * from "./common/env.js";
 export * from "./common/h2-runtime.js";
+export {
+  h2TransportStats,
+  type H2FallbackReason,
+  type H2TransportDomainStats,
+  type H2TransportStats,
+  type H2TransportStatsSnapshot,
+} from "./common/h2stats.js";
 export * from "./common/node.js";
 export * from "./common/errors.js";
 export * from "./common/internal.js";

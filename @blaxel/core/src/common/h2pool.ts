@@ -1,4 +1,5 @@
 import type http2 from "http2";
+import { recordH2EstablishFailure } from "./h2stats.js";
 
 type EstablishFn = (hostname: string) => Promise<http2.ClientHttp2Session>;
 type NowFn = () => number;
@@ -175,7 +176,10 @@ export class H2Pool {
         this.cache(domain, session);
         return session;
       })
-      .catch(() => null)
+      .catch((error) => {
+        recordH2EstablishFailure(domain, error);
+        return null;
+      })
       .finally(() => {
         this.inflight.delete(domain);
       });
@@ -236,7 +240,10 @@ export class H2Pool {
         this.cache(domain, session);
         return session;
       })
-      .catch(() => null)
+      .catch((error) => {
+        recordH2EstablishFailure(domain, error);
+        return null;
+      })
       .finally(() => {
         this.inflight.delete(domain);
       });
