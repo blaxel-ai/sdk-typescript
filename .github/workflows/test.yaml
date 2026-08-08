@@ -183,6 +183,46 @@ jobs:
         working-directory: tests/runtime-environments/deno
         run: timeout 120s deno task test
 
+  zod-compat:
+    name: zod ${{ matrix.zod }} compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      # @blaxel/core accepts "^3.25.0 || ^4.0.0"; the lockfile only ever pins
+      # one of them, so force each major in turn to keep both buildable.
+      matrix:
+        # Use the declared ranges verbatim, so each leg installs exactly what a
+        # consumer on that major would resolve.
+        zod:
+          - "^3.25.0"
+          - "^4.0.0"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Force zod ${{ matrix.zod }} across the workspace
+        run: |
+          jq --arg range '${{ matrix.zod }}' '.overrides.zod = $range' package.json > package.json.tmp
+          mv package.json.tmp package.json
+          bun install
+          node -e "console.log('zod', require('zod/package.json').version)"
+
+      - name: Build and typecheck the SDK packages
+        run: bun run build
+
+      - name: Run zod schema unit tests
+        working-directory: '@blaxel/core'
+        run: npx vitest run src/tools/zodSchema.test.ts
+
   integration-test:
     name: Integration Tests
     runs-on: ubuntu-latest
