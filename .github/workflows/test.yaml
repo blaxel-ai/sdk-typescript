@@ -192,9 +192,11 @@ jobs:
       # @blaxel/core accepts "^3.25.0 || ^4.0.0"; the lockfile only ever pins
       # one of them, so force each major in turn to keep both buildable.
       matrix:
+        # Use the declared ranges verbatim, so each leg installs exactly what a
+        # consumer on that major would resolve.
         zod:
-          - "3"
-          - "4"
+          - "^3.25.0"
+          - "^4.0.0"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -209,7 +211,7 @@ jobs:
 
       - name: Force zod ${{ matrix.zod }} across the workspace
         run: |
-          jq '.overrides.zod = "${{ matrix.zod }}"' package.json > package.json.tmp
+          jq --arg range '${{ matrix.zod }}' '.overrides.zod = $range' package.json > package.json.tmp
           mv package.json.tmp package.json
           bun install
           node -e "console.log('zod', require('zod/package.json').version)"
