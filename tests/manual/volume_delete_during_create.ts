@@ -20,12 +20,14 @@
 // Expected before the fix: create hangs ~60s+ and the sandbox never serves.
 // Expected after the fix: the sandbox goes to FAILED quickly.
 //
+// Credentials are picked up automatically via @blaxel/core autoload (local
+// `bl login` config / env), so BL_WORKSPACE / BL_API_KEY are not required here.
+//
 // Run (after `npm run build` in @blaxel/core):
 //
-//   BL_WORKSPACE=... BL_API_KEY=... npx tsx tests/manual/volume_delete_during_create.ts
+//   npx tsx tests/manual/volume_delete_during_create.ts
 //
 // Env vars:
-//   BL_WORKSPACE, BL_API_KEY   credentials (required)
 //   BL_ENV                     "dev" to target api.blaxel.dev (default prod)
 //   MODE                       "pre" (default) or "race"
 //   ITERATIONS                 attempts (race mode stops at the first win; default 10)
@@ -41,7 +43,7 @@
 // Must be set BEFORE importing @blaxel/core.
 process.env.BL_DISABLE_H2 = process.env.BL_DISABLE_H2 ?? "1"
 
-import { SandboxInstance, VolumeInstance, settings } from "@blaxel/core"
+import { SandboxInstance, VolumeInstance } from "@blaxel/core"
 import { v4 as uuidv4 } from "uuid"
 
 const MODE_ENV = process.env.MODE || "pre"
@@ -264,8 +266,6 @@ function report(attempts: Attempt[], reproduced?: Attempt) {
 }
 
 async function main() {
-  if (!settings.workspace) throw new Error("BL_WORKSPACE must be set")
-  if (!process.env.BL_API_KEY) throw new Error("BL_API_KEY must be set")
   if (MODE_ENV !== "pre" && MODE_ENV !== "race") throw new Error(`MODE must be "pre" or "race", got ${MODE_ENV}`)
 
   const attempts: Attempt[] = []
