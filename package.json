@@ -7,9 +7,9 @@
   "type": "module",
   "scripts": {
     "lint": "bun --filter '*' lint && tsc -p tests/tsconfig.json && eslint tests/",
-    "build": "bun run --filter @blaxel/core build && bun run --filter '@blaxel/{telemetry,langgraph,llamaindex,vercel}' build && bun run --filter @blaxel/mastra build",
+    "build": "bun run --filter @blaxel/core build && bun run --filter '@blaxel/{telemetry,langgraph,llamaindex,vercel,eve-sandbox}' build && bun run --filter @blaxel/mastra build",
     "set-version": "npm version --workspaces --no-workspaces-update",
-    "dev": "concurrently -n core,telemetry,langgraph,llamaindex,vercel,mastra -c blue,green,yellow,magenta,cyan,white \"bun run --filter @blaxel/core dev\" \"bun run --filter @blaxel/telemetry dev\" \"bun run --filter @blaxel/langgraph dev\" \"bun run --filter @blaxel/llamaindex dev\" \"bun run --filter @blaxel/vercel dev\" \"bun run --filter @blaxel/mastra dev\"",
+    "dev": "concurrently -n core,telemetry,langgraph,llamaindex,vercel,eve,mastra -c blue,green,yellow,magenta,cyan,blue,white \"bun run --filter @blaxel/core dev\" \"bun run --filter @blaxel/telemetry dev\" \"bun run --filter @blaxel/langgraph dev\" \"bun run --filter @blaxel/llamaindex dev\" \"bun run --filter @blaxel/vercel dev\" \"bun run --filter @blaxel/eve-sandbox dev\" \"bun run --filter @blaxel/mastra dev\"",
     "test": "vitest run",
     "test:integration": "vitest run tests/integration",
     "test:e2e": "vitest run tests/e2e --config vitest.e2e.config.ts",
@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@blaxel/core": "workspace:*",
+    "@blaxel/eve-sandbox": "workspace:*",
     "@blaxel/langgraph": "workspace:*",
     "@blaxel/llamaindex": "workspace:*",
     "@blaxel/mastra": "workspace:*",
@@ -57,6 +58,7 @@
   },
   "workspaces": [
     "@blaxel/core",
+    "@blaxel/eve-sandbox",
     "@blaxel/telemetry",
     "@blaxel/langgraph",
     "@blaxel/llamaindex",

@@ -1,0 +1,73 @@
+{
+  "name": "@blaxel/eve-sandbox",
+  "version": "0.2.59",
+  "description": "Durable Blaxel sandbox backend for eve agents",
+  "license": "MIT",
+  "author": "Blaxel, INC (https://blaxel.ai)",
+  "homepage": "https://blaxel.ai",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/blaxel-ai/sdk-typescript",
+    "directory": "@blaxel/eve-sandbox"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "keywords": [
+    "agent",
+    "ai-agent",
+    "blaxel",
+    "eve",
+    "sandbox",
+    "sandbox-backend",
+    "vercel"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      ".": [
+        "./dist/index.d.ts"
+      ]
+    }
+  },
+  "files": [
+    "dist",
+    "examples",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "lint": "eslint src/ examples/ test/",
+    "typecheck:examples": "tsc --noEmit -p examples/tsconfig.json",
+    "dev": "tsc --watch",
+    "build": "NODE_OPTIONS='--max-old-space-size=8192' tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@blaxel/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "ai": "^7.0.38",
+    "eve": "^0.31.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "ai": "^7.0.38",
+    "eslint": "9.39.2",
+    "eve": "^0.31.3",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.64.0"
+  }
+}

@@ -14,7 +14,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = join(__dirname, '..');
 
 // Get all workspace package.json files
-const workspaces = ['core', 'telemetry', 'langgraph', 'llamaindex', 'vercel', 'mastra'];
+const workspaces = ['core', 'eve-sandbox', 'telemetry', 'langgraph', 'llamaindex', 'vercel', 'mastra'];
 
 // Build a map of package name -> version
 const packageVersions = new Map();

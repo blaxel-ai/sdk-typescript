@@ -1,0 +1,11 @@
+{
+  "name": "blaxel-eve-acceptance-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@blaxel/eve-sandbox": "0.2.59",
+    "ai": "^7.0.38",
+    "eve": "^0.31.3"
+  }
+}
