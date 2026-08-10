@@ -2,7 +2,6 @@ import type http2 from "http2";
 
 type EstablishFn = (hostname: string) => Promise<http2.ClientHttp2Session>;
 type NowFn = () => number;
-type PingResult = "alive" | "failed" | "unsent";
 
 type H2PoolEntry = {
   session: http2.ClientHttp2Session;
@@ -31,7 +30,7 @@ export class H2Pool {
   private inflight = new Map<string, Promise<http2.ClientHttp2Session | null>>();
   private validations = new Map<string, {
     session: http2.ClientHttp2Session;
-    promise: Promise<PingResult>;
+    promise: Promise<boolean>;
   }>();
   private _establish: EstablishFn | null = null;
   private readonly maxIdleMs: number;
@@ -111,28 +110,28 @@ export class H2Pool {
     }
   }
 
-  private ping(session: http2.ClientHttp2Session): Promise<PingResult> {
-    if (this.isClosed(session)) return Promise.resolve("failed");
+  private ping(session: http2.ClientHttp2Session): Promise<boolean> {
+    if (this.isClosed(session)) return Promise.resolve(false);
 
-    return new Promise<PingResult>((resolve) => {
+    return new Promise<boolean>((resolve) => {
       let settled = false;
-      const finish = (result: PingResult) => {
+      const finish = (shouldRetain: boolean) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
-        resolve(result);
+        resolve(shouldRetain);
       };
 
-      const timer = setTimeout(() => finish("failed"), this.pingTimeoutMs);
+      const timer = setTimeout(() => finish(false), this.pingTimeoutMs);
 
       try {
         const sent = session.ping((err?: Error | null) => {
-          finish(!err && !this.isClosed(session) ? "alive" : "failed");
+          finish(!err && !this.isClosed(session));
         });
         // `false` means Node did not send the ping, not that the session failed.
-        if (!sent) finish("unsent");
+        if (!sent) finish(true);
       } catch {
-        finish("failed");
+        finish(false);
       }
     });
   }
@@ -140,7 +139,7 @@ export class H2Pool {
   private validateSession(
     domain: string,
     session: http2.ClientHttp2Session,
-  ): Promise<PingResult> {
+  ): Promise<boolean> {
     const existing = this.validations.get(domain);
     if (existing?.session === session) return existing.promise;
 
@@ -167,8 +166,8 @@ export class H2Pool {
       this.markUsed(domain, session);
       return session;
     }
-    const pingResult = await this.validateSession(domain, session);
-    if (pingResult !== "failed" && !this.isClosed(session)) {
+    const shouldRetain = await this.validateSession(domain, session);
+    if (shouldRetain && !this.isClosed(session)) {
       // ENG-2676 generation/identity pin: validation yields, and during that
       // await an eviction listener (goaway/error/close ->
       // attachEvictionListeners, see above) may have deleted or replaced this
