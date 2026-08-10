@@ -275,7 +275,9 @@ async function main() {
   const s3UrlMaybe = drive.state?.s3Url
   if (s3UrlMaybe === undefined || s3UrlMaybe === "") throw new Error(`drive has no s3Url in state: ${JSON.stringify(drive.state)}`)
   const s3Url: string = s3UrlMaybe
-  const bucket = new URL(s3Url).pathname.split("/").filter(Boolean).pop()!
+  const urlPath = new URL(s3Url).pathname.split("/").filter(Boolean)
+  if (urlPath.length === 0) throw new Error(`cannot extract bucket from s3Url: ${s3Url}`)
+  const bucket = urlPath[0]
   console.log(`[${ts()}] drive ready: s3Url=${s3Url} bucket=${bucket}`)
 
   const results: IterationResult[] = []
