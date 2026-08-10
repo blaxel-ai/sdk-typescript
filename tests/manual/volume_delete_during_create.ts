@@ -30,14 +30,17 @@
 // Env vars:
 //   BL_ENV                     "dev" to target api.blaxel.dev (default prod)
 //   MODE                       "pre" (default) or "race"
-//   ITERATIONS                 attempts (race mode stops at the first win; default 10)
-//   REGION                     region for volume + sandbox (default us-was-1)
+//   ITERATIONS                 how many volume/sandbox pairs to try (default 10)
+//   CONCURRENCY                pairs in flight at once (default 1)
+//   STUCK_MS                   create duration considered stuck (default 60000)
+//   STOP_ON_STUCK              "0" to keep going after the first stuck create (default stop)
+//   REGION / BL_REGION         region for volume + sandbox (default us-was-1)
 //   SIZE_MB                    volume size in MB (default 300, like the report)
 //   MOUNT_PATH                 volume mount path (default /home)
 //   DELETE_WINDOW_MS           how long to hammer the delete in race mode (default 15000)
 //   WATCH_TIMEOUT_MS           how long to watch the sandbox afterwards (default 240000)
 //   IMAGE                      sandbox image (default blaxel/base-image:latest)
-//   KEEP                       "1" to keep the reproducing sandbox for inspection
+//   KEEP                       "1" to keep the resources of a stuck iteration for inspection
 
 // Disable H2 to work around PM-2160 (h2 stream unref -> event loop exits mid-await).
 // Must be set BEFORE importing @blaxel/core.
@@ -49,7 +52,10 @@ import { v4 as uuidv4 } from "uuid"
 const MODE_ENV = process.env.MODE || "pre"
 const MODE = MODE_ENV as "pre" | "race"
 const ITERATIONS = parseInt(process.env.ITERATIONS || "10", 10)
-const REGION = process.env.REGION || "us-was-1"
+const CONCURRENCY = Math.max(1, parseInt(process.env.CONCURRENCY || "1", 10))
+const STUCK_MS = parseInt(process.env.STUCK_MS || "60000", 10)
+const STOP_ON_STUCK = process.env.STOP_ON_STUCK !== "0"
+const REGION = process.env.REGION || process.env.BL_REGION || "us-was-1"
 const SIZE_MB = parseInt(process.env.SIZE_MB || "300", 10)
 const MOUNT_PATH = process.env.MOUNT_PATH || "/home"
 const DELETE_WINDOW_MS = parseInt(process.env.DELETE_WINDOW_MS || "15000", 10)
@@ -245,24 +251,51 @@ async function cleanup(a: Attempt) {
   await VolumeInstance.delete(a.volumeName).catch(() => { })
 }
 
-function report(attempts: Attempt[], reproduced?: Attempt) {
-  console.log("\n=== volume delete during create ===")
-  console.log(`mode               : ${MODE}`)
-  console.log(`iterations run     : ${attempts.length}/${ITERATIONS}`)
+// A stuck create is the bug: the create burned past the gateway budget, or the
+// sandbox never reached a serving state within the watch window.
+function isStuck(a: Attempt): boolean {
+  if (a.createMs >= STUCK_MS) return true
+  return a.outcome !== undefined && !a.outcome.startsWith("SERVING")
+}
 
-  if (!reproduced) {
-    console.log(`result             : no delete was accepted inside the create window`)
-    console.log(`last delete error  : ${attempts[attempts.length - 1]?.deleteError ?? "n/a"}`)
-    console.log(`slowest create     : ${(Math.max(...attempts.map((a) => a.createMs)) / 1000).toFixed(1)}s`)
-  } else {
-    console.log(`sandbox            : ${reproduced.sandboxName}`)
-    console.log(`volume             : ${reproduced.volumeName}`)
-    console.log(`delete accepted    : after ${reproduced.deleteAttempts} attempt(s)`)
-    console.log(`create duration    : ${(reproduced.createMs / 1000).toFixed(1)}s`)
-    console.log(`create outcome     : ${reproduced.createError ?? "returned successfully"}`)
-    console.log(`sandbox outcome    : ${reproduced.outcome ?? "not watched (create failed)"}`)
+function percentile(sorted: number[], p: number): number {
+  return sorted[Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * p))]
+}
+
+function report(attempts: Attempt[]) {
+  const durations = attempts.map((a) => a.createMs).sort((x, y) => x - y)
+  const stuck = attempts.filter(isStuck)
+  const outcomes = new Map<string, number>()
+  for (const a of attempts) {
+    const key = a.createError ? `create failed: ${a.createError}` : (a.outcome ?? "not watched")
+    outcomes.set(key, (outcomes.get(key) ?? 0) + 1)
+  }
+
+  console.log("\n=== volume delete during create ===")
+  console.log(`mode               : ${MODE} (concurrency ${CONCURRENCY})`)
+  console.log(`iterations run     : ${attempts.length}/${ITERATIONS}`)
+  console.log(`delete accepted    : ${attempts.filter((a) => a.deleteAccepted).length}/${attempts.length}`)
+  console.log(`stuck creates      : ${stuck.length}/${attempts.length} (>= ${(STUCK_MS / 1000).toFixed(0)}s or never served)`)
+  console.log(
+    `create duration    : min ${(durations[0] / 1000).toFixed(1)}s / p50 ${(percentile(durations, 0.5) / 1000).toFixed(1)}s / max ${(durations[durations.length - 1] / 1000).toFixed(1)}s`,
+  )
+  console.log(`outcomes           :`)
+  for (const [outcome, count] of [...outcomes].sort((a, b) => b[1] - a[1])) {
+    console.log(`  ${String(count).padStart(4)} x ${outcome}`)
+  }
+  for (const a of stuck) {
+    console.log(
+      `stuck #${a.iteration}         : ${a.sandboxName} / ${a.volumeName} — create ${(a.createMs / 1000).toFixed(1)}s, ${a.createError ?? a.outcome ?? "n/a"}`,
+    )
   }
   console.log(`total              : ${elapsed()}`)
+}
+
+async function runAndCleanup(iteration: number): Promise<Attempt> {
+  const a = await attempt(iteration)
+  if (KEEP && isStuck(a)) log(`#${iteration}: KEEP=1, leaving ${a.sandboxName} and ${a.volumeName} in place`)
+  else await cleanup(a)
+  return a
 }
 
 async function main() {
@@ -270,20 +303,18 @@ async function main() {
 
   const attempts: Attempt[] = []
 
-  for (let i = 1; i <= ITERATIONS; i++) {
-    const a = await attempt(i)
-    attempts.push(a)
+  for (let i = 1; i <= ITERATIONS; i += CONCURRENCY) {
+    const batch: Promise<Attempt>[] = []
+    for (let j = i; j < Math.min(i + CONCURRENCY, ITERATIONS + 1); j++) batch.push(runAndCleanup(j))
+    attempts.push(...(await Promise.all(batch)))
 
-    if (a.deleteAccepted) {
-      if (KEEP) log(`KEEP=1, leaving ${a.sandboxName} and ${a.volumeName} in place`)
-      else await cleanup(a)
+    if (STOP_ON_STUCK && attempts.some(isStuck)) {
+      log(`stuck create observed, stopping after ${attempts.length} iteration(s) (STOP_ON_STUCK=0 to keep going)`)
       break
     }
-
-    await cleanup(a)
   }
 
-  report(attempts, attempts.find((a) => a.deleteAccepted))
+  report(attempts)
 }
 
 main().catch((e) => {
