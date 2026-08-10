@@ -112,6 +112,44 @@ jobs:
         working-directory: '@blaxel/core'
         run: npx vitest run --config vitest.config.ts src/common/h2-runtime.test.ts src/common/settings.test.ts
 
+  eve-sandbox-contract-tests:
+    name: eve sandbox contract tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build dependencies and eve adapter
+        run: |
+          bun run --filter @blaxel/core build
+          bun run --filter @blaxel/eve-sandbox build
+
+      - name: Lint eve adapter
+        run: |
+          bun run --filter @blaxel/eve-sandbox lint
+          bunx eslint tests/unit/eve-sandbox-network-policy.test.ts tests/unit/eve-sandbox-session.test.ts tests/unit/eve-sandbox-lifecycle.test.ts tests/integration/sandbox/eve-backend.test.ts
+
+      - name: Typecheck eve adapter tests
+        run: |
+          bun run --filter @blaxel/eve-sandbox typecheck:examples
+          bunx tsc --noEmit --strict --skipLibCheck --module NodeNext --moduleResolution NodeNext --target ES2022 --types node,vitest/globals tests/unit/eve-sandbox-network-policy.test.ts tests/unit/eve-sandbox-session.test.ts tests/unit/eve-sandbox-lifecycle.test.ts tests/integration/sandbox/eve-backend.test.ts
+          bunx tsc -p @blaxel/eve-sandbox/test/tsconfig.json
+
+      - name: Run eve adapter contract tests
+        run: bunx vitest run tests/unit/eve-sandbox-network-policy.test.ts tests/unit/eve-sandbox-session.test.ts tests/unit/eve-sandbox-lifecycle.test.ts
+
   h2-runtime-version-matrix:
     name: H2 gate on ${{ matrix.runtime }} ${{ matrix.version }}
     runs-on: ubuntu-latest
@@ -243,7 +281,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
 
       - name: Install and build SDK packages
         run: |
@@ -252,3 +290,6 @@ jobs:
 
       - name: Run integration tests
         run: bun run test:integration
+
+      - name: Run eve integration
+        run: bunx vitest run --config @blaxel/eve-sandbox/test/vitest.config.ts

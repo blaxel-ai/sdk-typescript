@@ -331,6 +331,7 @@ await job.deleteExecution(executionId);
 Blaxel provides additional packages for framework-specific integrations and telemetry:
 
 - [`@blaxel/telemetry`](./@blaxel/telemetry/README.md) - OpenTelemetry instrumentation
+- [`@blaxel/eve-sandbox`](./@blaxel/eve-sandbox/README.md) - Durable Blaxel sandbox backend for eve
 - [`@blaxel/vercel`](./@blaxel/vercel/README.md) - Vercel AI SDK integration
 - [`@blaxel/llamaindex`](./@blaxel/llamaindex/README.md) - LlamaIndex integration
 - [`@blaxel/langgraph`](./@blaxel/langgraph/README.md) - LangGraph integration

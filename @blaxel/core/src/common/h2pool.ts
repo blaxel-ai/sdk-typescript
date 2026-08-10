@@ -28,6 +28,10 @@ const DEFAULT_PING_TIMEOUT_MS = 500;
 export class H2Pool {
   private sessions = new Map<string, H2PoolEntry>();
   private inflight = new Map<string, Promise<http2.ClientHttp2Session | null>>();
+  private validations = new Map<string, {
+    session: http2.ClientHttp2Session;
+    promise: Promise<boolean>;
+  }>();
   private _establish: EstablishFn | null = null;
   private readonly maxIdleMs: number;
   private readonly pingTimeoutMs: number;
@@ -111,11 +115,11 @@ export class H2Pool {
 
     return new Promise<boolean>((resolve) => {
       let settled = false;
-      const finish = (ok: boolean) => {
+      const finish = (shouldRetain: boolean) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
-        resolve(ok);
+        resolve(shouldRetain);
       };
 
       const timer = setTimeout(() => finish(false), this.pingTimeoutMs);
@@ -124,11 +128,28 @@ export class H2Pool {
         const sent = session.ping((err?: Error | null) => {
           finish(!err && !this.isClosed(session));
         });
-        if (!sent) finish(false);
+        // `false` means Node did not send the ping, not that the session failed.
+        if (!sent) finish(true);
       } catch {
         finish(false);
       }
     });
+  }
+
+  private validateSession(
+    domain: string,
+    session: http2.ClientHttp2Session,
+  ): Promise<boolean> {
+    const existing = this.validations.get(domain);
+    if (existing?.session === session) return existing.promise;
+
+    const promise = this.ping(session).finally(() => {
+      if (this.validations.get(domain)?.promise === promise) {
+        this.validations.delete(domain);
+      }
+    });
+    this.validations.set(domain, { session, promise });
+    return promise;
   }
 
   private async validateEntry(
@@ -145,9 +166,10 @@ export class H2Pool {
       this.markUsed(domain, session);
       return session;
     }
-    if (await this.ping(session)) {
-      // ENG-2676 generation/identity pin: `await this.ping` yields, and during
-      // that await an eviction listener (goaway/error/close ->
+    const shouldRetain = await this.validateSession(domain, session);
+    if (shouldRetain && !this.isClosed(session)) {
+      // ENG-2676 generation/identity pin: validation yields, and during that
+      // await an eviction listener (goaway/error/close ->
       // attachEvictionListeners, see above) may have deleted or replaced this
       // entry. `entry` is the exact object held in the map, so if it is no
       // longer the cached generation, refuse the now-stale session instead of
@@ -250,6 +272,7 @@ export class H2Pool {
     }
     this.sessions.clear();
     this.inflight.clear();
+    this.validations.clear();
   }
 }
 
