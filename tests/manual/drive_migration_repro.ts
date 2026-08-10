@@ -75,12 +75,25 @@ function log(iter: number, msg: string) {
   console.log(`[${ts()}] [it-${String(iter).padStart(2, "0")}] ${msg}`)
 }
 
+// Serialize any thrown value (Error, API error object, string) with full detail.
+function formatError(err: unknown): string {
+  if (err instanceof Error) {
+    const extra = JSON.stringify(err, Object.getOwnPropertyNames(err).filter((k) => k !== "stack"))
+    return extra !== "{}" ? `${err.message} ${extra}` : err.message
+  }
+  try {
+    return JSON.stringify(err)
+  } catch {
+    return String(err)
+  }
+}
+
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const t = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
     p.then(
       (v) => { clearTimeout(t); resolve(v) },
-      (e: unknown) => { clearTimeout(t); reject(e instanceof Error ? e : new Error(String(e))) },
+      (e: unknown) => { clearTimeout(t); reject(e instanceof Error ? e : new Error(formatError(e))) },
     )
   })
 }
@@ -248,7 +261,7 @@ cd /tmp/extracted/payload && sha256sum -c ../manifest.sha256 >/dev/null 2>&1 && 
     return finish()
   } catch (err) {
     classification = "INFRA_FAIL"
-    steps.infra = { ok: false, detail: err instanceof Error ? err.message : String(err) }
+    steps.infra = { ok: false, detail: formatError(err) }
     log(iter, `INFRA_FAIL: ${steps.infra.detail}`)
     return finish()
   } finally {
@@ -316,7 +329,7 @@ async function main() {
 
   if (!KEEP) {
     console.log(`\n[cleanup] deleting drive ${driveName}`)
-    await DriveInstance.delete(driveName).catch((e: unknown) => console.error(`could not delete drive: ${String(e)}`))
+    await DriveInstance.delete(driveName).catch((e: unknown) => console.error(`could not delete drive: ${formatError(e)}`))
   } else {
     console.log(`\n[KEEP=1] leaving drive ${driveName} and failed-iteration sandboxes alive`)
   }
