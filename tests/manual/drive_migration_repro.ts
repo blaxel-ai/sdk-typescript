@@ -9,13 +9,14 @@
  *      incremental backoff — same as the migration).
  *   3. The archive is copied to another folder via S3 server-side copy
  *      (PUT + x-amz-copy-source), from inside the source sandbox.
- *   4. A fresh destination sandbox downloads the copied object (curl GET,
- *      5 retries), verifies the archive sha256, unarchives it and verifies
- *      the content manifest sha256.
+ *   4. A fresh destination sandbox mounts the drive folder containing the
+ *      copy (FUSE), reads the archive from the mount (5 retries), verifies
+ *      the archive sha256, unarchives it and verifies the content manifest
+ *      sha256.
  *
  * Every step records curl exit codes / HTTP statuses / checksums so failures
- * can be classified: upload-network, copy, download-network, archive
- * corruption, content corruption.
+ * can be classified: upload-network, copy, mount-read, archive corruption,
+ * content corruption.
  *
  * Environment variables:
  *   BL_WORKSPACE     — workspace name (standard SDK auth)
@@ -219,21 +220,27 @@ stat -c 'ARCHIVE_SIZE=%s' /tmp/workspace.tar.gz
     log(iter, `copy ${steps.copy.ok ? "OK" : "FAILED"} (${steps.copy.attempts?.length} attempts)`)
     if (!steps.copy.ok) { classification = "COPY_FAIL"; return finish() }
 
-    // 4. Destination sandbox: signed GET + verify + unarchive + verify content
+    // 4. Destination sandbox: mount the copied folder (FUSE) + read + verify + unarchive
     log(iter, `creating destination sandbox ${dstName}`)
     const dst = await SandboxInstance.create({ name: dstName, image: IMAGE, memory: 2048, region: REGION, labels: LABELS }, { safe: true })
     sandboxes.push(dstName)
-    await ensureCurl(dst)
 
-    const dlToken = await getDriveToken(driveName)
-    const get = await exec(dst, curlRetryScript(
-      `-H "Authorization: Bearer ${dlToken}" "${s3Url}/${dstKey}"`,
-      "GET",
-      "/tmp/downloaded.tar.gz",
-    ))
+    const dstDir = `.repro/${RUN_ID}/${iter}/dst`
+    await dst.drives.mount({ driveName, drivePath: `/${dstDir}`, mountPath: "/mnt/drive", readOnly: true })
+    log(iter, `mounted drive folder /${dstDir} at /mnt/drive`)
+
+    const get = await exec(dst, `
+rc=1
+for attempt in 1 2 3 4 5; do
+  if cp /mnt/drive/workspace.tar.gz /tmp/downloaded.tar.gz 2>/tmp/cp_err; then rc=0; echo "ATTEMPT_GET $attempt cp=0"; break; fi
+  echo "ATTEMPT_GET $attempt cp=1 err=$(head -c 200 /tmp/cp_err | tr '\\n' ' ')"
+  sleep $((attempt * 2))
+done
+[ "$rc" = "0" ] || echo "FAILED_GET"
+`)
     steps.download = { ok: !get.logs.includes("FAILED_GET"), detail: get.logs.trim().split("\n").pop() ?? "", attempts: extractAttempts(get.logs, "GET") }
-    log(iter, `download ${steps.download.ok ? "OK" : "FAILED"} (${steps.download.attempts?.length} attempts)`)
-    if (!steps.download.ok) { classification = "DOWNLOAD_NETWORK_FAIL"; return finish() }
+    log(iter, `mount read ${steps.download.ok ? "OK" : "FAILED"} (${steps.download.attempts?.length} attempts)`)
+    if (!steps.download.ok) { classification = "MOUNT_READ_FAIL"; return finish() }
 
     const verify = await exec(dst, `
 set -e
