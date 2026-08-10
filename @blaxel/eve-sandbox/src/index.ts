@@ -111,12 +111,7 @@ export function blaxel(
           name: sessionName,
           network: initialNetwork(networkPolicy),
         });
-        try {
-          await ensureBaseRuntime(sandbox, startupTimeoutMs);
-        } catch (error) {
-          await sandbox.delete().catch(() => undefined);
-          throw error;
-        }
+        await ensureBaseRuntime(sandbox, startupTimeoutMs);
         return createHandle(sandbox, input.sessionKey);
       } catch (error) {
         throw new Error(
@@ -272,7 +267,8 @@ function normalizeLabel(value: string, maxLength: number): string {
     .toLowerCase()
     .replace(/[^a-z0-9._-]+/g, "-")
     .replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, "")
-    .slice(0, maxLength) || "unknown";
+    .slice(0, maxLength)
+    .replace(/[^a-z0-9]+$/g, "") || "unknown";
 }
 
 function stableHash(value: unknown): string {

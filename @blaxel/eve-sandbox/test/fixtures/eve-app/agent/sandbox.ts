@@ -13,6 +13,9 @@ export default defineSandbox({
       env: "integration-test",
       "created-by": "eve-eval",
     },
+    lifecycle: {
+      expirationPolicies: [{ type: "ttl-max-age", value: "1h", action: "delete" }],
+    },
     namePrefix,
     region: process.env.BL_REGION ?? "us-was-1",
   }),

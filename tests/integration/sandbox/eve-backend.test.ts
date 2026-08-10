@@ -37,6 +37,9 @@ describe("Blaxel eve sandbox backend", { timeout: 59_000 }, () => {
   const options = {
     image: defaultImage,
     labels: defaultLabels,
+    lifecycle: {
+      expirationPolicies: [{ type: "ttl-max-age" as const, value: "1h", action: "delete" as const }],
+    },
     namePrefix,
     region: defaultRegion,
   };

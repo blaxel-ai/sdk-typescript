@@ -59,6 +59,7 @@ class FakeSandbox {
 }
 
 const resources = new Map<string, FakeSandbox>();
+const kubernetesLabelValue = /^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/;
 
 describe("Blaxel eve durable lifecycle", () => {
   afterEach(() => {
@@ -92,7 +93,10 @@ describe("Blaxel eve durable lifecycle", () => {
       templateKey: null,
       sessionKey: "durable-session",
       runtimeContext: { appRoot: "/app" },
-      tags: { ["agent-".repeat(20)]: "researcher-".repeat(20) },
+      tags: {
+        ["agent-".repeat(20)]: "researcher-".repeat(20),
+        [`${"x".repeat(58)}-suffix`]: `${"v".repeat(62)}-suffix`,
+      },
     });
 
     await firstHandle.session.writeTextFile({
@@ -111,7 +115,11 @@ describe("Blaxel eve durable lifecycle", () => {
     if (!("name" in createInput)) throw new Error("expected sandbox create options");
     expect(
       Object.entries(createInput.labels ?? {}).every(
-        ([key, value]) => key.length <= 63 && value.length <= 63,
+        ([key, value]) =>
+          key.length <= 63 &&
+          value.length <= 63 &&
+          kubernetesLabelValue.test(key) &&
+          kubernetesLabelValue.test(value),
       ),
     ).toBe(true);
 
@@ -129,7 +137,11 @@ describe("Blaxel eve durable lifecycle", () => {
     if (!reconnectMetadata) throw new Error("expected a metadata update");
     expect(
       Object.entries(reconnectMetadata[1].labels ?? {}).every(
-        ([key, value]) => key.length <= 63 && value.length <= 63,
+        ([key, value]) =>
+          key.length <= 63 &&
+          value.length <= 63 &&
+          kubernetesLabelValue.test(key) &&
+          kubernetesLabelValue.test(value),
       ),
     ).toBe(true);
     expect((await reconnected.captureState()).metadata).toEqual(state.metadata);
@@ -159,6 +171,31 @@ describe("Blaxel eve durable lifecycle", () => {
       }),
     ).rejects.toThrow(guidance);
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it("does not delete a potentially shared sandbox after a startup failure", async () => {
+    const sandbox = new FakeSandbox("eve-session-failed");
+    const startupError = new Error("startup failed");
+    sandbox.process.exec.mockRejectedValue(startupError);
+    vi.spyOn(SandboxInstance, "get").mockRejectedValue(
+      Object.assign(new Error("missing"), { code: 404 }),
+    );
+    vi.spyOn(SandboxInstance, "createIfNotExists").mockResolvedValue(
+      sandbox as unknown as SandboxInstance,
+    );
+
+    const error = await blaxel({ startupTimeoutMs: 1 })
+      .create({
+        templateKey: null,
+        sessionKey: "failed-session",
+        runtimeContext: { appRoot: "/app" },
+      })
+      .catch((failure: unknown) => failure);
+
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain("startup failed");
+    expect((error as Error).cause).toBe(startupError);
+    expect(sandbox.delete).not.toHaveBeenCalled();
   });
 });
 

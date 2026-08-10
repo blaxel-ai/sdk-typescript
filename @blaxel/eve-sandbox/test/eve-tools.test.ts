@@ -26,6 +26,9 @@ describe("eve tools on Blaxel", { timeout: 59_000 }, () => {
         language: "typescript",
         "created-by": "vitest-integration",
       },
+      lifecycle: {
+        expirationPolicies: [{ type: "ttl-max-age", value: "1h", action: "delete" }],
+      },
       namePrefix,
       region: process.env.BL_REGION ?? "us-was-1",
     });
