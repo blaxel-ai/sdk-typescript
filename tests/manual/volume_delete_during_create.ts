@@ -9,13 +9,14 @@
 // 1-3 min instead of failing.
 //
 // Two modes:
-//   MODE=pre   (default) deterministic: the delete is accepted first — nothing
-//              is attached yet — and the sandbox create starts immediately
-//              after, so it runs against a PVC that is being deleted.
-//   MODE=race  the customer's exact timing: the delete is hammered concurrently
-//              with the create until it either lands in the window before the
-//              attach commits (race won) or is refused because the volume is
-//              already attached (race lost, retried with a fresh pair).
+//   MODE=race  (default) the customer's timing: the sandbox create is fired
+//              WITHOUT being awaited and the delete is issued in the same tick
+//              (`DELETE_DELAY_MS` to offset it), then hammered until it is
+//              accepted or refused because the volume is already attached. Both
+//              are awaited only afterwards.
+//   MODE=pre   deterministic: the delete is accepted first — nothing is attached
+//              yet — and the create starts immediately after, so it runs against
+//              a PVC that is already being torn down.
 //
 // Expected before the fix: create hangs ~60s+ and the sandbox never serves.
 // Expected after the fix: the sandbox goes to FAILED quickly.
@@ -29,7 +30,7 @@
 //
 // Env vars:
 //   BL_ENV                     "dev" to target api.blaxel.dev (default prod)
-//   MODE                       "pre" (default) or "race"
+//   MODE                       "race" (default) or "pre"
 //   ITERATIONS                 how many volume/sandbox pairs to try (default 10)
 //   CONCURRENCY                pairs in flight at once (default 1)
 //   STUCK_MS                   create duration considered stuck (default 60000)
@@ -37,6 +38,7 @@
 //   REGION / BL_REGION         region for volume + sandbox (default us-was-1)
 //   SIZE_MB                    volume size in MB (default 300, like the report)
 //   MOUNT_PATH                 volume mount path (default /home)
+//   DELETE_DELAY_MS            offset of the first delete after the create is fired (default 0)
 //   DELETE_WINDOW_MS           how long to hammer the delete in race mode (default 15000)
 //   WATCH_TIMEOUT_MS           how long to watch the sandbox afterwards (default 240000)
 //   IMAGE                      sandbox image (default blaxel/base-image:latest)
@@ -49,7 +51,7 @@ process.env.BL_DISABLE_H2 = process.env.BL_DISABLE_H2 ?? "1"
 import { SandboxInstance, VolumeInstance } from "@blaxel/core"
 import { v4 as uuidv4 } from "uuid"
 
-const MODE_ENV = process.env.MODE || "pre"
+const MODE_ENV = process.env.MODE || "race"
 const MODE = MODE_ENV as "pre" | "race"
 const ITERATIONS = parseInt(process.env.ITERATIONS || "10", 10)
 const CONCURRENCY = Math.max(1, parseInt(process.env.CONCURRENCY || "1", 10))
@@ -58,6 +60,7 @@ const STOP_ON_STUCK = process.env.STOP_ON_STUCK !== "0"
 const REGION = process.env.REGION || process.env.BL_REGION || "us-was-1"
 const SIZE_MB = parseInt(process.env.SIZE_MB || "300", 10)
 const MOUNT_PATH = process.env.MOUNT_PATH || "/home"
+const DELETE_DELAY_MS = parseInt(process.env.DELETE_DELAY_MS || "0", 10)
 const DELETE_WINDOW_MS = parseInt(process.env.DELETE_WINDOW_MS || "15000", 10)
 const WATCH_TIMEOUT_MS = parseInt(process.env.WATCH_TIMEOUT_MS || "240000", 10)
 const IMAGE = process.env.IMAGE || "blaxel/base-image:latest"
@@ -97,13 +100,16 @@ type DeleteRace = {
 
 // Hammer the delete with no backoff: we want the request that lands in the gap
 // between the create being accepted and the volume being marked as attached.
-async function raceVolumeDelete(volumeName: string, stop: () => boolean): Promise<DeleteRace> {
-  const deadline = Date.now() + DELETE_WINDOW_MS
+async function raceVolumeDelete(iteration: number, volumeName: string, stop: () => boolean): Promise<DeleteRace> {
+  const deadline = Date.now() + DELETE_DELAY_MS + DELETE_WINDOW_MS
   let attempts = 0
   let lastError: string | undefined
 
+  if (DELETE_DELAY_MS > 0) await sleep(DELETE_DELAY_MS)
+
   while (Date.now() < deadline && !stop()) {
     attempts++
+    if (attempts === 1) log(`#${iteration}: DELETE ${volumeName} sent`)
     try {
       await VolumeInstance.delete(volumeName)
       return { accepted: true, attempts }
@@ -171,10 +177,12 @@ type Attempt = {
 }
 
 async function createSandboxTimed(
+  iteration: number,
   sandboxName: string,
   volumeName: string,
 ): Promise<{ createMs: number; createError?: string }> {
   const start = Date.now()
+  log(`#${iteration}: CREATE ${sandboxName} sent`)
   try {
     await SandboxInstance.create({
       name: sandboxName,
@@ -211,14 +219,17 @@ async function attempt(iteration: number): Promise<Attempt> {
       deleteResult = { accepted: false, attempts: 1, lastError: errorMessage(e) }
       log(`#${iteration}: volume delete refused: ${deleteResult.lastError}`)
     }
-    created = await createSandboxTimed(sandboxName, volumeName)
+    created = await createSandboxTimed(iteration, sandboxName, volumeName)
   } else {
-    log(`#${iteration}: creating sandbox ${sandboxName} while hammering the volume delete`)
+    // Fire the create WITHOUT awaiting it, then issue the delete in the same
+    // tick: the delete must not wait for the create to finish, it has to land
+    // while the instance is still being prepared.
     let createSettled = false
-    const race = raceVolumeDelete(volumeName, () => createSettled)
-    created = await createSandboxTimed(sandboxName, volumeName)
-    createSettled = true
-    deleteResult = await race
+    const creating = createSandboxTimed(iteration, sandboxName, volumeName).finally(() => {
+      createSettled = true
+    })
+    deleteResult = await raceVolumeDelete(iteration, volumeName, () => createSettled)
+    created = await creating
   }
 
   log(
