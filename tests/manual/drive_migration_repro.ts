@@ -24,7 +24,8 @@
  *   BL_DRIVE_REGION  — drive region override (default: eu-dub-1 dev, us-was-1 prod)
  *   ITERATIONS       — total migrations to run (default: 10)
  *   CONCURRENCY      — how many run in parallel (default: 5)
- *   FILE_MB          — size of random payload in MB (default: 50)
+ *   FILE_MB          — size of random payload in MB (default: random 5-15MB per
+ *                      iteration, matching real migration archive sizes)
  *   KEEP             — set to "1" to keep drive + sandboxes for inspection
  *
  * Usage:
@@ -46,7 +47,11 @@ const LABELS = { env: "manual-test", "created-by": "drive-migration-repro" }
 
 const ITERATIONS = parseInt(process.env.ITERATIONS || "10", 10)
 const CONCURRENCY = parseInt(process.env.CONCURRENCY || "5", 10)
-const FILE_MB = parseInt(process.env.FILE_MB || "50", 10)
+// Real migration archives are 5-15 MB; default picks a random size per iteration.
+const FILE_MB = process.env.FILE_MB ? parseInt(process.env.FILE_MB, 10) : 0
+function payloadMb(): number {
+  return FILE_MB > 0 ? FILE_MB : 5 + Math.floor(Math.random() * 11)
+}
 const KEEP = process.env.KEEP === "1"
 
 const CURL_RETRIES = 5
@@ -157,11 +162,12 @@ async function runIteration(iter: number, driveName: string, s3Url: string, buck
   let classification = "OK"
   const sandboxes: string[] = []
 
+  const fileMb = payloadMb()
   const finish = (): IterationResult => ({ iter, classification, steps, durationMs: Date.now() - t0 })
 
   try {
     // 1. Source sandbox + random payload + archive + checksums
-    log(iter, `creating source sandbox ${srcName}`)
+    log(iter, `creating source sandbox ${srcName} (payload ${fileMb}MB)`)
     const src = await SandboxInstance.create({ name: srcName, image: IMAGE, memory: 2048, region: REGION, labels: LABELS }, { safe: true })
     sandboxes.push(srcName)
     await ensureCurl(src)
@@ -169,7 +175,7 @@ async function runIteration(iter: number, driveName: string, s3Url: string, buck
     const gen = await exec(src, `
 set -e
 mkdir -p /tmp/payload
-for i in $(seq 1 5); do head -c $((${FILE_MB} * 1024 * 1024 / 5)) /dev/urandom > /tmp/payload/file_$i.bin; done
+for i in $(seq 1 5); do head -c $((${fileMb} * 1024 * 1024 / 5)) /dev/urandom > /tmp/payload/file_$i.bin; done
 cd /tmp/payload && sha256sum file_* > /tmp/manifest.sha256
 tar -czf /tmp/workspace.tar.gz -C /tmp payload manifest.sha256
 sha256sum /tmp/workspace.tar.gz | awk '{print "ARCHIVE_SHA=" $1}'
@@ -261,11 +267,11 @@ cd /tmp/extracted/payload && sha256sum -c ../manifest.sha256 >/dev/null 2>&1 && 
 async function main() {
   if (!settings.workspace) throw new Error("BL_WORKSPACE must be set (or via ~/.blaxel/config.yaml)")
   console.log(`run=${RUN_ID} env=${ENV} region=${REGION} workspace=${settings.workspace}`)
-  console.log(`iterations=${ITERATIONS} concurrency=${CONCURRENCY} payload=${FILE_MB}MB curlRetries=${CURL_RETRIES}`)
+  console.log(`iterations=${ITERATIONS} concurrency=${CONCURRENCY} payload=${FILE_MB > 0 ? `${FILE_MB}MB` : "random 5-15MB"} curlRetries=${CURL_RETRIES}`)
 
   const driveName = `repro-drive-${RUN_ID}`
   console.log(`[${ts()}] creating drive ${driveName}`)
-  const drive = await DriveInstance.create({ name: driveName, size: Math.max(10, Math.ceil((ITERATIONS * FILE_MB * 2) / 1024) + 5), region: REGION, labels: LABELS })
+  const drive = await DriveInstance.create({ name: driveName, size: Math.max(10, Math.ceil((ITERATIONS * Math.max(FILE_MB, 15) * 2) / 1024) + 5), region: REGION, labels: LABELS })
   const s3UrlMaybe = drive.state?.s3Url
   if (s3UrlMaybe === undefined || s3UrlMaybe === "") throw new Error(`drive has no s3Url in state: ${JSON.stringify(drive.state)}`)
   const s3Url: string = s3UrlMaybe
