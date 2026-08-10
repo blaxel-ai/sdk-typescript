@@ -4,9 +4,8 @@
  * Mirrors the quest single-drive migration flow, in parallel, multiple times:
  *   1. A source sandbox generates random data, archives it (workspace.tar.gz)
  *      and records sha256 checksums.
- *   2. The source sandbox uploads the archive to the drive via the
- *      S3-compatible endpoint (curl PUT, Bearer drive token, 5 retries with
- *      incremental backoff — same as the migration).
+ *   2. The source sandbox mounts drive folder 1 (FUSE) and drops the archive
+ *      into the mount (5 retries).
  *   3. The archive is copied to another folder via S3 server-side copy
  *      (PUT + x-amz-copy-source), from inside the source sandbox.
  *   4. A fresh destination sandbox mounts the drive folder containing the
@@ -15,7 +14,7 @@
  *      sha256.
  *
  * Every step records curl exit codes / HTTP statuses / checksums so failures
- * can be classified: upload-network, copy, mount-read, archive corruption,
+ * can be classified: mount-write, copy, mount-read, archive corruption,
  * content corruption.
  *
  * Environment variables:
@@ -201,15 +200,25 @@ stat -c 'ARCHIVE_SIZE=%s' /tmp/workspace.tar.gz
     if (!steps.generate.ok) { classification = "SETUP_FAIL"; return finish() }
     log(iter, `payload ready sha=${archiveSha?.substring(0, 12)} size=${archiveSize}`)
 
-    // 2. Signed S3 PUT from inside the source sandbox
-    const token = await getDriveToken(driveName)
-    const put = await exec(src, curlRetryScript(
-      `-X PUT -H "Authorization: Bearer ${token}" -T /tmp/workspace.tar.gz "${s3Url}/${srcKey}"`,
-      "PUT",
-    ))
+    // 2. Mount drive folder 1 (FUSE) in the source sandbox and drop the archive there
+    const srcDir = `.repro/${RUN_ID}/${iter}/src`
+    await src.drives.mount({ driveName, drivePath: `/${srcDir}`, mountPath: "/mnt/drive" })
+    log(iter, `mounted drive folder /${srcDir} at /mnt/drive (src)`)
+
+    const put = await exec(src, `
+rc=1
+for attempt in 1 2 3 4 5; do
+  if cp /tmp/workspace.tar.gz /mnt/drive/workspace.tar.gz 2>/tmp/cp_err; then rc=0; echo "ATTEMPT_PUT $attempt cp=0"; break; fi
+  echo "ATTEMPT_PUT $attempt cp=1 err=$(head -c 200 /tmp/cp_err | tr '\\n' ' ')"
+  sleep $((attempt * 2))
+done
+[ "$rc" = "0" ] || echo "FAILED_PUT"
+`)
     steps.upload = { ok: !put.logs.includes("FAILED_PUT"), detail: put.logs.trim().split("\n").pop() ?? "", attempts: extractAttempts(put.logs, "PUT") }
-    log(iter, `upload ${steps.upload.ok ? "OK" : "FAILED"} (${steps.upload.attempts?.length} attempts)`)
-    if (!steps.upload.ok) { classification = "UPLOAD_NETWORK_FAIL"; return finish() }
+    log(iter, `mount write ${steps.upload.ok ? "OK" : "FAILED"} (${steps.upload.attempts?.length} attempts)`)
+    if (!steps.upload.ok) { classification = "MOUNT_WRITE_FAIL"; return finish() }
+
+    const token = await getDriveToken(driveName)
 
     // 3. S3 server-side copy src -> dst (from inside the source sandbox)
     const copy = await exec(src, curlRetryScript(
