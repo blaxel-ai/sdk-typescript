@@ -57,7 +57,9 @@ function payloadMb(): number {
 }
 const KEEP = process.env.KEEP === "1"
 const AGENT_PROXY = process.env.AGENT_PROXY === "1"
-const NETWORK = AGENT_PROXY ? { proxy: { routing: [] } } : undefined
+const NETWORK = AGENT_PROXY
+  ? { proxy: { routing: [{ destinations: ["*"], headers: { "X-Repro-Proxy": "1" } }] } }
+  : undefined
 
 const CURL_RETRIES = 5
 const CURL_MAX_TIME_S = 120
