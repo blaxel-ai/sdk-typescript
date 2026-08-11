@@ -174,6 +174,9 @@ async function runIteration(iter: number, driveName: string, s3Url: string, buck
   const dstKey = `.repro/${RUN_ID}/${iter}/dst/workspace.tar.gz`
   let classification = "OK"
   const sandboxes: string[] = []
+  let phase = "init"
+  let phaseStart = t0
+  const setPhase = (p: string) => { phase = p; phaseStart = Date.now(); log(iter, `phase=${p}`) }
 
   const fileMb = payloadMb()
   const finish = (): IterationResult => ({ iter, classification, steps, durationMs: Date.now() - t0 })
@@ -181,9 +184,12 @@ async function runIteration(iter: number, driveName: string, s3Url: string, buck
   try {
     // 1. Source sandbox + random payload + archive + checksums
     log(iter, `creating source sandbox ${srcName} (payload ${fileMb}MB)`)
+    setPhase(`src-create ${srcName}`)
     const src = await SandboxInstance.create({ name: srcName, image: IMAGE, memory: 2048, region: REGION, labels: LABELS }, { safe: true })
     sandboxes.push(srcName)
+    setPhase(`src-ensure-curl ${srcName}`)
     await ensureCurl(src)
+    setPhase(`src-generate ${srcName}`)
 
     const gen = await exec(src, `
 set -e
@@ -202,9 +208,11 @@ stat -c 'ARCHIVE_SIZE=%s' /tmp/workspace.tar.gz
 
     // 2. Mount drive folder 1 (FUSE) in the source sandbox and drop the archive there
     const srcDir = `.repro/${RUN_ID}/${iter}/src`
+    setPhase(`src-mount ${srcName}`)
     await src.drives.mount({ driveName, drivePath: `/${srcDir}`, mountPath: "/mnt/drive" })
     log(iter, `mounted drive folder /${srcDir} at /mnt/drive (src)`)
 
+    setPhase(`src-mount-write ${srcName}`)
     const put = await exec(src, `
 rc=1
 for attempt in 1 2 3 4 5; do
@@ -218,9 +226,11 @@ done
     log(iter, `mount write ${steps.upload.ok ? "OK" : "FAILED"} (${steps.upload.attempts?.length} attempts)`)
     if (!steps.upload.ok) { classification = "MOUNT_WRITE_FAIL"; return finish() }
 
+    setPhase("drive-token")
     const token = await getDriveToken(driveName)
 
     // 3. S3 server-side copy src -> dst (from inside the source sandbox)
+    setPhase(`s3-copy ${srcName}`)
     const copy = await exec(src, curlRetryScript(
       `-X PUT -H "Authorization: Bearer ${token}" -H "x-amz-copy-source: /${bucket}/${srcKey}" "${s3Url}/${dstKey}"`,
       "COPY",
@@ -231,13 +241,16 @@ done
 
     // 4. Destination sandbox: mount the copied folder (FUSE) + read + verify + unarchive
     log(iter, `creating destination sandbox ${dstName}`)
+    setPhase(`dst-create ${dstName}`)
     const dst = await SandboxInstance.create({ name: dstName, image: IMAGE, memory: 2048, region: REGION, labels: LABELS }, { safe: true })
     sandboxes.push(dstName)
 
     const dstDir = `.repro/${RUN_ID}/${iter}/dst`
+    setPhase(`dst-mount ${dstName}`)
     await dst.drives.mount({ driveName, drivePath: `/${dstDir}`, mountPath: "/mnt/drive", readOnly: true })
     log(iter, `mounted drive folder /${dstDir} at /mnt/drive`)
 
+    setPhase(`dst-mount-read ${dstName}`)
     const get = await exec(dst, `
 rc=1
 for attempt in 1 2 3 4 5; do
@@ -251,6 +264,7 @@ done
     log(iter, `mount read ${steps.download.ok ? "OK" : "FAILED"} (${steps.download.attempts?.length} attempts)`)
     if (!steps.download.ok) { classification = "MOUNT_READ_FAIL"; return finish() }
 
+    setPhase(`dst-verify ${dstName}`)
     const verify = await exec(dst, `
 set -e
 dl_sha=$(sha256sum /tmp/downloaded.tar.gz | awk '{print $1}')
@@ -277,7 +291,8 @@ cd /tmp/extracted/payload && sha256sum -c ../manifest.sha256 >/dev/null 2>&1 && 
     return finish()
   } catch (err) {
     classification = "INFRA_FAIL"
-    steps.infra = { ok: false, detail: formatError(err) }
+    const elapsed = ((Date.now() - phaseStart) / 1000).toFixed(1)
+    steps.infra = { ok: false, detail: `phase=${phase} phaseElapsed=${elapsed}s failedAt=${ts()} — ${formatError(err)}` }
     log(iter, `INFRA_FAIL: ${steps.infra.detail}`)
     return finish()
   } finally {
