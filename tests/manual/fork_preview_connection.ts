@@ -163,7 +163,11 @@ function openWebSocket(
     let last = Date.now()
     void stop.then(() => {
       stopped = true
-      observation.maxGapMs = Math.max(observation.maxGapMs, Date.now() - last)
+      // Only while the socket is still alive: after a death `last` sits at the
+      // final tick, so this would report the time spent dead as a stall.
+      if (!observation.closedAt) {
+        observation.maxGapMs = Math.max(observation.maxGapMs, Date.now() - last)
+      }
       socket?.destroy()
       resolve(observation)
     })
