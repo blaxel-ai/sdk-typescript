@@ -115,7 +115,11 @@ server.listen(${APP_PORT}, "0.0.0.0", () => console.log("listening on ${APP_PORT
 
 type SocketObservation = {
   ticks: number
-  /** Longest silence between two ticks — a stall, which a pause legitimately causes. */
+  /**
+   * Longest silence on the socket — a stall, which a pause legitimately causes.
+   * The silence still running when the watch ends counts too: a fork that
+   * freezes the flow instead of cutting it leaves the socket open and mute.
+   */
   maxGapMs: number
   /** When the socket died, or undefined if it was still open at the end. */
   closedAt?: number
@@ -155,8 +159,11 @@ function openWebSocket(
 
     let socket: Duplex | undefined
     let stopped = false
+    // Time of the last byte read, or of the upgrade while no tick has arrived.
+    let last = Date.now()
     void stop.then(() => {
       stopped = true
+      observation.maxGapMs = Math.max(observation.maxGapMs, Date.now() - last)
       socket?.destroy()
       resolve(observation)
     })
@@ -171,7 +178,7 @@ function openWebSocket(
     request.on("upgrade", (_res, sock) => {
       socket = sock
       resolveOpened()
-      let last = Date.now()
+      last = Date.now()
       sock.on("data", () => {
         const now = Date.now()
         observation.maxGapMs = Math.max(observation.maxGapMs, now - last)
