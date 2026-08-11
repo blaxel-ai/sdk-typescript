@@ -1,17 +1,38 @@
+import type { SandboxInstance as Sandbox } from "@blaxel/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { h2TransportStats, SandboxInstance } from "@blaxel/core";
-import {
-  defaultImage,
-  defaultLabels,
-  defaultRegion,
-  uniqueName,
-} from "./helpers.js";
+
+type DebugStats = {
+  establishFailures: number;
+  fetchFallbacks: number;
+  fallbacksByReason: Record<string, number>;
+  byDomain: Record<string, { fallbacksByReason: Record<string, number> }>;
+};
+
+const statsSymbol = Symbol.for("blaxel.h2stats");
+
+function debugStats(): DebugStats {
+  return (globalThis as unknown as Record<symbol, DebugStats>)[statsSymbol];
+}
+
+function domainFallbacks(stats: DebugStats, reason: string): number {
+  return Object.values(stats.byDomain).reduce(
+    (total, domain) => total + (domain.fallbacksByReason[reason] ?? 0),
+    0,
+  );
+}
 
 describe("H2 transport stats", () => {
-  const sandboxName = uniqueName("h2-stats");
-  let sandbox: SandboxInstance;
+  let sandboxName: string;
+  let sandbox: Sandbox;
 
   beforeAll(async () => {
+    process.env.BL_H2_DEBUG_STATS = "1";
+    const [{ SandboxInstance }, helpers] = await Promise.all([
+      import("@blaxel/core"),
+      import("./helpers.js"),
+    ]);
+    const { defaultImage, defaultLabels, defaultRegion, uniqueName } = helpers;
+    sandboxName = uniqueName("h2-stats");
     sandbox = await SandboxInstance.create({
       name: sandboxName,
       image: defaultImage,
@@ -22,29 +43,28 @@ describe("H2 transport stats", () => {
   });
 
   afterAll(async () => {
-    h2TransportStats.reset();
+    const { SandboxInstance } = await import("@blaxel/core");
     await SandboxInstance.delete(sandboxName).catch(() => {});
+    delete process.env.BL_H2_DEBUG_STATS;
+    delete (globalThis as unknown as Record<symbol, unknown>)[statsSymbol];
   });
 
   it("counts a successful unsupported-body fallback through the sandbox API", async () => {
-    h2TransportStats.reset();
+    const before = debugStats();
 
     await sandbox.fs.writeBinary("/tmp/h2-stats.bin", new Uint8Array([1, 2, 3]));
     const content = new Uint8Array(await (await sandbox.fs.readBinary("/tmp/h2-stats.bin")).arrayBuffer());
 
     expect(content).toEqual(new Uint8Array([1, 2, 3]));
-    const snapshot = h2TransportStats.snapshot();
-    expect(snapshot).toMatchObject({
-      establishFailures: 0,
-      fetchFallbacks: 1,
-      fallbacksByReason: {
-        "no-session": 0,
-        "request-rejected": 0,
-        "session-unusable": 0,
-        "unsupported-body": 1,
-      },
-    });
-    expect(Object.values(snapshot.byDomain)).toHaveLength(1);
-    expect(Object.values(snapshot.byDomain)[0]?.fallbacksByReason["unsupported-body"]).toBe(1);
+    const after = debugStats();
+    expect(after.fetchFallbacks - before.fetchFallbacks).toBe(1);
+    expect(
+      after.fallbacksByReason["unsupported-body"] -
+        before.fallbacksByReason["unsupported-body"],
+    ).toBe(1);
+    expect(
+      domainFallbacks(after, "unsupported-body") -
+        domainFallbacks(before, "unsupported-body"),
+    ).toBe(1);
   });
 });

@@ -7,7 +7,10 @@ import {
   h2RequestDirectFromPool,
 } from "../../@blaxel/core/src/common/h2fetch.js";
 import { H2Pool } from "../../@blaxel/core/src/common/h2pool.js";
-import { h2TransportStats } from "../../@blaxel/core/src/common/h2stats.js";
+import {
+  resetH2TransportStats,
+  snapshotH2TransportStats,
+} from "../../@blaxel/core/src/common/h2stats.js";
 import { logger } from "../../@blaxel/core/src/common/logger.js";
 
 class MockStream extends EventEmitter {
@@ -66,9 +69,9 @@ const noopLogger = {
   error: () => {},
 };
 
-describe("h2TransportStats", () => {
+describe("H2 transport statistics", () => {
   afterEach(() => {
-    h2TransportStats.reset();
+    resetH2TransportStats();
     logger.setLogger(noopLogger);
     vi.restoreAllMocks();
   });
@@ -84,7 +87,7 @@ describe("h2TransportStats", () => {
     const response = await request(new Request("https://edge.example.com/process"));
 
     expect(await response.text()).toBe("fallback");
-    expect(h2TransportStats.snapshot()).toEqual({
+    expect(snapshotH2TransportStats()).toEqual({
       establishFailures: 1,
       fetchFallbacks: 1,
       fallbacksByReason: {
@@ -128,7 +131,7 @@ describe("h2TransportStats", () => {
       ),
     );
 
-    const snapshot = h2TransportStats.snapshot();
+    const snapshot = snapshotH2TransportStats();
     expect(establishAttempts).toBe(2);
     expect(snapshot.establishFailures).toBe(2);
     expect(snapshot.fetchFallbacks).toBe(20);
@@ -146,7 +149,7 @@ describe("h2TransportStats", () => {
     await response.text();
 
     expect(fetchSpy).not.toHaveBeenCalled();
-    expect(h2TransportStats.snapshot()).toEqual({
+    expect(snapshotH2TransportStats()).toEqual({
       establishFailures: 0,
       fetchFallbacks: 0,
       fallbacksByReason: {
@@ -172,7 +175,7 @@ describe("h2TransportStats", () => {
       "https://edge.example.com/process",
     );
 
-    expect(h2TransportStats.snapshot().fallbacksByReason).toEqual({
+    expect(snapshotH2TransportStats().fallbacksByReason).toEqual({
       "no-session": 0,
       "request-rejected": 0,
       "session-unusable": 1,
@@ -194,7 +197,7 @@ describe("h2TransportStats", () => {
       { method: "PUT", body },
     );
 
-    expect(h2TransportStats.snapshot().fallbacksByReason).toEqual({
+    expect(snapshotH2TransportStats().fallbacksByReason).toEqual({
       "no-session": 0,
       "request-rejected": 0,
       "session-unusable": 0,
@@ -214,7 +217,7 @@ describe("h2TransportStats", () => {
 
     await request(new Request("https://edge.example.com/process"));
 
-    expect(h2TransportStats.snapshot().fallbacksByReason).toEqual({
+    expect(snapshotH2TransportStats().fallbacksByReason).toEqual({
       "no-session": 0,
       "request-rejected": 1,
       "session-unusable": 0,
@@ -238,7 +241,7 @@ describe("h2TransportStats", () => {
       const response = await request(new Request("https://edge.example.com/process"));
 
       expect(await response.text()).toBe("fallback");
-      expect(h2TransportStats.snapshot().fallbacksByReason).toEqual({
+      expect(snapshotH2TransportStats().fallbacksByReason).toEqual({
         "no-session": 0,
         "request-rejected": 0,
         "session-unusable": 1,
@@ -259,7 +262,7 @@ describe("h2TransportStats", () => {
       ),
     );
 
-    const snapshot = h2TransportStats.snapshot();
+    const snapshot = snapshotH2TransportStats();
     expect(snapshot.fetchFallbacks).toBe(101);
     expect(Object.keys(snapshot.byDomain)).toHaveLength(100);
     expect(snapshot.byDomain["edge-0.example.com"]).toBeUndefined();
@@ -281,7 +284,7 @@ describe("h2TransportStats", () => {
     const response = await request(new Request("https://edge.example.com/process"));
 
     expect(await response.text()).toBe("fallback");
-    expect(h2TransportStats.snapshot().fetchFallbacks).toBe(1);
+    expect(snapshotH2TransportStats().fetchFallbacks).toBe(1);
   });
 
   it("reset clears all counters", async () => {
@@ -291,9 +294,9 @@ describe("h2TransportStats", () => {
     const request = createPoolBackedH2Fetch(pool, "edge.example.com");
     await request(new Request("https://edge.example.com/process"));
 
-    h2TransportStats.reset();
+    resetH2TransportStats();
 
-    expect(h2TransportStats.snapshot()).toEqual({
+    expect(snapshotH2TransportStats()).toEqual({
       establishFailures: 0,
       fetchFallbacks: 0,
       fallbacksByReason: {

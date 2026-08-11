@@ -16,13 +16,6 @@ export type H2TransportStatsSnapshot = H2TransportDomainStats & {
   byDomain: Record<string, H2TransportDomainStats>;
 };
 
-export type H2TransportStats = {
-  /** Return a detached snapshot of process-wide H2 transport counters. */
-  snapshot(): H2TransportStatsSnapshot;
-  /** Clear all process-wide H2 transport counters. */
-  reset(): void;
-};
-
 const emptyReasons = (): Record<H2FallbackReason, number> => ({
   "no-session": 0,
   "request-rejected": 0,
@@ -31,6 +24,18 @@ const emptyReasons = (): Record<H2FallbackReason, number> => ({
 });
 
 const MAX_TRACKED_DOMAINS = 100;
+const H2_DEBUG_STATS_SYMBOL = Symbol.for("blaxel.h2stats");
+const h2DebugStatsEnabled =
+  typeof process !== "undefined" && process.env?.BL_H2_DEBUG_STATS === "1";
+
+function publishDebugSnapshot(snapshot: H2TransportStatsSnapshot): void {
+  if (!h2DebugStatsEnabled) return;
+  try {
+    (globalThis as unknown as Record<symbol, unknown>)[H2_DEBUG_STATS_SYMBOL] = snapshot;
+  } catch {
+    // Debug diagnostics must never change transport behavior.
+  }
+}
 
 const emptyDomainStats = (): H2TransportDomainStats => ({
   establishFailures: 0,
@@ -54,6 +59,7 @@ class H2TransportStatsStore {
   reset(): void {
     this.totals = emptyDomainStats();
     this.byDomain.clear();
+    publishDebugSnapshot(this.snapshot());
   }
 
   /** @internal */
@@ -66,6 +72,7 @@ class H2TransportStatsStore {
     } catch {
       // Diagnostics must never change transport behavior.
     }
+    publishDebugSnapshot(this.snapshot());
   }
 
   /** @internal */
@@ -80,6 +87,7 @@ class H2TransportStatsStore {
     } catch {
       // Diagnostics must never change transport behavior.
     }
+    publishDebugSnapshot(this.snapshot());
   }
 
   private forDomain(domain: string): H2TransportDomainStats {
@@ -107,12 +115,17 @@ class H2TransportStatsStore {
 }
 
 const store = new H2TransportStatsStore();
+publishDebugSnapshot(store.snapshot());
 
-/**
- * Process-wide H2 counters with aggregate totals and the 100 most recently
- * observed domains. Call reset() before taking an isolated measurement.
- */
-export const h2TransportStats: H2TransportStats = store;
+/** @internal */
+export function snapshotH2TransportStats(): H2TransportStatsSnapshot {
+  return store.snapshot();
+}
+
+/** @internal */
+export function resetH2TransportStats(): void {
+  store.reset();
+}
 
 /** @internal */
 export function recordH2EstablishFailure(domain: string, error: unknown): void {
