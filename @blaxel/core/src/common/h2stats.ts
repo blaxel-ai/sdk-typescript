@@ -1,4 +1,5 @@
 import { logger } from "./logger.js";
+import { reportH2TransportDegradation } from "./sentry.js";
 
 export type H2FallbackReason =
   | "no-session"
@@ -72,6 +73,7 @@ class H2TransportStatsStore {
     } catch {
       // Diagnostics must never change transport behavior.
     }
+    reportH2TransportDegradation(domain, "establish-failure");
     publishDebugSnapshot(this.snapshot());
   }
 
@@ -87,6 +89,7 @@ class H2TransportStatsStore {
     } catch {
       // Diagnostics must never change transport behavior.
     }
+    reportH2TransportDegradation(domain, reason);
     publishDebugSnapshot(this.snapshot());
   }
 

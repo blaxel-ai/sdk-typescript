@@ -54,20 +54,44 @@ function makeTraversalStackError(): Error {
 }
 
 type CapturedEvent = {
-  exception: {
+  exception?: {
     values: Array<{
       type: string;
       value: string;
       stacktrace: { frames: Array<Record<string, unknown>> };
     }>;
   };
+  extra?: { count?: number };
+  fingerprint?: string[];
+  level?: string;
+  message?: string;
   tags: Record<string, string>;
 };
 
-function eventFromFetch(fetchMock: ReturnType<typeof vi.fn>): CapturedEvent {
-  const request = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+function createFetchMock() {
+  return vi.fn((input: unknown, init?: RequestInit): Promise<{ ok: boolean }> => {
+    void input;
+    void init;
+    return Promise.resolve({ ok: true });
+  });
+}
+
+type FetchMock = ReturnType<typeof createFetchMock>;
+
+function eventFromFetch(fetchMock: FetchMock): CapturedEvent {
+  const request = fetchMock.mock.calls[0]?.[1];
   if (typeof request?.body !== "string") throw new Error("Expected a string Sentry envelope");
   return JSON.parse(request.body.split("\n")[2]) as CapturedEvent;
+}
+
+function eventsFromFetch(fetchMock: FetchMock): CapturedEvent[] {
+  return fetchMock.mock.calls.map((call) => {
+    const request = call[1];
+    if (typeof request?.body !== "string") {
+      throw new Error("Expected a string Sentry envelope");
+    }
+    return JSON.parse(request.body.split("\n")[2]) as CapturedEvent;
+  });
 }
 
 function emitUncaughtExceptionMonitor(error: Error): boolean {
@@ -95,6 +119,8 @@ describe("SDK Sentry boundary", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
+    vi.doUnmock("./node.js");
     vi.unstubAllGlobals();
     for (const listener of process.listeners("uncaughtExceptionMonitor")) {
       if (!originalMonitorListeners.includes(listener)) {
@@ -105,7 +131,7 @@ describe("SDK Sentry boundary", () => {
   });
 
   it("does not replace console.error or report caught errors", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    const fetchMock = createFetchMock();
     const hostConsoleError = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     vi.spyOn(console, "error").mockImplementation(hostConsoleError);
@@ -122,7 +148,7 @@ describe("SDK Sentry boundary", () => {
   });
 
   it("composes with host handlers and reports one sanitized SDK-owned event", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    const fetchMock = createFetchMock();
     const hostMonitor = vi.fn();
     const hostRejection = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
@@ -144,7 +170,7 @@ describe("SDK Sentry boundary", () => {
       expect(fetchMock).toHaveBeenCalledOnce();
 
       const event = eventFromFetch(fetchMock);
-      expect(event.exception.values[0]).toMatchObject({
+      expect(event.exception?.values[0]).toMatchObject({
         type: "TypeError",
         value: "Unhandled SDK exception",
       });
@@ -154,7 +180,7 @@ describe("SDK Sentry boundary", () => {
         "blaxel.error_source": "unhandled-sdk-exception",
       });
       expect(event.tags).not.toHaveProperty("blaxel.workspace");
-      const frames = event.exception.values[0].stacktrace.frames;
+      const frames = event.exception?.values[0]?.stacktrace.frames ?? [];
       expect(frames.length).toBeGreaterThan(0);
       for (const frame of frames) {
         expect(frame.filename).toBe("@blaxel/core/src/common/sentry.test.ts");
@@ -172,7 +198,7 @@ describe("SDK Sentry boundary", () => {
   });
 
   it("does not attribute an application-owned exception with a later SDK frame", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    const fetchMock = createFetchMock();
     vi.stubGlobal("fetch", fetchMock);
 
     const { initSentry } = await import("./sentry.js");
@@ -183,7 +209,7 @@ describe("SDK Sentry boundary", () => {
   });
 
   it("rejects a forged owned path containing parent traversal", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    const fetchMock = createFetchMock();
     vi.stubGlobal("fetch", fetchMock);
 
     const { initSentry } = await import("./sentry.js");
@@ -194,7 +220,7 @@ describe("SDK Sentry boundary", () => {
   });
 
   it("contains delivery setup failures without creating an unhandled rejection", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    const fetchMock = createFetchMock();
     vi.stubGlobal("fetch", fetchMock);
     vi.stubGlobal(
       "AbortController",
@@ -214,7 +240,7 @@ describe("SDK Sentry boundary", () => {
   });
 
   it("composes with browser handlers and ignores primitive rejections", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    const fetchMock = createFetchMock();
     const listeners = new Map<string, (event: unknown) => void>();
     const addEventListener = vi.fn((type: string, listener: (event: unknown) => void) => {
       listeners.set(type, listener);
@@ -238,15 +264,229 @@ describe("SDK Sentry boundary", () => {
   });
 
   it("does not initialize when tracking is disabled", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    const fetchMock = createFetchMock();
     vi.stubGlobal("fetch", fetchMock);
     mockSettings.tracking = false;
 
-    const { initSentry, isSentryInitialized } = await import("./sentry.js");
+    const {
+      flushSentry,
+      initSentry,
+      isSentryInitialized,
+      reportH2TransportDegradation,
+    } = await import("./sentry.js");
     initSentry();
     emitUncaughtExceptionMonitor(makeSdkError());
+    reportH2TransportDegradation(
+      "sbx-test-workspace.us-pdx-1.bl.run",
+      "no-session",
+    );
+    await flushSentry();
 
     expect(isSentryInitialized()).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rolls a 100-fallback burst into one warning event", async () => {
+    vi.useFakeTimers();
+    const fetchMock = createFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { flushSentry, initSentry, reportH2TransportDegradation } = await import(
+      "./sentry.js"
+    );
+    initSentry();
+    const domain = "sbx-test-workspace.us-pdx-1.bl.run";
+    const domainTag = "blaxel-edge:prod:us-pdx-1";
+
+    for (let index = 0; index < 100; index++) {
+      reportH2TransportDegradation(domain, "no-session");
+    }
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(60_000);
+    await flushSentry();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(eventFromFetch(fetchMock)).toMatchObject({
+      level: "warning",
+      message: "h2 transport degradation: no-session",
+      fingerprint: ["h2-degradation", "no-session", domainTag],
+      tags: {
+        "blaxel.version": "9.9.9",
+        "blaxel.commit": "abcdef0",
+        "blaxel.error_source": "h2-transport-degradation",
+        "blaxel.runtime": `node/${process.versions.node}`,
+        reason: "no-session",
+        domainTag,
+      },
+      extra: { count: 100 },
+    });
+  });
+
+  it("groups keys independently and hashes external domains", async () => {
+    const fetchMock = createFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { flushSentry, initSentry, reportH2TransportDegradation } = await import(
+      "./sentry.js"
+    );
+    initSentry();
+    const externalDomain = "customer.internal.example";
+    const blaxelDomain = "sbx-test-workspace.us-pdx-1.bl.run";
+
+    reportH2TransportDegradation(externalDomain, "no-session");
+    reportH2TransportDegradation(externalDomain, "no-session");
+    reportH2TransportDegradation(blaxelDomain, "request-rejected");
+    await flushSentry();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const events = eventsFromFetch(fetchMock);
+    const externalEvent = events.find(
+      (event) => event.tags.reason === "no-session",
+    );
+    const blaxelEvent = events.find(
+      (event) => event.tags.reason === "request-rejected",
+    );
+
+    expect(externalEvent).toMatchObject({ extra: { count: 2 } });
+    expect(externalEvent?.tags.domainTag).toMatch(/^sha256:[a-f0-9]{64}$/);
+    expect(JSON.stringify(externalEvent)).not.toContain(externalDomain);
+    expect(blaxelEvent).toMatchObject({
+      tags: { domainTag: "blaxel-edge:prod:us-pdx-1" },
+      extra: { count: 1 },
+    });
+  });
+
+  it("groups Blaxel edge hosts by environment and region", async () => {
+    const fetchMock = createFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { flushSentry, initSentry, reportH2TransportDegradation } = await import(
+      "./sentry.js"
+    );
+    initSentry();
+
+    reportH2TransportDegradation(
+      "sbx-first-workspace.us-pdx-1.bl.run",
+      "no-session",
+    );
+    reportH2TransportDegradation(
+      "sbx-second-workspace.us-pdx-1.bl.run",
+      "no-session",
+    );
+    await flushSentry();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(eventFromFetch(fetchMock)).toMatchObject({
+      fingerprint: [
+        "h2-degradation",
+        "no-session",
+        "blaxel-edge:prod:us-pdx-1",
+      ],
+      extra: { count: 2 },
+    });
+  });
+
+  it("keeps stable Blaxel control-plane domains identifiable", async () => {
+    const fetchMock = createFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { flushSentry, initSentry, reportH2TransportDegradation } = await import(
+      "./sentry.js"
+    );
+    initSentry();
+
+    reportH2TransportDegradation("api.blaxel.ai", "no-session");
+    await flushSentry();
+
+    expect(eventFromFetch(fetchMock)).toMatchObject({
+      tags: { domainTag: "blaxel-api:prod" },
+      fingerprint: ["h2-degradation", "no-session", "blaxel-api:prod"],
+    });
+  });
+
+  it("caps active rollup keys at 20", async () => {
+    const fetchMock = createFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { flushSentry, initSentry, reportH2TransportDegradation } = await import(
+      "./sentry.js"
+    );
+    initSentry();
+
+    for (let index = 0; index < 21; index++) {
+      reportH2TransportDegradation(
+        `sbx-test-workspace.us-test-${index}.bl.run`,
+        "no-session",
+      );
+    }
+    await flushSentry();
+
+    expect(fetchMock).toHaveBeenCalledTimes(20);
+  });
+
+  it("caps H2 degradation events at 100 per process", async () => {
+    const fetchMock = createFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { flushSentry, initSentry, reportH2TransportDegradation } = await import(
+      "./sentry.js"
+    );
+    initSentry();
+
+    for (let index = 0; index < 101; index++) {
+      reportH2TransportDegradation(
+        "sbx-test-workspace.us-pdx-1.bl.run",
+        "no-session",
+      );
+      await flushSentry();
+    }
+
+    expect(fetchMock).toHaveBeenCalledTimes(100);
+  });
+
+  it("fails closed when an external domain cannot be hashed", async () => {
+    const fetchMock = createFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.doMock("./node.js", () => ({
+      crypto: {
+        createHash: () => {
+          throw new Error("hash unavailable");
+        },
+      },
+    }));
+
+    const { flushSentry, initSentry, reportH2TransportDegradation } = await import(
+      "./sentry.js"
+    );
+    initSentry();
+
+    expect(() =>
+      reportH2TransportDegradation("private.customer.example", "no-session"),
+    ).not.toThrow();
+    await flushSentry();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("reports degradations through the H2 statistics hooks", async () => {
+    const fetchMock = createFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { flushSentry, initSentry } = await import("./sentry.js");
+    initSentry();
+    const { recordH2Fallback } = await import("./h2stats.js");
+
+    recordH2Fallback(
+      "sbx-test-workspace.us-pdx-1.bl.run",
+      "unsupported-body",
+    );
+    await flushSentry();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(eventFromFetch(fetchMock)).toMatchObject({
+      message: "h2 transport degradation: unsupported-body",
+      extra: { count: 1 },
+    });
   });
 });

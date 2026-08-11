@@ -1,4 +1,6 @@
+import { crypto } from "./node.js";
 import { settings } from "./settings.js";
+import type { H2FallbackReason } from "./h2stats.js";
 
 type SentryConfig = {
   publicKey: string;
@@ -14,6 +16,15 @@ type ParsedFrame = {
 };
 
 type SentryEvent = Record<string, unknown> & { event_id: string };
+
+export type H2DegradationReason = "establish-failure" | H2FallbackReason;
+
+type H2DegradationRollup = {
+  count: number;
+  domainTag: string;
+  reason: H2DegradationReason;
+  timer: ReturnType<typeof setTimeout>;
+};
 
 const PACKAGE_LAYOUT_MARKERS = [
   "/src/common/sentry.ts",
@@ -43,7 +54,11 @@ const SAFE_ERROR_NAMES = new Set([
 ]);
 
 const MAX_IN_FLIGHT_EVENTS = 20;
+const MAX_ACTIVE_H2_ROLLUPS = 20;
+const MAX_CACHED_DOMAIN_TAGS = 100;
+const MAX_H2_EVENTS_PER_PROCESS = 100;
 const DELIVERY_TIMEOUT_MS = 500;
+const H2_ROLLUP_WINDOW_MS = 60_000;
 const SAFE_FILENAME_SEGMENT = /^[A-Za-z0-9._-]+$/;
 
 let sentryInitialized = false;
@@ -53,6 +68,9 @@ let flushPromise: Promise<void> | null = null;
 
 const capturedExceptions = new WeakSet<Error>();
 const inFlightDeliveries = new Set<Promise<void>>();
+const domainTagCache = new Map<string, string | null>();
+const h2DegradationRollups = new Map<string, H2DegradationRollup>();
+let h2EventsEmitted = 0;
 
 /**
  * Normalize stack filenames without resolving or exposing host filesystem data.
@@ -255,6 +273,101 @@ function errorToSentryEvent(error: Error, ownedFrames: ParsedFrame[]): SentryEve
   };
 }
 
+function runtimeTag(): string {
+  const host = globalThis as typeof globalThis & {
+    Deno?: { version?: { deno?: string } };
+    process?: { versions?: { bun?: string; node?: string } };
+  };
+
+  if (host.process?.versions?.bun) return `bun/${host.process.versions.bun}`;
+  if (host.Deno?.version?.deno) return `deno/${host.Deno.version.deno}`;
+  if (host.process?.versions?.node) return `node/${host.process.versions.node}`;
+  return "browser";
+}
+
+function normalizeDomain(domain: string): string | null {
+  const normalized = domain.trim().toLowerCase().replace(/\.$/, "");
+  return normalized.length > 0 ? normalized : null;
+}
+
+function blaxelEdgeDomainTag(domain: string): string | null {
+  const edgeSuffixes = [
+    { environment: "prod", suffix: ".bl.run" },
+    { environment: "dev", suffix: ".runv2.blaxel.dev" },
+  ] as const;
+
+  for (const { environment, suffix } of edgeSuffixes) {
+    if (!domain.endsWith(suffix)) continue;
+
+    const region = domain.slice(0, -suffix.length).split(".").at(-1);
+    if (region && /^[a-z0-9-]+$/.test(region)) {
+      return `blaxel-edge:${environment}:${region}`;
+    }
+    return null;
+  }
+
+  return null;
+}
+
+function uncachedDomainTag(domain: string): string | null {
+  const stableBlaxelDomains: Record<string, string> = {
+    "api.blaxel.ai": "blaxel-api:prod",
+    "api.blaxel.dev": "blaxel-api:dev",
+    "run.blaxel.ai": "blaxel-run:prod",
+    "run.blaxel.dev": "blaxel-run:dev",
+  };
+  const stableTag = stableBlaxelDomains[domain];
+  if (stableTag) return stableTag;
+
+  const edgeTag = blaxelEdgeDomainTag(domain);
+  if (edgeTag) return edgeTag;
+  if (!crypto) return null;
+
+  try {
+    return `sha256:${crypto.createHash("sha256").update(domain).digest("hex")}`;
+  } catch {
+    return null;
+  }
+}
+
+function domainToTag(domain: string): string | null {
+  if (domainTagCache.has(domain)) return domainTagCache.get(domain) ?? null;
+
+  const domainTag = uncachedDomainTag(domain);
+  if (domainTagCache.size >= MAX_CACHED_DOMAIN_TAGS) {
+    const oldestDomain = domainTagCache.keys().next().value;
+    if (oldestDomain !== undefined) domainTagCache.delete(oldestDomain);
+  }
+  domainTagCache.set(domain, domainTag);
+  return domainTag;
+}
+
+function h2DegradationToSentryEvent(
+  reason: H2DegradationReason,
+  domainTag: string,
+  count: number,
+): SentryEvent {
+  return {
+    event_id: generateEventId(),
+    timestamp: Date.now() / 1000,
+    platform: "javascript",
+    level: "warning",
+    environment: settings.env,
+    release: `sdk-typescript@${settings.version}`,
+    message: `h2 transport degradation: ${reason}`,
+    fingerprint: ["h2-degradation", reason, domainTag],
+    tags: {
+      "blaxel.version": settings.version,
+      "blaxel.commit": settings.commit,
+      "blaxel.error_source": "h2-transport-degradation",
+      "blaxel.runtime": runtimeTag(),
+      reason,
+      domainTag,
+    },
+    extra: { count },
+  };
+}
+
 async function sendToSentry(event: SentryEvent): Promise<void> {
   if (!sentryConfig) return;
 
@@ -293,14 +406,83 @@ async function sendToSentry(event: SentryEvent): Promise<void> {
   }
 }
 
-function scheduleDelivery(event: SentryEvent): void {
-  if (inFlightDeliveries.size >= MAX_IN_FLIGHT_EVENTS) return;
+function scheduleDelivery(event: SentryEvent): boolean {
+  if (inFlightDeliveries.size >= MAX_IN_FLIGHT_EVENTS) return false;
 
   // Contain rejections from setup that occurs before sendToSentry's internal
   // fetch guard (for example, a host-provided AbortController implementation).
   const delivery = sendToSentry(event).catch(() => undefined);
   inFlightDeliveries.add(delivery);
   void delivery.then(() => inFlightDeliveries.delete(delivery));
+  return true;
+}
+
+function emitH2DegradationRollup(key: string): void {
+  const rollup = h2DegradationRollups.get(key);
+  if (!rollup) return;
+
+  h2DegradationRollups.delete(key);
+  clearTimeout(rollup.timer);
+  if (h2EventsEmitted >= MAX_H2_EVENTS_PER_PROCESS) return;
+
+  if (
+    scheduleDelivery(
+      h2DegradationToSentryEvent(rollup.reason, rollup.domainTag, rollup.count),
+    )
+  ) {
+    h2EventsEmitted++;
+  }
+}
+
+function flushH2DegradationRollups(): void {
+  for (const key of [...h2DegradationRollups.keys()]) {
+    emitH2DegradationRollup(key);
+  }
+}
+
+/** @internal */
+export function reportH2TransportDegradation(
+  domain: string,
+  reason: H2DegradationReason,
+): void {
+  if (!sentryInitialized || !sentryConfig) return;
+
+  try {
+    if (h2EventsEmitted >= MAX_H2_EVENTS_PER_PROCESS) return;
+
+    const normalizedDomain = normalizeDomain(domain);
+    if (!normalizedDomain) return;
+
+    const domainTag = domainToTag(normalizedDomain);
+    if (!domainTag) return;
+
+    const key = `${reason}\0${domainTag}`;
+    const existing = h2DegradationRollups.get(key);
+    if (existing) {
+      existing.count++;
+      return;
+    }
+
+    if (h2DegradationRollups.size >= MAX_ACTIVE_H2_ROLLUPS) return;
+
+    const timer = setTimeout(() => {
+      try {
+        emitH2DegradationRollup(key);
+      } catch {
+        // Telemetry must never change transport behavior.
+      }
+    }, H2_ROLLUP_WINDOW_MS);
+    (timer as ReturnType<typeof setTimeout> & { unref?: () => void }).unref?.();
+
+    h2DegradationRollups.set(key, {
+      count: 1,
+      domainTag,
+      reason,
+      timer,
+    });
+  } catch {
+    // Telemetry must never change transport behavior.
+  }
 }
 
 function captureException(error: Error): void {
@@ -377,7 +559,15 @@ export function initSentry(): void {
  * Events are sent exactly once; flush never re-enqueues them.
  */
 export async function flushSentry(timeout = DELIVERY_TIMEOUT_MS): Promise<void> {
-  if (!sentryInitialized || inFlightDeliveries.size === 0) return;
+  if (!sentryInitialized) return;
+
+  try {
+    flushH2DegradationRollups();
+  } catch {
+    // Flushing telemetry must never affect application shutdown.
+  }
+
+  if (inFlightDeliveries.size === 0) return;
 
   if (flushPromise) {
     await flushPromise;
