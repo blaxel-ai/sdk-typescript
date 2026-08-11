@@ -27,6 +27,9 @@
  *   FILE_MB          — size of random payload in MB (default: random 5-15MB per
  *                      iteration, matching real migration archive sizes)
  *   KEEP             — set to "1" to keep drive + sandboxes for inspection
+ *   AGENT_PROXY      — set to "1" to enable the agent proxy on every sandbox
+ *                      (network.proxy with empty routing), to test whether the
+ *                      proxy's iptables setup causes the 120s first-exec hangs
  *
  * Usage:
  *   npx tsx tests/manual/drive_migration_repro.ts
@@ -53,6 +56,8 @@ function payloadMb(): number {
   return FILE_MB > 0 ? FILE_MB : 5 + Math.floor(Math.random() * 11)
 }
 const KEEP = process.env.KEEP === "1"
+const AGENT_PROXY = process.env.AGENT_PROXY === "1"
+const NETWORK = AGENT_PROXY ? { proxy: { routing: [] } } : undefined
 
 const CURL_RETRIES = 5
 const CURL_MAX_TIME_S = 120
@@ -185,7 +190,7 @@ async function runIteration(iter: number, driveName: string, s3Url: string, buck
     // 1. Source sandbox + random payload + archive + checksums
     log(iter, `creating source sandbox ${srcName} (payload ${fileMb}MB)`)
     setPhase(`src-create ${srcName}`)
-    const src = await SandboxInstance.create({ name: srcName, image: IMAGE, memory: 2048, region: REGION, labels: LABELS }, { safe: true })
+    const src = await SandboxInstance.create({ name: srcName, image: IMAGE, memory: 2048, region: REGION, labels: LABELS, network: NETWORK }, { safe: true })
     sandboxes.push(srcName)
     setPhase(`src-ensure-curl ${srcName}`)
     await ensureCurl(src)
@@ -242,7 +247,7 @@ done
     // 4. Destination sandbox: mount the copied folder (FUSE) + read + verify + unarchive
     log(iter, `creating destination sandbox ${dstName}`)
     setPhase(`dst-create ${dstName}`)
-    const dst = await SandboxInstance.create({ name: dstName, image: IMAGE, memory: 2048, region: REGION, labels: LABELS }, { safe: true })
+    const dst = await SandboxInstance.create({ name: dstName, image: IMAGE, memory: 2048, region: REGION, labels: LABELS, network: NETWORK }, { safe: true })
     sandboxes.push(dstName)
 
     const dstDir = `.repro/${RUN_ID}/${iter}/dst`
@@ -311,7 +316,7 @@ cd /tmp/extracted/payload && sha256sum -c ../manifest.sha256 >/dev/null 2>&1 && 
 async function main() {
   if (!settings.workspace) throw new Error("BL_WORKSPACE must be set (or via ~/.blaxel/config.yaml)")
   console.log(`run=${RUN_ID} env=${ENV} region=${REGION} workspace=${settings.workspace}`)
-  console.log(`iterations=${ITERATIONS} concurrency=${CONCURRENCY} payload=${FILE_MB > 0 ? `${FILE_MB}MB` : "random 5-15MB"} curlRetries=${CURL_RETRIES}`)
+  console.log(`iterations=${ITERATIONS} concurrency=${CONCURRENCY} payload=${FILE_MB > 0 ? `${FILE_MB}MB` : "random 5-15MB"} curlRetries=${CURL_RETRIES} agentProxy=${AGENT_PROXY}`)
 
   const driveName = `repro-drive-${RUN_ID}`
   console.log(`[${ts()}] creating drive ${driveName}`)
