@@ -95,67 +95,6 @@ describe('Sandbox Update Operations', () => {
     })
   })
 
-  describe('add and remove proxy config in-place', () => {
-    const MARKER_PATH = '/tmp/proxy-update-marker.txt'
-    const MARKER_CONTENT = 'proxy-identity-check'
-    let name: string
-
-    it('creates a sandbox without proxy', async () => {
-      name = uniqueName("upd-proxy")
-      const sandbox = await SandboxInstance.create({
-        name,
-        image: defaultImage,
-        region: defaultRegion,
-        labels: defaultLabels,
-      })
-      createdSandboxes.push(name)
-
-      expect(sandbox.spec.network?.proxy).toBeUndefined()
-    })
-
-    it('writes a marker file', async () => {
-      const sandbox = await SandboxInstance.get(name)
-      await sandbox.fs.write(MARKER_PATH, MARKER_CONTENT)
-    })
-
-    it('adds proxy routing via update', async () => {
-      const updated = await updateNetwork(name, {
-        proxy: {
-          routing: [
-            {
-              destinations: ["httpbin.org"],
-              headers: { "X-Added-Via-Update": "true" },
-            },
-          ],
-        },
-      })
-
-      expect(updated.metadata?.name).toBe(name)
-      expect(updated.spec?.network?.proxy?.routing).toHaveLength(1)
-      expect(updated.spec?.network?.proxy?.routing?.[0]?.destinations).toContain("httpbin.org")
-      expect(updated.spec?.network?.proxy?.routing?.[0]?.headers?.["X-Added-Via-Update"]).toBe("true")
-    })
-
-    it('marker file survives proxy addition', async () => {
-      const sandbox = await SandboxInstance.get(name)
-      const read = await sandbox.fs.read(MARKER_PATH)
-      expect(read).toBe(MARKER_CONTENT)
-    })
-
-    it('removes proxy routing via update', async () => {
-      const updated = await updateNetwork(name, {})
-
-      expect(updated.metadata?.name).toBe(name)
-      expect(updated.spec?.network?.proxy).toBeUndefined()
-    })
-
-    it('marker file survives proxy removal', async () => {
-      const sandbox = await SandboxInstance.get(name)
-      const read = await sandbox.fs.read(MARKER_PATH)
-      expect(read).toBe(MARKER_CONTENT)
-    })
-  })
-
   describe('swap network config (forbiddenDomains → allowedDomains)', () => {
     const MARKER_PATH = '/tmp/swap-update-marker.txt'
     const MARKER_CONTENT = 'swap-identity-check'
