@@ -10,10 +10,12 @@ import { createEchoServerSandbox, funcProxyHelperScript, lowercaseKeys, parseFul
  *    injection target: `X-Blaxel-Func-<target>: <funcname>=<value>[, …]`.
  *
  * Because at most 10 functions are expanded per request (across all headers and
- * body values combined), every route below stays comfortably under that budget.
+ * body values combined), every non-budget route below stays comfortably under
+ * that budget. Two dedicated routes probe the cap itself: one with exactly 10
+ * functions (all resolve) and one with 11 (the excess breaks / stays literal).
  * Each route targets its own dedicated echo-server upstream so requests never
  * share a function set, which keeps the target-keyed echo assertions and the
- * budget test unambiguous.
+ * budget tests unambiguous.
  */
 describe('dynamic {{FUNC:*}} placeholder validation', () => {
   const createdSandboxes: string[] = []
@@ -26,6 +28,7 @@ describe('dynamic {{FUNC:*}} placeholder validation', () => {
   let echoFmtUrl: string
   let aliasUrl: string
   let failSafeUrl: string
+  let budgetOkUrl: string
   let budgetUrl: string
 
   const SECRET = "tok_live_abc123"
@@ -33,13 +36,17 @@ describe('dynamic {{FUNC:*}} placeholder validation', () => {
   // verbatim and never re-interpreted (functions run before secrets).
   const TRICKY_SECRET = "{{FUNC:uuid()}}"
 
+  // Exactly the per-request budget (10) -> all resolve, nothing breaks.
+  const budgetOkTargets = Array.from({ length: 10 }, (_, i) => `X-K${String(i).padStart(2, "0")}`)
+  const budgetOkHeaders = Object.fromEntries(budgetOkTargets.map((t) => [t, "{{FUNC:uuid()}}"]))
   // 11 single-function headers -> one over the per-request budget of 10.
   const budgetTargets = Array.from({ length: 11 }, (_, i) => `X-B${String(i).padStart(2, "0")}`)
   const budgetHeaders = Object.fromEntries(budgetTargets.map((t) => [t, "{{FUNC:uuid()}}"]))
 
   beforeAll(async () => {
     // One upstream per route so no two routes ever share a request.
-    const [core, echoFmt, alias, failSafe, budget] = await Promise.all([
+    const [core, echoFmt, alias, failSafe, budgetOk, budget] = await Promise.all([
+      createEchoServerSandbox(createdSandboxes),
       createEchoServerSandbox(createdSandboxes),
       createEchoServerSandbox(createdSandboxes),
       createEchoServerSandbox(createdSandboxes),
@@ -51,6 +58,7 @@ describe('dynamic {{FUNC:*}} placeholder validation', () => {
     echoFmtUrl = `${echoFmt.url}/headers`
     aliasUrl = `${alias.url}/headers`
     failSafeUrl = `${failSafe.url}/headers`
+    budgetOkUrl = `${budgetOk.url}/headers`
     budgetUrl = `${budget.url}/headers`
 
     const name = uniqueName("proxy-func")
@@ -127,6 +135,11 @@ describe('dynamic {{FUNC:*}} placeholder validation', () => {
                 "X-Skip": "{{FUNC:nonce()}}-{{SECRET:missing}}",
               },
               secrets: { "tricky": TRICKY_SECRET },
+            },
+            {
+              // ---- Budget boundary route: exactly 10 -> all resolve. --------
+              destinations: [budgetOk.host],
+              headers: budgetOkHeaders,
             },
             {
               // ---- Budget route: 11 functions -> exactly one over the cap. --
@@ -384,19 +397,34 @@ describe('dynamic {{FUNC:*}} placeholder validation', () => {
   // Budget route: per-request function cap.
   // ---------------------------------------------------------------------------
 
-  it('expands at most 10 functions per request, leaving the excess literal', async () => {
+  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+
+  it('expands exactly 10 functions in a request with none left literal (budget boundary)', async () => {
+    const res = await runGet(budgetOkUrl)
+    const h = lowercaseKeys(res.upstream.headers)
+    // At the cap: every one of the 10 functions resolves, nothing is literal.
+    const resolved = budgetOkTargets.filter((t) => uuidRe.test(h[t.toLowerCase()] ?? ""))
+    const literal = budgetOkTargets.filter((t) => (h[t.toLowerCase()] ?? "").includes("{{FUNC:"))
+    expect(resolved).toHaveLength(10)
+    expect(literal).toHaveLength(0)
+    const echoCount = Object.keys(res.responseHeaders)
+      .filter((k) => /^x-blaxel-func-x-k\d+$/.test(k)).length
+    expect(echoCount).toBe(10)
+  }, 60_000)
+
+  it('breaks the 11th function: at most 10 expand per request, the excess stays literal', async () => {
     const res = await runGet(budgetUrl)
     const h = lowercaseKeys(res.upstream.headers)
-    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
     const resolved = budgetTargets.filter((t) => uuidRe.test(h[t.toLowerCase()] ?? ""))
     const literal = budgetTargets.filter((t) => h[t.toLowerCase()] === "{{FUNC:uuid()}}")
-    // 11 requested, exactly 10 expand and exactly 1 is left literal (which one is
-    // non-deterministic, but the counts are not).
+    // 11 requested: exactly 10 expand and exactly 1 is left literal (which one is
+    // non-deterministic, but the counts are not). Contrast with the 10-function
+    // boundary test above, which resolves all 10 -- pinning the cutoff at 10->11.
     expect(resolved).toHaveLength(10)
     expect(literal).toHaveLength(1)
 
-    // Exactly one echo header per expanded target.
+    // Exactly one echo header per expanded target (the broken one is not echoed).
     const echoCount = Object.keys(res.responseHeaders)
       .filter((k) => /^x-blaxel-func-x-b\d+$/.test(k)).length
     expect(echoCount).toBe(10)
