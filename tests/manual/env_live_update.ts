@@ -58,13 +58,14 @@ async function readEnv(sandbox: SandboxInstance, name: string): Promise<string> 
 async function setEnvs(name: string, envs: { name: string; value: string }[]): Promise<void> {
   // Env-only update: read the current sandbox and PUT it back with only
   // spec.runtime.envs changed.
-  const sandbox = await SandboxInstance.get(name)
+  const instance = await SandboxInstance.get(name)
   const body = {
-    ...sandbox.sandbox,
+    metadata: instance.metadata,
     spec: {
-      ...sandbox.spec,
-      runtime: { ...sandbox.spec.runtime, envs },
+      ...instance.spec,
+      runtime: { ...instance.spec.runtime, envs },
     },
+    status: instance.status,
   } as SandboxModel
   await updateSandbox({ path: { sandboxName: name }, body, throwOnError: true })
 }
