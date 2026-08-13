@@ -40,6 +40,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 const BASE_IMAGE = "blaxel/base-image:latest"
+const LABELS = { env: "manual-test", "created-by": "env-live-update" }
 const SANDBOX_NAME = uniqueName("env-live")
 const MARKER_PATH = "/app/env-live-update-marker.txt"
 const MARKER_CONTENT = `marker-${SANDBOX_NAME}`
@@ -100,6 +101,7 @@ async function main() {
     name: SANDBOX_NAME,
     image: BASE_IMAGE,
     memory: 2048,
+    labels: LABELS,
   })
   try {
     await sandbox.wait()
