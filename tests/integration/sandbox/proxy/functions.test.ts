@@ -372,7 +372,7 @@ describe('dynamic {{FUNC:*}} placeholder validation', () => {
     expect(h["x-bad-hex-arg"]).toBe("{{FUNC:randhex(abc)}}")
     expect(h["x-bad-int-zero"]).toBe("{{FUNC:randint(0)}}")
     // Nothing resolved -> no echo headers for any of these targets.
-    for (const t of ["X-Unknown", "X-Malformed", "X-No-Parens", "X-Over-Cap-Hex", "X-Bad-Hex-Arg"]) {
+    for (const t of ["X-Unknown", "X-Malformed", "X-No-Parens", "X-Over-Cap-Hex", "X-Over-Cap-Str", "X-Bad-Hex-Arg", "X-Bad-Int-Zero"]) {
       expect(echoTokens(res, t)).toBeUndefined()
     }
   }, 60_000)
