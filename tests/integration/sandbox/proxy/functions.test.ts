@@ -264,6 +264,35 @@ describe('dynamic {{FUNC:*}} placeholder validation', () => {
     expect(echoTokens(res, "X-User-Func")).toBeUndefined()
   }, 60_000)
 
+  it('interprets a config-injected func but leaves a client-sent func literal in the same request', async () => {
+    // Mirrors the manual live check: one request carries both a func from the
+    // admin routing config and a func the client puts in its own header.
+    const res = await runGet(coreUrl, '{"X-Test-My-Header-Onfly":"{{FUNC:uuid()}}"}')
+    const h = lowercaseKeys(res.upstream.headers)
+
+    // Admin-configured injection value -> interpreted on the wire and echoed.
+    expect(h["x-uuid"]).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    expect(echoTokens(res, "X-Uuid")).toEqual([{ name: "uuid", value: h["x-uuid"] }])
+
+    // Same syntax sent by the client -> passed through verbatim, never echoed.
+    expect(h["x-test-my-header-onfly"]).toBe("{{FUNC:uuid()}}")
+    expect(echoTokens(res, "X-Test-My-Header-Onfly")).toBeUndefined()
+  }, 60_000)
+
+  it('interprets the injected func on every call (the value on the wire changes per request)', async () => {
+    // Prove the header is generated fresh per request, not resolved once at
+    // config time: the value the upstream actually receives must differ across
+    // several sequential calls.
+    const seen = new Set<string>()
+    for (let i = 0; i < 3; i++) {
+      const res = await runGet(coreUrl)
+      const v = lowercaseKeys(res.upstream.headers)["x-uuid"]
+      expect(v).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+      seen.add(v)
+    }
+    expect(seen.size).toBe(3)
+  }, 60_000)
+
   // ---------------------------------------------------------------------------
   // Echo-format route: token format, multiplicity, func+secret.
   // ---------------------------------------------------------------------------
