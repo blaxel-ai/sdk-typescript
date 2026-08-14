@@ -314,8 +314,8 @@ export class SandboxProcess extends SandboxAction {
 
   async wait(identifier: string, { maxWait = 60000, interval = 1000 }: { maxWait?: number, interval?: number } = {}): Promise<GetProcessByIdentifierResponse> {
     const startTime = Date.now();
-    let status = "running";
     let data = await this.get(identifier);
+    let status = data.status ?? "running";
     while (status === "running") {
       await new Promise((resolve) => setTimeout(resolve, interval));
       try {
