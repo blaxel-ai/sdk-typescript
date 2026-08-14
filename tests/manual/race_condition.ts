@@ -1,5 +1,4 @@
 import { SandboxInstance, settings } from "@blaxel/core"
-import { v4 as uuidv4 } from "uuid"
 
 process.on("unhandledRejection", (reason) => {
   console.error("Unhandled rejection:", reason)
@@ -25,7 +24,7 @@ type SandboxResult = {
 }
 
 function uniqueName(): string {
-  return `race-${uuidv4().replace(/-/g, "").substring(0, 8)}`
+  return `race-${crypto.randomUUID().replace(/-/g, "").substring(0, 8)}`
 }
 
 function sleep(ms: number): Promise<void> {
