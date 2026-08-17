@@ -53,7 +53,7 @@
 		"@google/generative-ai": "^0.24.1",
 		"@langchain/anthropic": "^1.1.1",
 		"@langchain/cohere": "^1.0.0",
-		"@langchain/core": "^1.0.6",
+		"@langchain/core": "^1.2.5",
 		"@langchain/deepseek": "1.0.10",
 		"@langchain/google-genai": "^1.0.3",
 		"@langchain/openai": "1.5.6",

@@ -15,7 +15,7 @@
       },
       "devDependencies": {
         "@eslint/js": "^9.39.5",
-        "@langchain/core": "^1.0.6",
+        "@langchain/core": "^1.2.5",
         "@langchain/langgraph": "^1.0.2",
         "@langchain/openai": "1.5.6",
         "@mastra/core": "^0.24.5",
@@ -96,7 +96,7 @@
         "@google/generative-ai": "^0.24.1",
         "@langchain/anthropic": "^1.1.1",
         "@langchain/cohere": "^1.0.0",
-        "@langchain/core": "^1.0.6",
+        "@langchain/core": "^1.2.5",
         "@langchain/deepseek": "1.0.10",
         "@langchain/google-genai": "^1.0.3",
         "@langchain/openai": "1.5.6",
@@ -483,7 +483,7 @@
 
     "@langchain/cohere": ["@langchain/cohere@1.1.0", "", { "dependencies": { "cohere-ai": "^7.14.0" }, "peerDependencies": { "@langchain/core": "^1.2.0" } }, "sha512-KXsgycu83vKW+mhdIqjzzAChboHCd+PvumSDy2eE/wrCFHa5EEjzML8piWZ5l3IUY6AP0WZodoWMdK7G2uC7AQ=="],
 
-    "@langchain/core": ["@langchain/core@1.2.3", "", { "dependencies": { "@cfworker/json-schema": "^4.0.2", "@standard-schema/spec": "^1.1.0", "js-tiktoken": "^1.0.12", "langsmith": ">=0.5.0 <1.0.0", "mustache": "^4.2.0", "p-queue": "^6.6.2", "zod": "^3.25.76 || ^4" } }, "sha512-F+L5SsciykwDl7eDxacnhDTcWe1IF6jetzfkvI5PPfq6ogWHO7xcjU90SGh/3lqbbS0tgun+qF01KIqxawrCsA=="],
+    "@langchain/core": ["@langchain/core@1.2.8", "", { "dependencies": { "@cfworker/json-schema": "^4.0.2", "@standard-schema/spec": "^1.1.0", "js-tiktoken": "^1.0.12", "langsmith": ">=0.5.0 <1.0.0", "mustache": "^4.2.0", "p-queue": "^6.6.2", "zod": "^3.25.76 || ^4" } }, "sha512-ppi2UaCYKqM4LEY8NWQ/JZ0Of0MAngHRvclceVeEQklcD/M6QKanlHPWblDnLO2m4vz7987b1Z4r33Ps6lf/ig=="],
 
     "@langchain/deepseek": ["@langchain/deepseek@1.0.10", "", { "dependencies": { "@langchain/openai": "1.2.6" }, "peerDependencies": { "@langchain/core": "^1.0.0" } }, "sha512-uwd08St8s8Xbso4lcg1b5iZTWxtn/nfcSwxtzHPAjdSYtxf0OB/TY0XPqJ1nT+ciJvkYH9Q172bg5NrpZyrcsg=="],
 
