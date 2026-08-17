@@ -2,7 +2,7 @@ import { DockerfileParser, Dockerfile } from "dockerfile-ast";
 import { Metadata, MetadataLabels, SandboxRuntime, Sandbox, SandboxSpec } from "../client/types.gen.js";
 import { crypto, fs, os, path } from "../common/node.js";
 import { settings } from "../common/settings.js";
-import archiver from "archiver";
+import { ZipArchive } from "archiver";
 
 function ensureNodeEnvironment(): void {
   if (!fs || !os || !path || !crypto) {
@@ -717,7 +717,7 @@ export class ImageInstance {
     return new Promise((resolve, reject) => {
       const chunks: Uint8Array[] = [];
 
-      const archive = archiver("zip", {
+      const archive = new ZipArchive({
         zlib: { level: 9 },
       });
 
