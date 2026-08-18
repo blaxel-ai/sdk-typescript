@@ -51,12 +51,18 @@ const LABELS = { env: "manual-test", "created-by": "oom-crash-recovery" }
 const TEST_DIR = "/home/user/oom-test"
 const EXEC_TIMEOUT_S = 60
 
-// Single-process memory hog: doubling a shell string grows one process's RSS
-// exponentially (16B -> GBs in ~30 iterations) until the kernel OOM-killer
-// fires. Deliberately ONE process (not a fork bomb): a fork bomb exhausts the
-// PID table with EAGAIN before any memory OOM, and also stops the test's own
-// boot_id probe from forking. Portable to any POSIX `sh`.
-const OOM_COMMAND = "sh -c 'echo start; s=0123456789abcdef; while true; do s=$s$s; done'"
+// Fill tmpfs with zeros to exhaust guest memory. /dev/shm is RAM-backed and its
+// pages are unreclaimable (no swap in the guest), so this is real memory
+// pressure and the kernel OOM-killer fires on the largest RSS process.
+// Remounting lifts the default size cap of 50% of RAM.
+//
+// Rejected alternatives:
+//   - a fork bomb only exhausts the PID table (fork returns EAGAIN, no OOM) and
+//     blocks the test's own boot_id probe from forking;
+//   - growing a shell variable (`s=$s$s`) makes dash hit its internal
+//     allocation limit and exit cleanly, so the kernel never sees pressure.
+const OOM_COMMAND =
+  "sh -c 'echo start; mount -o remount,size=100% /dev/shm 2>/dev/null; dd if=/dev/zero of=/dev/shm/oomfill bs=1M'"
 
 function log(msg: string) {
   console.log(`[oom-recovery] ${msg}`)
