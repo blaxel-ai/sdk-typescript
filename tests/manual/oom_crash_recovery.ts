@@ -64,8 +64,13 @@ const EXEC_TIMEOUT_S = 60
 //     blocks the test's own boot_id probe from forking;
 //   - growing a shell variable (`s=$s$s`) makes dash hit its internal
 //     allocation limit and exit cleanly, so the kernel never sees pressure.
+// The remount needs privileges; if it fails, /dev/shm keeps its default cap of
+// 50% of RAM and the first dd stops on ENOSPC, so a second dd fills /tmp (part
+// of the RAM-backed root tmpfs on a diskless sandbox) to finish the job.
 const OOM_COMMAND =
-  "sh -c 'echo start; mount -o remount,size=100% /dev/shm 2>/dev/null; dd if=/dev/zero of=/dev/shm/oomfill bs=1M'"
+  "sh -c 'echo start; mount -o remount,size=100% /dev/shm || echo remount denied, using default cap; " +
+  "dd if=/dev/zero of=/dev/shm/oomfill bs=1M; echo shm full, spilling into root tmpfs; " +
+  "dd if=/dev/zero of=/tmp/oomfill bs=1M'"
 
 function log(msg: string) {
   console.log(`[oom-recovery] ${msg}`)
@@ -85,6 +90,13 @@ async function run(sbx: SandboxInstance, command: string, label: string): Promis
 
 async function bootId(sbx: SandboxInstance): Promise<string> {
   return await run(sbx, "cat /proc/sys/kernel/random/boot_id", "read boot_id")
+}
+
+function isNotFound(err: unknown): boolean {
+  if (typeof err === "object" && err !== null && "status" in err) {
+    return (err as { status?: unknown }).status === 404
+  }
+  return err instanceof Error && /not found|404/i.test(err.message)
 }
 
 type MarkerFile = { path: string; content: string }
@@ -152,8 +164,14 @@ async function main() {
         try {
           const hog = await sbx.process.get("oom-hog")
           hogStatus = hog.status
-        } catch {
-          hogGone = true
+        } catch (err: unknown) {
+          // Only a not-found means the process table was reset; any other
+          // error (5xx, network) is transient unreachability, not a restart.
+          if (isNotFound(err)) {
+            hogGone = true
+          } else {
+            throw err
+          }
         }
         if (hogGone) {
           restartKind = "in-guest"
@@ -190,10 +208,11 @@ async function main() {
     log(`${intact}/${files.length} files intact after OOM restart`)
 
     // 5. Processes must NOT survive the restart
+    let hogSurvived = false
     try {
       const hog = await sbx.process.get("oom-hog")
       if (hog.status === "running") {
-        failed = true
+        hogSurvived = true
         console.error(`[oom-recovery] UNEXPECTED: oom-hog still running after restart`)
       } else {
         log(`oom-hog process is not running anymore (status=${hog.status})`)
@@ -222,11 +241,18 @@ async function main() {
       log(`Could not fetch sandbox record for crash info: ${err instanceof Error ? err.message : String(err)}`)
     }
 
-    if (failed || intact !== files.length) {
-      throw new Error(
-        `OOM crash recovery test FAILED: some files were lost (recovery was ${restartKind}; ` +
-        `a diskless sandbox only keeps its files across an in-guest restart)`,
-      )
+    if (failed || hogSurvived || intact !== files.length) {
+      const reasons: string[] = []
+      if (intact !== files.length) {
+        reasons.push(
+          `${files.length - intact}/${files.length} files lost (recovery was ${restartKind}; ` +
+          `a diskless sandbox only keeps its files across an in-guest restart)`,
+        )
+      }
+      if (hogSurvived) {
+        reasons.push("oom-hog process survived the restart")
+      }
+      throw new Error(`OOM crash recovery test FAILED: ${reasons.join("; ")}`)
     }
     log(`SUCCESS: sandbox restarted (${restartKind}) after OOM and all files survived`)
   } finally {
