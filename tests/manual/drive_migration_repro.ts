@@ -4,9 +4,8 @@
  * Mirrors the quest single-drive migration flow, in parallel, multiple times:
  *   1. A source sandbox generates random data, archives it (workspace.tar.gz)
  *      and records sha256 checksums.
- *   2. The source sandbox uploads the archive to the drive via the
- *      S3-compatible endpoint (curl PUT, Bearer drive token, 5 retries with
- *      incremental backoff — same as the migration).
+ *   2. The source sandbox mounts drive folder 1 (FUSE) and drops the archive
+ *      into the mount (5 retries).
  *   3. The archive is copied to another folder via S3 server-side copy
  *      (PUT + x-amz-copy-source), from inside the source sandbox.
  *   4. A fresh destination sandbox mounts the drive folder containing the
@@ -15,7 +14,7 @@
  *      sha256.
  *
  * Every step records curl exit codes / HTTP statuses / checksums so failures
- * can be classified: upload-network, copy, mount-read, archive corruption,
+ * can be classified: mount-write, copy, mount-read, archive corruption,
  * content corruption.
  *
  * Environment variables:
@@ -28,6 +27,9 @@
  *   FILE_MB          — size of random payload in MB (default: random 5-15MB per
  *                      iteration, matching real migration archive sizes)
  *   KEEP             — set to "1" to keep drive + sandboxes for inspection
+ *   AGENT_PROXY      — set to "1" to enable the agent proxy on every sandbox
+ *                      (network.proxy with empty routing), to test whether the
+ *                      proxy's iptables setup causes the 120s first-exec hangs
  *
  * Usage:
  *   npx tsx tests/manual/drive_migration_repro.ts
@@ -54,6 +56,10 @@ function payloadMb(): number {
   return FILE_MB > 0 ? FILE_MB : 5 + Math.floor(Math.random() * 11)
 }
 const KEEP = process.env.KEEP === "1"
+const AGENT_PROXY = process.env.AGENT_PROXY === "1"
+const NETWORK = AGENT_PROXY
+  ? { proxy: { routing: [{ destinations: ["*"], headers: { "X-Repro-Proxy": "1" } }] } }
+  : undefined
 
 const CURL_RETRIES = 5
 const CURL_MAX_TIME_S = 120
@@ -175,6 +181,9 @@ async function runIteration(iter: number, driveName: string, s3Url: string, buck
   const dstKey = `.repro/${RUN_ID}/${iter}/dst/workspace.tar.gz`
   let classification = "OK"
   const sandboxes: string[] = []
+  let phase = "init"
+  let phaseStart = t0
+  const setPhase = (p: string) => { phase = p; phaseStart = Date.now(); log(iter, `phase=${p}`) }
 
   const fileMb = payloadMb()
   const finish = (): IterationResult => ({ iter, classification, steps, durationMs: Date.now() - t0 })
@@ -182,9 +191,12 @@ async function runIteration(iter: number, driveName: string, s3Url: string, buck
   try {
     // 1. Source sandbox + random payload + archive + checksums
     log(iter, `creating source sandbox ${srcName} (payload ${fileMb}MB)`)
-    const src = await SandboxInstance.create({ name: srcName, image: IMAGE, memory: 2048, region: REGION, labels: LABELS }, { safe: true })
+    setPhase(`src-create ${srcName}`)
+    const src = await SandboxInstance.create({ name: srcName, image: IMAGE, memory: 2048, region: REGION, labels: LABELS, network: NETWORK }, { safe: true })
     sandboxes.push(srcName)
+    setPhase(`src-ensure-curl ${srcName}`)
     await ensureCurl(src)
+    setPhase(`src-generate ${srcName}`)
 
     const gen = await exec(src, `
 set -e
@@ -201,17 +213,31 @@ stat -c 'ARCHIVE_SIZE=%s' /tmp/workspace.tar.gz
     if (!steps.generate.ok) { classification = "SETUP_FAIL"; return finish() }
     log(iter, `payload ready sha=${archiveSha?.substring(0, 12)} size=${archiveSize}`)
 
-    // 2. Signed S3 PUT from inside the source sandbox
-    const token = await getDriveToken(driveName)
-    const put = await exec(src, curlRetryScript(
-      `-X PUT -H "Authorization: Bearer ${token}" -T /tmp/workspace.tar.gz "${s3Url}/${srcKey}"`,
-      "PUT",
-    ))
+    // 2. Mount drive folder 1 (FUSE) in the source sandbox and drop the archive there
+    const srcDir = `.repro/${RUN_ID}/${iter}/src`
+    setPhase(`src-mount ${srcName}`)
+    await src.drives.mount({ driveName, drivePath: `/${srcDir}`, mountPath: "/mnt/drive" })
+    log(iter, `mounted drive folder /${srcDir} at /mnt/drive (src)`)
+
+    setPhase(`src-mount-write ${srcName}`)
+    const put = await exec(src, `
+rc=1
+for attempt in 1 2 3 4 5; do
+  if cp /tmp/workspace.tar.gz /mnt/drive/workspace.tar.gz 2>/tmp/cp_err; then rc=0; echo "ATTEMPT_PUT $attempt cp=0"; break; fi
+  echo "ATTEMPT_PUT $attempt cp=1 err=$(head -c 200 /tmp/cp_err | tr '\\n' ' ')"
+  sleep $((attempt * 2))
+done
+[ "$rc" = "0" ] || echo "FAILED_PUT"
+`)
     steps.upload = { ok: !put.logs.includes("FAILED_PUT"), detail: put.logs.trim().split("\n").pop() ?? "", attempts: extractAttempts(put.logs, "PUT") }
-    log(iter, `upload ${steps.upload.ok ? "OK" : "FAILED"} (${steps.upload.attempts?.length} attempts)`)
-    if (!steps.upload.ok) { classification = "UPLOAD_NETWORK_FAIL"; return finish() }
+    log(iter, `mount write ${steps.upload.ok ? "OK" : "FAILED"} (${steps.upload.attempts?.length} attempts)`)
+    if (!steps.upload.ok) { classification = "MOUNT_WRITE_FAIL"; return finish() }
+
+    setPhase("drive-token")
+    const token = await getDriveToken(driveName)
 
     // 3. S3 server-side copy src -> dst (from inside the source sandbox)
+    setPhase(`s3-copy ${srcName}`)
     const copy = await exec(src, curlRetryScript(
       `-X PUT -H "Authorization: Bearer ${token}" -H "x-amz-copy-source: /${bucket}/${srcKey}" "${s3Url}/${dstKey}"`,
       "COPY",
@@ -222,13 +248,16 @@ stat -c 'ARCHIVE_SIZE=%s' /tmp/workspace.tar.gz
 
     // 4. Destination sandbox: mount the copied folder (FUSE) + read + verify + unarchive
     log(iter, `creating destination sandbox ${dstName}`)
-    const dst = await SandboxInstance.create({ name: dstName, image: IMAGE, memory: 2048, region: REGION, labels: LABELS }, { safe: true })
+    setPhase(`dst-create ${dstName}`)
+    const dst = await SandboxInstance.create({ name: dstName, image: IMAGE, memory: 2048, region: REGION, labels: LABELS, network: NETWORK }, { safe: true })
     sandboxes.push(dstName)
 
     const dstDir = `.repro/${RUN_ID}/${iter}/dst`
+    setPhase(`dst-mount ${dstName}`)
     await dst.drives.mount({ driveName, drivePath: `/${dstDir}`, mountPath: "/mnt/drive", readOnly: true })
     log(iter, `mounted drive folder /${dstDir} at /mnt/drive`)
 
+    setPhase(`dst-mount-read ${dstName}`)
     const get = await exec(dst, `
 rc=1
 for attempt in 1 2 3 4 5; do
@@ -242,6 +271,7 @@ done
     log(iter, `mount read ${steps.download.ok ? "OK" : "FAILED"} (${steps.download.attempts?.length} attempts)`)
     if (!steps.download.ok) { classification = "MOUNT_READ_FAIL"; return finish() }
 
+    setPhase(`dst-verify ${dstName}`)
     const verify = await exec(dst, `
 set -e
 dl_sha=$(sha256sum /tmp/downloaded.tar.gz | awk '{print $1}')
@@ -268,7 +298,8 @@ cd /tmp/extracted/payload && sha256sum -c ../manifest.sha256 >/dev/null 2>&1 && 
     return finish()
   } catch (err) {
     classification = "INFRA_FAIL"
-    steps.infra = { ok: false, detail: formatError(err) }
+    const elapsed = ((Date.now() - phaseStart) / 1000).toFixed(1)
+    steps.infra = { ok: false, detail: `phase=${phase} phaseElapsed=${elapsed}s failedAt=${ts()} — ${formatError(err)}` }
     log(iter, `INFRA_FAIL: ${steps.infra.detail}`)
     return finish()
   } finally {
@@ -287,7 +318,7 @@ cd /tmp/extracted/payload && sha256sum -c ../manifest.sha256 >/dev/null 2>&1 && 
 async function main() {
   if (!settings.workspace) throw new Error("BL_WORKSPACE must be set (or via ~/.blaxel/config.yaml)")
   console.log(`run=${RUN_ID} env=${ENV} region=${REGION} workspace=${settings.workspace}`)
-  console.log(`iterations=${ITERATIONS} concurrency=${CONCURRENCY} payload=${FILE_MB > 0 ? `${FILE_MB}MB` : "random 5-15MB"} curlRetries=${CURL_RETRIES}`)
+  console.log(`iterations=${ITERATIONS} concurrency=${CONCURRENCY} payload=${FILE_MB > 0 ? `${FILE_MB}MB` : "random 5-15MB"} curlRetries=${CURL_RETRIES} agentProxy=${AGENT_PROXY}`)
 
   const driveName = `repro-drive-${RUN_ID}`
   console.log(`[${ts()}] creating drive ${driveName}`)
