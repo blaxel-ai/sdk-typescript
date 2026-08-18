@@ -7,7 +7,7 @@
 // Flow:
 //   1. Create a sandbox with a small memory limit.
 //   2. Write marker files on disk and read them back.
-//   3. Run a process that allocates memory until the guest OOMs.
+//   3. Run a fork bomb that exhausts guest resources until it OOMs.
 //   4. Wait for the crash + automatic restart (detected via a change of
 //      /proc/sys/kernel/random/boot_id, which is regenerated on every boot).
 //   5. Verify the sandbox answers again and the files are intact.
@@ -51,11 +51,10 @@ const LABELS = { env: "manual-test", "created-by": "oom-crash-recovery" }
 const TEST_DIR = "/home/user/oom-test"
 const EXEC_TIMEOUT_S = 60
 
-// Exponentially double a shell string until the guest OOM-killer fires.
-// Doubling reaches gigabytes within ~30 iterations, so the OOM triggers within
-// seconds regardless of which `sh`/coreutils flavor the image ships (unlike
-// `tail /dev/zero`, whose buffering behavior varies between implementations).
-const OOM_COMMAND = "sh -c 'echo start; s=0123456789abcdef; while true; do s=$s$s; done'"
+// Fork bomb: a recursive shell function that spawns two backgrounded copies of
+// itself forever, exhausting the guest's process table / memory within seconds
+// and forcing the kernel OOM-killer to fire. Portable to any POSIX `sh`.
+const OOM_COMMAND = "sh -c 'echo start; bomb() { bomb | bomb & }; bomb'"
 
 function log(msg: string) {
   console.log(`[oom-recovery] ${msg}`)
@@ -113,7 +112,7 @@ async function main() {
     log(`All ${FILES} files written and verified`)
 
     // 2. Trigger the OOM
-    log(`Starting memory hog (${OOM_COMMAND})`)
+    log(`Starting fork bomb (${OOM_COMMAND})`)
     await sbx.process.exec({
       name: "oom-hog",
       command: OOM_COMMAND,
