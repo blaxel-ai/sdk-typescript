@@ -51,9 +51,11 @@ const LABELS = { env: "manual-test", "created-by": "oom-crash-recovery" }
 const TEST_DIR = "/home/user/oom-test"
 const EXEC_TIMEOUT_S = 60
 
-// `tail /dev/zero` buffers an endless stream of zeroes in memory until the
-// guest OOM-killer fires — the classic minimal OOM trigger.
-const OOM_COMMAND = "sh -c 'echo start; exec tail /dev/zero'"
+// Exponentially double a shell string until the guest OOM-killer fires.
+// Doubling reaches gigabytes within ~30 iterations, so the OOM triggers within
+// seconds regardless of which `sh`/coreutils flavor the image ships (unlike
+// `tail /dev/zero`, whose buffering behavior varies between implementations).
+const OOM_COMMAND = "sh -c 'echo start; s=0123456789abcdef; while true; do s=$s$s; done'"
 
 function log(msg: string) {
   console.log(`[oom-recovery] ${msg}`)
