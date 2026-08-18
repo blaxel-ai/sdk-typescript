@@ -1,15 +1,18 @@
 // Manual test: OOM crash recovery preserves files on disk.
 //
 // Verifies the mk3.1 crash-recovery behavior (executionplane#556): when the
-// workload inside a sandbox is OOM-killed, the microVM cold-reboots in place
-// with its disk-backed storage preserved (memory/process state is lost).
+// workload inside a sandbox is OOM-killed, the guest relaunches it IN PLACE
+// (VM stays up, tmpfs files survive, boot_id unchanged); only if that fails
+// does the microVM cold-reboot with disk-backed storage preserved.
 //
 // Flow:
 //   1. Create a sandbox with a small memory limit.
 //   2. Write marker files on disk and read them back.
 //   3. Run a single process that grows its memory until the guest OOMs.
-//   4. Wait for the crash + automatic restart (detected via a change of
-//      /proc/sys/kernel/random/boot_id, which is regenerated on every boot).
+//   4. Wait for the crash + automatic restart. Two signals, either counts:
+//      - in-guest restart: sandbox-api is relaunched, so its process table
+//        resets and the oom-hog record disappears (boot_id unchanged);
+//      - cold VM reboot: /proc/sys/kernel/random/boot_id changes.
 //   5. Verify the sandbox answers again and the files are intact.
 //   6. Log lastCrashAt/lastCrashReason from the API if present.
 //
@@ -127,33 +130,50 @@ async function main() {
       waitForCompletion: false,
     })
 
-    // 3. Wait for the crash + automatic restart (boot_id changes on reboot)
+    // 3. Wait for the crash + automatic restart. An in-guest restart keeps the
+    // same boot_id, so a changed boot_id is only the cold-reboot fallback; the
+    // primary signal is sandbox-api's process table resetting (oom-hog record
+    // gone) while the API answers again.
     log(`Waiting for crash + restart (timeout ${Math.round(RESTART_TIMEOUT_MS / 1000)}s)...`)
     const start = Date.now()
-    let bootAfter: string | null = null
+    let restartKind: "in-guest" | "vm-reboot" | null = null
     let sawUnreachable = false
     while (Date.now() - start < RESTART_TIMEOUT_MS) {
       await sleep(POLL_MS)
       try {
         const current = await bootId(sbx)
         if (current !== bootBefore) {
-          bootAfter = current
+          restartKind = "vm-reboot"
+          log(`Cold VM reboot detected: boot_id ${bootBefore} -> ${current}`)
           break
         }
-        log(`  still on original boot (${Math.round((Date.now() - start) / 1000)}s elapsed)`)
+        let hogGone = false
+        let hogStatus: string | undefined
+        try {
+          const hog = await sbx.process.get("oom-hog")
+          hogStatus = hog.status
+        } catch {
+          hogGone = true
+        }
+        if (hogGone) {
+          restartKind = "in-guest"
+          log(`In-guest restart detected: boot_id unchanged, process table reset (oom-hog record gone)`)
+          break
+        }
+        log(`  still on original boot, oom-hog status=${hogStatus} (${Math.round((Date.now() - start) / 1000)}s elapsed)`)
       } catch (err: unknown) {
         sawUnreachable = true
         const msg = err instanceof Error ? err.message : String(err)
         log(`  sandbox unreachable (crash/restart in progress): ${msg.split("\n")[0]}`)
       }
     }
-    if (!bootAfter) {
+    if (!restartKind) {
       throw new Error(
         `Sandbox did not restart within ${RESTART_TIMEOUT_MS}ms ` +
         `(unreachable at some point: ${sawUnreachable})`,
       )
     }
-    log(`Restart detected after ${Math.round((Date.now() - start) / 1000)}s: boot_id ${bootBefore} -> ${bootAfter}`)
+    log(`Restart (${restartKind}) detected after ${Math.round((Date.now() - start) / 1000)}s`)
 
     // 4. Verify files survived on disk
     log(`Verifying files after restart`)
@@ -203,9 +223,12 @@ async function main() {
     }
 
     if (failed || intact !== files.length) {
-      throw new Error("OOM crash recovery test FAILED: some files were lost")
+      throw new Error(
+        `OOM crash recovery test FAILED: some files were lost (recovery was ${restartKind}; ` +
+        `a diskless sandbox only keeps its files across an in-guest restart)`,
+      )
     }
-    log(`SUCCESS: sandbox restarted after OOM and all files survived`)
+    log(`SUCCESS: sandbox restarted (${restartKind}) after OOM and all files survived`)
   } finally {
     if (CLEANUP) {
       log(`Deleting sandbox ${NAME}`)
