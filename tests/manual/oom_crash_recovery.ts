@@ -193,6 +193,17 @@ async function main() {
     }
     log(`Restart (${restartKind}) detected after ${Math.round((Date.now() - start) / 1000)}s`)
 
+    // Free the memory pressure before verifying: an in-guest restart preserves
+    // guest RAM, so the fill files would keep the tmpfs (which also holds the
+    // marker files on a diskless sandbox) near full and could trigger another
+    // OOM mid-verification. Best-effort: the guest may still be settling.
+    try {
+      await run(sbx, "rm -f /dev/shm/oomfill /tmp/oomfill", "remove fill files")
+      log("Removed memory fill files")
+    } catch (err) {
+      log(`Could not remove fill files (continuing): ${err instanceof Error ? err.message : String(err)}`)
+    }
+
     // 4. Verify files survived on disk
     log(`Verifying files after restart`)
     let intact = 0
