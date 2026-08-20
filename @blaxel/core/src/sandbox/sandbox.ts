@@ -117,6 +117,16 @@ export class SandboxInstance {
     return this.sandbox.lastUsedAt;
   }
 
+  /**
+   * Infrastructure failures the compute plane recorded for this sandbox, oldest
+   * first. Entries with `fatal: true` are the ones that moved it to FAILED; the
+   * others (e.g. a microVM that exited and restarted) are informational. Only
+   * returned when a single sandbox is read, never in listings.
+   */
+  get errors() {
+    return this.sandbox.errors ?? [];
+  }
+
   get h2Domain() {
     return this.sandbox.h2Domain ?? null;
   }
