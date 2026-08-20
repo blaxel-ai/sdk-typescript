@@ -212,22 +212,31 @@ async function main() {
     // restarted under us.
     log(`Waiting for the processes to finish`)
     const lost: string[] = []
+    const stuck: string[] = []
     for (const name of names) {
-      for (let i = 0; i < 120; i++) {
+      let settled = false
+      for (let i = 0; i < 120 && !settled; i++) {
         try {
           const p = await sbx.process.get(name)
-          if (p.status !== "running") break
+          settled = p.status !== "running"
         } catch (err) {
           if (`${err}`.includes("process not found")) {
             lost.push(name)
+            settled = true
             break
           }
           throw err
         }
+        if (settled) break
         if (i % 10 === 0) await sample(`waiting for ${name}`)
         await sleep(1000)
       }
+      if (!settled) stuck.push(name)
     }
+    check(
+      stuck.length === 0,
+      `${stuck.join(", ")} was still running after 120s — the numbers below do not cover all the output`,
+    )
     check(
       lost.length === 0,
       `the API no longer knows about ${lost.join(", ")} — it lost its process table, so it was restarted`,
