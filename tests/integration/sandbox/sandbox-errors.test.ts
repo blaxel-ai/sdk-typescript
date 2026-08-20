@@ -4,8 +4,8 @@ import { defaultImage, defaultLabels, defaultRegion, uniqueName } from './helper
 
 // The infrastructure error history the compute plane records on a sandbox
 // (controlplane#5198). A healthy sandbox has none, so what is asserted here is
-// the shape of the accessor: always an array, entries typed, and never carried
-// by a listing (the projection drops the field, so it reads as empty too).
+// the contract of the accessor: always an array, and never carried by a listing
+// (the projection drops the field, so it reads as empty too).
 describe('Sandbox infrastructure errors', () => {
   const name = uniqueName("errors")
   const createdSandboxes: string[] = [name]
@@ -32,16 +32,11 @@ describe('Sandbox infrastructure errors', () => {
 
     const sandbox = await SandboxInstance.get(name)
 
+    // The shape of an entry (code, fatal, instance, message, time) is not
+    // exercisable here: covering it would mean provoking a real infrastructure
+    // failure on the compute plane.
     expect(Array.isArray(sandbox.errors)).toBe(true)
     expect(sandbox.errors).toHaveLength(0)
-
-    // Every entry is normalized: a stable code, whether it was terminal, the
-    // instance it was reported for, and a reason that never carries raw
-    // microVM log lines.
-    for (const error of sandbox.errors) {
-      expect(typeof error.code).toBe("string")
-      expect(typeof error.time).toBe("string")
-    }
   })
 
   it('does not carry the error history in a listing', async () => {
