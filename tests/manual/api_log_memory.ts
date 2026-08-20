@@ -80,12 +80,14 @@ function log(msg: string) {
   console.log(`[log-memory] ${msg}`)
 }
 
-function check(ok: boolean, msg: string) {
+// `whenOk` describes the good outcome, `whenNotOk` the bad one, so a line never
+// reads like the opposite of what happened.
+function check(ok: boolean, whenOk: string, whenNotOk: string) {
   if (ok) {
-    log(`OK: ${msg}`)
+    log(`OK: ${whenOk}`)
   } else {
-    failures.push(msg)
-    console.error(`[log-memory] FAIL: ${msg}`)
+    failures.push(whenNotOk)
+    console.error(`[log-memory] FAIL: ${whenNotOk}`)
   }
 }
 
@@ -173,6 +175,26 @@ async function diagnose(sbx: SandboxInstance): Promise<string> {
   }
 }
 
+// Why did the API forget a process? Either it went down and came back (in which
+// case its start time or the VM's boot_id changed), or it is the same process
+// that lost its state. The distinction is the whole point of the run, so ask the
+// guest before concluding anything.
+async function attribute(sbx: SandboxInstance, pid: number, first: Probe): Promise<string> {
+  let now: Probe | undefined
+  try {
+    now = await probe(sbx, pid)
+  } catch {
+    // Fall through to the raw diagnosis below.
+  }
+  const evidence = await diagnose(sbx)
+  if (!now) return `the guest no longer answers probes either — ${evidence}`
+  if (now.bootId !== first.bootId) return `the VM rebooted (boot_id changed) — ${evidence}`
+  if (now.apiStarted !== first.apiStarted) {
+    return `sandbox-api was restarted (start time ${first.apiStarted} -> ${now.apiStarted}) — ${evidence}`
+  }
+  return `the same sandbox-api process (start time ${now.apiStarted}) lost it from its process table — ${evidence}`
+}
+
 function describeRestart(first: Probe, now: Probe): string | undefined {
   if (now.bootId !== first.bootId) return "the VM rebooted (boot_id changed)"
   if (now.apiStarted !== first.apiStarted) return "sandbox-api was restarted (new process start time)"
@@ -250,7 +272,7 @@ async function main() {
       try {
         writerDone = (await sbx.process.get(WRITER)).status !== "running"
       } catch (err) {
-        crash = `the API no longer knows about ${WRITER} (${err}) — it lost its process table`
+        crash = `the API no longer knows about ${WRITER} (${err}) — ${await attribute(sbx, pid, first)}`
         break
       }
       await sleep(1000)
@@ -270,24 +292,28 @@ async function main() {
       `log dir peak=${maxLogMb.toFixed(1)}MB, largest list response=${(maxListBytes / 1024).toFixed(0)}KB`,
     )
 
-    if (crash) {
-      check(false, `the sandbox did not survive the writes: ${crash}`)
-    } else {
-      log(`OK: the sandbox stayed up`)
-    }
+    check(
+      crash === undefined,
+      `the sandbox stayed up for the whole run`,
+      `the sandbox did not survive the writes: ${crash}`,
+    )
     check(
       maxRss <= MAX_API_RSS_MB,
+      `sandbox-api RSS stayed at ${maxRss.toFixed(1)}MB (limit ${MAX_API_RSS_MB}MB)`,
       `sandbox-api RSS peaked at ${maxRss.toFixed(1)}MB (limit ${MAX_API_RSS_MB}MB) — ` +
       `it is holding process output in memory`,
     )
     check(
       maxLogMb <= MAX_LOG_DIR_MB,
+      `process log files stayed at ${maxLogMb.toFixed(1)}MB of the guest tmpfs (limit ${MAX_LOG_DIR_MB}MB)`,
       `process log files use ${maxLogMb.toFixed(1)}MB of the guest tmpfs (limit ${MAX_LOG_DIR_MB}MB) — ` +
       `the per-file cap is not being enforced`,
     )
     const listLimitBytes = 3 * 256 * 1024
     check(
       maxListBytes <= listLimitBytes,
+      `the largest GET /process response was ${(maxListBytes / 1024).toFixed(0)}KB ` +
+      `(limit ${(listLimitBytes / 1024).toFixed(0)}KB)`,
       `the largest GET /process response was ${(maxListBytes / 1024).toFixed(0)}KB ` +
       `(limit ${(listLimitBytes / 1024).toFixed(0)}KB) — the list is inlining full logs`,
     )
@@ -299,29 +325,42 @@ async function main() {
     } catch (err) {
       marker = `unreadable (${err})`
     }
-    check(marker === MARKER_CONTENT, `the tmpfs did not survive: ${MARKER} now reads ${JSON.stringify(marker)}`)
+    check(
+      marker === MARKER_CONTENT,
+      `the tmpfs survived: ${MARKER} is still there`,
+      `the tmpfs did not survive: ${MARKER} now reads ${JSON.stringify(marker)}`,
+    )
 
     try {
       const logs = await sbx.process.logs(WRITER)
-      check(logs.length > 0, `GET /process/${WRITER}/logs returned nothing — the output should be readable from disk`)
+      check(
+        logs.length > 0,
+        `GET /process/${WRITER}/logs returned ${(logs.length / 1024).toFixed(0)}KB, read from disk`,
+        `GET /process/${WRITER}/logs returned nothing — the output should be readable from disk`,
+      )
     } catch (err) {
-      check(false, `GET /process/${WRITER}/logs failed (${err}) — the API lost the process' output`)
+      check(false, "", `GET /process/${WRITER}/logs failed (${err}) — the API lost the process' output`)
     }
 
     // The OOM killer's victim must be the workload, not the API.
     try {
       const apiScore = await run(sbx, `cat /proc/${pid}/oom_score_adj`)
-      check(parseInt(apiScore, 10) < 0, `sandbox-api oom_score_adj=${apiScore}, want a negative value`)
+      check(
+        parseInt(apiScore, 10) < 0,
+        `sandbox-api is biased away from the OOM killer (oom_score_adj=${apiScore})`,
+        `sandbox-api oom_score_adj=${apiScore}, want a negative value`,
+      )
 
       await sbx.process.exec({ name: "victim", command: "sleep 60", waitForCompletion: false })
       const victim = await sbx.process.get("victim")
       const victimScore = await run(sbx, `cat /proc/${victim.pid}/oom_score_adj`)
       check(
         parseInt(victimScore, 10) > 0,
+        `a process started through the API is the preferred victim (oom_score_adj=${victimScore})`,
         `a process started through the API has oom_score_adj=${victimScore}, want a positive value`,
       )
     } catch (err) {
-      check(false, `could not read oom_score_adj (${err})`)
+      check(false, "", `could not read oom_score_adj (${err})`)
     }
 
     if (failures.length > 0) {
