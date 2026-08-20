@@ -33,6 +33,7 @@
 //   LIST_CALLS        how many times to call process.list() (default 20)
 //   MAX_API_RSS_MB    fail if sandbox-api RSS exceeds this (default 256)
 //   MAX_LOG_DIR_MB    fail if the log dir exceeds this (default 512)
+//   LOG_DIR           process log directory in the guest (default /var/log/sandbox-api)
 //   CLEANUP           delete the sandbox at the end (default "true")
 
 // Disable H2 to work around PM-2160 (h2 stream unref -> event loop exits mid-await).
@@ -56,6 +57,7 @@ const LIST_CALLS = parseInt(process.env.LIST_CALLS || "20", 10)
 const MAX_API_RSS_MB = parseInt(process.env.MAX_API_RSS_MB || "256", 10)
 const MAX_LOG_DIR_MB = parseInt(process.env.MAX_LOG_DIR_MB || "512", 10)
 const CLEANUP = (process.env.CLEANUP ?? "true") === "true"
+const LOG_DIR = process.env.LOG_DIR || "/var/log/sandbox-api"
 const LABELS = { env: "manual-test", "created-by": "api-log-memory" }
 
 const EXEC_TIMEOUT_S = 120
@@ -91,22 +93,57 @@ async function run(sbx: SandboxInstance, command: string, label: string): Promis
   return result.logs?.trim() ?? ""
 }
 
-async function apiRssMb(sbx: SandboxInstance): Promise<number> {
+// sandbox-api is the init of the PID namespace the processes it starts live in,
+// so it is normally PID 1 in there; fall back to pgrep when it is not (local
+// runs outside a sandbox).
+async function apiPid(sbx: SandboxInstance): Promise<number> {
   const out = await run(
     sbx,
-    "sh -c 'grep VmRSS /proc/$(pgrep -o -f sandbox-api)/status | awk \"{print \\$2}\"'",
-    "read sandbox-api RSS",
+    "sh -c 'if grep -q sandbox-api /proc/1/cmdline; then echo 1; else pgrep -o -f sandbox-api; fi'",
+    "find the sandbox-api pid",
   )
-  return parseInt(out, 10) / 1024
+  const pid = parseInt(out, 10)
+  if (!Number.isFinite(pid)) {
+    throw new Error(`could not find the sandbox-api pid, the guest said: ${JSON.stringify(out)}`)
+  }
+  return pid
 }
 
-async function logDirMb(sbx: SandboxInstance): Promise<number> {
-  const out = await run(sbx, "sh -c 'du -sk /var/log/sandbox-api | cut -f1'", "measure log dir")
-  return parseInt(out, 10) / 1024
+type Probe = {
+  bootId: string     // changes when the VM reboots
+  apiStarted: string // /proc/<pid>/stat starttime, changes when sandbox-api is restarted
+  rssMb: number
+  logMb: number
 }
 
-async function bootId(sbx: SandboxInstance): Promise<string> {
-  return await run(sbx, "cat /proc/sys/kernel/random/boot_id", "read boot_id")
+// One round trip for everything, so a sample is consistent and cheap.
+async function probe(sbx: SandboxInstance, pid: number): Promise<Probe> {
+  const out = await run(
+    sbx,
+    "sh -c 'cat /proc/sys/kernel/random/boot_id; " +
+      `cut -d" " -f22 /proc/${pid}/stat; ` +
+      `grep VmRSS /proc/${pid}/status; ` +
+      `du -sk ${LOG_DIR} 2>/dev/null || echo 0'`,
+    "probe the guest",
+  )
+  const lines = out.split("\n").map((l) => l.trim())
+  const rss = /VmRSS:\s+(\d+)/.exec(out)
+  const du = /(\d+)/.exec(lines[lines.length - 1] ?? "")
+  if (!rss) {
+    throw new Error(`could not read sandbox-api RSS, the guest said: ${JSON.stringify(out)}`)
+  }
+  return {
+    bootId: lines[0] ?? "",
+    apiStarted: lines[1] ?? "",
+    rssMb: parseInt(rss[1], 10) / 1024,
+    logMb: du ? parseInt(du[1], 10) / 1024 : 0,
+  }
+}
+
+function describeRestart(first: Probe, now: Probe): string | undefined {
+  if (now.bootId !== first.bootId) return "the VM rebooted (boot_id changed)"
+  if (now.apiStarted !== first.apiStarted) return "sandbox-api was restarted (new process start time)"
+  return undefined
 }
 
 async function main() {
@@ -121,9 +158,12 @@ async function main() {
   await sbx.wait()
 
   try {
-    const bootBefore = await bootId(sbx)
-    const rssBefore = await apiRssMb(sbx)
-    log(`Sandbox up. boot_id=${bootBefore}, sandbox-api RSS=${rssBefore.toFixed(1)}MB`)
+    const pid = await apiPid(sbx)
+    const first = await probe(sbx, pid)
+    log(
+      `Sandbox up. sandbox-api pid=${pid}, RSS=${first.rssMb.toFixed(1)}MB, ` +
+      `boot_id=${first.bootId}, started=${first.apiStarted}`,
+    )
 
     // 1. Start the chatty processes.
     log(`Starting ${PROCESSES} processes writing ~${OUTPUT_MB}MB of stdout each`)
@@ -137,37 +177,68 @@ async function main() {
     // 2. Hammer the list endpoint while they run: that is the path that used to
     // inline every process' whole output in one response.
     let maxListBytes = 0
-    let maxRss = rssBefore
+    let maxRss = first.rssMb
+    let maxLogMb = first.logMb
+    const restarts: string[] = []
+    const sample = async (label: string) => {
+      const now = await probe(sbx, pid)
+      maxRss = Math.max(maxRss, now.rssMb)
+      maxLogMb = Math.max(maxLogMb, now.logMb)
+      const restart = describeRestart(first, now)
+      if (restart && !restarts.includes(restart)) {
+        restarts.push(restart)
+        console.error(`[log-memory] ${label}: ${restart}`)
+      }
+      return now
+    }
+
     for (let i = 0; i < LIST_CALLS; i++) {
       const started = Date.now()
       const listed = await sbx.process.list()
       const bytes = JSON.stringify(listed).length
       maxListBytes = Math.max(maxListBytes, bytes)
-      const rss = await apiRssMb(sbx)
-      maxRss = Math.max(maxRss, rss)
+      const now = await sample(`list #${i + 1}`)
       log(
         `  list #${i + 1}: ${(bytes / 1024).toFixed(0)}KB in ${Date.now() - started}ms, ` +
-        `${Array.isArray(listed) ? listed.length : 0} processes, sandbox-api RSS=${rss.toFixed(1)}MB`,
+        `${Array.isArray(listed) ? listed.length : 0} processes, ` +
+        `sandbox-api RSS=${now.rssMb.toFixed(1)}MB, logs=${now.logMb.toFixed(1)}MB` +
+        (describeRestart(first, now) ? ` <- ${describeRestart(first, now)}` : ""),
       )
       await sleep(500)
     }
 
-    // 3. Let them finish writing, then look at the totals.
+    // 3. Let them finish writing, then look at the totals. A process the API no
+    // longer knows about is itself the failure: it lost its state, i.e. it was
+    // restarted under us.
     log(`Waiting for the processes to finish`)
+    const lost: string[] = []
     for (const name of names) {
       for (let i = 0; i < 120; i++) {
-        const p = await sbx.process.get(name)
-        if (p.status !== "running") break
+        try {
+          const p = await sbx.process.get(name)
+          if (p.status !== "running") break
+        } catch (err) {
+          if (`${err}`.includes("process not found")) {
+            lost.push(name)
+            break
+          }
+          throw err
+        }
+        if (i % 10 === 0) await sample(`waiting for ${name}`)
         await sleep(1000)
       }
     }
-    const rssAfter = await apiRssMb(sbx)
-    maxRss = Math.max(maxRss, rssAfter)
-    const dirMb = await logDirMb(sbx)
+    check(
+      lost.length === 0,
+      `the API no longer knows about ${lost.join(", ")} — it lost its process table, so it was restarted`,
+    )
+
+    const last = await sample("after the writes")
     const totalWrittenMb = PROCESSES * OUTPUT_MB
     log(
       `Wrote ~${totalWrittenMb}MB total. sandbox-api RSS peak=${maxRss.toFixed(1)}MB ` +
-      `(was ${rssBefore.toFixed(1)}MB), log dir=${dirMb.toFixed(1)}MB, ` +
+      `(was ${first.rssMb.toFixed(1)}MB, now ${last.rssMb.toFixed(1)}MB), ` +
+      `log dir peak=${maxLogMb.toFixed(1)}MB, ` +
       `largest list response=${(maxListBytes / 1024).toFixed(0)}KB`,
     )
 
@@ -177,8 +248,8 @@ async function main() {
       `(limit ${MAX_API_RSS_MB}MB) — the API is holding process output in memory`,
     )
     check(
-      dirMb <= MAX_LOG_DIR_MB,
-      `process log files use ${dirMb.toFixed(1)}MB of the guest tmpfs (limit ${MAX_LOG_DIR_MB}MB) — ` +
+      maxLogMb <= MAX_LOG_DIR_MB,
+      `process log files use ${maxLogMb.toFixed(1)}MB of the guest tmpfs (limit ${MAX_LOG_DIR_MB}MB) — ` +
       `the per-file cap is not being enforced`,
     )
     // A bounded list response: a tail per stream per process, not whole logs.
@@ -190,24 +261,23 @@ async function main() {
     )
 
     // 4. The full output is still retrievable, from disk.
-    const logs = await sbx.process.logs(names[0])
-    check(
-      logs.length > 0,
-      `GET /process/${names[0]}/logs returned ${logs.length} bytes — the output should still be readable from disk`,
-    )
+    if (lost.length === 0) {
+      const logs = await sbx.process.logs(names[0])
+      check(
+        logs.length > 0,
+        `GET /process/${names[0]}/logs returned ${logs.length} bytes — the output should still be readable from disk`,
+      )
+    }
 
     // 5. The OOM killer's victim must be the workload, not the API.
-    const apiScore = await run(
-      sbx,
-      "sh -c 'cat /proc/$(pgrep -o -f sandbox-api)/oom_score_adj'",
-      "read sandbox-api oom_score_adj",
-    )
+    const apiScore = await run(sbx, `cat /proc/${pid}/oom_score_adj`, "read sandbox-api oom_score_adj")
     check(parseInt(apiScore, 10) < 0, `sandbox-api oom_score_adj=${apiScore}, want a negative value`)
 
     await sbx.process.exec({ name: "victim", command: "sleep 60", waitForCompletion: false })
+    const victim = await sbx.process.get("victim")
     const victimScore = await run(
       sbx,
-      "sh -c 'cat /proc/$(pgrep -o -f \"sleep 60\")/oom_score_adj'",
+      `cat /proc/${victim.pid}/oom_score_adj`,
       "read workload oom_score_adj",
     )
     check(
@@ -216,13 +286,7 @@ async function main() {
     )
 
     // 6. Nothing restarted along the way.
-    const bootAfter = await bootId(sbx)
-    check(bootAfter === bootBefore, `boot_id changed (${bootBefore} -> ${bootAfter}) — the sandbox restarted`)
-    const stillListed = await sbx.process.list()
-    check(
-      Array.isArray(stillListed) && stillListed.length > 0,
-      `the API still knows about its processes (sandbox-api was not restarted)`,
-    )
+    check(restarts.length === 0, `the sandbox did not stay up: ${restarts.join("; ")}`)
 
     if (failures.length > 0) {
       throw new Error(`log-memory test FAILED:\n  - ${failures.join("\n  - ")}`)
