@@ -85,12 +85,28 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+// The API fills a process' `logs` asynchronously, so under a heavy workload an
+// exec that already exited can still report no output. Redirect to a file in the
+// guest and read that back instead, so a sample never depends on the log tailer
+// having caught up.
 async function run(sbx: SandboxInstance, command: string, label: string): Promise<string> {
-  const result = await sbx.process.exec({ command, waitForCompletion: true, timeout: EXEC_TIMEOUT_S })
-  if (result.exitCode !== 0) {
-    throw new Error(`${label} failed (exit ${result.exitCode}):\n${result.logs ?? ""}`)
+  const out = `/tmp/manual-probe-${uuidv4().replace(/-/g, "").substring(0, 8)}`
+  const result = await sbx.process.exec({
+    // `command` must not contain a single quote: it is wrapped in one here.
+    command: `sh -c '{ ${command} ; } > ${out} 2>&1'`,
+    waitForCompletion: true,
+    timeout: EXEC_TIMEOUT_S,
+  })
+  let content = ""
+  try {
+    content = (await sbx.fs.read(out)).trim()
+  } finally {
+    await sbx.process.exec({ command: `rm -f ${out}`, waitForCompletion: false }).catch(() => {})
   }
-  return result.logs?.trim() ?? ""
+  if (result.exitCode !== 0) {
+    throw new Error(`${label} failed (exit ${result.exitCode}):\n${content}`)
+  }
+  return content
 }
 
 // sandbox-api is the init of the PID namespace the processes it starts live in,
@@ -99,7 +115,7 @@ async function run(sbx: SandboxInstance, command: string, label: string): Promis
 async function apiPid(sbx: SandboxInstance): Promise<number> {
   const out = await run(
     sbx,
-    "sh -c 'if grep -q sandbox-api /proc/1/cmdline; then echo 1; else pgrep -o -f sandbox-api; fi'",
+    "if grep -q sandbox-api /proc/1/cmdline; then echo 1; else pgrep -o -f sandbox-api; fi",
     "find the sandbox-api pid",
   )
   const pid = parseInt(out, 10)
@@ -120,10 +136,10 @@ type Probe = {
 async function probe(sbx: SandboxInstance, pid: number): Promise<Probe> {
   const out = await run(
     sbx,
-    "sh -c 'cat /proc/sys/kernel/random/boot_id; " +
+    "cat /proc/sys/kernel/random/boot_id; " +
       `cut -d" " -f22 /proc/${pid}/stat; ` +
       `grep VmRSS /proc/${pid}/status; ` +
-      `du -sk ${LOG_DIR} 2>/dev/null || echo 0'`,
+      `{ du -sk ${LOG_DIR} 2>/dev/null || echo 0; }`,
     "probe the guest",
   )
   const lines = out.split("\n").map((l) => l.trim())
