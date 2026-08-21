@@ -545,6 +545,10 @@ export type CreateJobExecutionOutput = {
  */
 export type CreateJobExecutionRequest = {
     /**
+     * When false, capacity is checked synchronously and the request is rejected immediately with a 429 error if the execution cannot start right now, instead of being queued and retried in the background. No execution is created on rejection. Defaults to true (queue and retry).
+     */
+    allowQueue?: boolean;
+    /**
      * Environment variable overrides (optional, will merge with job's environment variables)
      */
     env?: {
