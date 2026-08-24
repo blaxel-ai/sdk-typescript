@@ -1,4 +1,5 @@
 import { Sandbox } from "../../client/types.gen.js";
+import { safeCallback, safeCallbackAsync } from "../../common/callbacks.js";
 import { fs } from "../../common/node.js";
 import { settings } from "../../common/settings.js";
 import { withUploadSlot } from "../../common/h2fetch.js";
@@ -457,24 +458,36 @@ export class SandboxFileSystem extends SandboxAction {
             if (line.startsWith("[keepalive]")) {
               continue;
             }
-            const fileEvent = JSON.parse(trimmed) as WatchEvent;
-            if (options?.withContent && ["CREATE", "WRITE"].includes(fileEvent.op)) {
-              try {
-                let filePath = ""
-                if (fileEvent.path.endsWith("/")) {
-                  filePath = fileEvent.path + fileEvent.name;
-                } else {
-                  filePath = fileEvent.path + "/" + fileEvent.name;
-                }
-
-                const content = await this.read(filePath);
-                await callback({ ...fileEvent, content: content });
-              } catch {
-                await callback({ ...fileEvent, content: undefined });
-              }
-            } else {
-              await callback(fileEvent);
+            // One malformed line must not tear down the watch: report it and
+            // keep reading.
+            let fileEvent: WatchEvent;
+            try {
+              fileEvent = JSON.parse(trimmed) as WatchEvent;
+            } catch (parseError) {
+              safeCallback(options?.onError, parseError instanceof Error
+                ? parseError
+                : new Error(`Unparseable watch event: ${trimmed}`));
+              continue;
             }
+
+            let content: string | undefined;
+            if (options?.withContent && ["CREATE", "WRITE"].includes(fileEvent.op)) {
+              const filePath = fileEvent.path.endsWith("/")
+                ? fileEvent.path + fileEvent.name
+                : fileEvent.path + "/" + fileEvent.name;
+              // A file already gone by the time we read it still deserves its event.
+              try {
+                content = await this.read(filePath);
+              } catch {
+                content = undefined;
+              }
+            }
+            // Delivered exactly once, and a throwing callback never ends the watch.
+            await safeCallbackAsync(
+              callback,
+              content === undefined ? fileEvent : { ...fileEvent, content },
+              options?.onError,
+            );
           }
         }
       } finally {

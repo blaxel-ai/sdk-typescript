@@ -1,4 +1,5 @@
 import { Sandbox } from "../../client/types.gen.js";
+import { safeCallback } from "../../common/callbacks.js";
 import { settings } from "../../common/settings.js";
 import { SandboxAction } from "../action.js";
 import { retryOnTransientReset } from "../../common/transient-retry.js";
@@ -28,18 +29,21 @@ export class SandboxProcess extends SandboxAction {
       }
     };
 
+    // Callbacks are caller code: a throw in one is reported, never fatal to the
+    // stream. Otherwise a single unparseable line ends the stream for good
+    // while the process keeps running and producing output nobody receives.
     const processLine = (line: string) => {
       if (line.startsWith("[keepalive]")) {
         return;
       }
       if (line.startsWith('stdout:')) {
-        options.onStdout?.(line.slice(7));
-        options.onLog?.(line.slice(7));
+        safeCallback(options.onStdout, line.slice(7), options.onError);
+        safeCallback(options.onLog, line.slice(7), options.onError);
       } else if (line.startsWith('stderr:')) {
-        options.onStderr?.(line.slice(7));
-        options.onLog?.(line.slice(7));
+        safeCallback(options.onStderr, line.slice(7), options.onError);
+        safeCallback(options.onLog, line.slice(7), options.onError);
       } else {
-        options.onLog?.(line);
+        safeCallback(options.onLog, line, options.onError);
       }
     };
 
@@ -184,17 +188,17 @@ export class SandboxProcess extends SandboxAction {
         // Emit any captured logs through callbacks
         if (data.stdout) {
           for (const line of data.stdout.split('\n').filter(l => l)) {
-            options.onStdout?.(line);
+            safeCallback(options.onStdout, line);
           }
         }
         if (data.stderr) {
           for (const line of data.stderr.split('\n').filter(l => l)) {
-            options.onStderr?.(line);
+            safeCallback(options.onStderr, line);
           }
         }
         if (data.logs) {
           for (const line of data.logs.split('\n').filter(l => l)) {
-            options.onLog?.(line);
+            safeCallback(options.onLog, line);
           }
         }
         return {
@@ -218,6 +222,20 @@ export class SandboxProcess extends SandboxAction {
     let buffer = '';
     let result: PostProcessResponse | null = null;
 
+    // The server wraps every write to this stream as a "stdout" event,
+    // including its own 30s "[keepalive]" marker, so filter it here the way
+    // streamLogs does rather than handing an internal marker to the caller.
+    const emit = (parsed: { type: string, data: string }) => {
+      if (!parsed.data || parsed.data.startsWith("[keepalive]")) return;
+      if (parsed.type === 'stdout') {
+        safeCallback(options.onStdout, parsed.data);
+        safeCallback(options.onLog, parsed.data);
+      } else if (parsed.type === 'stderr') {
+        safeCallback(options.onStderr, parsed.data);
+        safeCallback(options.onLog, parsed.data);
+      }
+    };
+
     while (true) {
       const readResult = await reader.read();
       if (readResult.done) break;
@@ -231,28 +249,14 @@ export class SandboxProcess extends SandboxAction {
 
       for (const line of lines) {
         const parsed = JSON.parse(line) as { type: string, data: string };
-        switch (parsed.type) {
-          case 'stdout':
-            if (parsed.data) {
-              options.onStdout?.(parsed.data);
-              options.onLog?.(parsed.data);
-            }
-            break;
-          case 'stderr':
-            if (parsed.data) {
-              options.onStderr?.(parsed.data);
-              options.onLog?.(parsed.data);
-            }
-            break;
-          case 'result':
-            try {
-              result = JSON.parse(parsed.data) as PostProcessResponse;
-            } catch {
-              throw new Error(`Failed to parse result JSON: ${parsed.data}`);
-            }
-            break;
-          default:
-            break;
+        if (parsed.type === 'result') {
+          try {
+            result = JSON.parse(parsed.data) as PostProcessResponse;
+          } catch {
+            throw new Error(`Failed to parse result JSON: ${parsed.data}`);
+          }
+        } else {
+          emit(parsed);
         }
       }
     }
@@ -278,26 +282,14 @@ export class SandboxProcess extends SandboxAction {
         }
       }
       if (parsed) {
-        switch (parsed.type) {
-          case 'stdout':
-            if (parsed.data) {
-              options.onStdout?.(parsed.data);
-              options.onLog?.(parsed.data);
-            }
-            break;
-          case 'stderr':
-            if (parsed.data) {
-              options.onStderr?.(parsed.data);
-              options.onLog?.(parsed.data);
-            }
-            break;
-          case 'result':
-            try {
-              result = JSON.parse(parsed.data) as PostProcessResponse;
-            } catch {
-              throw new Error(`Failed to parse result JSON: ${parsed.data}`);
-            }
-            break;
+        if (parsed.type === 'result') {
+          try {
+            result = JSON.parse(parsed.data) as PostProcessResponse;
+          } catch {
+            throw new Error(`Failed to parse result JSON: ${parsed.data}`);
+          }
+        } else {
+          emit(parsed);
         }
       }
     }
