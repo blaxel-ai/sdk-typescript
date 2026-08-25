@@ -36,6 +36,8 @@
  *   npx tsx tests/manual/large_app_preview.ts
  *   npx tsx tests/manual/large_app_preview.ts --target-mb 1024 --name my-big-app
  *   npx tsx tests/manual/large_app_preview.ts --reuse my-big-app --idle-min 20
+ *   npx tsx tests/manual/large_app_preview.ts --count 5 --name fleet
+ *   npx tsx tests/manual/large_app_preview.ts --delete-all fleet
  *
  * Options:
  *   --target-mb <n>   app size on disk to reach, in MB (default 700)
@@ -51,6 +53,12 @@
  *   --ttl <duration>  sandbox TTL (default 24h)
  *   --memory <mb>     sandbox memory (default 4096)
  *   --image <image>   sandbox image (default blaxel/base-image:latest)
+ *   --count <n>       build n sandboxes at once, named <name>-1..<name>-n
+ *                     (default 1). Combine with --idle-min to archive a whole
+ *                     fleet, or with --delete for a batch smoke run
+ *   --concurrency <n> how many of them to build in parallel (default 4)
+ *   --delete-all <p>  delete every sandbox this script created whose name
+ *                     starts with <p>, and do nothing else
  */
 
 import { SandboxInstance } from "@blaxel/core"
@@ -92,6 +100,9 @@ type Options = {
   ttl: string
   memory: number
   image: string
+  count: number
+  concurrency: number
+  deleteAll?: string
 }
 
 function parseArgs(argv: string[]): Options {
@@ -104,6 +115,8 @@ function parseArgs(argv: string[]): Options {
     ttl: "24h",
     memory: 4096,
     image: "blaxel/base-image:latest",
+    count: 1,
+    concurrency: 4,
   }
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
@@ -139,6 +152,15 @@ function parseArgs(argv: string[]): Options {
         break
       case "--image":
         options.image = value()
+        break
+      case "--count":
+        options.count = Number(value())
+        break
+      case "--concurrency":
+        options.concurrency = Number(value())
+        break
+      case "--delete-all":
+        options.deleteAll = value()
         break
       default:
         throw new Error(`unknown argument ${arg}`)
@@ -319,22 +341,26 @@ async function writeAppFiles(sandbox: SandboxInstance): Promise<void> {
 }
 
 /** Install stages until the app on disk reaches the target size. */
-async function installUntilTarget(sandbox: SandboxInstance, targetMb: number): Promise<{ stages: string[]; sizeMb: number }> {
+async function installUntilTarget(
+  sandbox: SandboxInstance,
+  targetMb: number,
+  log: (line: string) => void,
+): Promise<{ stages: string[]; sizeMb: number }> {
   const stages: string[] = []
   let size = 0
   for (const stage of STAGES) {
     const startedAt = Date.now()
-    console.log(`  installing ${stage.label}: ${stage.packages.join(" ")}`)
+    log(`  installing ${stage.label}: ${stage.packages.join(" ")}`)
     const env = Object.entries(stage.env ?? {})
       .map(([key, value]) => `${key}=${value} `)
       .join("")
     await runOrThrow(sandbox, `${env}npm install --no-audit --no-fund --loglevel=error ${stage.packages.join(" ")}`)
     stages.push(stage.label)
     size = await sizeMb(sandbox, APP_DIR)
-    console.log(`    ${size}MB after ${stage.label} (${Math.round((Date.now() - startedAt) / 1000)}s)`)
+    log(`    ${size}MB after ${stage.label} (${Math.round((Date.now() - startedAt) / 1000)}s)`)
     if (size >= targetMb) return { stages, sizeMb: size }
   }
-  console.warn(`  ⚠️  every stage installed and the app is only ${size}MB, short of the ${targetMb}MB target`)
+  log(`  ⚠️  every stage installed and the app is only ${size}MB, short of the ${targetMb}MB target`)
   return { stages, sizeMb: size }
 }
 
@@ -342,7 +368,12 @@ async function installUntilTarget(sandbox: SandboxInstance, targetMb: number): P
  * Record the app's size and the sha256 of files sampled across it, so the
  * served app can prove the filesystem survived an archive/restore.
  */
-async function writeManifest(sandbox: SandboxInstance, stages: string[], size: number): Promise<number> {
+async function writeManifest(
+  sandbox: SandboxInstance,
+  stages: string[],
+  size: number,
+  log: (line: string) => void,
+): Promise<number> {
   const fileCount = Number(
     (await runOrThrow(sandbox, `find . -type f | wc -l`, { timeoutMs: 5 * 60 * 1000 })).trim().split(/\s+/).pop(),
   )
@@ -350,9 +381,10 @@ async function writeManifest(sandbox: SandboxInstance, stages: string[], size: n
   // first n, which would all sit in the same directory.
   const sampled = await runOrThrow(
     sandbox,
-    // node_modules only: files like package-lock.json or .next are rewritten by
-    // later installs and builds, so they would report a false corruption.
-    `find ./node_modules -type f -size +1k | awk 'NR % 251 == 1' | head -40 | xargs sha256sum`,
+    // Only package payload files: package-lock.json, .next/ and npm's own
+    // node_modules/.package-lock.json or .cache are rewritten by later installs
+    // and by the build, and would report a false corruption.
+    `find ./node_modules -type f -size +1k -not -path '*/.*' | awk 'NR % 251 == 1' | head -40 | xargs sha256sum`,
     { timeoutMs: 5 * 60 * 1000 },
   )
   const samples = sampled
@@ -366,7 +398,7 @@ async function writeManifest(sandbox: SandboxInstance, stages: string[], size: n
     `${APP_DIR}/manifest.json`,
     JSON.stringify({ builtAt: new Date().toISOString(), sizeMb: size, fileCount, stages, samples }, null, 2),
   )
-  console.log(`  manifest: ${fileCount} files, ${samples.length} integrity samples`)
+  log(`  manifest: ${fileCount} files, ${samples.length} integrity samples`)
   return fileCount
 }
 
@@ -408,26 +440,33 @@ async function waitUntilServing(url: string): Promise<Probe> {
   throw new Error(`the preview never served the app: ${last.status} ${last.detail}`)
 }
 
-async function main() {
-  const options = parseArgs(process.argv.slice(2))
-  let created = false
+type RunOutcome = {
+  name: string
+  url?: string
+  sizeMb?: number
+  servedMs?: number
+  restoreMs?: number
+  integrity?: string
+  error?: string
+}
 
-  if (options.reuse && options.del) {
-    console.log(`Deleting sandbox ${options.name}...`)
-    await SandboxInstance.delete(options.name)
-    console.log("  deleted")
-    return
-  }
+/**
+ * Build (or reuse), serve and check one sandbox. `log` is prefixed with the
+ * sandbox name when several run at once.
+ */
+async function runOne(options: Options, name: string, log: (line: string) => void): Promise<RunOutcome> {
+  let created = false
+  const outcome: RunOutcome = { name }
 
   try {
     let sandbox: SandboxInstance
     if (options.reuse) {
-      console.log(`Reusing sandbox ${options.name}...`)
-      sandbox = await SandboxInstance.get(options.name)
+      log(`Reusing sandbox ${name}...`)
+      sandbox = await SandboxInstance.get(name)
     } else {
-      console.log(`Creating sandbox ${options.name} (${options.memory}MB, ttl ${options.ttl})...`)
+      log(`Creating sandbox ${name} (${options.memory}MB, ttl ${options.ttl})...`)
       sandbox = await SandboxInstance.create({
-        name: options.name,
+        name,
         image: options.image,
         memory: options.memory,
         ttl: options.ttl,
@@ -437,20 +476,20 @@ async function main() {
       created = true
       await waitForSandboxApi(sandbox)
 
-      console.log(`Writing the app to ${APP_DIR}...`)
+      log(`Writing the app to ${APP_DIR}...`)
       await writeAppFiles(sandbox)
 
-      console.log(`Installing dependencies until the app reaches ${options.targetMb}MB...`)
-      const installed = await installUntilTarget(sandbox, options.targetMb)
-      await writeManifest(sandbox, installed.stages, installed.sizeMb)
+      log(`Installing dependencies until the app reaches ${options.targetMb}MB...`)
+      const installed = await installUntilTarget(sandbox, options.targetMb, log)
+      await writeManifest(sandbox, installed.stages, installed.sizeMb, log)
 
-      console.log("Building the app...")
+      log("Building the app...")
       const buildStartedAt = Date.now()
       await runOrThrow(sandbox, "npm run build", { timeoutMs: BUILD_TIMEOUT_MS })
-      console.log(`  built in ${Math.round((Date.now() - buildStartedAt) / 1000)}s`)
+      log(`  built in ${Math.round((Date.now() - buildStartedAt) / 1000)}s`)
     }
 
-    console.log("Starting the app...")
+    log("Starting the app...")
     await sandbox.process.exec({
       name: "large-app",
       command: "npm run start",
@@ -474,50 +513,148 @@ async function main() {
 
     const first = await waitUntilServing(url)
     const total = await sizeMb(sandbox, APP_DIR)
+    outcome.url = url
+    outcome.sizeMb = total
+    outcome.servedMs = first.durationMs
+    outcome.integrity = first.detail
 
-    console.log("\n--- the app is live ---")
-    console.log(`sandbox:      ${options.name}`)
-    console.log(`preview:      ${url}`)
-    console.log(`app on disk:  ${total}MB (${APP_DIR})`)
-    console.log(`integrity:    ${first.detail}`)
-    console.log(`served in:    ${first.durationMs}ms`)
+    log("--- the app is live ---")
+    log(`preview:      ${url}`)
+    log(`app on disk:  ${total}MB (${APP_DIR})`)
+    log(`integrity:    ${first.detail}`)
+    log(`served in:    ${first.durationMs}ms`)
 
     if (options.idleMin > 0) {
-      console.log(`\nStaying silent for ${options.idleMin} minutes so the sandbox goes to standby and is archived...`)
+      log(`Staying silent for ${options.idleMin} minutes so the sandbox goes to standby and is archived...`)
       await sleep(options.idleMin * 60 * 1000)
-      console.log("Probing the preview again — this request has to restore the filesystem:")
+      log("Probing the preview again — this request has to restore the filesystem:")
       const restored = await probe(url)
-      console.log(`  answered in ${Math.round(restored.durationMs / 1000)}s (${restored.durationMs}ms): ${restored.detail}`)
+      log(`  answered in ${Math.round(restored.durationMs / 1000)}s (${restored.durationMs}ms): ${restored.detail}`)
       // A second probe on the now-warm sandbox separates restore cost from the
       // app's own response time.
       const warm = await probe(url)
-      console.log(`  warm request: ${warm.durationMs}ms`)
+      log(`  warm request: ${warm.durationMs}ms`)
+      outcome.restoreMs = restored.durationMs
+      outcome.integrity = restored.detail
       if (!restored.ok) {
-        console.error(`\n❌ The app came back broken after the archive: ${restored.detail}`)
-        process.exitCode = 1
-        return
+        outcome.error = `broken after the archive: ${restored.detail}`
+        log(`❌ The app came back broken after the archive: ${restored.detail}`)
+        return outcome
       }
-      console.log(`\n✅ ${total}MB of app survived the archive; the first request after it took ${restored.durationMs}ms.`)
-      return
+      log(`✅ ${total}MB of app survived the archive; the first request after it took ${restored.durationMs}ms.`)
+      return outcome
     }
 
-    console.log(
-      `\n✅ Ready. Leave it idle to have it archived, then check the restore with:\n` +
-        `   npx tsx tests/manual/large_app_preview.ts --reuse ${options.name} --idle-min 20`,
+    log(
+      `✅ Ready. Leave it idle to have it archived, then check the restore with:\n` +
+        `   npx tsx tests/manual/large_app_preview.ts --reuse ${name} --idle-min 20`,
     )
+    return outcome
+  } catch (e) {
+    outcome.error = (e as Error).message
+    log(`❌ ${outcome.error}`)
+    return outcome
   } finally {
     if (options.del && (created || options.reuse)) {
-      console.log("\n🧹 Deleting the sandbox...")
+      log("🧹 Deleting the sandbox...")
       try {
-        await SandboxInstance.delete(options.name)
-        console.log(`  deleted ${options.name}`)
+        await SandboxInstance.delete(name)
+        log(`  deleted ${name}`)
       } catch (e) {
-        console.warn(`  failed to delete ${options.name}: ${(e as Error).message}`)
+        log(`  failed to delete ${name}: ${(e as Error).message}`)
       }
     } else if (created) {
-      console.log(`\nThe sandbox ${options.name} is left running (ttl ${options.ttl}). Delete it with:`)
-      console.log(`   npx tsx tests/manual/large_app_preview.ts --reuse ${options.name} --delete`)
+      log(`The sandbox ${name} is left running (ttl ${options.ttl}). Delete it with:`)
+      log(`   npx tsx tests/manual/large_app_preview.ts --reuse ${name} --delete`)
     }
+  }
+}
+
+/** Delete every sandbox this script created whose name starts with `prefix`. */
+async function deleteAll(prefix: string): Promise<void> {
+  // `PaginatedList` is not exported from the package's entrypoint.
+  const page: Awaited<ReturnType<typeof SandboxInstance.list>> = await SandboxInstance.list()
+  const names: string[] = []
+  await page.autoPagingEach((sandbox: SandboxInstance) => {
+    const name = sandbox.metadata?.name
+    if (name && name.startsWith(prefix) && sandbox.metadata?.labels?.["created-by"] === "large_app_preview") {
+      names.push(name)
+    }
+  })
+  if (names.length === 0) {
+    console.log(`No sandbox created by this script starts with "${prefix}".`)
+    return
+  }
+  console.log(`Deleting ${names.length} sandbox(es) starting with "${prefix}"...`)
+  for (const name of names) {
+    try {
+      await SandboxInstance.delete(name)
+      console.log(`  deleted ${name}`)
+    } catch (e) {
+      console.warn(`  failed to delete ${name}: ${(e as Error).message}`)
+    }
+  }
+}
+
+/** Run `tasks` with at most `limit` of them in flight at any time. */
+async function pooled<T>(tasks: (() => Promise<T>)[], limit: number): Promise<T[]> {
+  const results = new Array<T>(tasks.length)
+  let next = 0
+  const workers = Array.from({ length: Math.max(1, Math.min(limit, tasks.length)) }, async () => {
+    while (next < tasks.length) {
+      const index = next++
+      results[index] = await tasks[index]()
+    }
+  })
+  await Promise.all(workers)
+  return results
+}
+
+async function main() {
+  const options = parseArgs(process.argv.slice(2))
+
+  if (options.deleteAll !== undefined) {
+    await deleteAll(options.deleteAll)
+    return
+  }
+
+  const base = options.reuse ?? options.name
+  if (options.reuse && options.del && options.count === 1) {
+    console.log(`Deleting sandbox ${base}...`)
+    await SandboxInstance.delete(base)
+    console.log("  deleted")
+    return
+  }
+
+  if (options.count === 1) {
+    const outcome = await runOne(options, base, (line) => console.log(line))
+    if (outcome.error) process.exitCode = 1
+    return
+  }
+
+  const names = Array.from({ length: options.count }, (_, i) => `${base}-${i + 1}`)
+  console.log(`Building ${options.count} sandboxes (${options.concurrency} at a time): ${names.join(", ")}\n`)
+  const startedAt = Date.now()
+  const outcomes = await pooled(
+    names.map((name) => () => runOne(options, name, (line) => console.log(`[${name}] ${line}`))),
+    options.concurrency,
+  )
+
+  console.log(`\n--- ${outcomes.length} sandboxes in ${Math.round((Date.now() - startedAt) / 1000)}s ---`)
+  for (const outcome of outcomes) {
+    const status = outcome.error ? `❌ ${outcome.error}` : `✅ ${outcome.sizeMb}MB — ${outcome.integrity}`
+    const restore = outcome.restoreMs === undefined ? "" : ` — restored in ${outcome.restoreMs}ms`
+    console.log(`${outcome.name}: ${status}${restore}`)
+    if (outcome.url) console.log(`  ${outcome.url}`)
+  }
+  const failed = outcomes.filter((o) => o.error)
+  if (failed.length > 0) {
+    console.error(`\n${failed.length}/${outcomes.length} failed.`)
+    process.exitCode = 1
+    return
+  }
+  if (!options.del) {
+    console.log(`\nDelete the whole batch with:\n   npx tsx tests/manual/large_app_preview.ts --delete-all ${base}`)
   }
 }
 
