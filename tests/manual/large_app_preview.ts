@@ -243,7 +243,7 @@ export default async function Page() {
   return (
     <main>
       <h1>Blaxel large app</h1>
-      <p>node_modules: {result.manifest.sizeMb} MB across {result.manifest.fileCount} files</p>
+      <p>app on disk: {result.manifest.sizeMb} MB across {result.manifest.fileCount} files</p>
       <p>dependency stages: {result.manifest.stages.join(", ")}</p>
       <p>built at {result.manifest.builtAt}</p>
       <p>
@@ -350,7 +350,9 @@ async function writeManifest(sandbox: SandboxInstance, stages: string[], size: n
   // first n, which would all sit in the same directory.
   const sampled = await runOrThrow(
     sandbox,
-    `find . -type f -size +1k | awk 'NR % 251 == 1' | head -40 | xargs sha256sum`,
+    // node_modules only: files like package-lock.json or .next are rewritten by
+    // later installs and builds, so they would report a false corruption.
+    `find ./node_modules -type f -size +1k | awk 'NR % 251 == 1' | head -40 | xargs sha256sum`,
     { timeoutMs: 5 * 60 * 1000 },
   )
   const samples = sampled
