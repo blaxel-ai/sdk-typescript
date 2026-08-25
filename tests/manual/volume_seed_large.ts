@@ -36,7 +36,7 @@
  *   --target-mb <n>     data to write on each volume, in MB (default 1024)
  *   --size-mb <n>       volume size (default target + 1024 MB of headroom)
  *   --region <region>   region of the volumes and seeder sandboxes
- *                       (default us-was-1)
+ *                       (default $BL_REGION, or us-was-1)
  *   --mount-path <p>    where the volume is mounted while seeding
  *                       (default /volume)
  *   --no-fill           stop at the last npm stage even if the target is not
@@ -99,7 +99,7 @@ function parseArgs(argv: string[]): Options {
     count: 1,
     concurrency: 4,
     targetMb: 1024,
-    region: "us-was-1",
+    region: process.env.BL_REGION || "us-was-1",
     mountPath: "/volume",
     fill: true,
     verify: false,
@@ -386,30 +386,34 @@ async function seedOne(options: Options, volumeName: string, log: (line: string)
   let sandbox: SandboxInstance | undefined
   let createAttempted = false
 
+  // A sandbox can only mount a volume from its own region, so a verifier goes
+  // where the volume already is rather than where --region points.
+  let region = options.region
+
   try {
     if (options.verify) {
       // Fail early and clearly rather than mounting a volume that isn't there.
-      await VolumeInstance.get(volumeName)
+      region = (await VolumeInstance.get(volumeName)).region ?? options.region
     } else {
       const size = options.sizeMb ?? options.targetMb + 1024
-      log(`creating volume ${volumeName} (${size}MB) in ${options.region} if it doesn't exist`)
+      log(`creating volume ${volumeName} (${size}MB) in ${region} if it doesn't exist`)
       await VolumeInstance.createIfNotExists({
         name: volumeName,
         size,
-        region: options.region,
+        region,
         labels: LABELS,
       })
     }
 
     await waitForVolume(volumeName, log)
 
-    log(`creating sandbox ${sandboxName} with ${volumeName} mounted at ${options.mountPath}`)
+    log(`creating sandbox ${sandboxName} in ${region} with ${volumeName} mounted at ${options.mountPath}`)
     createAttempted = true
     sandbox = await SandboxInstance.create({
       name: sandboxName,
       image: options.image,
       memory: options.memory,
-      region: options.region,
+      region,
       ttl: "1h",
       labels: LABELS,
       volumes: [{ name: volumeName, mountPath: options.mountPath, readOnly: false }],
@@ -438,7 +442,7 @@ async function seedOne(options: Options, volumeName: string, log: (line: string)
       }
     }
     await runOrThrow(sandbox, "sync", appDir)
-    const manifest = await writeManifest(sandbox, appDir, options.region, installed.stages, total, log)
+    const manifest = await writeManifest(sandbox, appDir, region, installed.stages, total, log)
 
     outcome.sizeMb = total
     outcome.fileCount = manifest.fileCount
@@ -524,7 +528,7 @@ async function main() {
   }
 
   const names = Array.from({ length: options.count }, (_, i) => `${options.name}-${i + 1}`)
-  console.log(`${verb} ${options.count} volumes (${options.concurrency} at a time): ${names.join(", ")}\n`)
+  console.log(`${verb} ${options.count} volumes in ${options.region} (${options.concurrency} at a time): ${names.join(", ")}\n`)
   const startedAt = Date.now()
   const outcomes = await pooled(
     names.map((name) => () => seedOne(options, name, (line) => console.log(`[${name}] ${line}`))),
