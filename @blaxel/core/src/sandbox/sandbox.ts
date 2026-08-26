@@ -61,11 +61,18 @@ const TRANSIENT_STATUS_POLL_MS = 500;
 const ARCHIVE_WAIT_TIMEOUT_MS = 1_800_000;
 const ARCHIVE_WAIT_POLL_MS = 2_000;
 // An archive is done when the sandbox is ARCHIVED; it is still under way while
-// the record holds one of these (the export is launched before the status moves).
-const ARCHIVING_STATUSES = new Set(["DEPLOYED", "ARCHIVING"]);
+// the record holds one of these.
+const ARCHIVING_STATUSES = new Set(["ARCHIVING"]);
 // A restore is done when the sandbox is DEPLOYED again; the instance is recreated
 // before the archived filesystem is written back over its image.
-const UNARCHIVING_STATUSES = new Set(["ARCHIVED", "UNARCHIVING", "DEPLOYING", "BUILDING", "UPLOADING"]);
+const UNARCHIVING_STATUSES = new Set(["UNARCHIVING", "DEPLOYING", "BUILDING", "UPLOADING"]);
+// The status the sandbox holds before the operation moves it, tolerated only
+// while the operation is starting: an archive that fails hands the sandbox back
+// as DEPLOYED and a restore that fails leaves it ARCHIVED, so reading the entry
+// status once the operation has begun means it is over, not still running.
+const ARCHIVE_ENTRY_STATUS = "DEPLOYED";
+const UNARCHIVE_ENTRY_STATUS = "ARCHIVED";
+const ARCHIVE_ENTRY_MAX_WAIT_MS = 30_000;
 
 /** How long to wait for an archive, or its restore, to finish. */
 export type SandboxArchiveOptions = {
@@ -400,7 +407,7 @@ export class SandboxInstance {
       path: { sandboxName },
       throwOnError: true,
     });
-    return SandboxInstance.waitForArchiveStatus(sandboxName, data, "ARCHIVED", ARCHIVING_STATUSES, "archive", options);
+    return SandboxInstance.waitForArchiveStatus(sandboxName, data, "ARCHIVED", ARCHIVING_STATUSES, ARCHIVE_ENTRY_STATUS, "archive", options);
   }
 
   /**
@@ -427,7 +434,7 @@ export class SandboxInstance {
       path: { sandboxName },
       throwOnError: true,
     });
-    return SandboxInstance.waitForArchiveStatus(sandboxName, data, "DEPLOYED", UNARCHIVING_STATUSES, "unarchive", options);
+    return SandboxInstance.waitForArchiveStatus(sandboxName, data, "DEPLOYED", UNARCHIVING_STATUSES, UNARCHIVE_ENTRY_STATUS, "unarchive", options);
   }
 
   /**
@@ -454,6 +461,7 @@ export class SandboxInstance {
     launched: SandboxModel,
     target: string,
     pending: Set<string>,
+    entry: string,
     action: string,
     { wait = true, timeout = ARCHIVE_WAIT_TIMEOUT_MS, interval = ARCHIVE_WAIT_POLL_MS }: SandboxArchiveOptions,
   ): Promise<SandboxInstance> {
@@ -461,12 +469,19 @@ export class SandboxInstance {
       return SandboxInstance.attachH2Session(new SandboxInstance(launched));
     }
     const deadline = Date.now() + timeout;
+    const entryDeadline = Date.now() + ARCHIVE_ENTRY_MAX_WAIT_MS;
+    let started = false;
     for (;;) {
       await new Promise((resolve) => setTimeout(resolve, interval));
       const instance = await SandboxInstance.get(sandboxName);
       const status = instance.status;
       if (status === target) {
         return instance;
+      }
+      if (pending.has(status ?? "")) {
+        started = true;
+      } else if (status === entry && !started && Date.now() < entryDeadline) {
+        continue;
       }
       if (!pending.has(status ?? "")) {
         throw new Error(`Sandbox ${sandboxName} is ${status} while it should ${action}`);
