@@ -44,6 +44,9 @@ export default defineConfig({
       // schedules.test.ts > "firing": waits on the scheduler tick + a backend
       // cleanup pass (~45-65s), which can blow the 1-minute per-test budget.
       RUN_SLOW_SCHEDULES: process.env.RUN_SLOW_SCHEDULES ?? "false",
+      // archive.test.ts > "Sandbox archive/unarchive": exports the filesystem
+      // to the archive store and restores it, minutes each way.
+      RUN_SLOW_ARCHIVE: process.env.RUN_SLOW_ARCHIVE ?? "false",
       // image-build.test.ts > "Image Build Integration": builds AND deploys a
       // custom image -- heavy and slow, needs the image-build pipeline.
       IMAGE_BUILD: process.env.IMAGE_BUILD ?? "false",
