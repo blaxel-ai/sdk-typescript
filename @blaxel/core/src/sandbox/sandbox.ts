@@ -1,5 +1,5 @@
 import type http2 from "http2";
-import { createSandbox, createSandboxSnapshot, deleteSandbox, deleteSandboxSnapshot, forkSandbox, getSandbox, getSandboxByExternalId, listSandboxes, listSandboxSnapshots, type ListSandboxesData, type SandboxForkResponse, type SandboxLifecycle, type Sandbox as SandboxModel, type SandboxSnapshot, type SandboxSnapshots, updateSandbox } from "../client/index.js";
+import { archiveSandbox, createSandbox, createSandboxSnapshot, deleteSandbox, deleteSandboxSnapshot, forkSandbox, getSandbox, getSandboxByExternalId, listSandboxes, listSandboxSnapshots, type ListSandboxesData, type SandboxForkResponse, type SandboxLifecycle, type Sandbox as SandboxModel, type SandboxSnapshot, type SandboxSnapshots, unarchiveSandbox, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
 import { backoffDelayMs } from "../common/transient-retry.js";
 import { createPaginatedList } from "../common/pagination.js";
@@ -55,6 +55,27 @@ const TRANSIENT_SANDBOX_STATUSES = new Set([
 ]);
 const TRANSIENT_STATUS_MAX_WAIT_MS = 30_000;
 const TRANSIENT_STATUS_POLL_MS = 500;
+
+// Archiving a filesystem, and restoring it, take as long as that filesystem is
+// big — minutes for a few gigabytes.
+const ARCHIVE_WAIT_TIMEOUT_MS = 1_800_000;
+const ARCHIVE_WAIT_POLL_MS = 2_000;
+// An archive is done when the sandbox is ARCHIVED; it is still under way while
+// the record holds one of these (the export is launched before the status moves).
+const ARCHIVING_STATUSES = new Set(["DEPLOYED", "ARCHIVING"]);
+// A restore is done when the sandbox is DEPLOYED again; the instance is recreated
+// before the archived filesystem is written back over its image.
+const UNARCHIVING_STATUSES = new Set(["ARCHIVED", "UNARCHIVING", "DEPLOYING", "BUILDING", "UPLOADING"]);
+
+/** How long to wait for an archive, or its restore, to finish. */
+export type SandboxArchiveOptions = {
+  /** Wait for the archive/restore to finish. Defaults to true. */
+  wait?: boolean;
+  /** Give up after this many milliseconds. Defaults to 30 minutes. */
+  timeout?: number;
+  /** Delay between two reads of the sandbox. Defaults to 2 seconds. */
+  interval?: number;
+};
 
 // A create that outlives the edge's 60s origin-read timeout gets a 504 from
 // CloudFront while the control plane keeps deploying the sandbox for up to
@@ -363,6 +384,97 @@ export class SandboxInstance {
       }
     }
     return instance;
+  }
+
+  /**
+   * Archive a sandbox: keep its filesystem, release its compute.
+   *
+   * The filesystem changes made over the image are exported to the archive store
+   * and the sandbox is shut down; memory and running processes are lost, and the
+   * saved processes start again from their configuration when the sandbox is
+   * unarchived. The export runs in the background: this waits until the sandbox
+   * is ARCHIVED, pass `{ wait: false }` to return as soon as it is launched.
+   */
+  static async archive(sandboxName: string, options: SandboxArchiveOptions = {}) {
+    const { data } = await archiveSandbox({
+      path: { sandboxName },
+      throwOnError: true,
+    });
+    return SandboxInstance.waitForArchiveStatus(sandboxName, data, "ARCHIVED", ARCHIVING_STATUSES, "archive", options);
+  }
+
+  /**
+   * Archive this sandbox: keep its filesystem, release its compute.
+   *
+   * @see SandboxInstance.archive
+   */
+  async archive(options: SandboxArchiveOptions = {}) {
+    const instance = await SandboxInstance.archive(this.metadata.name!, options);
+    this.refreshFrom(instance);
+    return this;
+  }
+
+  /**
+   * Recreate an archived sandbox from its archive.
+   *
+   * The sandbox answers, and its terminal is reachable, while the archived
+   * filesystem is written back over its image. This waits until the restore is
+   * done and the saved processes are running again; pass `{ wait: false }` to
+   * return while the sandbox is still UNARCHIVING.
+   */
+  static async unarchive(sandboxName: string, options: SandboxArchiveOptions = {}) {
+    const { data } = await unarchiveSandbox({
+      path: { sandboxName },
+      throwOnError: true,
+    });
+    return SandboxInstance.waitForArchiveStatus(sandboxName, data, "DEPLOYED", UNARCHIVING_STATUSES, "unarchive", options);
+  }
+
+  /**
+   * Recreate this sandbox from its archive.
+   *
+   * @see SandboxInstance.unarchive
+   */
+  async unarchive(options: SandboxArchiveOptions = {}) {
+    const instance = await SandboxInstance.unarchive(this.metadata.name!, options);
+    this.refreshFrom(instance);
+    return this;
+  }
+
+  // The subsystems (fs, process, previews, ...) hold the configuration object
+  // this instance was built with, so a refresh writes into it rather than
+  // replacing it. Anything the read did not carry, the forced URL of a session
+  // above all, is kept.
+  private refreshFrom(instance: SandboxInstance) {
+    Object.assign(this.sandbox, instance.sandbox);
+  }
+
+  private static async waitForArchiveStatus(
+    sandboxName: string,
+    launched: SandboxModel,
+    target: string,
+    pending: Set<string>,
+    action: string,
+    { wait = true, timeout = ARCHIVE_WAIT_TIMEOUT_MS, interval = ARCHIVE_WAIT_POLL_MS }: SandboxArchiveOptions,
+  ): Promise<SandboxInstance> {
+    if (!wait || launched.status === target) {
+      return SandboxInstance.attachH2Session(new SandboxInstance(launched));
+    }
+    const deadline = Date.now() + timeout;
+    for (;;) {
+      await new Promise((resolve) => setTimeout(resolve, interval));
+      const instance = await SandboxInstance.get(sandboxName);
+      const status = instance.status;
+      if (status === target) {
+        return instance;
+      }
+      if (!pending.has(status ?? "")) {
+        throw new Error(`Sandbox ${sandboxName} is ${status} while it should ${action}`);
+      }
+      if (Date.now() >= deadline) {
+        throw new Error(`Sandbox ${sandboxName} is still ${status} after waiting ${Math.round(timeout / 1000)}s for it to ${action}`);
+      }
+    }
   }
 
   static async get(sandboxName: string) {
