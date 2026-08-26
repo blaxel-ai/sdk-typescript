@@ -3699,6 +3699,7 @@ export type SsoDomainSpecWritable = {
  * Lightweight virtual machine for secure AI code execution. Sandboxes resume from standby in under 25ms and automatically scale to zero after inactivity, preserving memory state including running processes and filesystem.
  */
 export type Sandbox = {
+    archive?: SandboxArchive;
     /**
      * Infrastructure failures recorded on the sandbox, oldest first (read-only, managed by the system)
      */
@@ -3729,6 +3730,7 @@ export type Sandbox = {
  * Lightweight virtual machine for secure AI code execution. Sandboxes resume from standby in under 25ms and automatically scale to zero after inactivity, preserving memory state including running processes and filesystem.
  */
 export type SandboxWritable = {
+    archive?: SandboxArchiveWritable;
     events?: CoreEventsWritable;
     metadata: MetadataWritable;
     spec: SandboxSpec;
@@ -3737,6 +3739,76 @@ export type SandboxWritable = {
      */
     state?: 'RUNNING' | 'STANDBY';
     status?: Status;
+};
+
+/**
+ * State of the filesystem archive of a sandbox. An archive holds the writable filesystem changes and the process configurations of the sandbox, not its memory, so restoring it produces a sandbox with the same disk state and freshly started processes.
+ */
+export type SandboxArchive = {
+    /**
+     * When the archive was created (read-only)
+     */
+    readonly createdAt?: string;
+    /**
+     * Infrastructure generation the archive was taken from (read-only)
+     */
+    readonly generation?: string;
+    /**
+     * Storage key of the archive (read-only)
+     */
+    readonly key?: string;
+    restore?: SandboxArchiveRestore;
+    /**
+     * When the restore of the archive started, while the sandbox is being unarchived (read-only)
+     */
+    readonly restoreStartedAt?: string;
+    /**
+     * Size of the archive in bytes (read-only)
+     */
+    readonly size?: number;
+    /**
+     * When the archive was started, while the filesystem of the sandbox is still being uploaded (read-only)
+     */
+    readonly startedAt?: string;
+};
+
+/**
+ * State of the filesystem archive of a sandbox. An archive holds the writable filesystem changes and the process configurations of the sandbox, not its memory, so restoring it produces a sandbox with the same disk state and freshly started processes.
+ */
+export type SandboxArchiveWritable = {
+    restore?: SandboxArchiveRestoreWritable;
+};
+
+/**
+ * Progress of the restore of a sandbox archive. A restore writes the archived filesystem over the image the sandbox booted from, which takes as long as the archive is big; the sandbox answers and its terminal is reachable throughout, but nothing may write to its filesystem until the restore is done.
+ */
+export type SandboxArchiveRestore = {
+    /**
+     * Number of files restored so far (read-only)
+     */
+    readonly files?: number;
+    /**
+     * Bytes of the archive restored so far (read-only)
+     */
+    readonly restoredBytes?: number;
+    /**
+     * Phase of the restore (read-only)
+     */
+    state?: 'downloading' | 'extracting' | 'relaunching' | 'succeeded' | 'failed';
+    /**
+     * Total size of the archive being restored in bytes, absent when the store did not announce it (read-only)
+     */
+    readonly totalBytes?: number;
+};
+
+/**
+ * Progress of the restore of a sandbox archive. A restore writes the archived filesystem over the image the sandbox booted from, which takes as long as the archive is big; the sandbox answers and its terminal is reachable throughout, but nothing may write to its filesystem until the restore is done.
+ */
+export type SandboxArchiveRestoreWritable = {
+    /**
+     * Phase of the restore (read-only)
+     */
+    state?: 'downloading' | 'extracting' | 'relaunching' | 'succeeded' | 'failed';
 };
 
 /**
@@ -4281,7 +4353,7 @@ export type SandboxSpec = {
 /**
  * Deployment status of a resource deployed on Blaxel
  */
-export type Status = 'DELETING' | 'TERMINATED' | 'FAILED' | 'DEACTIVATED' | 'DEACTIVATING' | 'UPLOADING' | 'BUILDING' | 'DEPLOYING' | 'DEPLOYED' | 'BUILT';
+export type Status = 'DELETING' | 'TERMINATED' | 'FAILED' | 'DEACTIVATED' | 'DEACTIVATING' | 'UPLOADING' | 'BUILDING' | 'DEPLOYING' | 'DEPLOYED' | 'BUILT' | 'ARCHIVING' | 'ARCHIVED' | 'UNARCHIVING';
 
 /**
  * Blaxel template
@@ -8231,6 +8303,52 @@ export type UpdateSandboxResponses = {
 
 export type UpdateSandboxResponse = UpdateSandboxResponses[keyof UpdateSandboxResponses];
 
+export type ArchiveSandboxData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the sandbox to archive
+         */
+        sandboxName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/archive';
+};
+
+export type ArchiveSandboxErrors = {
+    /**
+     * Unauthorized - Invalid or missing authentication credentials
+     */
+    401: _Error;
+    /**
+     * Forbidden - Insufficient permissions to archive this sandbox
+     */
+    403: _Error;
+    /**
+     * Not found - Sandbox does not exist
+     */
+    404: _Error;
+    /**
+     * Conflict - The sandbox is already archived or is not running
+     */
+    409: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type ArchiveSandboxError = ArchiveSandboxErrors[keyof ArchiveSandboxErrors];
+
+export type ArchiveSandboxResponses = {
+    /**
+     * Sandbox archived successfully
+     */
+    200: Sandbox;
+};
+
+export type ArchiveSandboxResponse = ArchiveSandboxResponses[keyof ArchiveSandboxResponses];
+
 export type ForkSandboxData = {
     body: SandboxForkRequest;
     path: {
@@ -8756,6 +8874,52 @@ export type DeleteSandboxSnapshotResponses = {
 };
 
 export type DeleteSandboxSnapshotResponse = DeleteSandboxSnapshotResponses[keyof DeleteSandboxSnapshotResponses];
+
+export type UnarchiveSandboxData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the sandbox to unarchive
+         */
+        sandboxName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/unarchive';
+};
+
+export type UnarchiveSandboxErrors = {
+    /**
+     * Unauthorized - Invalid or missing authentication credentials
+     */
+    401: _Error;
+    /**
+     * Forbidden - Insufficient permissions to unarchive this sandbox
+     */
+    403: _Error;
+    /**
+     * Not found - Sandbox does not exist
+     */
+    404: _Error;
+    /**
+     * Conflict - The sandbox is not archived
+     */
+    409: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type UnarchiveSandboxError = UnarchiveSandboxErrors[keyof UnarchiveSandboxErrors];
+
+export type UnarchiveSandboxResponses = {
+    /**
+     * Sandbox recreated successfully
+     */
+    200: Sandbox;
+};
+
+export type UnarchiveSandboxResponse = UnarchiveSandboxResponses[keyof UnarchiveSandboxResponses];
 
 export type GetSandboxByExternalIdData = {
     body?: never;
