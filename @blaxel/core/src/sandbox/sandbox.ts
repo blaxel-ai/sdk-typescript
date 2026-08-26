@@ -58,7 +58,7 @@ const TRANSIENT_STATUS_POLL_MS = 500;
 
 // Archiving a filesystem, and restoring it, take as long as that filesystem is
 // big — minutes for a few gigabytes.
-const ARCHIVE_WAIT_TIMEOUT_MS = 1_800_000;
+const ARCHIVE_MAX_WAIT_MS = 1_800_000;
 const ARCHIVE_WAIT_POLL_MS = 2_000;
 // An archive is done when the sandbox is ARCHIVED; it is still under way while
 // the record holds one of these.
@@ -79,8 +79,8 @@ export type SandboxArchiveOptions = {
   /** Wait for the archive/restore to finish. Defaults to true. */
   wait?: boolean;
   /** Give up after this many milliseconds. Defaults to 30 minutes. */
-  timeout?: number;
-  /** Delay between two reads of the sandbox. Defaults to 2 seconds. */
+  maxWait?: number;
+  /** Milliseconds between two reads of the sandbox. Defaults to 2 seconds. */
   interval?: number;
 };
 
@@ -394,7 +394,7 @@ export class SandboxInstance {
   }
 
   /**
-   * Archive a sandbox: keep its filesystem, release its compute.
+   * Archive a sandbox: keep its filesystem, stop the sandbox.
    *
    * The filesystem changes made over the image are exported to the archive store
    * and the sandbox is shut down; memory and running processes are lost, and the
@@ -411,7 +411,7 @@ export class SandboxInstance {
   }
 
   /**
-   * Archive this sandbox: keep its filesystem, release its compute.
+   * Archive this sandbox: keep its filesystem, stop the sandbox.
    *
    * @see SandboxInstance.archive
    */
@@ -424,7 +424,8 @@ export class SandboxInstance {
   /**
    * Recreate an archived sandbox from its archive.
    *
-   * The sandbox answers, and its terminal is reachable, while the archived
+   * The sandbox is started again from its image, and the archived filesystem is
+   * written back over it. The sandbox answers, and its terminal is reachable, while the archived
    * filesystem is written back over its image. This waits until the restore is
    * done and the saved processes are running again; pass `{ wait: false }` to
    * return while the sandbox is still UNARCHIVING.
@@ -463,15 +464,15 @@ export class SandboxInstance {
     pending: Set<string>,
     entry: string,
     action: string,
-    { wait = true, timeout = ARCHIVE_WAIT_TIMEOUT_MS, interval = ARCHIVE_WAIT_POLL_MS }: SandboxArchiveOptions,
+    { wait = true, maxWait = ARCHIVE_MAX_WAIT_MS, interval = ARCHIVE_WAIT_POLL_MS }: SandboxArchiveOptions,
   ): Promise<SandboxInstance> {
     if (!wait || launched.status === target) {
       return SandboxInstance.attachH2Session(new SandboxInstance(launched));
     }
-    const deadline = Date.now() + timeout;
+    const deadline = Date.now() + maxWait;
     // The status the sandbox is given back at is tolerated while the operation
     // turns into a status change, but never past the wait the caller asked for.
-    const entryDeadline = Date.now() + Math.min(ARCHIVE_ENTRY_MAX_WAIT_MS, timeout);
+    const entryDeadline = Date.now() + Math.min(ARCHIVE_ENTRY_MAX_WAIT_MS, maxWait);
     let started = false;
     for (;;) {
       await new Promise((resolve) => setTimeout(resolve, interval));
@@ -489,7 +490,7 @@ export class SandboxInstance {
         throw new Error(`Sandbox ${sandboxName} is ${status} while it should ${action}`);
       }
       if (Date.now() >= deadline) {
-        throw new Error(`Sandbox ${sandboxName} is still ${status} after waiting ${Math.round(timeout / 1000)}s for it to ${action}`);
+        throw new Error(`Sandbox ${sandboxName} is still ${status} after waiting ${Math.round(maxWait / 1000)}s for it to ${action}`);
       }
     }
   }

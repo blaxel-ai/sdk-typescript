@@ -106,20 +106,20 @@ describe("SandboxInstance archive/unarchive", () => {
     await expect(SandboxInstance.unarchive("my-sandbox", { interval: 0 })).rejects.toThrow(/is ARCHIVED/);
   });
 
-  it("archive() gives up once the timeout is spent", async () => {
+  it("archive() gives up once maxWait is spent", async () => {
     mockedArchive.mockResolvedValueOnce({ data: record("ARCHIVING") } as never);
     mockedGet.mockResolvedValue({ data: record("ARCHIVING") } as never);
 
-    await expect(instance().archive({ interval: 0, timeout: 0 })).rejects.toThrow(/still ARCHIVING/);
+    await expect(instance().archive({ interval: 0, maxWait: 0 })).rejects.toThrow(/still ARCHIVING/);
   });
 
-  it("archive() does not wait for the first move past the timeout", async () => {
+  it("archive() does not wait for the first move past maxWait", async () => {
     // A sandbox that never leaves DEPLOYED is tolerated only while the caller
     // is still waiting, not for the whole grace period.
     mockedArchive.mockResolvedValueOnce({ data: record("DEPLOYED") } as never);
     mockedGet.mockResolvedValue({ data: record("DEPLOYED") } as never);
 
-    await expect(instance().archive({ interval: 0, timeout: 0 })).rejects.toThrow(/is DEPLOYED/);
+    await expect(instance().archive({ interval: 0, maxWait: 0 })).rejects.toThrow(/is DEPLOYED/);
     expect(mockedGet).toHaveBeenCalledTimes(1);
   });
 
