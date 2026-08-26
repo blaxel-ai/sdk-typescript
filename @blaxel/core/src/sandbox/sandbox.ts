@@ -469,7 +469,9 @@ export class SandboxInstance {
       return SandboxInstance.attachH2Session(new SandboxInstance(launched));
     }
     const deadline = Date.now() + timeout;
-    const entryDeadline = Date.now() + ARCHIVE_ENTRY_MAX_WAIT_MS;
+    // The status the sandbox is given back at is tolerated while the operation
+    // turns into a status change, but never past the wait the caller asked for.
+    const entryDeadline = Date.now() + Math.min(ARCHIVE_ENTRY_MAX_WAIT_MS, timeout);
     let started = false;
     for (;;) {
       await new Promise((resolve) => setTimeout(resolve, interval));

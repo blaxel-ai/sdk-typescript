@@ -3,8 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 // Mock the generated client so the archive helpers can be scripted and the
 // sandbox reads they poll can be sequenced. sandbox.ts imports the same module,
 // so vitest rewires both.
-vi.mock("../../@blaxel/core/src/client/index.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../@blaxel/core/src/client/index.js")>();
+vi.mock("../../../@blaxel/core/src/client/index.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../@blaxel/core/src/client/index.js")>();
   return {
     ...actual,
     archiveSandbox: vi.fn(),
@@ -13,8 +13,8 @@ vi.mock("../../@blaxel/core/src/client/index.js", async (importOriginal) => {
   };
 });
 
-import { archiveSandbox, getSandbox, unarchiveSandbox } from "../../@blaxel/core/src/client/index.js";
-import { SandboxInstance } from "../../@blaxel/core/src/sandbox/sandbox.js";
+import { archiveSandbox, getSandbox, unarchiveSandbox } from "../../../@blaxel/core/src/client/index.js";
+import { SandboxInstance } from "../../../@blaxel/core/src/sandbox/sandbox.js";
 
 const mockedArchive = vi.mocked(archiveSandbox);
 const mockedUnarchive = vi.mocked(unarchiveSandbox);
@@ -111,6 +111,16 @@ describe("SandboxInstance archive/unarchive", () => {
     mockedGet.mockResolvedValue({ data: record("ARCHIVING") } as never);
 
     await expect(instance().archive({ interval: 0, timeout: 0 })).rejects.toThrow(/still ARCHIVING/);
+  });
+
+  it("archive() does not wait for the first move past the timeout", async () => {
+    // A sandbox that never leaves DEPLOYED is tolerated only while the caller
+    // is still waiting, not for the whole grace period.
+    mockedArchive.mockResolvedValueOnce({ data: record("DEPLOYED") } as never);
+    mockedGet.mockResolvedValue({ data: record("DEPLOYED") } as never);
+
+    await expect(instance().archive({ interval: 0, timeout: 0 })).rejects.toThrow(/is DEPLOYED/);
+    expect(mockedGet).toHaveBeenCalledTimes(1);
   });
 
   it("unarchive() can be called on the class with a name and waits for the restore", async () => {
