@@ -1,4 +1,4 @@
-import { SandboxInstance, settings, VolumeInstance } from "@blaxel/core"
+import { getWorkspaceFeatures, SandboxInstance, settings, VolumeInstance } from "@blaxel/core"
 import { v4 as uuidv4 } from 'uuid'
 import { expect } from 'vitest'
 
@@ -184,6 +184,46 @@ export async function expectTtlCleared(ttl: string | null | undefined): Promise<
   } else {
     expect(ttl).toBeFalsy()
   }
+}
+
+const GENERATION_MK31_FEATURE = "generation_mk31"
+const REQUIRE_GENERATION_MK31_ENV = "BL_REQUIRE_GENERATION_MK31"
+
+let cachedWorkspaceFeatures: Record<string, boolean> | null = null
+
+/**
+ * Whether a feature flag is enabled on the tested workspace.
+ */
+export async function workspaceFeatureEnabled(feature: string): Promise<boolean> {
+  if (!cachedWorkspaceFeatures) {
+    const { data } = await getWorkspaceFeatures({ throwOnError: true })
+    cachedWorkspaceFeatures = data.features ?? {}
+  }
+  return cachedWorkspaceFeatures[feature] === true
+}
+
+/**
+ * Skips the calling test when the workspace does not run sandboxes on mk3.1.
+ *
+ * Sandboxes are mk3.0 unless the workspace is granted mk3.1, and mk3.0 has no
+ * mk3.1-only feature (snapshots, ephemeral volumes, ...). Set
+ * BL_REQUIRE_GENERATION_MK31=1 in a lane meant to run on mk3.1 to turn the skip
+ * into a failure.
+ *
+ * @param ctx the vitest test context, used to skip
+ * @param what the mk3.1-only capability the test exercises, used in the message
+ */
+export async function skipUnlessGenerationMk31(
+  ctx: { skip: (note?: string) => void },
+  what: string
+): Promise<void> {
+  if (await workspaceFeatureEnabled(GENERATION_MK31_FEATURE)) return
+
+  const message = `${what} require the ${GENERATION_MK31_FEATURE} workspace feature; set ${REQUIRE_GENERATION_MK31_ENV}=1 in the MK3.1 lane to make absence a failure`
+  if (process.env[REQUIRE_GENERATION_MK31_ENV] === "1") {
+    throw new Error(message)
+  }
+  ctx.skip(message)
 }
 
 /**

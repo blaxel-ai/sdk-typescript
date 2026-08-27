@@ -1,6 +1,6 @@
 import { SandboxInstance } from "@blaxel/core";
 import { afterAll, describe, expect, it } from "vitest";
-import { defaultImage, defaultLabels, defaultRegion, isSlowTestEnabled, retry, uniqueName } from "./helpers.js";
+import { defaultImage, defaultLabels, defaultRegion, isSlowTestEnabled, retry, skipUnlessGenerationMk31, uniqueName } from "./helpers.js";
 
 // A restore tears the running instance down and builds it back from the
 // snapshot, so it costs a full sandbox start on top of taking the snapshot —
@@ -16,7 +16,10 @@ describe.runIf(isSlowTestEnabled("RUN_SLOW_RESTORE"))("Sandbox snapshot restore"
     }
   });
 
-  it("puts the filesystem back to the snapshot it restores", async () => {
+  it("puts the filesystem back to the snapshot it restores", async (ctx) => {
+    // Snapshots, and therefore restores, only exist on mk3.1 sandboxes.
+    await skipUnlessGenerationMk31(ctx, "snapshots and restores");
+
     const sandbox = await SandboxInstance.create({
       name,
       image: defaultImage,
