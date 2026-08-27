@@ -4048,6 +4048,20 @@ export type SandboxNetwork = {
 };
 
 /**
+ * Result of restoring a sandbox to one of its snapshots. The sandbox keeps its name and URLs; everything it held since the snapshot was taken is gone.
+ */
+export type SandboxRestoreResponse = {
+    /**
+     * Name of the restored sandbox
+     */
+    name: string;
+    /**
+     * Snapshot the sandbox was restored from
+     */
+    snapshotId: string;
+};
+
+/**
  * Runtime configuration defining how the sandbox VM is provisioned and its resource limits
  */
 export type SandboxRuntime = {
@@ -4101,6 +4115,10 @@ export type SandboxScheduleEntry = {
      * Maximum number of execution records kept for this schedule. Once reached, recording a new execution deletes the oldest. Defaults to 100.
      */
     maxExecutions?: number;
+    /**
+     * Name of the sandbox this schedule belongs to.
+     */
+    readonly sandbox?: string;
     /**
      * Type of schedule timing. 'cron' for recurring (5-field expression), 'at' for a specific RFC 3339 datetime, 'sleep' for a duration from now (resolved to 'at' on creation).
      */
@@ -4157,7 +4175,7 @@ export type SandboxScheduleEntryListWritable = {
 };
 
 /**
- * One recorded execution of a sandbox schedule. statusCode is the HTTP status from submitting the command to the sandbox (the scheduler does not wait for the command to finish). Stored in the dedicated scheduleexecutions table.
+ * One recorded execution of a sandbox schedule. status and statusCode describe whether the scheduler's process submission was accepted; the scheduler does not wait for the process to finish. Stored in the dedicated scheduleexecutions table.
  */
 export type SandboxScheduleExecution = {
     /**
@@ -4181,9 +4199,17 @@ export type SandboxScheduleExecution = {
      */
     processName?: string;
     /**
+     * Name of the sandbox this execution belongs to.
+     */
+    readonly sandbox?: string;
+    /**
      * Id of the schedule this execution belongs to.
      */
     scheduleId?: string;
+    /**
+     * Whether submitting the process request was accepted. This is not the process completion status.
+     */
+    status?: 'succeeded' | 'failed';
     /**
      * HTTP status code returned when the scheduled command was submitted to the sandbox (0 if the sandbox could not be reached). 2xx/3xx means the command was accepted.
      */
@@ -4195,7 +4221,7 @@ export type SandboxScheduleExecution = {
 };
 
 /**
- * One recorded execution of a sandbox schedule. statusCode is the HTTP status from submitting the command to the sandbox (the scheduler does not wait for the command to finish). Stored in the dedicated scheduleexecutions table.
+ * One recorded execution of a sandbox schedule. status and statusCode describe whether the scheduler's process submission was accepted; the scheduler does not wait for the process to finish. Stored in the dedicated scheduleexecutions table.
  */
 export type SandboxScheduleExecutionWritable = {
     /**
@@ -4218,6 +4244,10 @@ export type SandboxScheduleExecutionWritable = {
      * Id of the schedule this execution belongs to.
      */
     scheduleId?: string;
+    /**
+     * Whether submitting the process request was accepted. This is not the process completion status.
+     */
+    status?: 'succeeded' | 'failed';
     /**
      * HTTP status code returned when the scheduled command was submitted to the sandbox (0 if the sandbox could not be reached). 2xx/3xx means the command was accepted.
      */
@@ -4251,6 +4281,20 @@ export type SandboxScheduleExecutionListWritable = {
 };
 
 /**
+ * Schedule execution counts grouped by submission acceptance status.
+ */
+export type SandboxScheduleExecutionStatusMetrics = {
+    /**
+     * Number of process submissions that were not accepted.
+     */
+    failed?: number;
+    /**
+     * Number of process submissions accepted by the sandbox.
+     */
+    succeeded?: number;
+};
+
+/**
  * Process execution configuration for a scheduled sandbox task
  */
 export type SandboxScheduleInput = {
@@ -4280,6 +4324,33 @@ export type SandboxScheduleInput = {
      * Working directory for the command
      */
     workingDir?: string;
+};
+
+/**
+ * Workspace sandbox scheduling metrics for a UTC minute window. since is inclusive and until is exclusive.
+ */
+export type SandboxScheduleMetrics = {
+    /**
+     * Number of schedule execution submissions in the selected window.
+     */
+    executions?: number;
+    executionsByStatus?: SandboxScheduleExecutionStatusMetrics;
+    /**
+     * Number of active sandboxes in the workspace.
+     */
+    sandboxes?: number;
+    /**
+     * Number of schedules in the workspace.
+     */
+    schedules?: number;
+    /**
+     * Inclusive beginning of the metrics window, normalized to a UTC minute.
+     */
+    since?: string;
+    /**
+     * Exclusive end of the metrics window, normalized to a UTC minute.
+     */
+    until?: string;
 };
 
 /**
@@ -8615,9 +8686,9 @@ export type ListSandboxScheduleExecutionsData = {
          */
         cursor?: string;
         /**
-         * Sort spec, formatted as `<key>:<direction>`. Allowed values are `createdAt:desc` (default), `createdAt:asc`, `name:asc`, `name:desc`. The cursor fingerprint is bound to the sort, so a cursor opened with one value cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         * Sort by creation time. Defaults to newest first.
          */
-        sort?: 'createdAt:desc' | 'createdAt:asc' | 'name:asc' | 'name:desc';
+        sort?: 'createdAt:desc' | 'createdAt:asc';
         /**
          * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
          */
@@ -8653,9 +8724,9 @@ export type ListSandboxSchedulesData = {
          */
         cursor?: string;
         /**
-         * Sort spec, formatted as `<key>:<direction>`. Allowed values are `createdAt:desc` (default), `createdAt:asc`, `name:asc`, `name:desc`. The cursor fingerprint is bound to the sort, so a cursor opened with one value cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         * Sort by creation time. Defaults to newest first.
          */
-        sort?: 'createdAt:desc' | 'createdAt:asc' | 'name:asc' | 'name:desc';
+        sort?: 'createdAt:desc' | 'createdAt:asc';
         /**
          * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
          */
@@ -8875,6 +8946,44 @@ export type DeleteSandboxSnapshotResponses = {
 
 export type DeleteSandboxSnapshotResponse = DeleteSandboxSnapshotResponses[keyof DeleteSandboxSnapshotResponses];
 
+export type RestoreSandboxSnapshotData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the sandbox to restore
+         */
+        sandboxName: string;
+        /**
+         * ID of the snapshot to restore the sandbox to
+         */
+        snapshotId: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/snapshots/{snapshotId}/restore';
+};
+
+export type RestoreSandboxSnapshotErrors = {
+    /**
+     * Not found - Sandbox or snapshot does not exist
+     */
+    404: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type RestoreSandboxSnapshotError = RestoreSandboxSnapshotErrors[keyof RestoreSandboxSnapshotErrors];
+
+export type RestoreSandboxSnapshotResponses = {
+    /**
+     * Sandbox restored successfully
+     */
+    200: SandboxRestoreResponse;
+};
+
+export type RestoreSandboxSnapshotResponse = RestoreSandboxSnapshotResponses[keyof RestoreSandboxSnapshotResponses];
+
 export type UnarchiveSandboxData = {
     body?: never;
     path: {
@@ -8962,6 +9071,125 @@ export type GetSandboxByExternalIdResponses = {
 };
 
 export type GetSandboxByExternalIdResponse = GetSandboxByExternalIdResponses[keyof GetSandboxByExternalIdResponses];
+
+export type ListScheduleExecutionsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Number of items per page
+         */
+        limit?: number;
+        /**
+         * Opaque cursor returned by a previous response's meta.nextCursor. Only valid for the same query (workspace + filters); the server rejects cursors bound to a different query or older than 24h. Omit on the first page.
+         */
+        cursor?: string;
+        /**
+         * Sort by creation time. Defaults to newest first.
+         */
+        sort?: 'createdAt:desc' | 'createdAt:asc';
+        /**
+         * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        q?: string;
+        /**
+         * Filter by process submission acceptance status. Historical rows without status do not match this filter.
+         */
+        status?: 'succeeded' | 'failed';
+        /**
+         * Filter by sandbox name.
+         */
+        sandbox?: string;
+        /**
+         * Filter by schedule id.
+         */
+        schedule?: string;
+        /**
+         * Inclusive beginning of the createdAt window, as RFC 3339.
+         */
+        since?: string;
+        /**
+         * Inclusive end of the createdAt window, as RFC 3339.
+         */
+        until?: string;
+    };
+    url: '/schedule-executions';
+};
+
+export type ListScheduleExecutionsResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxScheduleExecutionList;
+};
+
+export type ListScheduleExecutionsResponse = ListScheduleExecutionsResponses[keyof ListScheduleExecutionsResponses];
+
+export type ListSchedulesData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Number of items per page
+         */
+        limit?: number;
+        /**
+         * Opaque cursor returned by a previous response's meta.nextCursor. Only valid for the same query (workspace + filters); the server rejects cursors bound to a different query or older than 24h. Omit on the first page.
+         */
+        cursor?: string;
+        /**
+         * Sort by creation time. Defaults to newest first.
+         */
+        sort?: 'createdAt:desc' | 'createdAt:asc';
+        /**
+         * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        q?: string;
+        /**
+         * Filter by sandbox name.
+         */
+        sandbox?: string;
+        /**
+         * Filter schedules by stored timing type. sleep resolves to at before persistence.
+         */
+        type?: 'cron' | 'at';
+    };
+    url: '/schedules';
+};
+
+export type ListSchedulesResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxScheduleEntryList;
+};
+
+export type ListSchedulesResponse = ListSchedulesResponses[keyof ListSchedulesResponses];
+
+export type GetSandboxScheduleMetricsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Inclusive beginning of the metrics window, as RFC 3339. Normalized down to a UTC minute, must be within the last 7 days, and defaults to 24 hours before until.
+         */
+        since?: string;
+        /**
+         * Exclusive end of the metrics window, as RFC 3339. Normalized down to a UTC minute and defaults to the current minute.
+         */
+        until?: string;
+    };
+    url: '/schedules/metrics';
+};
+
+export type GetSandboxScheduleMetricsResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxScheduleMetrics;
+};
+
+export type GetSandboxScheduleMetricsResponse = GetSandboxScheduleMetricsResponses[keyof GetSandboxScheduleMetricsResponses];
 
 export type GetWorkspaceServiceAccountsData = {
     body?: never;
