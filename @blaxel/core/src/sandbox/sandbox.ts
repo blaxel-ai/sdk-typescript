@@ -1,5 +1,5 @@
 import type http2 from "http2";
-import { archiveSandbox, createSandbox, createSandboxSnapshot, deleteSandbox, deleteSandboxSnapshot, forkSandbox, getSandbox, getSandboxByExternalId, listSandboxes, listSandboxSnapshots, type ListSandboxesData, type SandboxForkResponse, type SandboxLifecycle, type Sandbox as SandboxModel, type SandboxSnapshot, type SandboxSnapshots, unarchiveSandbox, updateSandbox } from "../client/index.js";
+import { archiveSandbox, createSandbox, createSandboxSnapshot, deleteSandbox, deleteSandboxSnapshot, forkSandbox, getSandbox, getSandboxByExternalId, listSandboxes, listSandboxSnapshots, type ListSandboxesData, restoreSandboxSnapshot, type SandboxForkResponse, type SandboxLifecycle, type Sandbox as SandboxModel, type SandboxRestoreResponse, type SandboxSnapshot, type SandboxSnapshots, unarchiveSandbox, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
 import { backoffDelayMs } from "../common/transient-retry.js";
 import { createPaginatedList } from "../common/pagination.js";
@@ -233,6 +233,25 @@ export class SandboxInstance {
       path: { sandboxName: this.metadata.name, snapshotId },
       throwOnError: true,
     });
+  }
+
+  /**
+   * Restore this sandbox to one of its own snapshots. The sandbox keeps its
+   * name, its URLs and its previews: the running instance is torn down and
+   * rebuilt from the snapshot, so everything written since it was taken is
+   * lost unless it was snapshotted too.
+   *
+   * The restore is asked for without waiting on the guest, the same way a fork
+   * is: connections to a sandbox still resuming are retried by the gateway.
+   *
+   * @param snapshotId - ID of the snapshot to restore this sandbox to.
+   */
+  async restore(snapshotId: string): Promise<SandboxRestoreResponse> {
+    const { data } = await restoreSandboxSnapshot({
+      path: { sandboxName: this.metadata.name, snapshotId },
+      throwOnError: true,
+    });
+    return data;
   }
 
   /**
