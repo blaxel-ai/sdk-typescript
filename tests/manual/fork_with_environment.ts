@@ -139,6 +139,9 @@ async function main() {
     log(`forked into ${forked.type}: ${forked.name}`)
 
     const fork = await SandboxInstance.get(forkName)
+    // Printed before the guest is read: it tells apart what the control plane
+    // recorded from what the guest actually runs with.
+    console.log(`  fork spec.runtime.envs: ${JSON.stringify(fork.spec.runtime?.envs ?? [])}`)
     assertEnv("fork", await readEnvWhenUp(fork, watched, { retries: 30, delayMs: 2000 }), {
       MODE: "fork",
       SOURCE_ONLY: "1",
@@ -151,10 +154,6 @@ async function main() {
       SOURCE_ONLY: "1",
       FORK_ONLY: "",
     })
-
-    // What the control plane persisted must match what the guest runs with.
-    const persisted = (await SandboxInstance.get(forkName)).spec.runtime?.envs ?? []
-    console.log(`\n  fork spec.runtime.envs: ${JSON.stringify(persisted)}`)
 
     console.log("\n✅ Fork with new environment variables: replaced, inherited and added all verified.")
   } finally {
