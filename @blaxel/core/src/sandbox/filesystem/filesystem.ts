@@ -3,6 +3,7 @@ import { fs } from "../../common/node.js";
 import { settings } from "../../common/settings.js";
 import { withUploadSlot } from "../../common/h2fetch.js";
 import { isTransientResetError, retryOnTransientReset } from "../../common/transient-retry.js";
+import { shellQuote } from "../../common/shell.js";
 import { SandboxAction } from "../action.js";
 import { ContentSearchResponse, deleteFilesystemByPath, deleteFilesystemMultipartByUploadIdAbort, Directory, FindResponse, FuzzySearchResponse, getFilesystemByPath, getFilesystemContentSearchByPath, getFilesystemFindByPath, getFilesystemSearchByPath, getWatchFilesystemByPath, MultipartInitiateResponse, MultipartPartInfo, MultipartUploadPartResponse, postFilesystemMultipartByUploadIdComplete, postFilesystemMultipartInitiateByPath, putFilesystemByPath, PutFilesystemByPathError, putFilesystemMultipartByUploadIdPart, SuccessResponse } from "../client/index.js";
 import { SandboxProcess } from "../process/index.js";
@@ -398,8 +399,10 @@ export class SandboxFileSystem extends SandboxAction {
   }
 
   async cp(source: string, destination: string, { maxWait = 180000 }: { maxWait?: number } = {}): Promise<CopyResponse> {
+    // Quote both paths so the shell that runs this command treats them as
+    // single literal arguments instead of interpreting metacharacters in them.
     let process = await this.process.exec({
-      command: `cp -r ${source} ${destination}`,
+      command: `cp -r ${shellQuote(source)} ${shellQuote(destination)}`,
     })
     process = await this.process.wait(process.pid, { maxWait, interval: 100 })
     if (process.status === "failed") {
