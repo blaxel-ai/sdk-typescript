@@ -23,7 +23,11 @@ async function main() {
   ] as const
 
   for (const [label, check] of checks) {
-    await check()
+    const result = await check()
+    const data = result.data?.data ?? []
+    if (data.length !== 0) {
+      throw new Error(`${label} externalId filter returned ${data.length} resource(s) for missing externalId ${missing}`)
+    }
     console.log(`${label} externalId list filter smoke passed`)
   }
 }
