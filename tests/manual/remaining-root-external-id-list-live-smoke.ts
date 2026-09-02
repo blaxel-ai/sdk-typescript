@@ -24,7 +24,8 @@ async function main() {
 
   for (const [label, check] of checks) {
     const result = await check()
-    const data = result.data?.data ?? []
+    const body = result.data
+    const data = Array.isArray(body) ? body : body?.data ?? []
     if (data.length !== 0) {
       throw new Error(`${label} externalId filter returned ${data.length} resource(s) for missing externalId ${missing}`)
     }
