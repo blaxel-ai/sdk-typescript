@@ -11,7 +11,7 @@ import { CopyResponse, FilesystemFindOptions, FilesystemGrepOptions, FilesystemS
 // Multipart upload constants
 const MULTIPART_THRESHOLD = 5 * 1024 * 1024; // 5MB
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB per part
-const MAX_PARALLEL_UPLOADS = 3; // Number of parallel part uploads
+const MAX_PARALLEL_UPLOADS = 3; // Maximum workers when the H2 upload cap is disabled
 
 // The transient-reset classifier and retry loop live in
 // common/transient-retry.ts, shared with the idempotent sandbox-op retry
@@ -570,12 +570,23 @@ export class SandboxFileSystem extends SandboxAction {
       // so the shared-connection cap does not apply.
       const h2Domain = this.sandbox?.h2Domain;
 
-      // Upload parts in batches for parallel processing
-      for (let i = 0; i < numParts; i += MAX_PARALLEL_UPLOADS) {
-        const batch: Array<Promise<MultipartUploadPartResponse>> = [];
+      // Keep a bounded worker queue full instead of waiting at fixed batch
+      // boundaries. The upload gate remains authoritative across files; its
+      // default of 2 also bounds this queue on H2.
+      const h2UploadLimit = h2Domain ? settings.maxConcurrentUploadH2Requests : 0;
+      const workerCount = Math.min(
+        numParts,
+        h2UploadLimit > 0 ? Math.min(MAX_PARALLEL_UPLOADS, h2UploadLimit) : MAX_PARALLEL_UPLOADS,
+      );
+      let nextPartNumber = 1;
+      let stopped = false;
+      let uploadError: unknown;
 
-        for (let j = 0; j < MAX_PARALLEL_UPLOADS && i + j < numParts; j++) {
-          const partNumber = i + j + 1;
+      const uploadNextPart = async (): Promise<void> => {
+        while (!stopped) {
+          const partNumber = nextPartNumber++;
+          if (partNumber > numParts) return;
+
           const start = (partNumber - 1) * CHUNK_SIZE;
           const end = Math.min(start + CHUNK_SIZE, size);
           const chunk = blob.slice(start, end);
@@ -584,13 +595,20 @@ export class SandboxFileSystem extends SandboxAction {
           // concurrent part streams, not retry sequences; freed during backoff.
           const doPart = () => this.uploadPart(uploadId, partNumber, chunk);
           const partWithSlot = h2Domain ? () => withUploadSlot(h2Domain, doPart) : doPart;
-          batch.push(retryOnTransient(partWithSlot));
+          try {
+            parts.push(await retryOnTransient(partWithSlot));
+          } catch (error) {
+            if (!stopped) {
+              stopped = true;
+              uploadError = error;
+            }
+          }
         }
+      };
 
-        // Wait for batch to complete
-
-        const batchResults = await Promise.all(batch);
-        parts.push(...batchResults);
+      await Promise.all(Array.from({ length: workerCount }, () => uploadNextPart()));
+      if (stopped) {
+        throw uploadError;
       }
 
       // Sort parts by partNumber to ensure correct order
