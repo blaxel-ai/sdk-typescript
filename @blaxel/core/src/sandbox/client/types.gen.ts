@@ -14,6 +14,46 @@ export type ApplyEditResponse = {
     updatedContent?: string;
 };
 
+export type ArchiveManifest = {
+    /**
+     * Added and Modified count the archive's payload members.
+     */
+    added?: number;
+    /**
+     * APIVersion is the sandbox-api build that produced the archive.
+     */
+    apiVersion?: string;
+    createdAt: string;
+    /**
+     * Deleted are paths the image has and the sandbox deleted. Tar cannot carry
+     * a deletion, so import applies these from the manifest.
+     */
+    deleted?: Array<string>;
+    /**
+     * Excludes are the paths left out of the comparison.
+     */
+    excludes?: Array<string>;
+    /**
+     * ImageDevice is the device the pristine image was read from, for the record:
+     * it says where the sandbox that exported the archive found its image.
+     */
+    imageDevice?: string;
+    modified?: number;
+    /**
+     * PayloadBytes is the total content size of the payload members.
+     */
+    payloadBytes?: number;
+    /**
+     * Processes tells whether ProcessesName is present.
+     */
+    processes?: boolean;
+    /**
+     * Root is the directory the paths are relative to.
+     */
+    root: string;
+    version: number;
+};
+
 export type ContentSearchMatch = {
     column: number;
     context?: string;
@@ -103,6 +143,107 @@ export type DriveUnmountResponse = {
 
 export type ErrorResponse = {
     error: string;
+};
+
+export type ExportOptions = {
+    /**
+     * Async starts the export and answers immediately, leaving it to run: an
+     * archive of a large filesystem takes longer than a request may be held
+     * open. Its progress is reported by /archive/status.
+     */
+    async?: boolean;
+    /**
+     * DryRun reports what would be archived, and its exact size, without
+     * stopping anything and without uploading.
+     */
+    dryRun?: boolean;
+    /**
+     * Excludes are added to the paths excluded by default.
+     */
+    excludes?: Array<string>;
+    /**
+     * Headers are sent with the upload request as given. A presigned URL only
+     * accepts the headers it was signed for, so these have to match what the
+     * caller signed: sending one that was not signed, or signing one that is not
+     * sent, is rejected as a signature mismatch. Typical use is a storage class,
+     * x-amz-storage-class: GLACIER_IR.
+     */
+    headers?: {
+        [key: string]: string;
+    };
+    /**
+     * ImageDevice is the device holding the pristine image. It is found on its
+     * own, wherever the sandbox booted from attached it, and naming one here
+     * only overrides that.
+     */
+    imageDevice?: string;
+    /**
+     * ImageMountPoint is a directory where the pristine image is already mounted.
+     * When set the image device is neither mounted nor unmounted.
+     */
+    imageMountPoint?: string;
+    /**
+     * Multipart uploads the archive part by part instead, which is how an
+     * archive larger than the 5 GB a single PUT accepts is stored. It takes
+     * precedence over URL.
+     */
+    multipart?: MultipartUpload;
+    /**
+     * SaveProcesses stores the process list in the archive so restore can
+     * relaunch the workload. Defaults to true; set it to false to archive
+     * storage only.
+     */
+    saveProcesses?: boolean;
+    /**
+     * StopTimeoutSeconds bounds the graceful stop of each process.
+     */
+    stopTimeoutSeconds?: number;
+    /**
+     * URL is a presigned S3 PUT URL the archive is streamed to. Empty is only
+     * valid with DryRun, or with Multipart.
+     */
+    url?: string;
+};
+
+export type ExportProgress = {
+    /**
+     * Error is why the export failed, without the presigned URL it used.
+     */
+    error?: string;
+    finishedAt?: string;
+    /**
+     * Size is the archive's exact size, known once the filesystem is scanned.
+     */
+    size?: number;
+    startedAt?: string;
+    state?: ArchiveExportState;
+    /**
+     * Uploaded reports whether the storage holds the archive.
+     */
+    uploaded?: boolean;
+};
+
+export type ExportResult = {
+    /**
+     * Changes lists every path in the archive. Only filled for a dry run,
+     * where it is the point of the call.
+     */
+    changes?: Array<ArchiveChange>;
+    duration?: string;
+    manifest: ArchiveManifest;
+    /**
+     * Size is the exact number of bytes uploaded, known before the upload
+     * starts since the archive is not compressed.
+     */
+    size?: number;
+    /**
+     * StoppedProcesses are the processes stopped to freeze the filesystem.
+     */
+    stoppedProcesses?: Array<string>;
+    /**
+     * Uploaded is false for a dry run.
+     */
+    uploaded?: boolean;
 };
 
 export type File = {
@@ -201,6 +342,28 @@ export type MultipartPartInfo = {
     partNumber?: number;
 };
 
+export type MultipartUpload = {
+    /**
+     * AbortURL is a presigned DELETE URL that discards the parts already
+     * uploaded. Without it a failed export leaves them on the storage until a
+     * lifecycle rule removes them.
+     */
+    abortUrl?: string;
+    /**
+     * CompleteURL is a presigned POST URL that assembles the parts.
+     */
+    completeUrl?: string;
+    /**
+     * PartSize is the number of bytes sent to every part but the last.
+     */
+    partSize?: number;
+    /**
+     * PartURLs are presigned PUT URLs, one per part, in order. Extra ones are
+     * left unused.
+     */
+    partUrls?: Array<string>;
+};
+
 export type MultipartUploadPartResponse = {
     etag?: string;
     partNumber?: number;
@@ -236,6 +399,10 @@ export type ProcessRequest = {
     name?: string;
     restartOnFailure?: boolean;
     /**
+     * Open a writable stdin pipe, fed via POST /process/{identifier}/stdin and closed via DELETE. The pipe does not survive a sandbox-api restart: the process then sees EOF.
+     */
+    stdin?: boolean;
+    /**
      * Timeout in seconds. When keepAlive is true, defaults to 600s (10 minutes). Set to 0 for infinite (no auto-kill).
      */
     timeout?: number;
@@ -261,8 +428,45 @@ export type ProcessResponse = {
     startedAt: string;
     status: 'failed' | 'killed' | 'stopped' | 'running' | 'completed';
     stderr: string;
+    /**
+     * Whether the process was started with a writable stdin pipe
+     */
+    stdin?: boolean;
     stdout: string;
     workingDir: string;
+};
+
+export type QuiesceStatus = {
+    /**
+     * Export reports the export started asynchronously, if there was one. It is
+     * how a caller that did not wait for the export learns that the archive is
+     * on the storage, or why it is not.
+     */
+    export?: ExportProgress;
+    /**
+     * ReadOnlyRoot reports whether the root mount was remounted read-only, which
+     * is what actually stops writes; false means the freeze relies only on the
+     * API refusing calls, and the reason says why.
+     */
+    readOnlyRoot?: boolean;
+    /**
+     * Reason is a human readable explanation of why the sandbox is frozen.
+     */
+    reason?: string;
+    /**
+     * Restore reports the archive this sandbox was started from, if it was
+     * started from one: how far its restore has got, and how it ended.
+     */
+    restore?: RestoreProgress;
+    /**
+     * Since is when the sandbox left StateActive.
+     */
+    since?: string;
+    state: ArchiveQuiesceState;
+    /**
+     * StoppedProcesses are the process identifiers stopped while quiescing.
+     */
+    stoppedProcesses?: Array<string>;
 };
 
 export type RankedFile = {
@@ -275,6 +479,30 @@ export type RerankingResponse = {
     files?: Array<RankedFile>;
     message?: string;
     success?: boolean;
+};
+
+export type RestoreProgress = {
+    deleted?: number;
+    /**
+     * Downloaded is how much of the archive has been read so far.
+     */
+    downloaded?: number;
+    /**
+     * Error is why the restore failed, without the presigned URL it used.
+     */
+    error?: string;
+    finishedAt?: string;
+    /**
+     * Restored and Deleted count what the archive changed on the filesystem.
+     */
+    restored?: number;
+    /**
+     * Size is the archive's size as the storage announced it, and zero when it
+     * announced none - a client showing a percentage has to allow for that.
+     */
+    size?: number;
+    startedAt?: string;
+    state?: ArchiveRestoreState;
 };
 
 export type Subdirectory = {
@@ -346,6 +574,26 @@ export type UpgradeStatus = {
     version: string;
 };
 
+export type ArchiveChange = {
+    kind: ArchiveChangeKind;
+    /**
+     * Path is relative to the root, without a leading slash.
+     */
+    path: string;
+    /**
+     * Size is the file content size in bytes, 0 for anything but a regular file.
+     */
+    size?: number;
+};
+
+export type ArchiveChangeKind = 'added' | 'modified' | 'deleted';
+
+export type ArchiveExportState = 'running' | 'succeeded' | 'failed';
+
+export type ArchiveQuiesceState = 'active' | 'quiescing' | 'quiesced' | 'restoring';
+
+export type ArchiveRestoreState = 'downloading' | 'extracting' | 'relaunching' | 'succeeded' | 'failed';
+
 export type FilesystemMultipartUpload = {
     initiatedAt?: string;
     parts?: {
@@ -363,7 +611,98 @@ export type FilesystemUploadedPart = {
     uploadedAt?: string;
 };
 
+export type HandlerReloadResponse = {
+    applied?: number;
+    generation?: number;
+    removed?: number;
+};
+
 export type ProcessUpgradeState = 'idle' | 'running' | 'completed' | 'failed';
+
+export type PostArchiveExportData = {
+    /**
+     * Export options
+     */
+    body: ExportOptions;
+    path?: never;
+    query?: never;
+    url: '/archive/export';
+};
+
+export type PostArchiveExportErrors = {
+    /**
+     * Invalid request
+     */
+    400: ErrorResponse;
+    /**
+     * An export is already in progress
+     */
+    409: ErrorResponse;
+    /**
+     * Export failed
+     */
+    500: ErrorResponse;
+};
+
+export type PostArchiveExportError = PostArchiveExportErrors[keyof PostArchiveExportErrors];
+
+export type PostArchiveExportResponses = {
+    /**
+     * Export result
+     */
+    200: ExportResult;
+    /**
+     * The export was started and runs in the background
+     */
+    202: ExportProgress;
+};
+
+export type PostArchiveExportResponse = PostArchiveExportResponses[keyof PostArchiveExportResponses];
+
+export type PostArchiveResumeData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/archive/resume';
+};
+
+export type PostArchiveResumeErrors = {
+    /**
+     * An export or a restore is in progress
+     */
+    409: ErrorResponse;
+    /**
+     * The root filesystem could not be made writable again
+     */
+    500: ErrorResponse;
+};
+
+export type PostArchiveResumeError = PostArchiveResumeErrors[keyof PostArchiveResumeErrors];
+
+export type PostArchiveResumeResponses = {
+    /**
+     * Archive status
+     */
+    200: QuiesceStatus;
+};
+
+export type PostArchiveResumeResponse = PostArchiveResumeResponses[keyof PostArchiveResumeResponses];
+
+export type GetArchiveStatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/archive/status';
+};
+
+export type GetArchiveStatusResponses = {
+    /**
+     * Archive status
+     */
+    200: QuiesceStatus;
+};
+
+export type GetArchiveStatusResponse = GetArchiveStatusResponses[keyof GetArchiveStatusResponses];
 
 export type PutCodegenFastapplyByPathData = {
     /**
@@ -502,6 +841,14 @@ export type PostDrivesMountErrors = {
      */
     400: ErrorResponse;
     /**
+     * Forbidden
+     */
+    403: ErrorResponse;
+    /**
+     * Conflict
+     */
+    409: ErrorResponse;
+    /**
      * Internal Server Error
      */
     500: ErrorResponse;
@@ -551,6 +898,35 @@ export type DeleteDrivesMountByMountPathResponses = {
 };
 
 export type DeleteDrivesMountByMountPathResponse = DeleteDrivesMountByMountPathResponses[keyof DeleteDrivesMountByMountPathResponses];
+
+export type PostEnvironmentReloadData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/environment/reload';
+};
+
+export type PostEnvironmentReloadErrors = {
+    /**
+     * Not Found
+     */
+    404: ErrorResponse;
+    /**
+     * Internal Server Error
+     */
+    500: ErrorResponse;
+};
+
+export type PostEnvironmentReloadError = PostEnvironmentReloadErrors[keyof PostEnvironmentReloadErrors];
+
+export type PostEnvironmentReloadResponses = {
+    /**
+     * OK
+     */
+    200: HandlerReloadResponse;
+};
+
+export type PostEnvironmentReloadResponse = PostEnvironmentReloadResponses[keyof PostEnvironmentReloadResponses];
 
 export type GetFilesystemContentSearchByPathData = {
     body?: never;
@@ -1638,6 +2014,89 @@ export type GetProcessByIdentifierLogsStreamResponses = {
 };
 
 export type GetProcessByIdentifierLogsStreamResponse = GetProcessByIdentifierLogsStreamResponses[keyof GetProcessByIdentifierLogsStreamResponses];
+
+export type DeleteProcessByIdentifierStdinData = {
+    body?: never;
+    path: {
+        /**
+         * Process identifier (PID or name)
+         */
+        identifier: string;
+    };
+    query?: never;
+    url: '/process/{identifier}/stdin';
+};
+
+export type DeleteProcessByIdentifierStdinErrors = {
+    /**
+     * Process not found
+     */
+    404: ErrorResponse;
+    /**
+     * Process has no stdin
+     */
+    409: ErrorResponse;
+};
+
+export type DeleteProcessByIdentifierStdinError = DeleteProcessByIdentifierStdinErrors[keyof DeleteProcessByIdentifierStdinErrors];
+
+export type DeleteProcessByIdentifierStdinResponses = {
+    /**
+     * Stdin closed
+     */
+    200: SuccessResponse;
+};
+
+export type DeleteProcessByIdentifierStdinResponse = DeleteProcessByIdentifierStdinResponses[keyof DeleteProcessByIdentifierStdinResponses];
+
+export type PostProcessByIdentifierStdinData = {
+    /**
+     * Raw bytes to write
+     */
+    body: string;
+    path: {
+        /**
+         * Process identifier (PID or name)
+         */
+        identifier: string;
+    };
+    query?: never;
+    url: '/process/{identifier}/stdin';
+};
+
+export type PostProcessByIdentifierStdinErrors = {
+    /**
+     * Process not found
+     */
+    404: ErrorResponse;
+    /**
+     * Process has no stdin, or stdin is closed
+     */
+    409: ErrorResponse;
+    /**
+     * Body over 8 MiB
+     */
+    413: ErrorResponse;
+    /**
+     * Write failed
+     */
+    500: ErrorResponse;
+    /**
+     * Process stopped reading its stdin
+     */
+    503: ErrorResponse;
+};
+
+export type PostProcessByIdentifierStdinError = PostProcessByIdentifierStdinErrors[keyof PostProcessByIdentifierStdinErrors];
+
+export type PostProcessByIdentifierStdinResponses = {
+    /**
+     * Bytes written
+     */
+    200: SuccessResponse;
+};
+
+export type PostProcessByIdentifierStdinResponse = PostProcessByIdentifierStdinResponses[keyof PostProcessByIdentifierStdinResponses];
 
 export type PostUpgradeData = {
     /**
