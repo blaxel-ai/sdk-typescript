@@ -2,7 +2,7 @@ import { Sandbox } from "../../client/types.gen.js";
 import { settings } from "../../common/settings.js";
 import { SandboxAction } from "../action.js";
 import { retryOnTransientReset } from "../../common/transient-retry.js";
-import { DeleteProcessByIdentifierKillResponse, DeleteProcessByIdentifierResponse, GetProcessByIdentifierResponse, GetProcessResponse, PostProcessResponse, ProcessRequest, deleteProcessByIdentifier, deleteProcessByIdentifierKill, getProcess, getProcessByIdentifier, getProcessByIdentifierLogs, postProcess } from "../client/index.js";
+import { DeleteProcessByIdentifierKillResponse, DeleteProcessByIdentifierResponse, GetProcessByIdentifierResponse, GetProcessResponse, PostProcessResponse, ProcessRequest, deleteProcessByIdentifier, deleteProcessByIdentifierKill, deleteProcessByIdentifierStdin, getProcess, getProcessByIdentifier, getProcessByIdentifierLogs, postProcess, postProcessByIdentifierStdin } from "../client/index.js";
 import { ProcessRequestWithLog, ProcessResponseWithLog } from "../types.js";
 
 export class SandboxProcess extends SandboxAction {
@@ -372,6 +372,35 @@ export class SandboxProcess extends SandboxAction {
     }));
     this.handleResponseError(response, data, error);
     return data as DeleteProcessByIdentifierKillResponse;
+  }
+
+  /**
+   * Write raw bytes to the stdin of a process started with `stdin: true`.
+   * Bytes go through verbatim, so include the trailing newline your protocol
+   * expects (one JSON-RPC message per call for an MCP stdio server). Not
+   * retried: a duplicate write would corrupt the stream.
+   */
+  async writeStdin(identifier: string, data: string | Uint8Array): Promise<void> {
+    const { response, data: result, error } = await postProcessByIdentifierStdin(this.withClient({
+      path: { identifier },
+      baseUrl: this.url,
+      body: data as string,
+      // The generated client JSON-encodes bodies by default; stdin is raw.
+      bodySerializer: null,
+    }));
+    this.handleResponseError(response, result, error);
+  }
+
+  /**
+   * Close the process's stdin (EOF). Idempotent. For stdio protocols such as
+   * MCP this is the clean shutdown path.
+   */
+  async closeStdin(identifier: string): Promise<void> {
+    const { response, data, error } = await deleteProcessByIdentifierStdin(this.withClient({
+      path: { identifier },
+      baseUrl: this.url,
+    }));
+    this.handleResponseError(response, data, error);
   }
 
   async logs(identifier: string, type: "stdout" | "stderr" | "all" = "all"): Promise<string> {
