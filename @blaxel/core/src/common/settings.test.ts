@@ -259,3 +259,64 @@ describe('Settings H2 tuning knobs (config > env > default)', () => {
     );
   });
 });
+
+describe('Settings.integration', () => {
+  const sdkUserAgent = /^blaxel\/sdk\/typescript\/\S+ \([^)]+\) blaxel\/\S+/;
+
+  async function authenticated() {
+    const { settings } = await import('./settings.js');
+    settings.credentials = new ApiKey({ apiKey: 'test-key', workspace: 'test-ws' });
+    delete settings.config.integration;
+    delete process.env.BL_INTEGRATION;
+    return settings;
+  }
+
+  afterEach(async () => {
+    const { settings } = await import('./settings.js');
+    delete settings.config.integration;
+    delete process.env.BL_INTEGRATION;
+  });
+
+  it('sends the plain SDK User-Agent by default', async () => {
+    const settings = await authenticated();
+    expect(settings.integration).toBe('');
+    expect(settings.headers['User-Agent']).toMatch(new RegExp(sdkUserAgent.source + '$'));
+  });
+
+  it('appends the token set programmatically, once', async () => {
+    const settings = await authenticated();
+    settings.integration = 'deepseek-harness-blaxel-sandbox/0.1.2';
+    const userAgent = settings.headers['User-Agent'];
+    expect(userAgent).toMatch(sdkUserAgent);
+    expect(userAgent.endsWith(' deepseek-harness-blaxel-sandbox/0.1.2')).toBe(true);
+    expect(userAgent.split('deepseek-harness-blaxel-sandbox').length).toBe(2);
+  });
+
+  it('reads BL_INTEGRATION when nothing is set programmatically, and config wins', async () => {
+    const settings = await authenticated();
+    process.env.BL_INTEGRATION = 'herdr/1.4.0-rc.1';
+    expect(settings.headers['User-Agent'].endsWith(' herdr/1.4.0-rc.1')).toBe(true);
+    settings.setConfig({ ...settings.config, integration: 'deepseek-harness-blaxel-sandbox/0.1.2' });
+    expect(settings.headers['User-Agent'].endsWith(' deepseek-harness-blaxel-sandbox/0.1.2')).toBe(true);
+  });
+
+  it.each(['Deepseek/0.1.2', 'deepseek-harness', 'deepseek/0.1', 'a/1.0.0 b/1.0.0', 'deepseek/0.1.2 (extra)', ' x/1.0.0'])(
+    'ignores the invalid token %j',
+    async (value) => {
+      const settings = await authenticated();
+      settings.integration = value;
+      expect(settings.integration).toBe('');
+      expect(settings.headers['User-Agent']).toMatch(new RegExp(sdkUserAgent.source + '$'));
+    }
+  );
+
+  it('changes no header other than User-Agent', async () => {
+    const settings = await authenticated();
+    const plain = { ...settings.headers };
+    settings.integration = 'deepseek-harness-blaxel-sandbox/0.1.2';
+    const tagged = { ...settings.headers };
+    delete plain['User-Agent'];
+    delete tagged['User-Agent'];
+    expect(tagged).toEqual(plain);
+  });
+});
