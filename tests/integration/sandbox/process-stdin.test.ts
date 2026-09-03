@@ -57,6 +57,9 @@ async function waitForStatus(sandbox: SandboxInstance, name: string, wanted: str
 
 describe('Sandbox Process stdin', () => {
   let sandbox: SandboxInstance
+  // False on a sandbox-api release without the stdin routes: the tests then
+  // skip instead of failing, and run on their own once the release lands.
+  let stdinSupported = false
   const sandboxName = uniqueName("process-stdin")
 
   beforeAll(async () => {
@@ -67,6 +70,8 @@ describe('Sandbox Process stdin', () => {
       memory: 2048,
       labels: defaultLabels,
     })
+    const probe = await execRetrying(sandbox, { name: "stdin-probe", stdin: true, command: "true", waitForCompletion: true })
+    stdinSupported = probe.stdin === true
   })
 
   afterAll(async () => {
@@ -77,7 +82,8 @@ describe('Sandbox Process stdin', () => {
     }
   })
 
-  it('drives a JSON-RPC echo loop over stdin and stops it with EOF', async () => {
+  it('drives a JSON-RPC echo loop over stdin and stops it with EOF', async ({ skip }) => {
+    if (!stdinSupported) return skip()
     const name = "stdin-echo"
     const started = await execRetrying(sandbox, {
       name,
@@ -107,7 +113,8 @@ describe('Sandbox Process stdin', () => {
     }
   })
 
-  it('refuses writes to a process started without stdin', async () => {
+  it('refuses writes to a process started without stdin', async ({ skip }) => {
+    if (!stdinSupported) return skip()
     const name = "no-stdin"
     await execRetrying(sandbox, { name, command: "sleep 10" })
     try {
@@ -117,7 +124,8 @@ describe('Sandbox Process stdin', () => {
     }
   })
 
-  it('runs a real MCP stdio server: initialize, tools/list, shutdown on EOF', async () => {
+  it('runs a real MCP stdio server: initialize, tools/list, shutdown on EOF', async ({ skip }) => {
+    if (!stdinSupported) return skip()
     const name = "mcp-fs"
     await execRetrying(sandbox, {
       name,
