@@ -1,5 +1,5 @@
 import type http2 from "http2";
-import { archiveSandbox, createSandbox, createSandboxSnapshot, deleteSandbox, deleteSandboxSnapshot, forkSandbox, getSandbox, getSandboxByExternalId, listSandboxes, listSandboxSnapshots, type ListSandboxesData, restoreSandboxSnapshot, type SandboxForkResponse, type SandboxLifecycle, type Sandbox as SandboxModel, type SandboxRestoreResponse, type SandboxSnapshot, type SandboxSnapshots, unarchiveSandbox, updateSandbox } from "../client/index.js";
+import { archiveSandbox, createSandbox, createSandboxSnapshot, deleteSandbox, deleteSandboxSnapshot, type Env, forkSandbox, getSandbox, getSandboxByExternalId, listSandboxes, listSandboxSnapshots, type ListSandboxesData, restoreSandboxSnapshot, type SandboxForkResponse, type SandboxLifecycle, type Sandbox as SandboxModel, type SandboxRestoreResponse, type SandboxSnapshot, type SandboxSnapshots, unarchiveSandbox, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
 import { backoffDelayMs } from "../common/transient-retry.js";
 import { createPaginatedList } from "../common/pagination.js";
@@ -42,6 +42,12 @@ export type SandboxForkOptions = {
    * sandbox from a snapshot.
    */
   snapshotId?: string;
+  /**
+   * Environment variables the fork runs with, on top of the ones the source
+   * has: a variable the source already carries takes this value in the fork,
+   * one it does not is added, and every other variable of the source is kept.
+   */
+  envs?: Env[];
 };
 
 // Statuses that resolve on their own (a delete or deactivation in flight). The control
@@ -274,6 +280,7 @@ export class SandboxInstance {
         ...(options.customDomain !== undefined ? { customDomain: options.customDomain } : {}),
         ...(options.prefix !== undefined ? { prefix: options.prefix } : {}),
         ...(options.snapshotId !== undefined ? { snapshotId: options.snapshotId } : {}),
+        ...(options.envs !== undefined ? { envs: options.envs } : {}),
       },
       throwOnError: true,
     });
