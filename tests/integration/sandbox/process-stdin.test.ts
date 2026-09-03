@@ -130,7 +130,9 @@ describe('Sandbox Process stdin', () => {
         jsonrpc: "2.0", id: 1, method: "initialize",
         params: { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "sdk-integration", version: "0" } },
       }) + "\n")
-      const init = await reader.reply(1, 120000) // first npx run downloads the package
+      // The first npx run downloads the package: measured 4 to 8 seconds on a
+      // fresh base-image sandbox, so the one-minute test budget holds.
+      const init = await reader.reply(1, 60000)
       expect(init.error).toBeUndefined()
       expect((init.result as { serverInfo: { name: string } }).serverInfo.name).toBeTruthy()
 
