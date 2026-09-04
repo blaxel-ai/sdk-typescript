@@ -2601,6 +2601,10 @@ export type PaginationMeta = {
      * Total number of items in the workspace, ignoring the current page's filters. Lets the UI render "page X of Y" without walking the cursor chain. Computed from the hash-only metadata.workspace GSI count, so search (`q`) does not narrow it.
      */
     total?: number;
+    /**
+     * True when `total` is a lower bound rather than a complete count. Counting a very large workspace is bounded so the listing stays fast, and this flag says the real number is higher. Clients must not derive a page count from `total` when this is set — keep paging with `nextCursor` until `hasMore` is false.
+     */
+    totalIsPartial?: boolean;
 };
 
 /**
@@ -5139,6 +5143,11 @@ export type WorkspaceUser = {
 export type BlaxelVersion = string;
 
 /**
+ * Filter resources by metadata.externalId. When set, only resources matching this caller-owned external ID are returned.
+ */
+export type ExternalIdFilter = string;
+
+/**
  * Comma-separated list of statuses to filter on (e.g. `DEPLOYED,FAILED`). Values are case-insensitive; unknown values are rejected with a 400. Selecting every status is equivalent to omitting the parameter. Bound into the cursor fingerprint so a cursor opened with one selection cannot be reused with another. Filtering itself requires the 2026-04-28 Blaxel-Version (the paginated listing); on earlier versions the value is still validated but the listing is unfiltered, except for sandboxes where it is applied on every version.
  */
 export type ListingStatus = string;
@@ -5192,6 +5201,10 @@ export type ListAgentsData = {
          * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
+        /**
+         * Filter resources by metadata.externalId. When set, only resources matching this caller-owned external ID are returned.
+         */
+        externalId?: string;
         /**
          * Comma-separated list of statuses to filter on (e.g. `DEPLOYED,FAILED`). Values are case-insensitive; unknown values are rejected with a 400. Selecting every status is equivalent to omitting the parameter. Bound into the cursor fingerprint so a cursor opened with one selection cannot be reused with another. Filtering itself requires the 2026-04-28 Blaxel-Version (the paginated listing); on earlier versions the value is still validated but the listing is unfiltered, except for sandboxes where it is applied on every version.
          */
@@ -6369,6 +6382,10 @@ export type ListFunctionsData = {
          */
         anchor?: 'end';
         /**
+         * Filter resources by metadata.externalId. When set, only resources matching this caller-owned external ID are returned.
+         */
+        externalId?: string;
+        /**
          * Comma-separated list of statuses to filter on (e.g. `DEPLOYED,FAILED`). Values are case-insensitive; unknown values are rejected with a 400. Selecting every status is equivalent to omitting the parameter. Bound into the cursor fingerprint so a cursor opened with one selection cannot be reused with another. Filtering itself requires the 2026-04-28 Blaxel-Version (the paginated listing); on earlier versions the value is still validated but the listing is unfiltered, except for sandboxes where it is applied on every version.
          */
         status?: string;
@@ -6943,7 +6960,12 @@ export type GetIntegrationResponse = GetIntegrationResponses[keyof GetIntegratio
 export type ListIntegrationConnectionsData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Filter resources by metadata.externalId. When set, only resources matching this caller-owned external ID are returned.
+         */
+        externalId?: string;
+    };
     url: '/integrations/connections';
 };
 
@@ -7233,6 +7255,10 @@ export type ListJobsData = {
          * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
+        /**
+         * Filter resources by metadata.externalId. When set, only resources matching this caller-owned external ID are returned.
+         */
+        externalId?: string;
         /**
          * Comma-separated list of statuses to filter on (e.g. `DEPLOYED,FAILED`). Values are case-insensitive; unknown values are rejected with a 400. Selecting every status is equivalent to omitting the parameter. Bound into the cursor fingerprint so a cursor opened with one selection cannot be reused with another. Filtering itself requires the 2026-04-28 Blaxel-Version (the paginated listing); on earlier versions the value is still validated but the listing is unfiltered, except for sandboxes where it is applied on every version.
          */
@@ -7634,6 +7660,10 @@ export type ListModelsData = {
          */
         anchor?: 'end';
         /**
+         * Filter resources by metadata.externalId. When set, only resources matching this caller-owned external ID are returned.
+         */
+        externalId?: string;
+        /**
          * Comma-separated list of statuses to filter on (e.g. `DEPLOYED,FAILED`). Values are case-insensitive; unknown values are rejected with a 400. Selecting every status is equivalent to omitting the parameter. Bound into the cursor fingerprint so a cursor opened with one selection cannot be reused with another. Filtering itself requires the 2026-04-28 Blaxel-Version (the paginated listing); on earlier versions the value is still validated but the listing is unfiltered, except for sandboxes where it is applied on every version.
          */
         status?: string;
@@ -7981,6 +8011,10 @@ export type ListPoliciesData = {
          * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
+        /**
+         * Filter resources by metadata.externalId. When set, only resources matching this caller-owned external ID are returned.
+         */
+        externalId?: string;
     };
     url: '/policies';
 };
