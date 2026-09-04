@@ -36,13 +36,13 @@ describe.runIf(isSlowTestEnabled("RUN_SLOW_RESTORE"))("Sandbox snapshot restore"
 
     await sandbox.fs.write("/blaxel/snapshotted.txt", "kept");
 
-    const snapshot = await sandbox.snapshot("restore-point");
+    const snapshot = await sandbox.snapshots.create("restore-point");
     expect(snapshot.id).toBeTruthy();
     step("snapshot asked for");
 
     // Only a ready snapshot holds the filesystem it captured.
     await retry(async () => {
-      const snapshots = await sandbox.listSnapshots();
+      const snapshots = await sandbox.snapshots.list();
       expect(snapshots.find((s) => s.id === snapshot.id)?.status).toBe("ready");
     }, { retries: 300, delayMs: 250 });
     step("snapshot ready");
@@ -50,7 +50,7 @@ describe.runIf(isSlowTestEnabled("RUN_SLOW_RESTORE"))("Sandbox snapshot restore"
     // Written after the snapshot: the restore is expected to lose it.
     await sandbox.fs.write("/blaxel/after-snapshot.txt", "lost");
 
-    const restored = await sandbox.restore(snapshot.id);
+    const restored = await sandbox.snapshots.restore(snapshot.name);
     expect(restored.name).toBe(name);
     expect(restored.snapshotId).toBe(snapshot.id);
     step("restore asked for");

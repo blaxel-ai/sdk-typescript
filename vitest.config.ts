@@ -50,6 +50,10 @@ export default defineConfig({
       // snapshots.test.ts > "Sandbox snapshot restore": takes a snapshot, then
       // rebuilds the instance from it -- a full sandbox start each way.
       RUN_SLOW_RESTORE: process.env.RUN_SLOW_RESTORE ?? "false",
+      // workspace-snapshots.test.ts > "creates a sandbox from a snapshot whose
+      // source is gone": a fork is a full sandbox start on top of the snapshot
+      // the rest of the file already takes.
+      RUN_SLOW_SNAPSHOT_FORK: process.env.RUN_SLOW_SNAPSHOT_FORK ?? "false",
       // image-build.test.ts > "Image Build Integration": builds AND deploys a
       // custom image -- heavy and slow, needs the image-build pipeline.
       IMAGE_BUILD: process.env.IMAGE_BUILD ?? "false",

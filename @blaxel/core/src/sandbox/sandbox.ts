@@ -1,5 +1,5 @@
 import type http2 from "http2";
-import { archiveSandbox, createSandbox, createSandboxSnapshot, deleteSandbox, deleteSandboxSnapshot, type Env, forkSandbox, getSandbox, getSandboxByExternalId, listSandboxes, listSandboxSnapshots, type ListSandboxesData, restoreSandboxSnapshot, type SandboxForkResponse, type SandboxLifecycle, type Sandbox as SandboxModel, type SandboxRestoreResponse, type SandboxSnapshot, type SandboxSnapshots, unarchiveSandbox, updateSandbox } from "../client/index.js";
+import { archiveSandbox, createSandbox, createSandboxSnapshot, deleteSandbox, deleteSandboxSnapshot, type Env, forkSandbox, getSandbox, getSandboxByExternalId, listSandboxes, listSandboxSnapshots, type ListSandboxesData, restoreSandboxSnapshot, type SandboxForkResponse, type SandboxLifecycle, type Sandbox as SandboxModel, type SandboxRestoreResponse, type SandboxSnapshot, unarchiveSandbox, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
 import { backoffDelayMs } from "../common/transient-retry.js";
 import { createPaginatedList } from "../common/pagination.js";
@@ -11,6 +11,7 @@ import { SandboxNetwork } from "./network/index.js";
 import { SandboxPreviews } from "./preview.js";
 import { SandboxProcess } from "./process/index.js";
 import { SandboxSchedules } from "./schedule.js";
+import { SandboxSnapshotsResource } from "./snapshot.js";
 import { SandboxSessions } from "./session.js";
 import { SandboxSystem } from "./system.js";
 import { normalizeEnvs, normalizePorts, normalizeVolumes, SandboxConfiguration, SandboxCreateConfiguration, SandboxUpdateMetadata, SandboxUpdateNetwork, SessionWithToken } from "./types.js";
@@ -116,6 +117,7 @@ export class SandboxInstance {
   codegen: SandboxCodegen;
   system: SandboxSystem;
   drives: SandboxDrive;
+  snapshots: SandboxSnapshotsResource;
   h2Session: http2.ClientHttp2Session | null;
 
   constructor(private sandbox: SandboxConfiguration) {
@@ -128,6 +130,7 @@ export class SandboxInstance {
     this.codegen = new SandboxCodegen(sandbox);
     this.system = new SandboxSystem(sandbox);
     this.drives = new SandboxDrive(sandbox);
+    this.snapshots = new SandboxSnapshotsResource(sandbox);
     this.h2Session = null;
   }
 
@@ -210,6 +213,7 @@ export class SandboxInstance {
    * sandbox state and can be forked into new sandboxes or applications.
    *
    * @param name - Optional human-readable name for the snapshot.
+   * @deprecated Use `sandbox.snapshots.create(name)`.
    */
   async snapshot(name?: string): Promise<SandboxSnapshot> {
     const { data } = await createSandboxSnapshot({
@@ -222,8 +226,10 @@ export class SandboxInstance {
 
   /**
    * List the snapshots of this sandbox.
+   *
+   * @deprecated Use `sandbox.snapshots.list()`.
    */
-  async listSnapshots(): Promise<SandboxSnapshots> {
+  async listSnapshots(): Promise<SandboxSnapshot[]> {
     const { data } = await listSandboxSnapshots({
       path: { sandboxName: this.metadata.name },
       throwOnError: true,
@@ -233,6 +239,8 @@ export class SandboxInstance {
 
   /**
    * Delete a snapshot of this sandbox by its ID.
+   *
+   * @deprecated Use `sandbox.snapshots.delete(name)`.
    */
   async deleteSnapshot(snapshotId: string): Promise<void> {
     await deleteSandboxSnapshot({
@@ -251,6 +259,7 @@ export class SandboxInstance {
    * is: connections to a sandbox still resuming are retried by the gateway.
    *
    * @param snapshotId - ID of the snapshot to restore this sandbox to.
+   * @deprecated Use `sandbox.snapshots.restore(name)`.
    */
   async restore(snapshotId: string): Promise<SandboxRestoreResponse> {
     const { data } = await restoreSandboxSnapshot({
