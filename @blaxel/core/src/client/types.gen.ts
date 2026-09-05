@@ -3921,6 +3921,10 @@ export type SandboxForkRequest = {
      */
     customDomain?: string;
     /**
+     * Environment variables the fork runs with, on top of the ones the source has. A variable the source already carries takes this value in the fork, one it does not is added, and every other variable of the source is kept.
+     */
+    envs?: Array<Env>;
+    /**
      * Port to expose from the sandbox
      */
     port?: number;
