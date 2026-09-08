@@ -4,7 +4,21 @@ import { dotenv, fs } from "./node.js";
 const hasOwn = (source: object, prop: string): boolean => Object.prototype.hasOwnProperty.call(source, prop);
 
 const secretEnv = Object.create(null) as Record<string, string>;
-const configEnv = Object.create(null) as Record<string, unknown>;
+const configEnv = Object.create(null) as Record<string, string>;
+
+const stringifyTomlEnvValue = (value: unknown): string => {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+    return String(value);
+  }
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  const serialized = JSON.stringify(value);
+  return serialized === undefined ? String(value) : serialized;
+};
 
 if (fs !== null ) {
   try {
@@ -15,7 +29,7 @@ if (fs !== null ) {
     const configInfos = toml.parse(configFile, { maxDepth: 100 }) as ConfigInfos;
     if (configInfos.env && typeof configInfos.env === "object") {
       for (const [key, value] of Object.entries(configInfos.env)) {
-        configEnv[key] = value;
+        configEnv[key] = stringifyTomlEnvValue(value);
       }
     }
   } catch {
@@ -55,7 +69,7 @@ const env = new Proxy<EnvVariables>(
         return secretEnv[prop];
       }
       if (hasOwn(configEnv, prop)) {
-        return configEnv[prop] as string;
+        return configEnv[prop];
       }
       if (typeof process !== "undefined" && process.env && hasOwn(process.env, prop)) {
         return process.env[prop];

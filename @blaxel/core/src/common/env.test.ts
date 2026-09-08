@@ -44,7 +44,7 @@ BL_API_URL = "https://api.example.test"
     expect(env.BL_API_URL).toBe("https://api.example.test");
   });
 
-  it("preserves supported TOML env value types through the SDK env proxy", async () => {
+  it("serializes supported TOML env value types through the SDK env proxy", async () => {
     const { env } = await importEnvFromTempConfig(`
 [env]
 BOOLEAN_VALUE = true
@@ -57,10 +57,10 @@ line two
 """
 `);
 
-    expect(env.BOOLEAN_VALUE).toBe(true);
-    expect(env.NUMBER_VALUE).toBe(42);
-    expect(env.ARRAY_VALUE).toEqual(["a", "b"]);
-    expect(env.INLINE_TABLE_VALUE).toEqual({ name: "sandbox", enabled: true });
+    expect(env.BOOLEAN_VALUE).toBe("true");
+    expect(env.NUMBER_VALUE).toBe("42");
+    expect(env.ARRAY_VALUE).toBe('["a","b"]');
+    expect(env.INLINE_TABLE_VALUE).toBe('{"name":"sandbox","enabled":true}');
     expect(env.MULTILINE_VALUE).toBe("line one\nline two\n");
   });
 
