@@ -1,20 +1,22 @@
-import toml from "toml";
+import toml from "smol-toml";
 import { dotenv, fs } from "./node.js";
 
-const secretEnv: Record<string, string> = {};
-const configEnv: Record<string, string> = {};
+const hasOwn = (source: object, prop: string): boolean => Object.prototype.hasOwnProperty.call(source, prop);
+
+const secretEnv = Object.create(null) as Record<string, string>;
+const configEnv = Object.create(null) as Record<string, unknown>;
 
 if (fs !== null ) {
   try {
     const configFile = fs.readFileSync("blaxel.toml", "utf8");
-      type ConfigInfos = {
-        env: {
-        [key: string]: string;
-      };
+    type ConfigInfos = {
+      env?: Record<string, unknown>;
     };
-    const configInfos = toml.parse(configFile) as ConfigInfos;
-    for (const key in configInfos.env) {
-      configEnv[key] = configInfos.env[key];
+    const configInfos = toml.parse(configFile, { maxDepth: 100 }) as ConfigInfos;
+    if (configInfos.env && typeof configInfos.env === "object") {
+      for (const [key, value] of Object.entries(configInfos.env)) {
+        configEnv[key] = value;
+      }
     }
   } catch {
     // ignore
@@ -49,13 +51,13 @@ const env = new Proxy<EnvVariables>(
   {},
   {
     get: (target, prop: string) => {
-      if (secretEnv[prop]) {
+      if (hasOwn(secretEnv, prop)) {
         return secretEnv[prop];
       }
-      if (configEnv[prop]) {
-        return configEnv[prop];
+      if (hasOwn(configEnv, prop)) {
+        return configEnv[prop] as string;
       }
-      if (typeof process !== "undefined" && process.env) {
+      if (typeof process !== "undefined" && process.env && hasOwn(process.env, prop)) {
         return process.env[prop];
       }
       return undefined;
