@@ -60,6 +60,10 @@ jobs:
           # Re-run bun install to resolve workspace dependencies for the runtime-environment
           bun install
 
+      - name: Verify Next.js advisory floors
+        if: matrix.runtime == 'vercel-nextjs'
+        run: node --test tests/runtime-environments/vercel-nextjs/security.test.mjs
+
       - name: Build runtime test (if applicable)
         working-directory: tests/runtime-environments/${{ matrix.runtime }}
         run: |
