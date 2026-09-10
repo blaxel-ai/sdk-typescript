@@ -3933,7 +3933,7 @@ export type SandboxForkRequest = {
      */
     prefix?: string;
     /**
-     * Snapshot ID to fork from. When set, the application revision references this snapshot.
+     * Snapshot ID to fork from. When set, the fork is created from this existing snapshot. When omitted, a sandbox fork copies the source sandbox's live state directly, without persisting a snapshot in between.
      */
     snapshotId?: string;
     /**
@@ -3959,7 +3959,7 @@ export type SandboxForkResponse = {
      */
     name?: string;
     /**
-     * The snapshot ID the fork was created from
+     * The snapshot the fork was created from. Set only when the fork went through a snapshot — an explicit snapshotId, or a fork into an application — and empty for a direct sandbox fork.
      */
     snapshotId?: string;
     /**

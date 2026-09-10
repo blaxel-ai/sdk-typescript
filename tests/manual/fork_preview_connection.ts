@@ -7,8 +7,8 @@
  * dies with code 1006 about two seconds later. Nothing restarted the app.
  *
  * Why forking can reach the source's connections at all: a fork resumes from a
- * memory snapshot of the source, so the forked guest comes up holding the
- * SOURCE sandbox's IPv6 address and every TCP socket the source had open,
+ * copy of the source's live memory state, so the forked guest comes up holding
+ * the SOURCE sandbox's IPv6 address and every TCP socket the source had open,
  * including the customer's WebSocket. Before it is told its own address it
  * retransmits on those sockets, and when the address is swapped the guest
  * resets them — all of it sourced from the source sandbox's address, so
@@ -28,12 +28,12 @@
  *   2. Open a WebSocket through the preview and check ticks are flowing.
  *   3. Fork the sandbox while that WebSocket is open, also probing fresh
  *      connections to the SOURCE so a regression of the snapshot bug shows up
- *      here too (a fork snapshots the source).
+ *      here too (a fork copies the source's live state, no snapshot kept).
  *   4. Keep watching for 15s and report whether the WebSocket survived, and if
  *      not, how long after the fork it died.
  *
  * Expected AFTER the fix: the WebSocket keeps ticking across the fork (a short
- * stall while the source is paused for its snapshot is fine), and every fresh
+ * stall while the source is paused for the state copy is fine), and every fresh
  * request to the source is served.
  *
  * Symptom BEFORE the fix: the WebSocket closes a couple of seconds after the

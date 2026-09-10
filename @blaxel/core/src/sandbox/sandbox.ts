@@ -37,9 +37,10 @@ export type SandboxForkOptions = {
   /** URL prefix for the application fork. */
   prefix?: string;
   /**
-   * Snapshot ID to fork from. When set, the fork is created from this snapshot
-   * instead of the source sandbox's live state — this is how you create a
-   * sandbox from a snapshot.
+   * Snapshot ID to fork from. When set, the fork is created from this existing
+   * snapshot — this is how you create a sandbox from a snapshot. When omitted,
+   * a sandbox fork copies the source sandbox's live state directly, without
+   * persisting a snapshot in between.
    */
   snapshotId?: string;
   /**
@@ -263,8 +264,15 @@ export class SandboxInstance {
   /**
    * Fork this sandbox into a new sandbox or application.
    *
-   * Pass `snapshotId` to fork from a specific snapshot (create a sandbox from a
-   * snapshot) instead of the sandbox's live state.
+   * Forking into a sandbox copies the source sandbox's live state straight into
+   * the fork: no snapshot is taken, persisted, or left behind, and the returned
+   * `snapshotId` is empty.
+   *
+   * Pass `snapshotId` to fork from an existing snapshot instead of the source's
+   * live state (create a sandbox from a snapshot). Forking into an application
+   * (`targetType: "application"`) still goes through a snapshot, which is
+   * recorded because the application revision references it. In both of those
+   * cases the response carries the snapshot the fork came from.
    *
    * @param targetName - Name of the sandbox/application to create.
    * @param options - Fork options (target type, port, traffic, snapshot, ...).
