@@ -1,4 +1,4 @@
-import { createSnapshot, deleteSnapshot, forkSnapshot, getSnapshot, listSnapshots, type ListSnapshotsData, type SandboxForkResponse, type SandboxSnapshot, type SandboxSnapshotSource } from "../client/index.js";
+import { createSnapshot, deleteSnapshot, forkSnapshot, getSnapshot, listSnapshots, type Env, type ListSnapshotsData, type SandboxForkResponse, type SandboxSnapshot, type SandboxSnapshotSource } from "../client/index.js";
 import { createPaginatedList, type ListResponse } from "../common/pagination.js";
 
 export type SnapshotListQuery = NonNullable<ListSnapshotsData["query"]>;
@@ -26,6 +26,11 @@ export type SnapshotForkOptions = {
   customDomain?: string;
   /** URL prefix for the application fork. */
   prefix?: string;
+  /**
+   * Environment variables the fork runs with, on top of the source's. A
+   * variable the source already has takes this value, others are added.
+   */
+  envs?: Env[];
 };
 
 /**
@@ -164,6 +169,7 @@ export class Snapshot {
         ...(options.traffic !== undefined ? { traffic: options.traffic } : {}),
         ...(options.customDomain !== undefined ? { customDomain: options.customDomain } : {}),
         ...(options.prefix !== undefined ? { prefix: options.prefix } : {}),
+        ...(options.envs !== undefined ? { envs: options.envs } : {}),
       },
       throwOnError: true,
     });

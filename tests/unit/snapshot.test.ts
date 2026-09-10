@@ -104,6 +104,21 @@ describe("Snapshot", () => {
     expect(fork).toEqual({ name: "copy", type: "sandbox" });
     expect((call(mocked.delete) as { path: { snapshotName: string } }).path.snapshotName).toBe("my-snapshot");
   });
+
+  it("fork() forwards the envs the fork should run with", async () => {
+    mocked.get.mockResolvedValueOnce({ data: { name: "my-snapshot" } } as never);
+    mocked.fork.mockResolvedValueOnce({ data: { name: "copy", type: "sandbox" } } as never);
+
+    const snapshot = await Snapshot.get("my-snapshot");
+    await snapshot.fork("copy", { envs: [{ name: "FOO", value: "bar" }], port: 3000 });
+
+    expect((call(mocked.fork) as { body: Record<string, unknown> }).body).toEqual({
+      targetName: "copy",
+      targetType: "sandbox",
+      port: 3000,
+      envs: [{ name: "FOO", value: "bar" }],
+    });
+  });
 });
 
 describe("sandbox.snapshots", () => {
