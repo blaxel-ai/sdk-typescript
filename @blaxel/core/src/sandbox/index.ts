@@ -12,6 +12,7 @@ export * from "./codegen/index.js";
 export { SandboxDrive, type DriveMountRequest, type DriveMountResponse, type DriveMountInfo, type DriveUnmountResponse } from "./drive/index.js";
 export * from "./preview.js";
 export * from "./schedule.js";
+export * from "./snapshot.js";
 export * from "./session.js";
 export * from "./sandbox.js";
 export * from "./system.js";
