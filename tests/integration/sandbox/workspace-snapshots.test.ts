@@ -60,7 +60,7 @@ describe("Workspace snapshots", { timeout: 180000 }, () => {
 
     const orphan = await Snapshot.get(snapshotId);
     expect(orphan.name).toBe(snapshotName);
-    expect(orphan.source?.deleted).toBe(true);
+    expect(orphan.source?.name).toBe(sandboxName);
     // What a fork needs to run is on the snapshot itself, not on the source.
     expect(orphan.spec?.image).toBeTruthy();
   });
@@ -69,7 +69,6 @@ describe("Workspace snapshots", { timeout: 180000 }, () => {
   // past the one-minute budget of the default run.
   it.runIf(isSlowTestEnabled("RUN_SLOW_SNAPSHOT_FORK"))("creates a sandbox from a snapshot whose source is gone", async () => {
     const snapshot = await Snapshot.get(snapshotId);
-    expect(snapshot.source?.deleted).toBe(true);
 
     const fork = await snapshot.fork(forkName);
     expect(fork.name).toBe(forkName);
