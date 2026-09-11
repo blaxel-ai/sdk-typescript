@@ -17,8 +17,8 @@ export class SandboxSnapshotsResource {
   /**
    * Capture a snapshot of the sandbox.
    *
-   * @param name - Name of the snapshot, unique in the workspace. Generated
-   * when omitted.
+   * @param name - Name of the snapshot, unique among this sandbox's
+   * snapshots. Generated when omitted.
    */
   async create(name?: string): Promise<Snapshot> {
     return await Snapshot.create({
@@ -36,8 +36,18 @@ export class SandboxSnapshotsResource {
     return data.map((snapshot: SandboxSnapshot) => new Snapshot(snapshot));
   }
 
+  /**
+   * Find a snapshot captured from this sandbox by its name, or by its
+   * identifier. Names are only unique within the sandbox, which is why the
+   * workspace-level `Snapshot.get` takes the identifier instead.
+   */
   async get(snapshotName: string): Promise<Snapshot> {
-    return await Snapshot.get(snapshotName);
+    const snapshots = await this.list();
+    const found = snapshots.find((s) => s.name === snapshotName || s.id === snapshotName);
+    if (!found) {
+      throw new Error(`Snapshot ${snapshotName} not found on sandbox ${this.sandboxName}`);
+    }
+    return found;
   }
 
   /**

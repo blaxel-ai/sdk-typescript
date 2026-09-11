@@ -6,10 +6,13 @@ describe("Workspace snapshots", { timeout: 180000 }, () => {
   const sandboxName = uniqueName("snap-src");
   const snapshotName = uniqueName("snap");
   const forkName = uniqueName("snap-fork");
+  // Workspace-level routes take the identifier: names only mean something
+  // inside the sandbox they were captured from.
+  let snapshotId = "";
 
   afterAll(async () => {
     for (const cleanup of [
-      () => Snapshot.delete(snapshotName),
+      () => Snapshot.delete(snapshotId),
       () => SandboxInstance.delete(sandboxName),
       () => SandboxInstance.delete(forkName),
     ]) {
@@ -36,24 +39,26 @@ describe("Workspace snapshots", { timeout: 180000 }, () => {
     expect(snapshot.name).toBe(snapshotName);
     expect(snapshot.source?.kind).toBe("sandbox");
     expect(snapshot.source?.name).toBe(sandboxName);
+    expect(snapshot.id).toBeTruthy();
+    snapshotId = snapshot.id!;
 
     const fromSandbox = await sandbox.snapshots.list();
     expect(fromSandbox.map((s) => s.name)).toContain(snapshotName);
 
     const fromWorkspace = await Snapshot.list({ limit: 200 });
-    expect(await fromWorkspace.autoPagingToArray({ limit: 500 }).then((all) => all.map((s) => s.name))).toContain(snapshotName);
+    expect(await fromWorkspace.autoPagingToArray({ limit: 500 }).then((all) => all.map((s) => s.id))).toContain(snapshotId);
 
     // Only a ready snapshot holds the filesystem it captured, and only a ready
     // one is worth outliving its sandbox.
     await retry(async () => {
-      const ready = await Snapshot.get(snapshotName);
+      const ready = await Snapshot.get(snapshotId);
       expect(ready.status).toBe("ready");
     }, { retries: 300, delayMs: 250 });
 
     await SandboxInstance.delete(sandboxName);
     await waitForSandboxDeletion(sandboxName);
 
-    const orphan = await Snapshot.get(snapshotName);
+    const orphan = await Snapshot.get(snapshotId);
     expect(orphan.name).toBe(snapshotName);
     expect(orphan.source?.deleted).toBe(true);
     // What a fork needs to run is on the snapshot itself, not on the source.
@@ -63,7 +68,7 @@ describe("Workspace snapshots", { timeout: 180000 }, () => {
   // A fork is a full sandbox start on top of the snapshot the test above takes,
   // past the one-minute budget of the default run.
   it.runIf(isSlowTestEnabled("RUN_SLOW_SNAPSHOT_FORK"))("creates a sandbox from a snapshot whose source is gone", async () => {
-    const snapshot = await Snapshot.get(snapshotName);
+    const snapshot = await Snapshot.get(snapshotId);
     expect(snapshot.source?.deleted).toBe(true);
 
     const fork = await snapshot.fork(forkName);

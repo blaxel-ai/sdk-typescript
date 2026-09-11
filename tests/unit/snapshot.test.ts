@@ -88,21 +88,21 @@ describe("Snapshot", () => {
     expect(page.data.map((snapshot) => snapshot.name)).toEqual(["my-snapshot"]);
   });
 
-  it("delete() and fork() address the snapshot by name", async () => {
-    mocked.get.mockResolvedValueOnce({ data: { name: "my-snapshot" } } as never);
+  it("delete() and fork() address the snapshot by id, never by its per-sandbox name", async () => {
+    mocked.get.mockResolvedValueOnce({ data: { id: "snap-uuid", name: "my-snapshot" } } as never);
     mocked.fork.mockResolvedValueOnce({ data: { name: "copy", type: "sandbox" } } as never);
     mocked.delete.mockResolvedValueOnce({ data: undefined } as never);
 
-    const snapshot = await Snapshot.get("my-snapshot");
+    const snapshot = await Snapshot.get("snap-uuid");
     const fork = await snapshot.fork("copy");
     await snapshot.delete();
 
-    expect((call(mocked.get) as { path: { snapshotName: string } }).path.snapshotName).toBe("my-snapshot");
+    expect((call(mocked.get) as { path: { snapshotName: string } }).path.snapshotName).toBe("snap-uuid");
     const forkOptions = call(mocked.fork) as { path: { snapshotName: string }; body: Record<string, unknown> };
-    expect(forkOptions.path.snapshotName).toBe("my-snapshot");
+    expect(forkOptions.path.snapshotName).toBe("snap-uuid");
     expect(forkOptions.body).toEqual({ targetName: "copy", targetType: "sandbox" });
     expect(fork).toEqual({ name: "copy", type: "sandbox" });
-    expect((call(mocked.delete) as { path: { snapshotName: string } }).path.snapshotName).toBe("my-snapshot");
+    expect((call(mocked.delete) as { path: { snapshotName: string } }).path.snapshotName).toBe("snap-uuid");
   });
 
   it("fork() forwards the envs the fork should run with", async () => {
@@ -157,5 +157,17 @@ describe("sandbox.snapshots", () => {
       sandboxName: "my-sandbox",
       snapshotId: "my-snapshot",
     });
+  });
+
+  it("get() resolves a name among the sandbox's snapshots instead of the id-only workspace route", async () => {
+    mocked.nestedList.mockResolvedValue({ data: [{ id: "snap-uuid", name: "my-snapshot" }] } as never);
+
+    const byName = await instance().snapshots.get("my-snapshot");
+    const byId = await instance().snapshots.get("snap-uuid");
+
+    expect(byName.id).toBe("snap-uuid");
+    expect(byId.name).toBe("my-snapshot");
+    expect(mocked.get).not.toHaveBeenCalled();
+    await expect(instance().snapshots.get("unknown")).rejects.toThrow("not found");
   });
 });

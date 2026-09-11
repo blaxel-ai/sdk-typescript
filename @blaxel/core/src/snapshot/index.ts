@@ -97,9 +97,15 @@ export class Snapshot {
     return new Snapshot(data);
   }
 
-  static async get(snapshotName: string) {
+  /**
+   * Fetch a snapshot by its identifier (`snapshot.id`). Names are only unique
+   * within the sandbox they were captured from, so the workspace-level routes
+   * take the identifier; use `sandbox.snapshots.get(name)` to address one by
+   * name.
+   */
+  static async get(snapshotId: string) {
     const { data } = await getSnapshot({
-      path: { snapshotName },
+      path: { snapshotName: snapshotId },
       throwOnError: true,
     });
     return new Snapshot(data);
@@ -140,16 +146,16 @@ export class Snapshot {
    * Delete a snapshot. There is one snapshot object, so this removes it for
    * the whole workspace, whether or not the sandbox it came from still exists.
    */
-  static async delete(snapshotName: string) {
+  static async delete(snapshotId: string) {
     const { data } = await deleteSnapshot({
-      path: { snapshotName },
+      path: { snapshotName: snapshotId },
       throwOnError: true,
     });
     return data;
   }
 
   async delete() {
-    return await Snapshot.delete(this.name);
+    return await Snapshot.delete(this.id);
   }
 
   /**
@@ -161,7 +167,7 @@ export class Snapshot {
    */
   async fork(targetName: string, options: SnapshotForkOptions = {}): Promise<SandboxForkResponse> {
     const { data } = await forkSnapshot({
-      path: { snapshotName: this.name },
+      path: { snapshotName: this.id },
       body: {
         targetName,
         targetType: options.targetType ?? "sandbox",
