@@ -2066,7 +2066,7 @@ export const createSandboxSnapshot = <ThrowOnError extends boolean = false>(opti
 
 /**
  * Delete sandbox snapshot
- * Deletes a snapshot of a sandbox by its ID.
+ * Deletes a snapshot of a sandbox, addressed by its name among that sandbox's snapshots (or by its ID).
  */
 export const deleteSandboxSnapshot = <ThrowOnError extends boolean = false>(options: Options<DeleteSandboxSnapshotData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteSandboxSnapshotResponse, DeleteSandboxSnapshotError, ThrowOnError>({
@@ -2371,7 +2371,7 @@ export const deleteSnapshot = <ThrowOnError extends boolean = false>(options: Op
 
 /**
  * Get snapshot
- * Returns a snapshot of the workspace by name.
+ * Returns a snapshot of the workspace by ID.
  */
 export const getSnapshot = <ThrowOnError extends boolean = false>(options: Options<GetSnapshotData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetSnapshotResponse, GetSnapshotError, ThrowOnError>({
