@@ -150,8 +150,8 @@ function isOurs(name: string | undefined, labels: Record<string, string> | undef
 async function cleanupPrevious() {
   console.log("[pre-cleanup] scanning for leftover resources...")
   const [sandboxes, volumes] = await Promise.all([
-    SandboxInstance.list().catch(() => []),
-    VolumeInstance.list().catch(() => []),
+    SandboxInstance.list().then(page => page.autoPagingToArray({ limit: 10000 })).catch(() => []),
+    VolumeInstance.list().then(page => page.autoPagingToArray({ limit: 10000 })).catch(() => []),
   ])
 
   const oldSbx = sandboxes.filter(s => isOurs(s.metadata?.name, s.metadata?.labels, SBX_PREFIXES))
