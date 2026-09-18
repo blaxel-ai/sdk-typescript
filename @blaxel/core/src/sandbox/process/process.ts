@@ -318,12 +318,8 @@ export class SandboxProcess extends SandboxAction {
     let status = data.status ?? "running";
     while (status === "running") {
       await new Promise((resolve) => setTimeout(resolve, interval));
-      try {
-        data = await this.get(identifier);
-        status = data.status ?? "running";
-      } catch {
-        break;
-      }
+      data = await this.get(identifier);
+      status = data.status ?? "running";
       if (Date.now() - startTime > maxWait) {
         throw new Error("Process did not finish in time");
       }
