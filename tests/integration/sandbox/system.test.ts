@@ -1,7 +1,7 @@
 import { SandboxInstance, settings } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
 import { defaultLabels, defaultRegion, sleep, uniqueName } from './helpers.js'
-import { HealthResponse } from "@blaxel/core/sandbox/client/types.gen.js"
+import type { HealthResponse } from "../../../@blaxel/core/src/sandbox/client/types.gen.js"
 
 const VERSION = process.env.BL_ENV === "dev" ? "develop" : "latest"
 
