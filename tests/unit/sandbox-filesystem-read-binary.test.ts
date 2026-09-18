@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { SandboxFileSystem } from "../../@blaxel/core/src/sandbox/filesystem/filesystem.js";
-
-type ReadBinaryHarness = SandboxFileSystem & {
-  readBinary(path: string): Promise<Blob>;
-};
+import { SandboxInstance } from "@blaxel/core";
+import { createServer } from "node:http";
 
 function createReadBinaryHarness(data: unknown, response?: Response) {
   const client = {
@@ -14,7 +11,12 @@ function createReadBinaryHarness(data: unknown, response?: Response) {
       options,
     })),
   };
-  const filesystem = Object.create(SandboxFileSystem.prototype) as ReadBinaryHarness;
+  const filesystem = new SandboxInstance({
+    metadata: { name: "binary-download-test" },
+    spec: {},
+    forceUrl: "http://127.0.0.1",
+    headers: {},
+  }).fs;
   Object.defineProperty(filesystem, "client", {
     get: () => client,
   });
@@ -65,12 +67,19 @@ describe("SandboxFileSystem.readBinary", () => {
 
   it("falls back to the response body when data is not binary-like", async () => {
     const response = new Response("body-bytes", { status: 200 });
-    const { filesystem } = createReadBinaryHarness(undefined, response);
+    // A missing parsed value is rejected before normalization. Use a present,
+    // non-binary value to exercise the response-body fallback itself.
+    const { filesystem } = createReadBinaryHarness({}, response);
 
     const blob = await filesystem.readBinary("/tmp/file.bin");
 
     expect(blob).toBeInstanceOf(Blob);
     await expect(blobText(blob)).resolves.toBe("body-bytes");
+  });
+
+  it("rejects a missing parsed value before binary normalization", async () => {
+    const { filesystem } = createReadBinaryHarness(undefined, new Response("body-bytes"));
+    await expect(filesystem.readBinary("/tmp/file.bin")).rejects.toMatchObject({ status: 200 });
   });
 
   it("normalizes string and ArrayBuffer data into Blob values", async () => {
@@ -85,5 +94,45 @@ describe("SandboxFileSystem.readBinary", () => {
     await expect(blobText(await bufferHarness.readBinary("/tmp/b"))).resolves.toBe(
       "buffer-data",
     );
+  });
+});
+
+// These controls exercise parsing through the generated client and public SDK.
+describe("SandboxFileSystem.readBinary HTTP responses", () => {
+  it.each([
+    { name: "headerless binary", status: 200, bytes: [0, 128, 255], headers: {} },
+    { name: "empty file", status: 200, bytes: [], headers: { "Content-Length": "0" } },
+    { name: "missing file", status: 404, bytes: [], headers: {} },
+  ])("handles a $name response", async ({ status, bytes, headers }) => {
+    const requests: string[] = [];
+    const server = createServer((request, response) => {
+      requests.push(`${request.method} ${request.url} ${request.headers.accept}`);
+      response.writeHead(status, headers);
+      response.end(Buffer.from(bytes));
+    });
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    try {
+      const address = server.address();
+      if (!address || typeof address === "string") throw new Error("Expected a TCP address");
+      const sandbox = new SandboxInstance({
+        metadata: { name: "binary-http-test" },
+        spec: {},
+        forceUrl: `http://127.0.0.1:${address.port}`,
+        headers: {},
+      });
+      if (status === 200) {
+        const blob = await sandbox.fs.readBinary("/tmp/file.bin");
+        expect(blob).toBeInstanceOf(Blob);
+        expect(new Uint8Array(await blob.arrayBuffer())).toEqual(new Uint8Array(bytes));
+      } else {
+        await expect(sandbox.fs.readBinary("/tmp/file.bin")).rejects.toMatchObject({ status });
+      }
+      expect(requests).toEqual(["GET /filesystem/%2Ftmp%2Ffile.bin application/octet-stream"]);
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve, reject) => {
+        server.close(error => error ? reject(error) : resolve());
+      });
+    }
   });
 });
