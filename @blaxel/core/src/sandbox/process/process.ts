@@ -102,31 +102,17 @@ export class SandboxProcess extends SandboxAction {
   async exec(
     process: ProcessRequest | ProcessRequestWithLog,
   ): Promise<PostProcessResponse | ProcessResponseWithLog> {
-    let onLog: ((log: string) => void) | undefined;
-    let onStdout: ((stdout: string) => void) | undefined;
-    let onStderr: ((stderr: string) => void) | undefined;
-    if ('onLog' in process && process.onLog) {
-      onLog = process.onLog;
-      delete process.onLog;
-    }
-    if ('onStdout' in process && process.onStdout) {
-      onStdout = process.onStdout;
-      delete process.onStdout;
-    }
-    if ('onStderr' in process && process.onStderr) {
-      onStderr = process.onStderr;
-      delete process.onStderr;
-    }
+    const { onLog, onStdout, onStderr, ...processRequest }: ProcessRequestWithLog = process;
 
     // Store original wait_for_completion setting
-    const shouldWaitForCompletion = process.waitForCompletion;
+    const shouldWaitForCompletion = processRequest.waitForCompletion;
 
     // When waiting for completion with streaming callbacks, use streaming endpoint
     if (shouldWaitForCompletion && (onLog || onStdout || onStderr)) {
-      return await this.execWithStreaming(process, { onLog, onStdout, onStderr });
+      return await this.execWithStreaming(processRequest, { onLog, onStdout, onStderr });
     } else {
       const { response, data, error } = await postProcess(this.withClient({
-        body: process,
+        body: processRequest,
         baseUrl: this.url,
       }));
       this.handleResponseError(response, data, error);
