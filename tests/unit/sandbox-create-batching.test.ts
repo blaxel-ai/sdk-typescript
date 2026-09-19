@@ -171,6 +171,25 @@ describe("SandboxInstance.create transparent batching", () => {
     expect(calls()[3].query).toBeUndefined();
     legacy.bulkUnsupported = false;
   });
+
+  it("deletes what the legacy fallback created when one single create fails", async () => {
+    const legacy = SandboxInstance as unknown as { bulkUnsupported: boolean };
+    const boom = { code: "CREATION_FAILED" };
+    let n = 0;
+    mockedCreate.mockImplementation(async () => (n++ === 1 ? failure(500, boom) : single(`legacy-${n - 1}`)));
+    const deleteSpy = vi.spyOn(SandboxInstance, "delete").mockResolvedValue(undefined as never);
+
+    const results = await Promise.allSettled([
+      SandboxInstance.create({ image: "custom:latest" }),
+      SandboxInstance.create({ image: "custom:latest" }),
+      SandboxInstance.create({ image: "custom:latest" }),
+    ]);
+
+    expect(results.every((r) => r.status === "rejected" && r.reason === boom)).toBe(true);
+    expect(deleteSpy.mock.calls.map((c) => c[0]).sort()).toEqual(["legacy-0", "legacy-2"]);
+    deleteSpy.mockRestore();
+    legacy.bulkUnsupported = false;
+  });
 });
 
 describe("CreateBatcher", () => {

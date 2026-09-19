@@ -484,7 +484,7 @@ export class SandboxInstance {
       // with the single sandbox it created. Keep that one, create the rest one
       // by one, and stop batching against this server.
       SandboxInstance.bulkUnsupported = true;
-      const rest = await Promise.all(
+      const rest = await Promise.allSettled(
         Array.from({ length: count - 1 }, async () => {
           const single = await createSandbox({ body });
           if (single.error !== undefined) {
@@ -493,7 +493,16 @@ export class SandboxInstance {
           return single.data as SandboxModel;
         }),
       );
-      return [data, ...rest];
+      const created = [data, ...rest.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []))];
+      const failure = rest.find((r) => r.status === "rejected");
+      if (failure) {
+        // All-or-nothing, like the server-side bulk: nothing created stays behind.
+        await Promise.all(
+          created.map((s) => (s.metadata?.name ? SandboxInstance.delete(s.metadata.name).catch(() => {}) : Promise.resolve())),
+        );
+        throw failure.reason;
+      }
+      return created;
     }
     return data as unknown as SandboxModel[];
   }
