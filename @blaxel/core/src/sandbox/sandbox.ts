@@ -479,13 +479,27 @@ export class SandboxInstance {
     if (error !== undefined) {
       throw error;
     }
-    if (count === 1 && data && !Array.isArray(data)) {
-      // A control plane that does not know `count` yet answers with the
-      // single record; that is still the one sandbox that was asked for.
-      return [data];
+    if (data && !Array.isArray(data)) {
+      // A control plane that does not know `count` yet ignores it and answers
+      // with the single sandbox it created. Keep that one, create the rest one
+      // by one, and stop batching against this server.
+      SandboxInstance.bulkUnsupported = true;
+      const rest = await Promise.all(
+        Array.from({ length: count - 1 }, async () => {
+          const single = await createSandbox({ body });
+          if (single.error !== undefined) {
+            throw single.error;
+          }
+          return single.data as SandboxModel;
+        }),
+      );
+      return [data, ...rest];
     }
     return data as unknown as SandboxModel[];
   }
+
+  /** Set once a server answered `?count=N` with a single record. */
+  private static bulkUnsupported = false;
 
   /**
    * Create a sandbox.
@@ -507,6 +521,7 @@ export class SandboxInstance {
     const batchable =
       batch &&
       !settings.disableCreateBatching &&
+      !SandboxInstance.bulkUnsupported &&
       !createIfNotExist &&
       !body.metadata.name &&
       !body.metadata.displayName &&

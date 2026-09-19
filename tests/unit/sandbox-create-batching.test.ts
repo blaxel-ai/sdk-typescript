@@ -150,6 +150,27 @@ describe("SandboxInstance.create transparent batching", () => {
       expect((r as PromiseRejectedResult).reason).toBe(quota);
     }
   });
+
+  it("falls back to single creates when the server ignores count, then stops batching", async () => {
+    const legacy = SandboxInstance as unknown as { bulkUnsupported: boolean };
+    let n = 0;
+    mockedCreate.mockImplementation(async () => single(`legacy-${n++}`));
+
+    const instances = await Promise.all([
+      SandboxInstance.create({ image: "custom:latest" }),
+      SandboxInstance.create({ image: "custom:latest" }),
+      SandboxInstance.create({ image: "custom:latest" }),
+    ]);
+
+    expect(calls()[0].query).toEqual({ count: 3 });
+    expect(calls().slice(1).every((c) => c.query === undefined)).toBe(true);
+    expect(calls()).toHaveLength(3);
+    expect(instances.map((i) => i.metadata.name).sort()).toEqual(["legacy-0", "legacy-1", "legacy-2"]);
+
+    await SandboxInstance.create({ image: "custom:latest" });
+    expect(calls()[3].query).toBeUndefined();
+    legacy.bulkUnsupported = false;
+  });
 });
 
 describe("CreateBatcher", () => {
@@ -185,7 +206,6 @@ describe("SandboxInstance.createMany", () => {
     mockedCreate.mockResolvedValueOnce(many(["a", "b", "c", "d"]));
 
     const instances = await SandboxInstance.createMany(4, { image: "custom:latest" });
-
     expect(calls()).toHaveLength(1);
     expect(calls()[0].query).toEqual({ count: 4 });
     expect(instances.map((i) => i.metadata.name)).toEqual(["a", "b", "c", "d"]);
