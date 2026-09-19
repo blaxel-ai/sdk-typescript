@@ -1,4 +1,4 @@
-import { createSnapshot, deleteSnapshot, forkSnapshot, getSnapshot, listSnapshots, type Env, type ListSnapshotsData, type SandboxForkResponse, type SandboxSnapshot, type SandboxSnapshotSource } from "../client/index.js";
+import { createSnapshot, deleteSnapshot, forkSnapshot, type ForkSnapshotData, getSnapshot, listSnapshots, type Env, type ListSnapshotsData, type SandboxForkResponse, type SandboxSnapshot, type SandboxSnapshotSource } from "../client/index.js";
 import { createPaginatedList, type ListResponse } from "../common/pagination.js";
 
 export type SnapshotListQuery = NonNullable<ListSnapshotsData["query"]>;
@@ -32,6 +32,11 @@ export type SnapshotForkOptions = {
    */
   envs?: Env[];
 };
+
+/** Options of `Snapshot.forkMany`: a sandbox fork without a target name. */
+export type SnapshotForkManyOptions = Omit<SnapshotForkOptions, "targetType" | "traffic" | "customDomain" | "prefix">;
+
+export const MAX_SNAPSHOT_FORK_COUNT = 100;
 
 /**
  * A snapshot is a workspace resource: it is captured from a sandbox, but it
@@ -180,5 +185,35 @@ export class Snapshot {
       throwOnError: true,
     });
     return data;
+  }
+
+  /**
+   * Create `count` sandboxes from this snapshot in a single request
+   * (`POST /snapshots/{id}/fork?count=N`). The server generates the sandbox
+   * names and either returns all of them or fails as a whole: there is no
+   * partial result. `count` must be between 1 and 100.
+   *
+   * @param count - Number of sandboxes to create.
+   * @param options - Fork options shared by every sandbox (port, envs).
+   */
+  async forkMany(count: number, options: SnapshotForkManyOptions = {}): Promise<SandboxForkResponse[]> {
+    if (!Number.isInteger(count) || count < 1 || count > MAX_SNAPSHOT_FORK_COUNT) {
+      throw new Error(`Snapshot.forkMany: count must be an integer between 1 and ${MAX_SNAPSHOT_FORK_COUNT}, got ${count}`);
+    }
+    const { data } = await forkSnapshot({
+      path: { snapshotName: this.id },
+      query: { count } as unknown as ForkSnapshotData["query"],
+      body: {
+        targetType: "sandbox",
+        ...(options.port !== undefined ? { port: options.port } : {}),
+        ...(options.envs !== undefined ? { envs: options.envs } : {}),
+      } as ForkSnapshotData["body"],
+      throwOnError: true,
+    });
+    const forks = data as unknown as SandboxForkResponse[];
+    if (!Array.isArray(forks) || forks.length !== count) {
+      throw new Error(`Snapshot.forkMany: expected ${count} sandboxes, got ${Array.isArray(forks) ? forks.length : "a non-array response"}`);
+    }
+    return forks;
   }
 }
