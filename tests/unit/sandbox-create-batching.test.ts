@@ -10,6 +10,7 @@ vi.mock("../../@blaxel/core/src/client/index.js", async (importOriginal) => {
 
 import { createSandbox, forkSnapshot } from "../../@blaxel/core/src/client/index.js";
 import { CreateBatcher } from "../../@blaxel/core/src/sandbox/create-batcher.js";
+import { SandboxFileSystem } from "../../@blaxel/core/src/sandbox/filesystem/filesystem.js";
 import { SandboxInstance } from "../../@blaxel/core/src/sandbox/sandbox.js";
 import { Snapshot } from "../../@blaxel/core/src/snapshot/index.js";
 
@@ -100,6 +101,27 @@ describe("SandboxInstance.create transparent batching", () => {
     expect(calls()[1].query).toEqual({ createIfNotExist: true });
   });
 
+  it("treats a shorthand config carrying only externalId as a named create", async () => {
+    mockedCreate.mockResolvedValue(single("x"));
+
+    await SandboxInstance.create({ externalId: "job-42" });
+
+    expect(calls()).toHaveLength(1);
+    expect(calls()[0].query).toBeUndefined();
+    expect((calls()[0].body.metadata as { externalId?: string }).externalId).toBe("job-42");
+  });
+
+  it("sends the spec as it was when create() was called, not as later mutated", async () => {
+    mockedCreate.mockResolvedValueOnce(many(["a"]));
+    const model = { spec: { runtime: { image: "a:latest" } } };
+
+    const pending = SandboxInstance.create(model as never);
+    model.spec.runtime.image = "b:latest";
+    await pending;
+
+    expect(calls()[0].body.spec?.runtime?.image).toBe("a:latest");
+  });
+
   it("respects BL_DISABLE_CREATE_BATCHING", async () => {
     vi.stubEnv("BL_DISABLE_CREATE_BATCHING", "1");
     mockedCreate.mockResolvedValue(single("x"));
@@ -180,6 +202,24 @@ describe("SandboxInstance.createMany", () => {
     const quota = { error: "QUOTA_EXCEEDED" };
     mockedCreate.mockResolvedValueOnce(failure(429, quota));
     await expect(SandboxInstance.createMany(5, { image: "custom:latest" })).rejects.toBe(quota);
+  });
+
+  it("with safe: true, deletes the whole batch when one sandbox fails the check", async () => {
+    mockedCreate.mockResolvedValueOnce(many(["a", "b", "c"]));
+    const boom = new Error("unreachable");
+    const ls = vi
+      .spyOn(SandboxFileSystem.prototype, "ls")
+      .mockImplementation(function (this: { url: string }) {
+        return this.url.includes("/b") ? Promise.reject(boom) : Promise.resolve({} as never);
+      });
+    const del = vi.spyOn(SandboxInstance, "delete").mockResolvedValue({} as never);
+
+    await expect(SandboxInstance.createMany(3, { image: "custom:latest" }, { safe: true })).rejects.toBe(boom);
+
+    expect(ls).toHaveBeenCalledTimes(3);
+    expect(del.mock.calls.map((c) => c[0]).sort()).toEqual(["a", "b", "c"]);
+    ls.mockRestore();
+    del.mockRestore();
   });
 });
 

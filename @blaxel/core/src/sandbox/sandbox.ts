@@ -366,7 +366,11 @@ export class SandboxInstance {
       'network' in sandbox ||
       'snapshotEnabled' in sandbox ||
       'labels' in sandbox ||
-      'extraArgs' in sandbox
+      'extraArgs' in sandbox ||
+      'externalId' in sandbox ||
+      'region' in sandbox ||
+      'ttl' in sandbox ||
+      'expires' in sandbox
     ) {
       if (!sandbox) sandbox = {} as SandboxCreateConfiguration
       if (!sandbox.image) sandbox.image = defaultImage
@@ -441,11 +445,16 @@ export class SandboxInstance {
     return Promise.resolve(null);
   }
 
-  private static async instanceFromCreated(data: SandboxModel, h2Session: http2.ClientHttp2Session | null, edgeDomain: string | null, safe: boolean) {
+  private static instanceFromCreated(data: SandboxModel, h2Session: http2.ClientHttp2Session | null, edgeDomain: string | null) {
     // Inject the H2 session into the config so subsystems can use it
     const config = { ...data, h2Session, h2Domain: settings.disableH2 ? null : edgeDomain } as SandboxConfiguration;
     const instance = new SandboxInstance(config);
     instance.h2Session = h2Session;
+    return instance;
+  }
+
+  private static async checkedInstance(data: SandboxModel, h2Session: http2.ClientHttp2Session | null, edgeDomain: string | null, safe: boolean) {
+    const instance = SandboxInstance.instanceFromCreated(data, h2Session, edgeDomain);
     // TODO remove this part once we have a better way to handle this
     if (safe) {
       try {
@@ -505,14 +514,18 @@ export class SandboxInstance {
 
     let data: SandboxModel;
     if (batchable) {
-      // Everything that changes the request is part of the key: the body, the
-      // workspace, and the API version header (credentials are process-wide).
-      const key = stableStringify({ body, workspace: settings.workspace, version: settings.apiVersion });
+      // The request is sent later, so freeze the body now: the key and the
+      // payload must describe the same spec even if the caller mutates its
+      // model in the meantime. Everything that changes the request is part of
+      // the key: the body, the workspace, and the API version header
+      // (credentials are process-wide).
+      const frozen = JSON.parse(JSON.stringify(body)) as SandboxModel;
+      const key = stableStringify({ body: frozen, workspace: settings.workspace, version: settings.apiVersion });
       const [record, h2Session] = await Promise.all([
-        createBatcher.enqueue(key, (count) => SandboxInstance.createBulk(body, count)),
+        createBatcher.enqueue(key, (count) => SandboxInstance.createBulk(frozen, count)),
         h2Warm,
       ]);
-      return SandboxInstance.instanceFromCreated(record, h2Session, edgeDomain, safe);
+      return SandboxInstance.checkedInstance(record, h2Session, edgeDomain, safe);
     }
 
     const [createResult, h2Session] = await Promise.all([
@@ -533,7 +546,7 @@ export class SandboxInstance {
         throw createResult.error;
       }
     }
-    return SandboxInstance.instanceFromCreated(data, h2Session, edgeDomain, safe);
+    return SandboxInstance.checkedInstance(data, h2Session, edgeDomain, safe);
   }
 
   /**
@@ -560,7 +573,19 @@ export class SandboxInstance {
     if (!Array.isArray(records) || records.length !== count) {
       throw new Error(`SandboxInstance.createMany: expected ${count} sandboxes, got ${Array.isArray(records) ? records.length : "a non-array response"}`);
     }
-    return Promise.all(records.map((record) => SandboxInstance.instanceFromCreated(record, h2Session, edgeDomain, safe)));
+    if (!safe) {
+      return records.map((record) => SandboxInstance.instanceFromCreated(record, h2Session, edgeDomain));
+    }
+    // The safety check is all-or-nothing like the creation itself: if any
+    // sandbox is unreachable, none of the batch is kept.
+    const instances = records.map((record) => SandboxInstance.instanceFromCreated(record, h2Session, edgeDomain));
+    const checks = await Promise.allSettled(instances.map((instance) => instance.fs.ls('/')));
+    const failed = checks.find((c): c is PromiseRejectedResult => c.status === "rejected");
+    if (failed) {
+      await Promise.allSettled(instances.map((instance) => SandboxInstance.delete(instance.metadata.name!)));
+      throw failed.reason;
+    }
+    return instances;
   }
 
   /**
