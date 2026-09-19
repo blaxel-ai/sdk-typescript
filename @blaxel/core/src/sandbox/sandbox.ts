@@ -1,10 +1,11 @@
 import type http2 from "http2";
-import { archiveSandbox, createSandbox, createSandboxSnapshot, deleteSandbox, deleteSandboxSnapshot, type Env, forkSandbox, getSandbox, getSandboxByExternalId, listSandboxes, listSandboxSnapshots, type ListSandboxesData, restoreSandboxSnapshot, type SandboxForkResponse, type SandboxLifecycle, type Sandbox as SandboxModel, type SandboxRestoreResponse, type SandboxSnapshot, unarchiveSandbox, updateSandbox } from "../client/index.js";
+import { archiveSandbox, createSandbox, type CreateSandboxData, createSandboxSnapshot, deleteSandbox, deleteSandboxSnapshot, type Env, forkSandbox, getSandbox, getSandboxByExternalId, listSandboxes, listSandboxSnapshots, type ListSandboxesData, restoreSandboxSnapshot, type SandboxForkResponse, type SandboxLifecycle, type Sandbox as SandboxModel, type SandboxRestoreResponse, type SandboxSnapshot, unarchiveSandbox, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
 import { backoffDelayMs } from "../common/transient-retry.js";
 import { createPaginatedList } from "../common/pagination.js";
 import { settings } from "../common/settings.js";
 import { SandboxCodegen } from "./codegen/index.js";
+import { CreateBatcher, MAX_CREATE_BATCH_SIZE } from "./create-batcher.js";
 import { SandboxDrive } from "./drive/index.js";
 import { SandboxFileSystem } from "./filesystem/index.js";
 import { SandboxNetwork } from "./network/index.js";
@@ -81,6 +82,37 @@ const UNARCHIVING_STATUSES = new Set(["UNARCHIVING", "DEPLOYING", "BUILDING", "U
 const ARCHIVE_ENTRY_STATUS = "DEPLOYED";
 const UNARCHIVE_ENTRY_STATUS = "ARCHIVED";
 const ARCHIVE_ENTRY_MAX_WAIT_MS = 30_000;
+
+/** Options of `SandboxInstance.create`. */
+export type SandboxCreateOptions = {
+  /** Check the sandbox answers (`fs.ls('/')`) before returning it, deleting it if not. */
+  safe?: boolean;
+  /** Return the existing sandbox of that name instead of failing with a 409. */
+  createIfNotExist?: boolean;
+  /**
+   * Opt this call out of the transparent batching of concurrent identical
+   * creations (see `settings.disableCreateBatching`).
+   */
+  batch?: boolean;
+};
+
+// Shared by every SandboxInstance.create() of the process: concurrent unnamed
+// creations with the same spec are merged into one `POST /sandboxes?count=N`.
+const createBatcher = new CreateBatcher<SandboxModel>(() => settings.createBatchDebounceMs);
+
+// JSON with object keys sorted at every level, so two specs built from the same
+// values fingerprint identically whatever the insertion order.
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringify).join(",")}]`;
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const keys = Object.keys(record).filter((k) => record[k] !== undefined).sort();
+    return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(record[k])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
 
 /** How long to wait for an archive, or its restore, to finish. */
 export type SandboxArchiveOptions = {
@@ -310,7 +342,11 @@ export class SandboxInstance {
     return this;
   }
 
-  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = false, createIfNotExist = false }: { safe?: boolean, createIfNotExist?: boolean } = {}) {
+  /**
+   * Build the creation body sent to the control plane from either a raw
+   * sandbox model or a `SandboxCreateConfiguration`.
+   */
+  private static toCreateBody(sandbox?: SandboxModel | SandboxCreateConfiguration): SandboxModel {
     // No client-side default name: when the caller omits a name we send the
     // creation without metadata.name so the server can assign one and unnamed
     // creations become eligible for warm sandbox pools (ENG-3931).
@@ -330,7 +366,11 @@ export class SandboxInstance {
       'network' in sandbox ||
       'snapshotEnabled' in sandbox ||
       'labels' in sandbox ||
-      'extraArgs' in sandbox
+      'extraArgs' in sandbox ||
+      'externalId' in sandbox ||
+      'region' in sandbox ||
+      'ttl' in sandbox ||
+      'expires' in sandbox
     ) {
       if (!sandbox) sandbox = {} as SandboxCreateConfiguration
       if (!sandbox.image) sandbox.image = defaultImage
@@ -393,37 +433,28 @@ export class SandboxInstance {
 
     sandbox.spec.runtime.image = sandbox.spec.runtime.image || defaultImage;
     sandbox.spec.runtime.memory = sandbox.spec.runtime.memory || defaultMemory;
+    return sandbox;
+  }
 
-    const edgeDomain = SandboxInstance.edgeDomainForRegion(sandbox.spec?.region);
-
+  private static warmEdge(edgeDomain: string | null) {
     // Kick off warming so h2Pool.get() can join it during the API call
     if (edgeDomain && !settings.disableH2) {
       import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.warm(edgeDomain)).catch(() => { });
+      return import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.get(edgeDomain)).catch(() => null);
     }
+    return Promise.resolve(null);
+  }
 
-    const [createResult, h2Session] = await Promise.all([
-      createSandbox({
-        body: sandbox,
-        query: createIfNotExist ? { createIfNotExist } : undefined,
-      }),
-      edgeDomain && !settings.disableH2 ? import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.get(edgeDomain)).catch(() => null) : Promise.resolve(null),
-    ]);
-    let data = createResult.data;
-    if (createResult.error !== undefined) {
-      const name = sandbox.metadata.name;
-      if (createResult.response.status === 504 && name) {
-        // The edge gave up on the connection but the creation is still running
-        // server-side; wait for the record instead of failing (ENG-3662).
-        data = await SandboxInstance.waitAfterCreateGatewayTimeout(name, createResult.error);
-      } else {
-        throw createResult.error;
-      }
-    }
+  private static instanceFromCreated(data: SandboxModel, h2Session: http2.ClientHttp2Session | null, edgeDomain: string | null) {
     // Inject the H2 session into the config so subsystems can use it
     const config = { ...data, h2Session, h2Domain: settings.disableH2 ? null : edgeDomain } as SandboxConfiguration;
     const instance = new SandboxInstance(config);
     instance.h2Session = h2Session;
-    // Note: H2 session already attached via Promise.all above, no need for attachH2Session()
+    return instance;
+  }
+
+  private static async checkedInstance(data: SandboxModel, h2Session: http2.ClientHttp2Session | null, edgeDomain: string | null, safe: boolean) {
+    const instance = SandboxInstance.instanceFromCreated(data, h2Session, edgeDomain);
     // TODO remove this part once we have a better way to handle this
     if (safe) {
       try {
@@ -434,6 +465,151 @@ export class SandboxInstance {
       }
     }
     return instance;
+  }
+
+  /**
+   * One `POST /sandboxes?count=N`: the server creates N sandboxes from the same
+   * spec, with generated names, and answers with all of them or one error.
+   */
+  private static async createBulk(body: SandboxModel, count: number): Promise<SandboxModel[]> {
+    const { data, error } = await createSandbox({
+      body,
+      query: { count } as NonNullable<CreateSandboxData["query"]>,
+    });
+    if (error !== undefined) {
+      throw error;
+    }
+    if (data && !Array.isArray(data)) {
+      // A control plane that does not know `count` yet ignores it and answers
+      // with the single sandbox it created. Keep that one, create the rest one
+      // by one, and stop batching against this server.
+      SandboxInstance.bulkUnsupported = true;
+      const rest = await Promise.allSettled(
+        Array.from({ length: count - 1 }, async () => {
+          const single = await createSandbox({ body });
+          if (single.error !== undefined) {
+            throw single.error;
+          }
+          return single.data as SandboxModel;
+        }),
+      );
+      const created = [data, ...rest.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []))];
+      const failure = rest.find((r) => r.status === "rejected");
+      if (failure) {
+        // All-or-nothing, like the server-side bulk: nothing created stays behind.
+        await Promise.all(
+          created.map((s) => (s.metadata?.name ? SandboxInstance.delete(s.metadata.name).catch(() => {}) : Promise.resolve())),
+        );
+        throw failure.reason;
+      }
+      return created;
+    }
+    return data as unknown as SandboxModel[];
+  }
+
+  /** Set once a server answered `?count=N` with a single record. */
+  private static bulkUnsupported = false;
+
+  /**
+   * Create a sandbox.
+   *
+   * Concurrent calls with an identical, unnamed spec are merged into one bulk
+   * request after a short debounce (`settings.createBatchDebounceMs`, 5ms by
+   * default): each caller still gets its own sandbox, and a failure of the
+   * bulk request (e.g. quota) is thrown to every merged caller with the same
+   * error a single creation would have produced. Named creations,
+   * `createIfNotExist`, and creations carrying an `externalId` are never
+   * batched. Set `settings.disableCreateBatching` or `{ batch: false }` to
+   * opt out.
+   */
+  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = false, createIfNotExist = false, batch = true }: SandboxCreateOptions = {}) {
+    const body = SandboxInstance.toCreateBody(sandbox);
+    const edgeDomain = SandboxInstance.edgeDomainForRegion(body.spec?.region);
+    const h2Warm = SandboxInstance.warmEdge(edgeDomain);
+
+    const batchable =
+      batch &&
+      !settings.disableCreateBatching &&
+      !SandboxInstance.bulkUnsupported &&
+      !createIfNotExist &&
+      !body.metadata.name &&
+      !body.metadata.displayName &&
+      !body.metadata.externalId;
+
+    let data: SandboxModel;
+    if (batchable) {
+      // The request is sent later, so freeze the body now: the key and the
+      // payload must describe the same spec even if the caller mutates its
+      // model in the meantime. Everything that changes the request is part of
+      // the key: the body, the workspace, and the API version header
+      // (credentials are process-wide).
+      const frozen = JSON.parse(JSON.stringify(body)) as SandboxModel;
+      const key = stableStringify({ body: frozen, workspace: settings.workspace, version: settings.apiVersion });
+      const [record, h2Session] = await Promise.all([
+        createBatcher.enqueue(key, (count) => SandboxInstance.createBulk(frozen, count)),
+        h2Warm,
+      ]);
+      return SandboxInstance.checkedInstance(record, h2Session, edgeDomain, safe);
+    }
+
+    const [createResult, h2Session] = await Promise.all([
+      createSandbox({
+        body,
+        query: createIfNotExist ? { createIfNotExist } : undefined,
+      }),
+      h2Warm,
+    ]);
+    data = createResult.data as SandboxModel;
+    if (createResult.error !== undefined) {
+      const name = body.metadata.name;
+      if (createResult.response.status === 504 && name) {
+        // The edge gave up on the connection but the creation is still running
+        // server-side; wait for the record instead of failing (ENG-3662).
+        data = await SandboxInstance.waitAfterCreateGatewayTimeout(name, createResult.error);
+      } else {
+        throw createResult.error;
+      }
+    }
+    return SandboxInstance.checkedInstance(data, h2Session, edgeDomain, safe);
+  }
+
+  /**
+   * Create `count` sandboxes from one spec in a single request
+   * (`POST /sandboxes?count=N`). The server generates the names and either
+   * returns all of them or fails as a whole: there is no partial result.
+   *
+   * The spec must not carry a `name`, `displayName` or `externalId`, and
+   * `count` must be between 1 and 100.
+   */
+  static async createMany(count: number, sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = false }: { safe?: boolean } = {}): Promise<SandboxInstance[]> {
+    if (!Number.isInteger(count) || count < 1 || count > MAX_CREATE_BATCH_SIZE) {
+      throw new Error(`SandboxInstance.createMany: count must be an integer between 1 and ${MAX_CREATE_BATCH_SIZE}, got ${count}`);
+    }
+    const body = SandboxInstance.toCreateBody(sandbox);
+    if (body.metadata.name || body.metadata.displayName || body.metadata.externalId) {
+      throw new Error("SandboxInstance.createMany: bulk creation only works with generated names; do not set name, displayName or externalId");
+    }
+    const edgeDomain = SandboxInstance.edgeDomainForRegion(body.spec?.region);
+    const [records, h2Session] = await Promise.all([
+      SandboxInstance.createBulk(body, count),
+      SandboxInstance.warmEdge(edgeDomain),
+    ]);
+    if (!Array.isArray(records) || records.length !== count) {
+      throw new Error(`SandboxInstance.createMany: expected ${count} sandboxes, got ${Array.isArray(records) ? records.length : "a non-array response"}`);
+    }
+    if (!safe) {
+      return records.map((record) => SandboxInstance.instanceFromCreated(record, h2Session, edgeDomain));
+    }
+    // The safety check is all-or-nothing like the creation itself: if any
+    // sandbox is unreachable, none of the batch is kept.
+    const instances = records.map((record) => SandboxInstance.instanceFromCreated(record, h2Session, edgeDomain));
+    const checks = await Promise.allSettled(instances.map((instance) => instance.fs.ls('/')));
+    const failed = checks.find((c): c is PromiseRejectedResult => c.status === "rejected");
+    if (failed) {
+      await Promise.allSettled(instances.map((instance) => SandboxInstance.delete(instance.metadata.name!)));
+      throw failed.reason;
+    }
+    return instances;
   }
 
   /**
