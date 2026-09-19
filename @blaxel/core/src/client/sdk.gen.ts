@@ -486,7 +486,7 @@ export const createDrive = <ThrowOnError extends boolean = false>(options: Optio
 
 /**
  * Delete a drive
- * Deletes a drive immediately. The drive record is removed from the database synchronously.
+ * Starts the deletion of a drive. The drive is marked DELETING and its storage is wiped asynchronously; the drive disappears from listings once the cleanup completes.
  */
 export const deleteDrive = <ThrowOnError extends boolean = false>(options: Options<DeleteDriveData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteDriveResponse, unknown, ThrowOnError>({
@@ -1749,7 +1749,7 @@ export const archiveSandbox = <ThrowOnError extends boolean = false>(options: Op
 
 /**
  * Fork sandbox
- * Forks a sandbox into a new sandbox or application. When forking to a sandbox, the target must not already exist (409 if it does). When forking to an application, a new revision is added if the app already exists, or a new application is created. This is a WIP endpoint — the full implementation depends on the execution plane.
+ * Forks a sandbox into a new sandbox or application. When forking to a sandbox, the target must not already exist (409 if it does). When forking to an application, a new revision is added if the app already exists, or a new application is created. With no snapshotId, a fork to a sandbox copies the source sandbox's live state directly and no snapshot is persisted, while a fork to an application takes a snapshot its revision then references. This is a WIP endpoint — the full implementation depends on the execution plane.
  */
 export const forkSandbox = <ThrowOnError extends boolean = false>(options: Options<ForkSandboxData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<ForkSandboxResponse, ForkSandboxError, ThrowOnError>({
@@ -2066,7 +2066,7 @@ export const createSandboxSnapshot = <ThrowOnError extends boolean = false>(opti
 
 /**
  * Delete sandbox snapshot
- * Deletes a snapshot of a sandbox by its ID.
+ * Deletes a snapshot of a sandbox, addressed by its name among that sandbox's snapshots (or by its ID).
  */
 export const deleteSandboxSnapshot = <ThrowOnError extends boolean = false>(options: Options<DeleteSandboxSnapshotData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteSandboxSnapshotResponse, DeleteSandboxSnapshotError, ThrowOnError>({
@@ -2371,7 +2371,7 @@ export const deleteSnapshot = <ThrowOnError extends boolean = false>(options: Op
 
 /**
  * Get snapshot
- * Returns a snapshot of the workspace by name.
+ * Returns a snapshot of the workspace by ID.
  */
 export const getSnapshot = <ThrowOnError extends boolean = false>(options: Options<GetSnapshotData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetSnapshotResponse, GetSnapshotError, ThrowOnError>({
