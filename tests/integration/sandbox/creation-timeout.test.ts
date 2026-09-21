@@ -14,7 +14,7 @@ describe("Sandbox creation timeout option", () => {
     created.push(name)
     const sandbox = await SandboxInstance.create(
       { name, image: defaultImage, memory: 2048, region: defaultRegion, labels: defaultLabels },
-      { timeout: MAX_CREATION_TIMEOUT_SECONDS, retry: 1 },
+      { timeout: MAX_CREATION_TIMEOUT_SECONDS },
     )
     expect(sandbox.metadata.name).toBe(name)
     expect(sandbox.status).toBe("DEPLOYED")
