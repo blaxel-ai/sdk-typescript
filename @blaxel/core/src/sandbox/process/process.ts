@@ -289,8 +289,8 @@ export class SandboxProcess extends SandboxAction {
   async wait(identifier: string, { maxWait = 60000, interval = 1000, signal }: {
     maxWait?: number; interval?: number; signal?: AbortSignal;
   } = {}): Promise<GetProcessByIdentifierResponse> {
-    if (!Number.isFinite(maxWait) || maxWait < 0 || !Number.isFinite(interval) || interval <= 0) {
-      throw new RangeError("maxWait must be finite and non-negative; interval must be finite and positive");
+    if (!Number.isFinite(maxWait) || (maxWait < 0 && maxWait !== -1) || !Number.isFinite(interval) || interval <= 0) {
+      throw new RangeError("maxWait must be -1 or finite and non-negative; interval must be finite and positive");
     }
     signal?.throwIfAborted();
     const controller = new AbortController();
@@ -299,8 +299,8 @@ export class SandboxProcess extends SandboxAction {
     const cancel = () => controller.abort(signal?.reason);
     const timeoutError = () => new Error(`Process did not finish in time (${identifier}); it may still be running`, { cause: lastError });
     if (maxWait === 0) throw timeoutError();
-    const deadline = performance.now() + maxWait;
-    const timeout = setTimeout(() => controller.abort(timeoutError()), maxWait);
+    const deadline = maxWait === -1 ? Infinity : performance.now() + maxWait;
+    const timeout = maxWait === -1 ? undefined : setTimeout(() => controller.abort(timeoutError()), maxWait);
     signal?.addEventListener("abort", cancel, { once: true });
     const interrupted = new Promise<never>((_, reject) => {
       // Preserve the caller's AbortSignal reason, which need not be an Error.

@@ -13,7 +13,7 @@ describe.skipIf(!url)("real sandbox process API", () => {
     const api = client(url!); const name = `ts-timeout-${randomUUID()}`;
     await api.exec({ name, command: "sleep 1; echo recovered; exit 7", waitForCompletion: false, keepAlive: false });
     await expect(api.wait(name, { maxWait: 20, interval: 5 })).rejects.toThrow("did not finish in time");
-    const result = await api.wait(name, { maxWait: 5000, interval: 20 });
+    const result = await api.wait(name, { maxWait: -1, interval: 20, signal: AbortSignal.timeout(5000) });
     expect(result.status).toBe("failed"); expect(result.exitCode).toBe(7);
     expect(await api.logs(name)).toContain("recovered");
   });

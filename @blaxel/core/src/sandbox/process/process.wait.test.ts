@@ -68,6 +68,60 @@ describe("process wait", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it("waits indefinitely through transient failures and returns a terminal state", async () => {
+    vi.useFakeTimers();
+    const fetch = vi.fn()
+      .mockRejectedValueOnce(new TypeError("fetch failed"))
+      .mockImplementation(() => Promise.resolve(response("running")));
+    vi.stubGlobal("fetch", fetch);
+    let settled = false;
+    const waiting = api().wait("original", { maxWait: -1, interval: 60_000 });
+    void waiting.then(() => { settled = true; });
+    await vi.advanceTimersByTimeAsync(86_400_000);
+    expect(settled).toBe(false);
+    expect(vi.getTimerCount()).toBe(1); // Only the next polling interval.
+    fetch.mockImplementation(() => Promise.resolve(response("failed")));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(await waiting).toMatchObject({ status: "failed", exitCode: 7 });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("cancels an infinite wait with a hung request", async () => {
+    vi.useFakeTimers();
+    const fetch = vi.fn(() => new Promise<Response>(() => {}));
+    vi.stubGlobal("fetch", fetch);
+    const controller = new AbortController();
+    const reason = new Error("caller cancelled");
+    const assertion = expect(api().wait("original", { maxWait: -1, signal: controller.signal })).rejects.toBe(reason);
+    await vi.advanceTimersByTimeAsync(86_400_000);
+    expect(vi.getTimerCount()).toBe(0);
+    controller.abort(reason);
+    await assertion;
+    expect((fetch.mock.calls[0] as unknown as [Request])[0].signal.aborted).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("still propagates permanent errors during an infinite wait", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response("{}", { status: 404 }));
+    vi.stubGlobal("fetch", fetch);
+    await expect(api().wait("original", { maxWait: -1 })).rejects.toBeInstanceOf(ResponseError);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([-2, -0.5, Infinity, NaN])("rejects invalid maxWait %s", async maxWait => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    await expect(api().wait("original", { maxWait })).rejects.toBeInstanceOf(RangeError);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("keeps zero as an immediate deadline", async () => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    await expect(api().wait("original", { maxWait: 0 })).rejects.toThrow("did not finish in time");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("rejects an unknown state instead of claiming completion", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response("unknown")));
     await expect(api().wait("original")).rejects.toThrow("Unknown process status");

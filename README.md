@@ -175,7 +175,8 @@ await sandbox.process.kill("build-process");
 ```
 
 `wait()` returns only a terminal API state. Temporary connection failures are retried
-until `maxWait`; other errors are propagated. A timeout or cancellation stops waiting,
+until `maxWait`; use `maxWait: -1` to wait without a deadline, still cancellable with
+an `AbortSignal`. Other errors are propagated. A timeout or cancellation stops waiting,
 not the command. `streamLogs().wait()` also rejects when the stream fails.
 
 Give the command a unique name before starting it so you can reconnect after a lost
