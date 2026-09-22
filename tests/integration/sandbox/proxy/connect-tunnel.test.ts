@@ -113,12 +113,14 @@ except urllib3.exceptions.HTTPError as e:
     }, 120_000)
 
     it('HTTP_PROXY and HTTPS_PROXY env vars are set in sandbox', async () => {
+      // sandbox-api rewrites HTTP(S)_PROXY to a plain-HTTP loopback shim that
+      // injects the rotating identity token, so the scheme seen in-sandbox is http.
       const result = await sandbox.process.exec({
         command: [
           'test -n "$HTTPS_PROXY" && echo "HTTPS_PROXY_SET=1"',
-          'case "$HTTPS_PROXY" in https://*) echo "HTTPS_PROXY_SCHEME=https" ;; esac',
+          'case "$HTTPS_PROXY" in http://localhost:*|http://127.0.0.1:*) echo "HTTPS_PROXY_LOOPBACK=1" ;; esac',
           'test -n "$HTTP_PROXY" && echo "HTTP_PROXY_SET=1"',
-          'case "$HTTP_PROXY" in https://*) echo "HTTP_PROXY_SCHEME=https" ;; esac',
+          'case "$HTTP_PROXY" in http://localhost:*|http://127.0.0.1:*) echo "HTTP_PROXY_LOOPBACK=1" ;; esac',
           'test -n "$SSL_CERT_FILE" && test -f "$SSL_CERT_FILE" && echo "SSL_CERT_FILE_SET=1"',
         ].join(' ; '),
         waitForCompletion: true,
@@ -126,9 +128,9 @@ except urllib3.exceptions.HTTPError as e:
       expect(result.exitCode).toBe(0)
       const out = result.logs || ""
       expect(out).toContain("HTTPS_PROXY_SET=1")
-      expect(out).toContain("HTTPS_PROXY_SCHEME=https")
+      expect(out).toContain("HTTPS_PROXY_LOOPBACK=1")
       expect(out).toContain("HTTP_PROXY_SET=1")
-      expect(out).toContain("HTTP_PROXY_SCHEME=https")
+      expect(out).toContain("HTTP_PROXY_LOOPBACK=1")
       expect(out).toContain("SSL_CERT_FILE_SET=1")
     }, 30_000)
 
