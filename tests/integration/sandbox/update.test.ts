@@ -322,7 +322,7 @@ describe('Sandbox Update Operations', () => {
         command: `node /tmp/proxy-test.js GET ${echoUrl}/get`,
         waitForCompletion: true,
       })
-      expect(result.exitCode).toBe(0)
+      expect(result.exitCode, JSON.stringify({ process: result.name, status: result.status, stdout: result.stdout, stderr: result.stderr, logs: result.logs })).toBe(0)
     }, 60_000)
 
     it('example.com is blocked', async () => {
@@ -347,7 +347,7 @@ describe('Sandbox Update Operations', () => {
         command: 'node /tmp/proxy-test.js GET https://example.com',
         waitForCompletion: true,
       })
-      expect(result.exitCode).toBe(0)
+      expect(result.exitCode, JSON.stringify({ process: result.name, status: result.status, stdout: result.stdout, stderr: result.stderr, logs: result.logs })).toBe(0)
       expect(result.logs!.length).toBeGreaterThan(0)
     }, 60_000)
 
@@ -356,7 +356,7 @@ describe('Sandbox Update Operations', () => {
         command: `node /tmp/proxy-test.js GET ${echoUrl}/get`,
         waitForCompletion: true,
       })
-      expect(result.exitCode).toBe(0)
+      expect(result.exitCode, JSON.stringify({ process: result.name, status: result.status, stdout: result.stdout, stderr: result.stderr, logs: result.logs })).toBe(0)
     }, 60_000)
   })
 

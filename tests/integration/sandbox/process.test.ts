@@ -615,14 +615,22 @@ HTTPServer(('', 3000), H).serve_forever()
     )
 
     const fulfilled = results.filter((r) => r.status === "fulfilled")
-    const rejected = results.filter((r) => r.status === "rejected")
-
-    if (rejected.length > 0) {
-      const errors = rejected.map((r, i) =>
-        `Sandbox #${i}: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`
-      )
-      console.error("Failed sandboxes:\n" + errors.join("\n"))
-    }
+    results.forEach((result, index) => {
+      if (result.status !== "rejected") return;
+      const causes: Array<Record<string, string | number>> = [];
+      let cause: unknown = result.reason;
+      for (let depth = 0; depth < 5 && cause && typeof cause === "object"; depth++) {
+        const current = cause as Record<string, unknown>;
+        const details: Record<string, string | number> = {};
+        for (const key of ["name", "message", "code", "status", "identifier"]) {
+          const value = current[key];
+          if (typeof value === "string" || typeof value === "number") details[key] = value;
+        }
+        causes.push(details);
+        cause = current.cause;
+      }
+      console.error(`Sandbox #${index} (${sandboxes[index]?.name}, process server-${index}): ${JSON.stringify(causes)}`);
+    });
 
     expect(fulfilled.length).toBe(SANDBOX_COUNT)
   }, 5 * 60 * 1000)

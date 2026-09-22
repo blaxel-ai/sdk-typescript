@@ -1,3 +1,4 @@
+import { createClient } from "@hey-api/client-fetch";
 import { createServer, type Server, type RequestListener } from "node:http";
 import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("../../common/env.js", () => ({ env: process.env }));
@@ -29,7 +30,7 @@ describe("process HTTP contract", () => {
     const input = { command: "echo done" };
     let error: unknown; try { await process.exec(input); } catch (caught) { error = caught; }
     expect(error).toBeInstanceOf(ProcessExecutionError);
-    expect(error).toMatchObject({ identifier: name }); expect(name).toMatch(/^process-/);
+    expect(error).toMatchObject({ identifier: name }); expect(name).toMatch(/^proc-/);
     expect(input).toEqual({ command: "echo done" });
     expect((await process.wait(name)).status).toBe("completed"); expect(starts).toBe(1);
   });
@@ -39,7 +40,7 @@ describe("process HTTP contract", () => {
       if (!streaming) { response.writeHead(503); response.end("unavailable"); return; }
       response.writeHead(200, { "content-type": "text/plain" }); response.write("stdout:hello\n");
     });
-    const onError = vi.fn(); await expect(process.streamLogs("p", { onError }).wait()).rejects.toThrow("unavailable");
+    const onError = vi.fn(); await expect(process.streamLogs("p", { onError }).wait()).rejects.toThrow("503");
     expect(onError).toHaveBeenCalledTimes(1);
     streaming = true; const stream = process.streamLogs("p"); stream.close(); await expect(stream.wait()).resolves.toBeUndefined();
   });
@@ -53,6 +54,27 @@ describe("process HTTP contract", () => {
     });
     expect((await process.wait("p", { maxWait: 2000 })).status).toBe("completed");
     expect(reads).toBe(2);
+  });
+  it("uses the configured client and interceptors for execution and log streaming", async () => {
+    const process = await localServer((request, response) => {
+      expect(request.headers["x-session"]).toBe("inherited");
+      expect(request.headers["x-intercepted"]).toBe("yes");
+      if (request.method === "POST") {
+        response.setHeader("content-type", "application/x-ndjson");
+        response.end(JSON.stringify({ type: "stdout", data: "streamed" }) + "\n" + JSON.stringify({ type: "result", data: JSON.stringify({ status: "completed", exitCode: 0, pid: "123" }) }) + "\n");
+      } else {
+        response.setHeader("content-type", "text/plain"); response.end("stdout:reconnected\n");
+      }
+    });
+    const generated = createClient({ headers: { "x-session": "inherited" } });
+    const intercept = vi.fn((request: Request) => { request.headers.set("x-intercepted", "yes"); return request; });
+    generated.interceptors.request.use(intercept);
+    Object.defineProperty(process, "client", { value: generated });
+    const onLog = vi.fn();
+    expect((await process.exec({ command: "echo streamed", waitForCompletion: true, onLog })).status).toBe("completed");
+    await process.streamLogs("123", { onLog }).wait();
+    expect(onLog.mock.calls).toEqual([["streamed"], ["reconnected"]]);
+    expect(intercept).toHaveBeenCalledTimes(2);
   });
   it("observes after a lost kill response, without sending kill twice", async () => {
     let kills = 0;

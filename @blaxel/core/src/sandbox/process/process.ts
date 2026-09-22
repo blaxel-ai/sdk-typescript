@@ -1,10 +1,9 @@
 import { v4 as uuidv4 } from "uuid";
 import { observeProcess, ProcessExecutionError, type ProcessWaitOptions } from "./state.js";
 import { Sandbox } from "../../client/types.gen.js";
-import { settings } from "../../common/settings.js";
 import { SandboxAction } from "../action.js";
 import { retryOnTransientReset } from "../../common/transient-retry.js";
-import { DeleteProcessByIdentifierKillResponse, DeleteProcessByIdentifierResponse, GetProcessByIdentifierResponse, GetProcessResponse, PostProcessResponse, ProcessRequest, deleteProcessByIdentifier, deleteProcessByIdentifierKill, deleteProcessByIdentifierStdin, getProcess, getProcessByIdentifier, getProcessByIdentifierLogs, postProcess, postProcessByIdentifierStdin } from "../client/index.js";
+import { DeleteProcessByIdentifierKillResponse, DeleteProcessByIdentifierResponse, GetProcessByIdentifierResponse, GetProcessResponse, PostProcessResponse, ProcessRequest, deleteProcessByIdentifier, deleteProcessByIdentifierKill, deleteProcessByIdentifierStdin, getProcess, getProcessByIdentifier, getProcessByIdentifierLogs, getProcessByIdentifierLogsStream, postProcess, postProcessByIdentifierStdin } from "../client/index.js";
 import { ProcessRequestWithLog, ProcessResponseWithLog } from "../types.js";
 
 export class SandboxProcess extends SandboxAction {
@@ -47,16 +46,13 @@ export class SandboxProcess extends SandboxAction {
     const done = (async () => {
       let buffer = '';
       try {
-        const headers = this.sandbox.forceUrl ? this.sandbox.headers : settings.headers;
-        const stream = await this.h2Fetch(`${this.url}/process/${identifier}/logs/stream`, {
-          method: 'GET',
+        const { response: stream, data, error } = await getProcessByIdentifierLogsStream(this.withClient({
+          path: { identifier },
+          baseUrl: this.url,
           signal: controller.signal,
-          headers,
-        });
-
-        if (stream.status !== 200) {
-          throw new Error(`Failed to stream logs: ${await stream.text()}`);
-        }
+          parseAs: "stream",
+        }));
+        this.handleResponseError(stream, data, error);
         if (!stream.body) {
           throw new Error('No stream body');
         }
@@ -105,7 +101,7 @@ export class SandboxProcess extends SandboxAction {
   ): Promise<PostProcessResponse | ProcessResponseWithLog> {
     const { onLog, onStdout, onStderr, ...request } = process as ProcessRequestWithLog;
     // Known before POST, even if the response is lost. Do not mutate caller input.
-    process = { ...request, name: request.name || `process-${uuidv4()}` };
+    process = { ...request, name: request.name || `proc-${uuidv4()}` };
     try {
       // Store original wait_for_completion setting
       const shouldWaitForCompletion = process.waitForCompletion;
@@ -146,24 +142,15 @@ export class SandboxProcess extends SandboxAction {
       onStderr?: (stderr: string) => void;
     }
   ): Promise<ProcessResponseWithLog> {
-    const headers = this.sandbox.forceUrl ? this.sandbox.headers : settings.headers;
     const controller = new AbortController();
-
-    const response = await this.h2Fetch(`${this.url}/process`, {
-      method: 'POST',
+    const { response, data, error } = await postProcess(this.withClient({
+      baseUrl: this.url,
       signal: controller.signal,
-      headers: {
-        ...headers,
-        'Content-Type': 'application/json',
-        'Accept': 'text/event-stream',
-      },
-      body: JSON.stringify(processRequest),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to execute process: ${errorText}`);
-    }
+      headers: { Accept: "text/event-stream" },
+      body: processRequest,
+      parseAs: "stream",
+    }));
+    this.handleResponseError(response, data, error);
 
     const contentType = response.headers.get('Content-Type') || '';
     const isStreaming = contentType.includes('application/x-ndjson');

@@ -37,6 +37,12 @@ describe.skipIf(!url)("real sandbox process API", () => {
       expect(["stopped", "failed", "completed"]).toContain(result.status);
     } finally { await api.kill(name).catch(() => {}); }
   });
+  it("streams logs and the final result through the generated client", async () => {
+    const api = client(url!); const output: string[] = [];
+    const result = await api.exec({ name: `ts-stream-${randomUUID()}`, command: "echo streamed-live", waitForCompletion: true, keepAlive: false, onLog: line => output.push(line) });
+    expect(result.status).toBe("completed"); expect(result.exitCode).toBe(0);
+    expect(output.join("\n")).toContain("streamed-live");
+  });
   it("recovers the original command after its execution response is lost", async () => {
     let posts = 0;
     const server = createServer((request, response) => {
