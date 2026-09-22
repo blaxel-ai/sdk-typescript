@@ -5,6 +5,28 @@ import { settings } from "../common/settings.js";
 
 export type DriveListQuery = NonNullable<ListDrivesData["query"]>;
 
+export type DriveDeleteOptions = {
+  /**
+   * Wait until the drive is gone. Deletion is asynchronous: the control plane
+   * marks the drive `DELETING` and returns while the storage is wiped in the
+   * background. Defaults to false.
+   */
+  wait?: boolean;
+  /** Give up after this many milliseconds. Defaults to 30 minutes. */
+  maxWait?: number;
+  /** Milliseconds between two reads of the drive. Defaults to 2 seconds. */
+  interval?: number;
+};
+
+const DELETE_DEFAULT_MAX_WAIT_MS = 30 * 60 * 1000;
+const DELETE_DEFAULT_INTERVAL_MS = 2_000;
+
+const isDriveNotFound = (e: unknown): boolean => {
+  if (typeof e !== "object" || e === null) return false;
+  const candidate = e as { code?: unknown; status?: unknown };
+  return candidate.code === 404 || candidate.code === "404" || candidate.status === 404;
+};
+
 export type DriveCreateConfiguration = {
   name?: string;
   displayName?: string;
@@ -156,18 +178,52 @@ export class DriveInstance {
     });
   }
 
-  static async delete(driveName: string) {
+  /**
+   * Delete a drive.
+   *
+   * The control plane marks the drive `DELETING` and returns immediately while
+   * the storage is wiped in the background; the drive stays visible until that
+   * finishes. Pass `{ wait: true }` to resolve only once the drive is gone.
+   */
+  static async delete(driveName: string, options: DriveDeleteOptions = {}) {
     const { data } = await deleteDrive({
       path: {
         driveName,
       },
       throwOnError: true,
     });
+    if (options.wait) {
+      await DriveInstance.waitForDeletion(driveName, options);
+    }
     return data;
   }
 
-  async delete() {
-    return await DriveInstance.delete(this.metadata.name);
+  /** @see DriveInstance.delete */
+  async delete(options: DriveDeleteOptions = {}) {
+    return await DriveInstance.delete(this.metadata.name, options);
+  }
+
+  /**
+   * Poll until the drive no longer exists. Throws if it is still there after
+   * `maxWait`.
+   */
+  static async waitForDeletion(
+    driveName: string,
+    { maxWait = DELETE_DEFAULT_MAX_WAIT_MS, interval = DELETE_DEFAULT_INTERVAL_MS }: Omit<DriveDeleteOptions, "wait"> = {},
+  ): Promise<void> {
+    const deadline = Date.now() + maxWait;
+    for (;;) {
+      try {
+        await DriveInstance.get(driveName);
+      } catch (e) {
+        if (isDriveNotFound(e)) return;
+        throw e;
+      }
+      if (Date.now() >= deadline) {
+        throw new Error(`Timeout waiting for drive ${driveName} to be deleted after ${maxWait}ms`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, interval));
+    }
   }
 
   static async update(driveName: string, updates: DriveCreateConfiguration | Drive): Promise<DriveInstance> {
