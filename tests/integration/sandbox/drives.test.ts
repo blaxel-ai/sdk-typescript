@@ -166,9 +166,10 @@ describe('Drive Operations', () => {
       const deleting = await DriveInstance.get(name).catch(() => undefined)
       if (deleting) expect(deleting.status).toBe("DELETING")
 
-      await DriveInstance.waitForDeletion(name, { maxWait: 240_000, interval: 2_000 })
+      // An empty drive is wiped in a few seconds; keep the default run under a minute.
+      await DriveInstance.waitForDeletion(name, { maxWait: 45_000, interval: 2_000 })
       await expect(DriveInstance.get(name)).rejects.toThrow()
-    }, 300_000)
+    }, 60_000)
 
     it('deletes a drive and waits for it to be gone', async () => {
       const name = uniqueName("drive-delete-wait")
@@ -177,10 +178,10 @@ describe('Drive Operations', () => {
         region: defaultRegion,
         labels: defaultLabels,
       })
-      await drive.delete({ wait: true, maxWait: 240_000 })
+      await drive.delete({ wait: true, maxWait: 45_000 })
 
       await expect(DriveInstance.get(name)).rejects.toThrow()
-    }, 300_000)
+    }, 60_000)
 
     it('creates drive if not exists', async () => {
       const name = uniqueName("drive-idempotent")
