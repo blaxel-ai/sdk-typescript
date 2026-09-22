@@ -69,6 +69,8 @@ describe("Blaxel eve durable lifecycle", () => {
 
   it.each([503, 404])("retries an idempotent startup probe through contextual HTTP %s errors", async (status) => {
     const sandbox = new FakeSandbox("startup-retry");
+    const fetch = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Unexpected network call in startup unit test"));
+    const get = vi.spyOn(SandboxInstance, "get").mockRejectedValue(Object.assign(new Error("missing"), { status: 404 }));
     const response = new Response(JSON.stringify({ error: "WORKLOAD_UNAVAILABLE" }), { status });
     const cause = status === 503
       ? new SandboxGatewayError(response, undefined, { error: "WORKLOAD_UNAVAILABLE" })
@@ -78,6 +80,8 @@ describe("Blaxel eve durable lifecycle", () => {
     const backend = blaxel({ startupTimeoutMs: 2000 });
     await backend.create({ templateKey: null, sessionKey: "startup-retry", runtimeContext: { appRoot: "/app" }, tags: {} });
     expect(sandbox.process.exec).toHaveBeenCalledTimes(2);
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("creates and reconnects durable sessions using generally available APIs", async () => {
