@@ -1,7 +1,12 @@
+import { randomUUID } from 'node:crypto'
 import dotenv from 'dotenv'
 import { defineConfig } from 'vitest/config'
 
 dotenv.config()
+
+// Resolve once in the coordinator; every worker and teardown shares this identity.
+const testRunId = process.env.BL_TEST_RUN_ID ?? randomUUID()
+process.env.BL_TEST_RUN_ID = testRunId
 
 export default defineConfig({
   test: {
@@ -40,6 +45,7 @@ export default defineConfig({
     //     secret is supplied (in CI or locally). The pass-through keeps any
     //     value already present in the environment.
     env: {
+      BL_TEST_RUN_ID: testRunId,
       // Feature toggles (default off) -------------------------------------
       // schedules.test.ts > "firing": waits on the scheduler tick + a backend
       // cleanup pass (~45-65s), which can blow the 1-minute per-test budget.

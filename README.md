@@ -167,12 +167,34 @@ const process = await sandbox.process.exec({
   command: "npm run build",
   workingDir: "/app",
   waitForCompletion: true,
-  timeout: 60000 // 60 seconds
+  timeout: 60 // 60 seconds
 });
 
 // Kill a running process
 await sandbox.process.kill("build-process");
 ```
+
+`wait()` returns only a terminal API state. Temporary connection failures are retried
+until `maxWait`; use `maxWait: -1` to wait without a deadline, still cancellable with
+an `AbortSignal`. Other errors are propagated. A timeout or cancellation stops waiting,
+not the command. `streamLogs().wait()` also rejects when the stream fails.
+
+Give the command a unique name before starting it so you can reconnect after a lost
+response without starting it twice:
+
+```typescript
+const name = crypto.randomUUID();
+await sandbox.process.exec({ name, command: "npm run build" });
+const result = await sandbox.process.wait(name, { maxWait: 30_000 });
+// After a connection error, use get(name), wait(name), or logs(name) to reconnect.
+// To request termination explicitly:
+await sandbox.process.kill(name); // or stop(name) for SIGTERM
+await sandbox.process.wait(name);
+// If the stop/kill response is lost, inspect get(name) or wait(name) before retrying.
+```
+
+Terminal states reflect the sandbox API's report; older servers can report stopped
+before the OS process exits. The SDK never automatically resends process creation.
 
 Restart a process if it fails, up to a maximum number of restart attempts:
 

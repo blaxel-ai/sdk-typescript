@@ -1,8 +1,7 @@
 import { Sandbox } from "../../client/types.gen.js";
-import { settings } from "../../common/settings.js";
-import { SandboxAction } from "../action.js";
-import { retryOnTransientReset } from "../../common/transient-retry.js";
-import { DeleteProcessByIdentifierKillResponse, DeleteProcessByIdentifierResponse, GetProcessByIdentifierResponse, GetProcessResponse, PostProcessResponse, ProcessRequest, deleteProcessByIdentifier, deleteProcessByIdentifierKill, deleteProcessByIdentifierStdin, getProcess, getProcessByIdentifier, getProcessByIdentifierLogs, postProcess, postProcessByIdentifierStdin } from "../client/index.js";
+import { ResponseError, SandboxAction } from "../action.js";
+import { isRetryableGatewayError, isTransientResetError, retryOnTransientReset } from "../../common/transient-retry.js";
+import { DeleteProcessByIdentifierKillResponse, DeleteProcessByIdentifierResponse, GetProcessByIdentifierResponse, GetProcessResponse, PostProcessResponse, ProcessRequest, deleteProcessByIdentifier, deleteProcessByIdentifierKill, deleteProcessByIdentifierStdin, getProcess, getProcessByIdentifier, getProcessByIdentifierLogs, getProcessByIdentifierLogsStream, postProcess, postProcessByIdentifierStdin } from "../client/index.js";
 import { ProcessRequestWithLog, ProcessResponseWithLog } from "../types.js";
 
 export class SandboxProcess extends SandboxAction {
@@ -23,9 +22,8 @@ export class SandboxProcess extends SandboxAction {
     const handleError = (err: Error) => {
       if (options.onError) {
         options.onError(err);
-      } else {
-        console.error("Stream error:", err);
       }
+      throw err;
     };
 
     const processLine = (line: string) => {
@@ -46,20 +44,15 @@ export class SandboxProcess extends SandboxAction {
     const done = (async () => {
       let buffer = '';
       try {
-        const headers = this.sandbox.forceUrl ? this.sandbox.headers : settings.headers;
-        const stream = await this.h2Fetch(`${this.url}/process/${identifier}/logs/stream`, {
-          method: 'GET',
+        const { response: stream, data, error } = await getProcessByIdentifierLogsStream(this.withClient({
+          path: { identifier },
+          baseUrl: this.url,
           signal: controller.signal,
-          headers,
-        });
-
-        if (stream.status !== 200) {
-          handleError(new Error(`Failed to stream logs: ${await stream.text()}`));
-          return;
-        }
+          parseAs: "stream",
+        }));
+        this.handleResponseError(stream, data, error);
         if (!stream.body) {
-          handleError(new Error('No stream body'));
-          return;
+          throw new Error('No stream body');
         }
 
         const reader = stream.body.getReader();
@@ -82,7 +75,7 @@ export class SandboxProcess extends SandboxAction {
           processLine(buffer);
         }
       } catch (err: unknown) {
-        if (err && typeof err === 'object' && 'name' in err && err.name === 'AbortError') {
+        if (controller.signal.aborted) {
           // Process remaining buffer before returning on abort
           if (buffer.trim()) {
             processLine(buffer);
@@ -93,6 +86,8 @@ export class SandboxProcess extends SandboxAction {
       }
     })();
 
+    // Callback-only users need not await wait(); preserve rejection for those who do.
+    void done.catch(() => {});
     return {
       close: () => controller.abort(),
       wait: () => done,
@@ -102,21 +97,8 @@ export class SandboxProcess extends SandboxAction {
   async exec(
     process: ProcessRequest | ProcessRequestWithLog,
   ): Promise<PostProcessResponse | ProcessResponseWithLog> {
-    let onLog: ((log: string) => void) | undefined;
-    let onStdout: ((stdout: string) => void) | undefined;
-    let onStderr: ((stderr: string) => void) | undefined;
-    if ('onLog' in process && process.onLog) {
-      onLog = process.onLog;
-      delete process.onLog;
-    }
-    if ('onStdout' in process && process.onStdout) {
-      onStdout = process.onStdout;
-      delete process.onStdout;
-    }
-    if ('onStderr' in process && process.onStderr) {
-      onStderr = process.onStderr;
-      delete process.onStderr;
-    }
+    const { onLog, onStdout, onStderr, ...request } = process as ProcessRequestWithLog;
+    process = request;
 
     // Store original wait_for_completion setting
     const shouldWaitForCompletion = process.waitForCompletion;
@@ -154,24 +136,15 @@ export class SandboxProcess extends SandboxAction {
       onStderr?: (stderr: string) => void;
     }
   ): Promise<ProcessResponseWithLog> {
-    const headers = this.sandbox.forceUrl ? this.sandbox.headers : settings.headers;
     const controller = new AbortController();
-
-    const response = await this.h2Fetch(`${this.url}/process`, {
-      method: 'POST',
+    const { response, data, error } = await postProcess(this.withClient({
+      baseUrl: this.url,
       signal: controller.signal,
-      headers: {
-        ...headers,
-        'Content-Type': 'application/json',
-        'Accept': 'text/event-stream',
-      },
-      body: JSON.stringify(processRequest),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to execute process: ${errorText}`);
-    }
+      headers: { Accept: "text/event-stream" },
+      body: processRequest,
+      parseAs: "stream",
+    }));
+    this.handleResponseError(response, data, error);
 
     const contentType = response.headers.get('Content-Type') || '';
     const isStreaming = contentType.includes('application/x-ndjson');
@@ -312,37 +285,72 @@ export class SandboxProcess extends SandboxAction {
     };
   }
 
-  async wait(identifier: string, { maxWait = 60000, interval = 1000 }: { maxWait?: number, interval?: number } = {}): Promise<GetProcessByIdentifierResponse> {
-    const startTime = Date.now();
-    let data = await this.get(identifier);
-    let status = data.status ?? "running";
-    while (status === "running") {
-      await new Promise((resolve) => setTimeout(resolve, interval));
-      try {
-        data = await this.get(identifier);
-        status = data.status ?? "running";
-      } catch {
-        break;
-      }
-      if (Date.now() - startTime > maxWait) {
-        throw new Error("Process did not finish in time");
-      }
+  /** Wait for a terminal API state. Timeout/cancellation never stops the command. */
+  async wait(identifier: string, { maxWait = 60000, interval = 1000, signal }: {
+    maxWait?: number; interval?: number; signal?: AbortSignal;
+  } = {}): Promise<GetProcessByIdentifierResponse> {
+    if (!Number.isFinite(maxWait) || (maxWait < 0 && maxWait !== -1) || !Number.isFinite(interval) || interval <= 0) {
+      throw new RangeError("maxWait must be -1 or finite and non-negative; interval must be finite and positive");
     }
-    return data;
+    signal?.throwIfAborted();
+    const controller = new AbortController();
+    let lastError: unknown;
+    let pollTimer: ReturnType<typeof setTimeout> | undefined;
+    const cancel = () => controller.abort(signal?.reason);
+    const timeoutError = () => new Error(`Process did not finish in time (${identifier}); it may still be running`, { cause: lastError });
+    if (maxWait === 0) throw timeoutError();
+    const deadline = maxWait === -1 ? Infinity : performance.now() + maxWait;
+    const timeout = maxWait === -1 ? undefined : setTimeout(() => controller.abort(timeoutError()), maxWait);
+    signal?.addEventListener("abort", cancel, { once: true });
+    const interrupted = new Promise<never>((_, reject) => {
+      // Preserve the caller's AbortSignal reason, which need not be an Error.
+      // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+      controller.signal.addEventListener("abort", () => reject(controller.signal.reason), { once: true });
+    });
+    const poll = async () => {
+      while (true) {
+        if (performance.now() >= deadline) controller.abort(timeoutError());
+        controller.signal.throwIfAborted();
+        try {
+          const result = await this.get(identifier, { signal: controller.signal, retry: false });
+          if (performance.now() >= deadline) controller.abort(timeoutError());
+          controller.signal.throwIfAborted();
+          if (["completed", "failed", "killed", "stopped"].includes(result.status)) return result;
+          if (result.status !== "running") throw new Error(`Unknown process status: ${result.status}`);
+          lastError = undefined;
+        } catch (error) {
+          controller.signal.throwIfAborted();
+          const retryable = isTransientResetError(error) || isRetryableGatewayError(error)
+            || (error instanceof ResponseError && [408, 429, 500].includes(error.status ?? 0))
+            || (error instanceof TypeError && /^(fetch failed|Failed to fetch|NetworkError when attempting to fetch resource\.)$/.test(error.message));
+          if (!retryable) throw error;
+          lastError = error;
+        }
+        // A failed observation uses the same polling cadence as a running process.
+        await new Promise<void>(resolve => { pollTimer = setTimeout(resolve, interval); });
+      }
+    };
+    try {
+      return await Promise.race([poll(), interrupted]);
+    } finally {
+      clearTimeout(timeout);
+      clearTimeout(pollTimer);
+      signal?.removeEventListener("abort", cancel);
+    }
   }
 
-  async get(identifier: string): Promise<GetProcessByIdentifierResponse> {
-    // Idempotent GET: self-heal a transient connection reset (also makes the
-    // wait() poll loop resilient). exec() stays un-retried — it is a
-    // non-idempotent POST and retrying it duplicates the process (ENG-2340).
-    return retryOnTransientReset(async () => {
+  async get(identifier: string, { signal, retry = true }: { signal?: AbortSignal; retry?: boolean } = {}): Promise<GetProcessByIdentifierResponse> {
+    const read = async () => {
       const { response, data, error } = await getProcessByIdentifier(this.withClient({
         path: { identifier },
         baseUrl: this.url,
+        signal,
       }));
       this.handleResponseError(response, data, error);
       return data as GetProcessByIdentifierResponse;
-    });
+    };
+    // wait owns the retry budget; standalone reads retain their existing retries.
+    return retry ? retryOnTransientReset(read) : read();
   }
 
   async list(): Promise<GetProcessResponse> {
