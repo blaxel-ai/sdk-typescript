@@ -3,7 +3,6 @@ import { createServer, type Server, type RequestListener } from "node:http";
 import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("../../common/env.js", () => ({ env: process.env }));
 import { SandboxProcess } from "./process.js";
-import { ProcessExecutionError } from "./state.js";
 import type { Sandbox } from "../../client/types.gen.js";
 
 const servers: Server[] = [];
@@ -15,7 +14,7 @@ async function localServer(handler: RequestListener) {
   return new SandboxProcess({ metadata: { name: "local" }, spec: {}, forceUrl: `http://127.0.0.1:${address.port}`, headers: {} } as Sandbox);
 }
 describe("process HTTP contract", () => {
-  it("preserves generated identity after a lost POST response and never retries POST", async () => {
+  it("preserves caller identity after a lost POST response and never retries POST", async () => {
     let starts = 0; let name = "";
     const process = await localServer((request, response) => {
       void (async () => {
@@ -27,11 +26,11 @@ describe("process HTTP contract", () => {
       response.end(JSON.stringify({ name, status: "completed", exitCode: 0, stdout: "done" }));
       })().catch((error: Error) => response.destroy(error));
     });
-    const input = { command: "echo done" };
+    const input = { name: "original-command", command: "echo done" };
     let error: unknown; try { await process.exec(input); } catch (caught) { error = caught; }
-    expect(error).toBeInstanceOf(ProcessExecutionError);
-    expect(error).toMatchObject({ identifier: name }); expect(name).toMatch(/^proc-/);
-    expect(input).toEqual({ command: "echo done" });
+    expect(error).toBeInstanceOf(TypeError);
+    expect(name).toBe(input.name);
+    expect(input).toEqual({ name: "original-command", command: "echo done" });
     expect((await process.wait(name)).status).toBe("completed"); expect(starts).toBe(1);
   });
   it("rejects failed log streams while intentional close remains successful", async () => {
@@ -82,6 +81,7 @@ describe("process HTTP contract", () => {
       if (request.method === "DELETE") { kills++; response.destroy(); return; }
       response.setHeader("content-type", "application/json"); response.end(JSON.stringify({ status: "killed" }));
     });
-    expect((await process.killAndWait("p", { maxWait: 2000 })).status).toBe("killed"); expect(kills).toBe(1);
+    await expect(process.kill("p")).rejects.toBeInstanceOf(TypeError);
+    expect((await process.wait("p", { maxWait: 2000 })).status).toBe("killed"); expect(kills).toBe(1);
   });
 });

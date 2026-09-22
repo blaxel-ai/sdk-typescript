@@ -1,8 +1,6 @@
-import { v4 as uuidv4 } from "uuid";
-import { observeProcess, ProcessExecutionError, type ProcessWaitOptions } from "./state.js";
 import { Sandbox } from "../../client/types.gen.js";
-import { SandboxAction } from "../action.js";
-import { retryOnTransientReset } from "../../common/transient-retry.js";
+import { ResponseError, SandboxAction } from "../action.js";
+import { isRetryableGatewayError, isTransientResetError, retryOnTransientReset } from "../../common/transient-retry.js";
 import { DeleteProcessByIdentifierKillResponse, DeleteProcessByIdentifierResponse, GetProcessByIdentifierResponse, GetProcessResponse, PostProcessResponse, ProcessRequest, deleteProcessByIdentifier, deleteProcessByIdentifierKill, deleteProcessByIdentifierStdin, getProcess, getProcessByIdentifier, getProcessByIdentifierLogs, getProcessByIdentifierLogsStream, postProcess, postProcessByIdentifierStdin } from "../client/index.js";
 import { ProcessRequestWithLog, ProcessResponseWithLog } from "../types.js";
 
@@ -100,37 +98,33 @@ export class SandboxProcess extends SandboxAction {
     process: ProcessRequest | ProcessRequestWithLog,
   ): Promise<PostProcessResponse | ProcessResponseWithLog> {
     const { onLog, onStdout, onStderr, ...request } = process as ProcessRequestWithLog;
-    // Known before POST, even if the response is lost. Do not mutate caller input.
-    process = { ...request, name: request.name || `proc-${uuidv4()}` };
-    try {
-      // Store original wait_for_completion setting
-      const shouldWaitForCompletion = process.waitForCompletion;
+    process = request;
 
-      // When waiting for completion with streaming callbacks, use streaming endpoint
-      if (shouldWaitForCompletion && (onLog || onStdout || onStderr)) {
-        return await this.execWithStreaming(process, { onLog, onStdout, onStderr });
-      } else {
-        const { response, data, error } = await postProcess(this.withClient({
-          body: process,
-          baseUrl: this.url,
-        }));
-        this.handleResponseError(response, data, error);
-        const result = data as PostProcessResponse;
-        if (onLog || onStdout || onStderr) {
-          const streamControl = this.streamLogs(result.pid, { onLog, onStdout, onStderr });
-          return {
-            ...result,
-            close() {
-              if (streamControl) {
-                streamControl.close();
-              }
-            },
-          }
+    // Store original wait_for_completion setting
+    const shouldWaitForCompletion = process.waitForCompletion;
+
+    // When waiting for completion with streaming callbacks, use streaming endpoint
+    if (shouldWaitForCompletion && (onLog || onStdout || onStderr)) {
+      return await this.execWithStreaming(process, { onLog, onStdout, onStderr });
+    } else {
+      const { response, data, error } = await postProcess(this.withClient({
+        body: process,
+        baseUrl: this.url,
+      }));
+      this.handleResponseError(response, data, error);
+      const result = data as PostProcessResponse;
+      if (onLog || onStdout || onStderr) {
+        const streamControl = this.streamLogs(result.pid, { onLog, onStdout, onStderr });
+        return {
+          ...result,
+          close() {
+            if (streamControl) {
+              streamControl.close();
+            }
+          },
         }
-        return result;
       }
-    } catch (error) {
-      throw new ProcessExecutionError(process.name!, error);
+      return result;
     }
   }
 
@@ -291,9 +285,58 @@ export class SandboxProcess extends SandboxAction {
     };
   }
 
-  /** Observe the original command. Cancelling this wait never stops the command. */
-  async wait(identifier: string, options: ProcessWaitOptions = {}): Promise<GetProcessByIdentifierResponse> {
-    return observeProcess(identifier, signal => this.get(identifier, { signal, retry: false }), options);
+  /** Wait for a terminal API state. Timeout/cancellation never stops the command. */
+  async wait(identifier: string, { maxWait = 60000, interval = 1000, signal }: {
+    maxWait?: number; interval?: number; signal?: AbortSignal;
+  } = {}): Promise<GetProcessByIdentifierResponse> {
+    if (!Number.isFinite(maxWait) || maxWait < 0 || !Number.isFinite(interval) || interval <= 0) {
+      throw new RangeError("maxWait must be finite and non-negative; interval must be finite and positive");
+    }
+    signal?.throwIfAborted();
+    const controller = new AbortController();
+    let lastError: unknown;
+    let pollTimer: ReturnType<typeof setTimeout> | undefined;
+    const cancel = () => controller.abort(signal?.reason);
+    const timeoutError = () => new Error(`Process did not finish in time (${identifier}); it may still be running`, { cause: lastError });
+    if (maxWait === 0) throw timeoutError();
+    const deadline = performance.now() + maxWait;
+    const timeout = setTimeout(() => controller.abort(timeoutError()), maxWait);
+    signal?.addEventListener("abort", cancel, { once: true });
+    const interrupted = new Promise<never>((_, reject) => {
+      // Preserve the caller's AbortSignal reason, which need not be an Error.
+      // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+      controller.signal.addEventListener("abort", () => reject(controller.signal.reason), { once: true });
+    });
+    const poll = async () => {
+      while (true) {
+        if (performance.now() >= deadline) controller.abort(timeoutError());
+        controller.signal.throwIfAborted();
+        try {
+          const result = await this.get(identifier, { signal: controller.signal, retry: false });
+          if (performance.now() >= deadline) controller.abort(timeoutError());
+          controller.signal.throwIfAborted();
+          if (["completed", "failed", "killed", "stopped"].includes(result.status)) return result;
+          if (result.status !== "running") throw new Error(`Unknown process status: ${result.status}`);
+          lastError = undefined;
+        } catch (error) {
+          controller.signal.throwIfAborted();
+          const retryable = isTransientResetError(error) || isRetryableGatewayError(error)
+            || (error instanceof ResponseError && [408, 429, 500].includes(error.status ?? 0))
+            || (error instanceof TypeError && /^(fetch failed|Failed to fetch|NetworkError when attempting to fetch resource\.)$/.test(error.message));
+          if (!retryable) throw error;
+          lastError = error;
+        }
+        // A failed observation uses the same polling cadence as a running process.
+        await new Promise<void>(resolve => { pollTimer = setTimeout(resolve, interval); });
+      }
+    };
+    try {
+      return await Promise.race([poll(), interrupted]);
+    } finally {
+      clearTimeout(timeout);
+      clearTimeout(pollTimer);
+      signal?.removeEventListener("abort", cancel);
+    }
   }
 
   async get(identifier: string, { signal, retry = true }: { signal?: AbortSignal; retry?: boolean } = {}): Promise<GetProcessByIdentifierResponse> {
@@ -306,20 +349,8 @@ export class SandboxProcess extends SandboxAction {
       this.handleResponseError(response, data, error);
       return data as GetProcessByIdentifierResponse;
     };
-    // wait owns its retry/deadline budget; standalone reads retain existing retries.
+    // wait owns the retry budget; standalone reads retain their existing retries.
     return retry ? retryOnTransientReset(read) : read();
-  }
-
-  /** Send SIGKILL, then confirm a terminal status reported by the API (not OS reaping). */
-  async killAndWait(identifier: string, options: ProcessWaitOptions = {}): Promise<GetProcessByIdentifierResponse> {
-    return observeProcess(identifier, signal => this.get(identifier, { signal, retry: false }), options,
-      signal => this.kill(identifier, { signal }));
-  }
-
-  /** Send SIGTERM, then confirm a terminal status reported by the API (not OS reaping). */
-  async stopAndWait(identifier: string, options: ProcessWaitOptions = {}): Promise<GetProcessByIdentifierResponse> {
-    return observeProcess(identifier, signal => this.get(identifier, { signal, retry: false }), options,
-      signal => this.stop(identifier, { signal }));
   }
 
   async list(): Promise<GetProcessResponse> {
@@ -333,21 +364,19 @@ export class SandboxProcess extends SandboxAction {
     });
   }
 
-  async stop(identifier: string, { signal }: { signal?: AbortSignal } = {}): Promise<DeleteProcessByIdentifierResponse> {
+  async stop(identifier: string): Promise<DeleteProcessByIdentifierResponse> {
     const { response, data, error } = await deleteProcessByIdentifier(this.withClient({
       path: { identifier },
       baseUrl: this.url,
-      signal,
     }));
     this.handleResponseError(response, data, error);
     return data as DeleteProcessByIdentifierResponse;
   }
 
-  async kill(identifier: string, { signal }: { signal?: AbortSignal } = {}): Promise<DeleteProcessByIdentifierKillResponse> {
+  async kill(identifier: string): Promise<DeleteProcessByIdentifierKillResponse> {
     const { response, data, error } = await deleteProcessByIdentifierKill(this.withClient({
       path: { identifier },
       baseUrl: this.url,
-      signal,
     }));
     this.handleResponseError(response, data, error);
     return data as DeleteProcessByIdentifierKillResponse;

@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 
 import {
-  ProcessExecutionError,
   ResponseError,
   SandboxInstance,
   isGatewayError,
@@ -316,8 +315,6 @@ function validateOptions(input: {
 }
 
 function isRetryableStartupError(error: unknown): boolean {
-  // Only the idempotent mkdir/probe is replayed here. exec itself never retries.
-  if (error instanceof ProcessExecutionError) error = error.cause;
   if (isGatewayError(error)) return true;
   return (
     error instanceof ResponseError &&

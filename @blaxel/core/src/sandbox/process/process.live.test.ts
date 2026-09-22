@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 vi.mock("../../common/env.js", () => ({ env: process.env }));
 import { SandboxProcess } from "./process.js";
-import { ProcessExecutionError, ProcessObservationError } from "./state.js";
 import type { Sandbox } from "../../client/types.gen.js";
 
 // Opt-in disposable sandbox API. No credentials or .env files are loaded.
@@ -13,7 +12,7 @@ describe.skipIf(!url)("real sandbox process API", () => {
   it("reconnects after wait timeout and recovers exit code and logs", async () => {
     const api = client(url!); const name = `ts-timeout-${randomUUID()}`;
     await api.exec({ name, command: "sleep 1; echo recovered; exit 7", waitForCompletion: false, keepAlive: false });
-    await expect(api.wait(name, { maxWait: 20, interval: 5 })).rejects.toBeInstanceOf(ProcessObservationError);
+    await expect(api.wait(name, { maxWait: 20, interval: 5 })).rejects.toThrow("did not finish in time");
     const result = await api.wait(name, { maxWait: 5000, interval: 20 });
     expect(result.status).toBe("failed"); expect(result.exitCode).toBe(7);
     expect(await api.logs(name)).toContain("recovered");
@@ -23,9 +22,10 @@ describe.skipIf(!url)("real sandbox process API", () => {
     await api.exec({ name, command: "sleep 30", waitForCompletion: false, keepAlive: false });
     try {
       const controller = new AbortController(); controller.abort("done waiting");
-      await expect(api.wait(name, { signal: controller.signal })).rejects.toMatchObject({ reason: "cancelled" });
+      await expect(api.wait(name, { signal: controller.signal })).rejects.toBe("done waiting");
       expect((await api.get(name)).status).toBe("running");
-      const result = await api.killAndWait(name, { maxWait: 5000, interval: 20 });
+      await api.kill(name);
+      const result = await api.wait(name, { maxWait: 5000, interval: 20 });
       expect(["killed", "failed", "completed"]).toContain(result.status);
     } finally { await api.kill(name).catch(() => {}); }
   });
@@ -33,7 +33,8 @@ describe.skipIf(!url)("real sandbox process API", () => {
     const api = client(url!); const name = `ts-stop-${randomUUID()}`;
     await api.exec({ name, command: "sleep 30", waitForCompletion: false, keepAlive: false });
     try {
-      const result = await api.stopAndWait(name, { maxWait: 5000, interval: 20 });
+      await api.stop(name);
+      const result = await api.wait(name, { maxWait: 5000, interval: 20 });
       expect(["stopped", "failed", "completed"]).toContain(result.status);
     } finally { await api.kill(name).catch(() => {}); }
   });
@@ -57,10 +58,10 @@ describe.skipIf(!url)("real sandbox process API", () => {
     const address = server.address(); if (!address || typeof address === "string") throw new Error("missing port");
     const proxy = client(`http://127.0.0.1:${address.port}`);
     try {
+      const identifier = `ts-lost-response-${randomUUID()}`;
       let failure: unknown;
-      try { await proxy.exec({ command: "echo exactly-once", waitForCompletion: true, keepAlive: false }); } catch (error) { failure = error; }
-      expect(failure).toBeInstanceOf(ProcessExecutionError);
-      const identifier = (failure as ProcessExecutionError).identifier;
+      try { await proxy.exec({ name: identifier, command: "echo exactly-once", waitForCompletion: true, keepAlive: false }); } catch (error) { failure = error; }
+      expect(failure).toBeInstanceOf(TypeError);
       const api = client(url!); const result = await api.wait(identifier, { maxWait: 5000 });
       expect(result.status).toBe("completed"); expect(result.exitCode).toBe(0);
       expect((await api.logs(identifier)).match(/exactly-once/g)).toHaveLength(1); expect(posts).toBe(1);
