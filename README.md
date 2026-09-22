@@ -167,12 +167,45 @@ const process = await sandbox.process.exec({
   command: "npm run build",
   workingDir: "/app",
   waitForCompletion: true,
-  timeout: 60000 // 60 seconds
+  timeout: 60 // 60 seconds
 });
 
 // Kill a running process
 await sandbox.process.kill("build-process");
 ```
+
+`wait()` returns a terminal process response, including a nonzero exit code when the command failed.
+An observation timeout, cancellation, or unavailable status throws `ProcessObservationError` with
+`identifier`, `reason`, `lastObservation`, and `cause`. The command may still be running.
+
+```typescript
+import { ProcessExecutionError, ProcessObservationError } from "@blaxel/core";
+
+try {
+  const started = await sandbox.process.exec({ command: "npm run build", waitForCompletion: false });
+  const result = await sandbox.process.wait(started.name, { maxWait: 30_000 });
+  console.log(result.status, result.exitCode);
+} catch (error) {
+  if (error instanceof ProcessExecutionError || error instanceof ProcessObservationError) {
+    // Reconnect to the same command. Do not start it again after a lost response.
+    const current = await sandbox.process.get(error.identifier);
+    const logs = await sandbox.process.logs(error.identifier);
+    console.log(current.status, logs);
+  } else {
+    throw error;
+  }
+}
+
+// Cancelling a wait only stops observation; it never kills the command.
+// Explicit termination uses a fresh signal and one deadline for the request and confirmation.
+const stopped = await sandbox.process.killAndWait("build-process", { maxWait: 10_000 });
+// Use stopAndWait for graceful termination instead.
+```
+
+When no name is supplied, `exec()` assigns a unique name before sending the request and retains it
+in any execution error. It never automatically resends the command. `killAndWait` and `stopAndWait`
+confirm a terminal state reported by the sandbox API; they do not guarantee OS process reaping.
+`streamLogs().wait()` rejects on real stream errors and resolves after an intentional `close()`.
 
 Restart a process if it fails, up to a maximum number of restart attempts:
 

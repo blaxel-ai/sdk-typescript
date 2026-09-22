@@ -1,3 +1,5 @@
+import { v4 as uuidv4 } from "uuid";
+import { observeProcess, ProcessExecutionError, type ProcessWaitOptions } from "./state.js";
 import { Sandbox } from "../../client/types.gen.js";
 import { settings } from "../../common/settings.js";
 import { SandboxAction } from "../action.js";
@@ -23,9 +25,8 @@ export class SandboxProcess extends SandboxAction {
     const handleError = (err: Error) => {
       if (options.onError) {
         options.onError(err);
-      } else {
-        console.error("Stream error:", err);
       }
+      throw err;
     };
 
     const processLine = (line: string) => {
@@ -54,12 +55,10 @@ export class SandboxProcess extends SandboxAction {
         });
 
         if (stream.status !== 200) {
-          handleError(new Error(`Failed to stream logs: ${await stream.text()}`));
-          return;
+          throw new Error(`Failed to stream logs: ${await stream.text()}`);
         }
         if (!stream.body) {
-          handleError(new Error('No stream body'));
-          return;
+          throw new Error('No stream body');
         }
 
         const reader = stream.body.getReader();
@@ -82,7 +81,7 @@ export class SandboxProcess extends SandboxAction {
           processLine(buffer);
         }
       } catch (err: unknown) {
-        if (err && typeof err === 'object' && 'name' in err && err.name === 'AbortError') {
+        if (controller.signal.aborted) {
           // Process remaining buffer before returning on abort
           if (buffer.trim()) {
             processLine(buffer);
@@ -93,6 +92,8 @@ export class SandboxProcess extends SandboxAction {
       }
     })();
 
+    // Callback-only users need not await wait(); preserve rejection for those who do.
+    void done.catch(() => {});
     return {
       close: () => controller.abort(),
       wait: () => done,
@@ -102,47 +103,38 @@ export class SandboxProcess extends SandboxAction {
   async exec(
     process: ProcessRequest | ProcessRequestWithLog,
   ): Promise<PostProcessResponse | ProcessResponseWithLog> {
-    let onLog: ((log: string) => void) | undefined;
-    let onStdout: ((stdout: string) => void) | undefined;
-    let onStderr: ((stderr: string) => void) | undefined;
-    if ('onLog' in process && process.onLog) {
-      onLog = process.onLog;
-      delete process.onLog;
-    }
-    if ('onStdout' in process && process.onStdout) {
-      onStdout = process.onStdout;
-      delete process.onStdout;
-    }
-    if ('onStderr' in process && process.onStderr) {
-      onStderr = process.onStderr;
-      delete process.onStderr;
-    }
+    const { onLog, onStdout, onStderr, ...request } = process as ProcessRequestWithLog;
+    // Known before POST, even if the response is lost. Do not mutate caller input.
+    process = { ...request, name: request.name || `process-${uuidv4()}` };
+    try {
+      // Store original wait_for_completion setting
+      const shouldWaitForCompletion = process.waitForCompletion;
 
-    // Store original wait_for_completion setting
-    const shouldWaitForCompletion = process.waitForCompletion;
-
-    // When waiting for completion with streaming callbacks, use streaming endpoint
-    if (shouldWaitForCompletion && (onLog || onStdout || onStderr)) {
-      return await this.execWithStreaming(process, { onLog, onStdout, onStderr });
-    } else {
-      const { response, data, error } = await postProcess(this.withClient({
-        body: process,
-        baseUrl: this.url,
-      }));
-      this.handleResponseError(response, data, error);
-      const result = data as PostProcessResponse;
-      if (onLog || onStdout || onStderr) {
-        const streamControl = this.streamLogs(result.pid, { onLog, onStdout, onStderr });
-        return {
-          ...result,
-          close() {
-            if (streamControl) {
-              streamControl.close();
-            }
-          },
+      // When waiting for completion with streaming callbacks, use streaming endpoint
+      if (shouldWaitForCompletion && (onLog || onStdout || onStderr)) {
+        return await this.execWithStreaming(process, { onLog, onStdout, onStderr });
+      } else {
+        const { response, data, error } = await postProcess(this.withClient({
+          body: process,
+          baseUrl: this.url,
+        }));
+        this.handleResponseError(response, data, error);
+        const result = data as PostProcessResponse;
+        if (onLog || onStdout || onStderr) {
+          const streamControl = this.streamLogs(result.pid, { onLog, onStdout, onStderr });
+          return {
+            ...result,
+            close() {
+              if (streamControl) {
+                streamControl.close();
+              }
+            },
+          }
         }
+        return result;
       }
-      return result;
+    } catch (error) {
+      throw new ProcessExecutionError(process.name!, error);
     }
   }
 
@@ -312,37 +304,35 @@ export class SandboxProcess extends SandboxAction {
     };
   }
 
-  async wait(identifier: string, { maxWait = 60000, interval = 1000 }: { maxWait?: number, interval?: number } = {}): Promise<GetProcessByIdentifierResponse> {
-    const startTime = Date.now();
-    let data = await this.get(identifier);
-    let status = data.status ?? "running";
-    while (status === "running") {
-      await new Promise((resolve) => setTimeout(resolve, interval));
-      try {
-        data = await this.get(identifier);
-        status = data.status ?? "running";
-      } catch {
-        break;
-      }
-      if (Date.now() - startTime > maxWait) {
-        throw new Error("Process did not finish in time");
-      }
-    }
-    return data;
+  /** Observe the original command. Cancelling this wait never stops the command. */
+  async wait(identifier: string, options: ProcessWaitOptions = {}): Promise<GetProcessByIdentifierResponse> {
+    return observeProcess(identifier, signal => this.get(identifier, { signal, retry: false }), options);
   }
 
-  async get(identifier: string): Promise<GetProcessByIdentifierResponse> {
-    // Idempotent GET: self-heal a transient connection reset (also makes the
-    // wait() poll loop resilient). exec() stays un-retried — it is a
-    // non-idempotent POST and retrying it duplicates the process (ENG-2340).
-    return retryOnTransientReset(async () => {
+  async get(identifier: string, { signal, retry = true }: { signal?: AbortSignal; retry?: boolean } = {}): Promise<GetProcessByIdentifierResponse> {
+    const read = async () => {
       const { response, data, error } = await getProcessByIdentifier(this.withClient({
         path: { identifier },
         baseUrl: this.url,
+        signal,
       }));
       this.handleResponseError(response, data, error);
       return data as GetProcessByIdentifierResponse;
-    });
+    };
+    // wait owns its retry/deadline budget; standalone reads retain existing retries.
+    return retry ? retryOnTransientReset(read) : read();
+  }
+
+  /** Send SIGKILL, then confirm a terminal status reported by the API (not OS reaping). */
+  async killAndWait(identifier: string, options: ProcessWaitOptions = {}): Promise<GetProcessByIdentifierResponse> {
+    return observeProcess(identifier, signal => this.get(identifier, { signal, retry: false }), options,
+      signal => this.kill(identifier, { signal }));
+  }
+
+  /** Send SIGTERM, then confirm a terminal status reported by the API (not OS reaping). */
+  async stopAndWait(identifier: string, options: ProcessWaitOptions = {}): Promise<GetProcessByIdentifierResponse> {
+    return observeProcess(identifier, signal => this.get(identifier, { signal, retry: false }), options,
+      signal => this.stop(identifier, { signal }));
   }
 
   async list(): Promise<GetProcessResponse> {
@@ -356,19 +346,21 @@ export class SandboxProcess extends SandboxAction {
     });
   }
 
-  async stop(identifier: string): Promise<DeleteProcessByIdentifierResponse> {
+  async stop(identifier: string, { signal }: { signal?: AbortSignal } = {}): Promise<DeleteProcessByIdentifierResponse> {
     const { response, data, error } = await deleteProcessByIdentifier(this.withClient({
       path: { identifier },
       baseUrl: this.url,
+      signal,
     }));
     this.handleResponseError(response, data, error);
     return data as DeleteProcessByIdentifierResponse;
   }
 
-  async kill(identifier: string): Promise<DeleteProcessByIdentifierKillResponse> {
+  async kill(identifier: string, { signal }: { signal?: AbortSignal } = {}): Promise<DeleteProcessByIdentifierKillResponse> {
     const { response, data, error } = await deleteProcessByIdentifierKill(this.withClient({
       path: { identifier },
       baseUrl: this.url,
+      signal,
     }));
     this.handleResponseError(response, data, error);
     return data as DeleteProcessByIdentifierKillResponse;
