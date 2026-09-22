@@ -115,44 +115,63 @@ export type SandboxCreateOptions = {
   safe?: boolean;
   /** Return the existing sandbox instead of failing when the name is taken. */
   createIfNotExist?: boolean;
-} & (
-  | { timeout?: undefined; retry?: undefined }
-  | {
-    /**
-     * Give up on the creation after this many seconds (whole number, 1 to
-     * MAX_CREATION_TIMEOUT_SECONDS). The control plane releases the sandbox
-     * and answers 408 CREATION_TIMEOUT. Unset, the control plane's default
-     * deadline applies.
-     */
-    timeout: number;
-    /**
-     * How many times to start the creation again after it timed out, each
-     * attempt bounded by `timeout`. Defaults to 0. Requires `timeout`.
-     */
-    retry?: number;
-  }
-);
+  /**
+   * Give up on the creation after this many seconds (whole number, 1 to
+   * MAX_CREATION_TIMEOUT_SECONDS). The control plane releases the sandbox
+   * and the call rejects with a SandboxCreationTimeoutError. Unset, the
+   * control plane's default deadline applies.
+   */
+  timeout?: number;
+};
 
-const isCreationTimeout = (status: number | undefined, e: unknown): boolean => {
+/**
+ * Thrown by SandboxInstance.create / createIfNotExists when the sandbox was
+ * not ready within the creation deadline. The control plane has released the
+ * sandbox, so the name is free again and the creation can simply be started
+ * over. Catch it with `err instanceof SandboxCreationTimeoutError` or
+ * `isCreationTimeoutError(err)`.
+ */
+export class SandboxCreationTimeoutError extends Error {
+  readonly code = "CREATION_TIMEOUT";
+  readonly status = 408;
+  /** Raw error body returned by the control plane. */
+  readonly data: unknown;
+
+  constructor(
+    /** Name of the sandbox that was being created, if one was requested. */
+    readonly sandboxName: string | undefined,
+    /** The `timeout` option of the call, in seconds; undefined when the control plane's default applied. */
+    readonly timeout: number | undefined,
+    data: unknown,
+  ) {
+    const detail = typeof data === "object" && data !== null && typeof (data as { message?: unknown }).message === "string"
+      ? (data as { message: string }).message
+      : undefined;
+    const target = sandboxName ? `Sandbox ${sandboxName}` : "Sandbox";
+    const deadline = timeout !== undefined ? ` within ${timeout}s` : " within the creation deadline";
+    super(`${target} was not ready${deadline}; the creation was cancelled.${detail ? ` ${detail}` : ""}`);
+    this.name = "SandboxCreationTimeoutError";
+    this.data = data;
+  }
+}
+
+/** True when `err` is a sandbox creation timeout (408 CREATION_TIMEOUT). */
+export function isCreationTimeoutError(err: unknown): err is SandboxCreationTimeoutError {
+  return err instanceof SandboxCreationTimeoutError;
+}
+
+const isCreationTimeoutResponse = (status: number | undefined, e: unknown): boolean => {
   if (status === 408) return true;
   if (typeof e !== "object" || e === null) return false;
   return (e as { code?: unknown }).code === "CREATION_TIMEOUT";
 };
 
-function validateCreateOptions({ timeout, retry }: SandboxCreateOptions): { timeout?: number; retry: number } {
-  if (timeout === undefined) {
-    if (retry !== undefined) {
-      throw new Error("SandboxInstance.create: 'retry' requires 'timeout' to be set.");
-    }
-    return { retry: 0 };
-  }
+function validateCreateOptions({ timeout }: SandboxCreateOptions): { timeout?: number } {
+  if (timeout === undefined) return {};
   if (!Number.isInteger(timeout) || timeout < 1 || timeout > MAX_CREATION_TIMEOUT_SECONDS) {
     throw new Error(`SandboxInstance.create: 'timeout' must be a whole number of seconds between 1 and ${MAX_CREATION_TIMEOUT_SECONDS}, got ${timeout}.`);
   }
-  if (retry !== undefined && (!Number.isInteger(retry) || retry < 0)) {
-    throw new Error(`SandboxInstance.create: 'retry' must be a non-negative whole number, got ${retry}.`);
-  }
-  return { timeout, retry: retry ?? 0 };
+  return { timeout };
 }
 
 const isSandboxNotFound = (e: unknown): boolean => {
@@ -365,7 +384,7 @@ export class SandboxInstance {
 
   static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, options: SandboxCreateOptions = {}) {
     const { safe = false, createIfNotExist = false } = options;
-    const { timeout, retry } = validateCreateOptions(options);
+    const { timeout } = validateCreateOptions(options);
     // No client-side default name: when the caller omits a name we send the
     // creation without metadata.name so the server can assign one and unnamed
     // creations become eligible for warm sandbox pools (ENG-3931).
@@ -457,7 +476,7 @@ export class SandboxInstance {
     }
 
     const headers = timeout !== undefined ? { [CREATION_TIMEOUT_HEADER]: String(timeout) } : undefined;
-    const [firstResult, h2Session] = await Promise.all([
+    const [createResult, h2Session] = await Promise.all([
       createSandbox({
         body: sandbox,
         query: createIfNotExist ? { createIfNotExist } : undefined,
@@ -465,20 +484,12 @@ export class SandboxInstance {
       }),
       edgeDomain && !settings.disableH2 ? import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.get(edgeDomain)).catch(() => null) : Promise.resolve(null),
     ]);
-    let createResult = firstResult;
-    // A creation that hit the caller's deadline was released server-side and
-    // the name is free again, so each retry is a fresh creation.
-    for (let attempt = 0; attempt < retry && createResult.error !== undefined && isCreationTimeout(createResult.response.status, createResult.error); attempt++) {
-      logger.debug(`Sandbox creation timed out after ${timeout}s; retrying (${attempt + 1}/${retry})`);
-      createResult = await createSandbox({
-        body: sandbox,
-        query: createIfNotExist ? { createIfNotExist } : undefined,
-        headers,
-      });
-    }
     let data = createResult.data;
     if (createResult.error !== undefined) {
       const name = sandbox.metadata.name;
+      if (isCreationTimeoutResponse(createResult.response.status, createResult.error)) {
+        throw new SandboxCreationTimeoutError(name, timeout, createResult.error);
+      }
       if (createResult.response.status === 504 && name) {
         // The edge gave up on the connection but the creation is still running
         // server-side; wait for the record instead of failing (ENG-3662).
@@ -747,7 +758,7 @@ export class SandboxInstance {
     for (let i = 0; i < ATTEMPTS; ++i) {
       const finalAttempt = i === ATTEMPTS - 1;
       try {
-        return await this.create(sandbox, { ...options, createIfNotExist: true } as SandboxCreateOptions);
+        return await this.create(sandbox, { ...options, createIfNotExist: true });
       } catch (e) {
         if (typeof e === "object" && e !== null && "code" in e && (e.code === 409 || e.code === 'SANDBOX_ALREADY_EXISTS')) {
           const name = 'name' in sandbox ? sandbox.name : (sandbox as SandboxModel).metadata.name

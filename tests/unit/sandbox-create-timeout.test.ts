@@ -6,7 +6,12 @@ vi.mock("../../@blaxel/core/src/client/index.js", async (importOriginal) => {
 });
 
 import { createSandbox } from "../../@blaxel/core/src/client/index.js";
-import { MAX_CREATION_TIMEOUT_SECONDS, SandboxInstance } from "../../@blaxel/core/src/sandbox/sandbox.js";
+import {
+  MAX_CREATION_TIMEOUT_SECONDS,
+  SandboxCreationTimeoutError,
+  SandboxInstance,
+  isCreationTimeoutError,
+} from "../../@blaxel/core/src/sandbox/sandbox.js";
 
 const mockedCreate = vi.mocked(createSandbox);
 
@@ -22,7 +27,7 @@ const timedOut = () =>
 
 const headerOf = (call: number) => mockedCreate.mock.calls[call][0].headers as Record<string, string> | undefined;
 
-describe("SandboxInstance.create timeout and retry options", () => {
+describe("SandboxInstance.create timeout option", () => {
   beforeEach(() => {
     vi.stubEnv("BL_REGION", "");
   });
@@ -58,45 +63,51 @@ describe("SandboxInstance.create timeout and retry options", () => {
     expect(headerOf(0)).toEqual({ "X-Blaxel-Creation-Timeout": "50" });
   });
 
-  it("rejects retry without timeout", async () => {
-    // @ts-expect-error retry requires timeout at the type level too
-    await expect(SandboxInstance.create({ name: "sbx" }, { retry: 2 })).rejects.toThrow(/requires 'timeout'/);
-    expect(mockedCreate).not.toHaveBeenCalled();
+  it("throws a SandboxCreationTimeoutError on 408 CREATION_TIMEOUT, without retrying", async () => {
+    mockedCreate.mockResolvedValueOnce(timedOut());
+    const err = await SandboxInstance.create({ name: "sbx" }, { timeout: 10 }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SandboxCreationTimeoutError);
+    expect(isCreationTimeoutError(err)).toBe(true);
+    expect(err).toMatchObject({ code: "CREATION_TIMEOUT", status: 408, sandboxName: "sbx", timeout: 10 });
+    expect((err as Error).message).toMatch(/Sandbox sbx was not ready within 10s/);
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
   });
 
-  it("retries a timed out creation up to `retry` times and resolves on success", async () => {
-    mockedCreate
-      .mockResolvedValueOnce(timedOut())
-      .mockResolvedValueOnce(timedOut())
-      .mockResolvedValueOnce(created());
-    const instance = await SandboxInstance.create({ name: "sbx" }, { timeout: 10, retry: 2 });
-    expect(instance.status).toBe("DEPLOYED");
-    expect(mockedCreate).toHaveBeenCalledTimes(3);
-    for (let i = 0; i < 3; i++) expect(headerOf(i)).toEqual({ "X-Blaxel-Creation-Timeout": "10" });
+  it("recognizes the timeout by status alone when the body has no code", async () => {
+    mockedCreate.mockResolvedValueOnce({ error: { message: "timeout" }, response: { status: 408 }, request: {} } as never);
+    await expect(SandboxInstance.create({ name: "sbx" })).rejects.toBeInstanceOf(SandboxCreationTimeoutError);
   });
 
-  it("throws the last timeout error once retries are exhausted", async () => {
-    mockedCreate.mockResolvedValue(timedOut());
-    await expect(SandboxInstance.create({ name: "sbx" }, { timeout: 10, retry: 1 })).rejects.toMatchObject({ code: "CREATION_TIMEOUT" });
+  it("does not wrap errors other than a creation timeout", async () => {
+    mockedCreate.mockResolvedValueOnce({ error: { code: 409 }, response: { status: 409 }, request: {} } as never);
+    const err = await SandboxInstance.create({ name: "sbx" }, { timeout: 10 }).catch((e: unknown) => e);
+    expect(isCreationTimeoutError(err)).toBe(false);
+    expect(err).toMatchObject({ code: 409 });
+  });
+
+  it("lets the caller retry a timed out creation", async () => {
+    mockedCreate.mockResolvedValueOnce(timedOut()).mockResolvedValueOnce(created());
+    let instance: SandboxInstance | undefined;
+    for (let attempt = 0; attempt < 2 && !instance; attempt++) {
+      try {
+        instance = await SandboxInstance.create({ name: "sbx" }, { timeout: 10 });
+      } catch (e) {
+        if (!isCreationTimeoutError(e)) throw e;
+      }
+    }
+    expect(instance?.status).toBe("DEPLOYED");
     expect(mockedCreate).toHaveBeenCalledTimes(2);
   });
 
-  it("does not retry without retry, nor on errors other than a creation timeout", async () => {
-    mockedCreate.mockResolvedValueOnce(timedOut());
-    await expect(SandboxInstance.create({ name: "sbx" }, { timeout: 10 })).rejects.toMatchObject({ code: "CREATION_TIMEOUT" });
-    expect(mockedCreate).toHaveBeenCalledTimes(1);
+  it("forwards timeout through createIfNotExists and surfaces its timeout error", async () => {
+    mockedCreate.mockResolvedValueOnce(created());
+    await SandboxInstance.createIfNotExists({ name: "sbx" }, { timeout: 5 });
+    expect(mockedCreate.mock.calls[0][0].query).toEqual({ createIfNotExist: true });
+    expect(headerOf(0)).toEqual({ "X-Blaxel-Creation-Timeout": "5" });
 
     mockedCreate.mockReset();
-    mockedCreate.mockResolvedValueOnce({ error: { code: 409 }, response: { status: 409 }, request: {} } as never);
-    await expect(SandboxInstance.create({ name: "sbx" }, { timeout: 10, retry: 3 })).rejects.toMatchObject({ code: 409 });
+    mockedCreate.mockResolvedValueOnce(timedOut());
+    await expect(SandboxInstance.createIfNotExists({ name: "sbx" }, { timeout: 5 })).rejects.toBeInstanceOf(SandboxCreationTimeoutError);
     expect(mockedCreate).toHaveBeenCalledTimes(1);
-  });
-
-  it("forwards timeout and retry through createIfNotExists", async () => {
-    mockedCreate.mockResolvedValueOnce(timedOut()).mockResolvedValueOnce(created());
-    await SandboxInstance.createIfNotExists({ name: "sbx" }, { timeout: 5, retry: 1 });
-    expect(mockedCreate).toHaveBeenCalledTimes(2);
-    expect(mockedCreate.mock.calls[1][0].query).toEqual({ createIfNotExist: true });
-    expect(headerOf(1)).toEqual({ "X-Blaxel-Creation-Timeout": "5" });
   });
 });
