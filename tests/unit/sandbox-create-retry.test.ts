@@ -38,6 +38,12 @@ describe("SandboxInstance.create retry option", () => {
     expect(mockedCreate).not.toHaveBeenCalled();
   });
 
+  it("rejects retry without timeout through createIfNotExists", async () => {
+    // @ts-expect-error retry requires timeout at the type level too
+    await expect(SandboxInstance.createIfNotExists({ name: "sbx" }, { retry: 2 })).rejects.toThrow(/requires 'timeout'/);
+    expect(mockedCreate).not.toHaveBeenCalled();
+  });
+
   it("rejects negative and fractional retry values", async () => {
     await expect(SandboxInstance.create({ name: "sbx" }, { timeout: 10, retry: -1 })).rejects.toThrow(/non-negative whole number/);
     await expect(SandboxInstance.create({ name: "sbx" }, { timeout: 10, retry: 1.5 })).rejects.toThrow(/non-negative whole number/);

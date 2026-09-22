@@ -109,13 +109,8 @@ const CREATE_GATEWAY_TIMEOUT_MAX_POLL_MS = 5_000;
 const CREATION_TIMEOUT_HEADER = "X-Blaxel-Creation-Timeout";
 export const MAX_CREATION_TIMEOUT_SECONDS = 50;
 
-/** Options of SandboxInstance.create / createIfNotExists. */
-export type SandboxCreateOptions = {
-  /** Check the sandbox answers (fs.ls) and delete it if it does not. Defaults to false. */
-  safe?: boolean;
-  /** Return the existing sandbox instead of failing when the name is taken. */
-  createIfNotExist?: boolean;
-} & (
+/** `retry` is only available together with `timeout`. */
+export type SandboxCreationDeadlineOptions =
   | { timeout?: undefined; retry?: undefined }
   | {
     /**
@@ -130,8 +125,18 @@ export type SandboxCreateOptions = {
      * attempt bounded by `timeout`. Defaults to 0. Requires `timeout`.
      */
     retry?: number;
-  }
-);
+  };
+
+/** Options of SandboxInstance.create. */
+export type SandboxCreateOptions = {
+  /** Check the sandbox answers (fs.ls) and delete it if it does not. Defaults to false. */
+  safe?: boolean;
+  /** Return the existing sandbox instead of failing when the name is taken. */
+  createIfNotExist?: boolean;
+} & SandboxCreationDeadlineOptions;
+
+/** Options of SandboxInstance.createIfNotExists. */
+export type SandboxCreateIfNotExistsOptions = { safe?: boolean } & SandboxCreationDeadlineOptions;
 
 /**
  * Thrown by SandboxInstance.create / createIfNotExists when the sandbox was
@@ -774,7 +779,7 @@ export class SandboxInstance {
     return SandboxInstance.attachH2Session(instance);
   }
 
-  static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration, options: Omit<SandboxCreateOptions, "createIfNotExist"> = {}) {
+  static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration, options: SandboxCreateIfNotExistsOptions = {}) {
     const ATTEMPTS = 3;
     let lastStatus = "unknown";
     // The 'vanished' window (create 409s while get 404s) is driven by the same
@@ -786,7 +791,7 @@ export class SandboxInstance {
     for (let i = 0; i < ATTEMPTS; ++i) {
       const finalAttempt = i === ATTEMPTS - 1;
       try {
-        return await this.create(sandbox, { ...options, createIfNotExist: true } as SandboxCreateOptions);
+        return await this.create(sandbox, { ...options, createIfNotExist: true });
       } catch (e) {
         if (typeof e === "object" && e !== null && "code" in e && (e.code === 409 || e.code === 'SANDBOX_ALREADY_EXISTS')) {
           const name = 'name' in sandbox ? sandbox.name : (sandbox as SandboxModel).metadata.name
