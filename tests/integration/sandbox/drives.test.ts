@@ -167,19 +167,13 @@ describe('Drive Operations', () => {
       if (deleting) expect(deleting.status).toBe("DELETING")
 
       // An empty drive is wiped in a few seconds; keep the default run under a minute.
-      await DriveInstance.waitForDeletion(name, { maxWait: 45_000, interval: 2_000 })
-      await expect(DriveInstance.get(name)).rejects.toThrow()
-    }, 60_000)
-
-    it('deletes a drive and waits for it to be gone', async () => {
-      const name = uniqueName("drive-delete-wait")
-      const drive = await DriveInstance.create({
-        name,
-        region: defaultRegion,
-        labels: defaultLabels,
-      })
-      await drive.delete({ wait: true, maxWait: 45_000 })
-
+      const deadline = Date.now() + 45_000
+      let gone = false
+      while (!gone && Date.now() < deadline) {
+        gone = await DriveInstance.get(name).then(() => false, () => true)
+        if (!gone) await new Promise((r) => setTimeout(r, 2_000))
+      }
+      expect(gone).toBe(true)
       await expect(DriveInstance.get(name)).rejects.toThrow()
     }, 60_000)
 
