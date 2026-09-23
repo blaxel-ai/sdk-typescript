@@ -44,6 +44,8 @@ sdk-controlplane:
 	@# DriveWritable references DriveStateWritable which the codegen does not emit
 	echo '' >> @blaxel/core/src/client/types.gen.ts
 	echo 'export type DriveStateWritable = DriveState;' >> @blaxel/core/src/client/types.gen.ts
+	@# The generator references but omits the empty writable view of this read-only spec.
+	echo 'export type ImageSummarySpecWritable = Record<string, never>;' >> @blaxel/core/src/client/types.gen.ts
 	rm -f @blaxel/core/src/client/index.ts.bak
 	rm -f @blaxel/core/src/client/sdk.gen.ts.bak
 	rm -f @blaxel/core/src/client/types.gen.ts.bak
