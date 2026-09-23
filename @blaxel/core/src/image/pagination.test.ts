@@ -22,7 +22,7 @@ describe("image pagination HTTP contract", () => {
       response.writeHead(200, { "Content-Type": "application/json" });
       response.end(JSON.stringify({
         data: cursor === "empty" ? [] : [item],
-        meta: cursor === "end" ? {} : { hasMore: true, nextCursor: cursor ? "end" : "empty" },
+        meta: cursor === "end" ? {} : { total: 10000, totalIsPartial: true, hasMore: true, nextCursor: cursor ? "end" : "empty" },
       }));
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -46,6 +46,7 @@ describe("image pagination HTTP contract", () => {
     const page = await ImageInstance.list({ limit: 1, q: "ex", sort: "name:asc" });
     expect(requests).toHaveLength(1);
     expect(page.data[0].spec.tagCount).toBe(10000);
+    expect(page.meta.totalIsPartial).toBe(true);
     const items = await page.autoPagingToArray({ limit: 10 });
     expect(items).toHaveLength(2);
     expect(requests.map(({ url }) => url.pathname)).toEqual(["/images", "/images", "/images"]);
