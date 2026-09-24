@@ -7,6 +7,20 @@ const BUILD_POSTHOG_KEY = "__BUILD_POSTHOG_KEY__";
 // PostHog API endpoint
 const POSTHOG_HOST = "https://us.i.posthog.com";
 
+/**
+ * How long a capture may stay outstanding.
+ *
+ * Node keeps the event loop alive while a fetch is pending, so this is what a
+ * short-lived script waits for before it can exit. A capture against
+ * us.i.posthog.com takes ~250-350ms end to end (DNS + TLS handshake + POST), so
+ * a second covers the happy path with headroom. The ceiling matters because a
+ * version is only recorded after a successful delivery: when the endpoint is
+ * unreachable every later run tries again, and networks that silently drop
+ * traffic rather than refusing it would otherwise pay the full timeout each
+ * time.
+ */
+export const POSTHOG_FLUSH_BUDGET_MS = 1000;
+
 // Telemetry state file path: ~/.blaxel/telemetry.json
 type TelemetryState = {
 	distinct_id: string;
@@ -77,7 +91,37 @@ function loadTelemetryState(): TelemetryState {
 }
 
 /**
- * Save telemetry state to disk.
+ * Combine this process's telemetry snapshot with what is on disk right now.
+ *
+ * `~/.blaxel/telemetry.json` is shared with the CLI and the Python SDK, and
+ * each of them caches it in memory for the lifetime of its process. Writing
+ * this snapshot back wholesale would roll back anything the others recorded in
+ * the meantime, which makes them re-send their "Installed" event on every later
+ * run. Anything already on disk is at least as fresh as what is held here, so
+ * it wins, except for the fields this process actually owns.
+ */
+export function mergeTelemetryState(
+	onDisk: Record<string, unknown>,
+	ours: TelemetryState,
+): Record<string, unknown> {
+	const merged: Record<string, unknown> = { ...ours, ...onDisk };
+
+	// Per-language entries are merged rather than replaced so the SDKs do not
+	// evict each other.
+	const onDiskSdks =
+		typeof onDisk.sdks === "object" && onDisk.sdks !== null ? onDisk.sdks : {};
+	merged.sdks = { ...onDiskSdks, ...(ours.sdks ?? {}) };
+
+	if (ours.distinct_id) {
+		merged.distinct_id = ours.distinct_id;
+	}
+
+	return merged;
+}
+
+/**
+ * Save telemetry state to disk, preserving concurrent writes from the CLI and
+ * the other SDK.
  */
 function saveTelemetryState(state: TelemetryState): void {
 	if (fs === null || path === null || os === null) {
@@ -94,9 +138,26 @@ function saveTelemetryState(state: TelemetryState): void {
 		if (!fs.existsSync(dir)) {
 			fs.mkdirSync(dir, { recursive: true });
 		}
-		fs.writeFileSync(telemetryPath, JSON.stringify(state, null, 2), {
-			mode: 0o600,
-		});
+
+		// Re-read immediately before writing rather than trusting the snapshot
+		// loaded when this process started.
+		let onDisk: Record<string, unknown> = {};
+		try {
+			const parsed: unknown = JSON.parse(
+				fs.readFileSync(telemetryPath, "utf8"),
+			);
+			if (typeof parsed === "object" && parsed !== null) {
+				onDisk = parsed as Record<string, unknown>;
+			}
+		} catch {
+			// No readable file yet - this process's state is all there is.
+		}
+
+		fs.writeFileSync(
+			telemetryPath,
+			JSON.stringify(mergeTelemetryState(onDisk, state), null, 2),
+			{ mode: 0o600 },
+		);
 	} catch {
 		// Silently fail
 	}
@@ -219,7 +280,7 @@ const sdkInstallTracker = createSDKInstallTracker({
 	getSignal: () =>
 		typeof AbortSignal !== "undefined" &&
 		typeof AbortSignal.timeout === "function"
-			? AbortSignal.timeout(5000)
+			? AbortSignal.timeout(POSTHOG_FLUSH_BUDGET_MS)
 			: undefined,
 });
 
