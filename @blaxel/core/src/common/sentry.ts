@@ -53,6 +53,19 @@ const SAFE_ERROR_NAMES = new Set([
   "AggregateError",
 ]);
 
+// Reasons that are NOT transport-health signals and must never be reported to
+// Sentry as a degradation. `unsupported-body` fires deterministically whenever
+// a request body cannot be buffered for manual H2 framing (FormData /
+// ReadableStream / Blob): the H2 session is healthy, the SDK just routes that
+// body over `globalThis.fetch` by design and the request still succeeds. It is
+// therefore an expected routing decision, not a degradation — and by far the
+// highest-volume fingerprint in this family — so emitting it as a warning to an
+// error tracker is pure noise. The local stats counter still tracks it (see
+// h2stats.ts) for internal metrics on how often unbufferable bodies occur.
+const NON_REPORTED_H2_DEGRADATION_REASONS = new Set<H2DegradationReason>([
+  "unsupported-body",
+]);
+
 const MAX_IN_FLIGHT_EVENTS = 20;
 const MAX_ACTIVE_H2_ROLLUPS = 20;
 const MAX_CACHED_DOMAIN_TAGS = 100;
@@ -446,6 +459,7 @@ export function reportH2TransportDegradation(
   reason: H2DegradationReason,
 ): void {
   if (!sentryInitialized || !sentryConfig) return;
+  if (NON_REPORTED_H2_DEGRADATION_REASONS.has(reason)) return;
 
   try {
     if (h2EventsEmitted >= MAX_H2_EVENTS_PER_PROCESS) return;
