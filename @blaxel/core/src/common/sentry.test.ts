@@ -479,14 +479,61 @@ describe("SDK Sentry boundary", () => {
 
     recordH2Fallback(
       "sbx-test-workspace.us-pdx-1.bl.run",
-      "unsupported-body",
+      "session-unusable",
     );
     await flushSentry();
 
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(eventFromFetch(fetchMock)).toMatchObject({
-      message: "h2 transport degradation: unsupported-body",
+      message: "h2 transport degradation: session-unusable",
       extra: { count: 1 },
     });
+  });
+
+  it("does not report the deterministic unsupported-body fallback", async () => {
+    const fetchMock = createFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { flushSentry, initSentry, reportH2TransportDegradation } = await import(
+      "./sentry.js"
+    );
+    initSentry();
+
+    // Both the direct reporter and the stats hook must stay silent for a body
+    // type the SDK routes over fetch by design (the request still succeeds).
+    reportH2TransportDegradation(
+      "sbx-test-workspace.us-pdx-1.bl.run",
+      "unsupported-body",
+    );
+    const { recordH2Fallback } = await import("./h2stats.js");
+    recordH2Fallback(
+      "sbx-test-workspace.us-pdx-1.bl.run",
+      "unsupported-body",
+    );
+    await flushSentry();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("still reports genuine transport-health reasons on the same domain", async () => {
+    const fetchMock = createFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { flushSentry, initSentry, reportH2TransportDegradation } = await import(
+      "./sentry.js"
+    );
+    initSentry();
+    const domain = "sbx-test-workspace.us-pdx-1.bl.run";
+
+    // The suppressed reason must not mask a real degradation to the same edge.
+    reportH2TransportDegradation(domain, "unsupported-body");
+    reportH2TransportDegradation(domain, "no-session");
+    reportH2TransportDegradation(domain, "establish-failure");
+    await flushSentry();
+
+    const reportedReasons = eventsFromFetch(fetchMock)
+      .map((event) => event.tags.reason)
+      .sort();
+    expect(reportedReasons).toEqual(["establish-failure", "no-session"]);
   });
 });
