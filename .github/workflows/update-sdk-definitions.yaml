@@ -68,6 +68,8 @@ jobs:
           sed -i 's/<Function>/<_Function>/g' @blaxel/core/src/client/types.gen.ts
           echo '' >> @blaxel/core/src/client/types.gen.ts
           echo 'export type DriveStateWritable = DriveState;' >> @blaxel/core/src/client/types.gen.ts
+          # The generator references but omits the empty writable view of this read-only spec.
+          echo 'export type ImageSummarySpecWritable = Record<string, never>;' >> @blaxel/core/src/client/types.gen.ts
           rm -rf ./tmp definition.yml
 
       - name: Check for changes

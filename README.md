@@ -485,3 +485,33 @@ Contributions are welcome! Please feel free to [submit a pull request](https://g
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+### Image repository and tag pagination
+
+The SDK defaults to API version `2026-09-22`. `listImages()` now returns
+`{ data, meta }` with repository summaries (`metadata` and `spec.size` /
+`spec.tagCount`), rather than an array containing every tag. Fetch tags separately
+with `listImageTags()` or use the lazy helpers:
+
+```typescript
+import { ImageInstance } from "@blaxel/core";
+
+const images = await ImageInstance.list({ limit: 20, sort: "name:asc", q: "my-" });
+for await (const image of images) {
+  console.log(image.metadata.name, image.spec.tagCount);
+}
+
+const tags = await ImageInstance.listTags("sandbox", "my-image", {
+  limit: 20,
+  sort: "name:desc",
+  // sourceWorkspace: "owner-workspace", // For an account-shared image
+});
+const first100Tags = await tags.autoPagingToArray({ limit: 100 });
+```
+
+Each helper fetches one page initially. `nextPage()`, async iteration and
+`autoPagingToArray()` fetch subsequent pages on demand. Tag search supports `q`
+(prefix) or `name` (exact), never both; tag sorting is by name only.
+`BL_API_VERSION` remains available for older contracts through low-level API calls;
+image pagination and the typed summaries described above require `2026-09-22`
+or later.

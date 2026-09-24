@@ -14,3 +14,5 @@ export {
   ComposerInstallOptions,
   UvInstallOptions,
 } from "./image.js";
+
+export type { ImageListQuery, ImageTagListQuery } from "./image.js";

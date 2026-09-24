@@ -119,7 +119,7 @@ export type Config = {
 const BUILD_VERSION = "__BUILD_VERSION__";
 const BUILD_COMMIT = "__BUILD_COMMIT__";
 const BUILD_SENTRY_DSN = "__BUILD_SENTRY_DSN__";
-const BLAXEL_API_VERSION = "2026-04-28";
+const BLAXEL_API_VERSION = "2026-09-22";
 
 // Bun < 1.3.11 never sends connection-level WINDOW_UPDATE: the pooled h2
 // session freezes after exactly 65535 cumulative body bytes and every request

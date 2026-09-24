@@ -1,3 +1,5 @@
+import { listImages, listImageTags, type ListImagesData, type ListImageTagsData } from "../client/index.js";
+import { createPaginatedList } from "../common/pagination.js";
 import { DockerfileParser, Dockerfile } from "dockerfile-ast";
 import { Metadata, MetadataLabels, SandboxRuntime, Sandbox, SandboxSpec } from "../client/types.gen.js";
 import { crypto, fs, os, path } from "../common/node.js";
@@ -132,6 +134,9 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export type ImageListQuery = NonNullable<ListImagesData["query"]>;
+export type ImageTagListQuery = NonNullable<ListImageTagsData["query"]>;
+
 /**
  * A fluent builder for creating sandbox images programmatically.
  *
@@ -156,6 +161,38 @@ function sleep(ms: number): Promise<void> {
  * ```
  */
 export class ImageInstance {
+  /** List repository summaries without fetching all their tags. */
+  static async list(query?: ImageListQuery) {
+    const fetchPage = async (pageQuery?: ImageListQuery) => {
+      const { data } = await listImages({ query: pageQuery, throwOnError: true });
+      return data;
+    };
+    return createPaginatedList({
+      response: await fetchPage(query),
+      fetchPage,
+      mapItem: (image) => image,
+      query,
+    });
+  }
+
+  /** List tags lazily, including tags owned by an account-shared workspace. */
+  static async listTags(resourceType: string, imageName: string, query?: ImageTagListQuery) {
+    const fetchPage = async (pageQuery?: ImageTagListQuery) => {
+      const { data } = await listImageTags({
+        path: { resourceType, imageName },
+        query: pageQuery,
+        throwOnError: true,
+      });
+      return data;
+    };
+    return createPaginatedList({
+      response: await fetchPage(query),
+      fetchPage,
+      mapItem: (tag) => tag,
+      query,
+    });
+  }
+
   private _context: ImageBuildContext;
 
   constructor(context: ImageBuildContext) {
