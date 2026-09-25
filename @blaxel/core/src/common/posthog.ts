@@ -21,6 +21,9 @@ const POSTHOG_HOST = "https://us.i.posthog.com";
  */
 export const POSTHOG_FLUSH_BUDGET_MS = 1000;
 
+/** The single per-language entry this SDK owns in the shared telemetry file. */
+const SDK_STATE_KEY = "typescript";
+
 // Telemetry state file path: ~/.blaxel/telemetry.json
 type TelemetryState = {
 	distinct_id: string;
@@ -106,11 +109,17 @@ export function mergeTelemetryState(
 ): Record<string, unknown> {
 	const merged: Record<string, unknown> = { ...ours, ...onDisk };
 
-	// Per-language entries are merged rather than replaced so the SDKs do not
-	// evict each other.
+	// Only re-assert the one language entry this process owns. Writing back the
+	// whole cached map would roll back a newer version another SDK recorded
+	// after this process started, and that SDK would then re-send its
+	// "Installed" event.
 	const onDiskSdks =
 		typeof onDisk.sdks === "object" && onDisk.sdks !== null ? onDisk.sdks : {};
-	merged.sdks = { ...onDiskSdks, ...(ours.sdks ?? {}) };
+	const ownVersion = ours.sdks?.[SDK_STATE_KEY];
+	merged.sdks = {
+		...onDiskSdks,
+		...(ownVersion ? { [SDK_STATE_KEY]: ownVersion } : {}),
+	};
 
 	if (ours.distinct_id) {
 		merged.distinct_id = ours.distinct_id;
@@ -225,7 +234,7 @@ export function createSDKInstallTracker(options: SDKInstallTrackerOptions) {
 		}
 
 		const state = options.loadState();
-		const stateKey = "typescript";
+		const stateKey = SDK_STATE_KEY;
 		if (state.sdks?.[stateKey] === version || pendingVersions.has(version)) {
 			return;
 		}

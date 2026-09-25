@@ -132,3 +132,22 @@ describe("shared telemetry.json merging", () => {
 		expect(merged.sdks).toEqual({ typescript: "1.2.3" });
 	});
 });
+
+describe("telemetry.json entry ownership", () => {
+	// Each writer owns exactly one field: the CLI owns "cli" and each SDK owns
+	// its own language entry. Re-asserting anything else on save would roll back
+	// a newer value written by its real owner, and that owner would then treat
+	// its version as unreported and send "Installed" again.
+	it("does not roll back another SDK's newer version", () => {
+		// This process cached python 1.0.0 at startup; python has since upgraded.
+		const ours = {
+			distinct_id: "shared-id",
+			sdks: { python: "1.0.0", typescript: "1.2.3" },
+		};
+		const onDisk = { distinct_id: "shared-id", sdks: { python: "2.0.0" } };
+
+		const merged = mergeTelemetryState(onDisk, ours) as Record<string, unknown>;
+
+		expect(merged.sdks).toEqual({ python: "2.0.0", typescript: "1.2.3" });
+	});
+});
