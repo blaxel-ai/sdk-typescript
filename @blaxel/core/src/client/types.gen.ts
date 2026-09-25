@@ -5282,6 +5282,10 @@ export type WorkspaceUser = {
      */
     given_name?: string;
     /**
+     * Whether the user has at least one verified MFA factor. Omitted when the caller is not entitled to see it (only workspace admins and owners see other members' MFA status) and for pending invitations, which have no account yet.
+     */
+    mfa_enabled?: boolean;
+    /**
      * Workspace user role
      */
     role?: string;
@@ -6830,13 +6834,21 @@ export type ListImagesResponse = ListImagesResponses[keyof ListImagesResponses];
 export type CreateImageData = {
     body: {
         /**
+         * Docker configuration JSON containing credentials for the source registry.
+         */
+        dockerConfig?: string;
+        /**
          * Runtime generation (e.g., mk3). Defaults to mk3 if not specified.
          */
         generation?: string;
         /**
-         * A pre-built Docker image reference (e.g., docker.io/myorg/myimage:latest). When provided, the build step is skipped and the image is used directly as the source for the resource runtime.
+         * A pre-built Docker image reference (e.g., docker.io/myorg/myimage:latest). References with a registry hostname start an asynchronous import that downloads and converts the image for the resource runtime.
          */
         image?: string;
+        /**
+         * Memory for the registry import worker in MiB. Only supported when image is a registry reference. When omitted, the platform default is used.
+         */
+        memoryMb?: number;
         /**
          * Name of the image to build
          */
@@ -6845,6 +6857,10 @@ export type CreateImageData = {
          * Resource type (agent, function, sandbox, job)
          */
         resourceType: string;
+        /**
+         * Temporary scratch disk for the registry import worker in MiB. Only supported when image is a registry reference. When omitted, the platform default is used. Set to 0 to use memory-backed scratch. Positive values are not supported for HIPAA workspaces.
+         */
+        volumeMb?: number;
     };
     path?: never;
     query?: never;
