@@ -81,6 +81,20 @@ export type Config = {
    */
   fsPartRetries?: number;
   /**
+   * Disables the transparent batching of concurrent `SandboxInstance.create()`
+   * calls. When on (the default), unnamed creations with an identical spec
+   * issued within the debounce window are sent as one bulk request
+   * (`POST /sandboxes?count=N`). Set `true` (or `BL_DISABLE_CREATE_BATCHING=1`)
+   * to send every creation on its own.
+   */
+  disableCreateBatching?: boolean;
+  /**
+   * Debounce window, in milliseconds, during which concurrent identical
+   * `SandboxInstance.create()` calls are merged into one bulk request.
+   * Defaults to 5 (`BL_CREATE_BATCH_DEBOUNCE_MS`).
+   */
+  createBatchDebounceMs?: number;
+  /**
    * Retry attempts for transient connection resets on IDEMPOTENT sandbox reads
    * (fs.read/readBinary/ls/search/find/grep, drives.list, process.get/list/logs).
    * Higher than the upload default so a later attempt can span a multi-second
@@ -493,6 +507,31 @@ class Settings {
       }
     }
     return 3;
+  }
+
+  get disableCreateBatching(): boolean {
+    if (typeof this.config.disableCreateBatching === "boolean") {
+      return this.config.disableCreateBatching;
+    }
+    const value = env.BL_DISABLE_CREATE_BATCHING;
+    if (value) {
+      return ["1", "true", "yes", "on"].includes(value.toLowerCase());
+    }
+    return false;
+  }
+
+  get createBatchDebounceMs(): number {
+    if (typeof this.config.createBatchDebounceMs === "number") {
+      return this.config.createBatchDebounceMs;
+    }
+    const value = env.BL_CREATE_BATCH_DEBOUNCE_MS;
+    if (value) {
+      const parsed = parseInt(value, 10);
+      if (!Number.isNaN(parsed) && parsed >= 0) {
+        return parsed;
+      }
+    }
+    return 5;
   }
 
   get sandboxReadRetries(): number {

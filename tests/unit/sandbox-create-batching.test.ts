@@ -1,0 +1,287 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// Mock the generated client so create() can be scripted and its request
+// (body + query) inspected. sandbox.ts imports the same module, so vitest
+// rewires both.
+vi.mock("../../@blaxel/core/src/client/index.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../@blaxel/core/src/client/index.js")>();
+  return { ...actual, createSandbox: vi.fn(), forkSnapshot: vi.fn() };
+});
+
+import { createSandbox, forkSnapshot } from "../../@blaxel/core/src/client/index.js";
+import { CreateBatcher } from "../../@blaxel/core/src/sandbox/create-batcher.js";
+import { SandboxFileSystem } from "../../@blaxel/core/src/sandbox/filesystem/filesystem.js";
+import { SandboxInstance } from "../../@blaxel/core/src/sandbox/sandbox.js";
+import { Snapshot } from "../../@blaxel/core/src/snapshot/index.js";
+
+const mockedCreate = vi.mocked(createSandbox);
+const mockedFork = vi.mocked(forkSnapshot);
+
+type Call = { body: { metadata?: { name?: string }; spec?: { runtime?: { image?: string } } }; query?: { count?: number; createIfNotExist?: boolean } };
+
+const record = (name: string) => ({ metadata: { name }, spec: { runtime: {} }, status: "DEPLOYED" });
+const single = (name: string) => ({ data: record(name), response: { status: 200 } }) as never;
+const many = (names: string[]) => ({ data: names.map(record), response: { status: 200 } }) as never;
+const failure = (status: number, error: unknown) => ({ data: undefined, error, response: { status } }) as never;
+
+const calls = () => mockedCreate.mock.calls.map((c) => c[0] as unknown as Call);
+
+describe("SandboxInstance.create transparent batching", () => {
+  beforeEach(() => {
+    vi.stubEnv("BL_REGION", "");
+    vi.stubEnv("BL_DISABLE_CREATE_BATCHING", "");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    mockedCreate.mockReset();
+    mockedFork.mockReset();
+  });
+
+  it("merges concurrent identical unnamed creates into one ?count=N request", async () => {
+    mockedCreate.mockImplementation(async (opts) => {
+      const { count } = (opts as unknown as Call).query ?? {};
+      return many(Array.from({ length: count ?? 0 }, (_, i) => `srv-${i}`));
+    });
+
+    const instances = await Promise.all([
+      SandboxInstance.create({ image: "custom:latest" }),
+      SandboxInstance.create({ image: "custom:latest" }),
+      SandboxInstance.create({ image: "custom:latest" }),
+    ]);
+
+    expect(calls()).toHaveLength(1);
+    expect(calls()[0].query).toEqual({ count: 3 });
+    expect(calls()[0].body.metadata?.name).toBeUndefined();
+    expect(instances.map((i) => i.metadata.name)).toEqual(["srv-0", "srv-1", "srv-2"]);
+  });
+
+  it("sends a lone create as ?count=1 and still returns one instance", async () => {
+    mockedCreate.mockResolvedValueOnce(many(["only"]));
+
+    const instance = await SandboxInstance.create({ image: "custom:latest" });
+
+    expect(calls()[0].query).toEqual({ count: 1 });
+    expect(instance.metadata.name).toBe("only");
+  });
+
+  it("keeps different specs in different batches", async () => {
+    mockedCreate.mockImplementation(async (opts) => {
+      const call = opts as unknown as Call;
+      const image = call.body.spec?.runtime?.image ?? "";
+      return many(Array.from({ length: call.query?.count ?? 0 }, (_, i) => `${image}-${i}`));
+    });
+
+    const [a, b, c] = await Promise.all([
+      SandboxInstance.create({ image: "a:latest" }),
+      SandboxInstance.create({ image: "b:latest" }),
+      SandboxInstance.create({ image: "a:latest" }),
+    ]);
+
+    expect(calls()).toHaveLength(2);
+    expect(calls().map((c) => c.query?.count).sort()).toEqual([1, 2]);
+    expect(a.metadata.name).toBe("a:latest-0");
+    expect(c.metadata.name).toBe("a:latest-1");
+    expect(b.metadata.name).toBe("b:latest-0");
+  });
+
+  it("never batches named creates, createIfNotExist, or batch: false", async () => {
+    mockedCreate.mockResolvedValue(single("x"));
+
+    await Promise.all([
+      SandboxInstance.create({ name: "named", image: "custom:latest" }),
+      SandboxInstance.create({ image: "custom:latest" }, { createIfNotExist: true }),
+      SandboxInstance.create({ image: "custom:latest" }, { batch: false }),
+    ]);
+
+    expect(calls()).toHaveLength(3);
+    for (const call of calls()) {
+      expect(call.query?.count).toBeUndefined();
+    }
+    expect(calls()[1].query).toEqual({ createIfNotExist: true });
+  });
+
+  it("treats a shorthand config carrying only externalId as a named create", async () => {
+    mockedCreate.mockResolvedValue(single("x"));
+
+    await SandboxInstance.create({ externalId: "job-42" });
+
+    expect(calls()).toHaveLength(1);
+    expect(calls()[0].query).toBeUndefined();
+    expect((calls()[0].body.metadata as { externalId?: string }).externalId).toBe("job-42");
+  });
+
+  it("sends the spec as it was when create() was called, not as later mutated", async () => {
+    mockedCreate.mockResolvedValueOnce(many(["a"]));
+    const model = { spec: { runtime: { image: "a:latest" } } };
+
+    const pending = SandboxInstance.create(model as never);
+    model.spec.runtime.image = "b:latest";
+    await pending;
+
+    expect(calls()[0].body.spec?.runtime?.image).toBe("a:latest");
+  });
+
+  it("respects BL_DISABLE_CREATE_BATCHING", async () => {
+    vi.stubEnv("BL_DISABLE_CREATE_BATCHING", "1");
+    mockedCreate.mockResolvedValue(single("x"));
+
+    await Promise.all([
+      SandboxInstance.create({ image: "custom:latest" }),
+      SandboxInstance.create({ image: "custom:latest" }),
+    ]);
+
+    expect(calls()).toHaveLength(2);
+    expect(calls()[0].query).toBeUndefined();
+  });
+
+  it("rejects every merged caller with the same server error", async () => {
+    const quota = { error: "QUOTA_EXCEEDED", message: "requested 2, limit 1" };
+    mockedCreate.mockResolvedValueOnce(failure(429, quota));
+
+    const results = await Promise.allSettled([
+      SandboxInstance.create({ image: "custom:latest" }),
+      SandboxInstance.create({ image: "custom:latest" }),
+    ]);
+
+    expect(calls()).toHaveLength(1);
+    expect(results.map((r) => r.status)).toEqual(["rejected", "rejected"]);
+    for (const r of results) {
+      expect((r as PromiseRejectedResult).reason).toBe(quota);
+    }
+  });
+
+  it("falls back to single creates when the server ignores count, then stops batching", async () => {
+    const legacy = SandboxInstance as unknown as { bulkUnsupported: boolean };
+    let n = 0;
+    mockedCreate.mockImplementation(async () => single(`legacy-${n++}`));
+
+    const instances = await Promise.all([
+      SandboxInstance.create({ image: "custom:latest" }),
+      SandboxInstance.create({ image: "custom:latest" }),
+      SandboxInstance.create({ image: "custom:latest" }),
+    ]);
+
+    expect(calls()[0].query).toEqual({ count: 3 });
+    expect(calls().slice(1).every((c) => c.query === undefined)).toBe(true);
+    expect(calls()).toHaveLength(3);
+    expect(instances.map((i) => i.metadata.name).sort()).toEqual(["legacy-0", "legacy-1", "legacy-2"]);
+
+    await SandboxInstance.create({ image: "custom:latest" });
+    expect(calls()[3].query).toBeUndefined();
+    legacy.bulkUnsupported = false;
+  });
+
+  it("deletes what the legacy fallback created when one single create fails", async () => {
+    const legacy = SandboxInstance as unknown as { bulkUnsupported: boolean };
+    const boom = { code: "CREATION_FAILED" };
+    let n = 0;
+    mockedCreate.mockImplementation(async () => (n++ === 1 ? failure(500, boom) : single(`legacy-${n - 1}`)));
+    const deleteSpy = vi.spyOn(SandboxInstance, "delete").mockResolvedValue(undefined as never);
+
+    const results = await Promise.allSettled([
+      SandboxInstance.create({ image: "custom:latest" }),
+      SandboxInstance.create({ image: "custom:latest" }),
+      SandboxInstance.create({ image: "custom:latest" }),
+    ]);
+
+    expect(results.every((r) => r.status === "rejected" && r.reason === boom)).toBe(true);
+    expect(deleteSpy.mock.calls.map((c) => c[0]).sort()).toEqual(["legacy-0", "legacy-2"]);
+    deleteSpy.mockRestore();
+    legacy.bulkUnsupported = false;
+  });
+});
+
+describe("CreateBatcher", () => {
+  it("flushes at the max size without waiting for the timer", async () => {
+    const send = vi.fn(async (count: number) => Array.from({ length: count }, (_, i) => i));
+    const batcher = new CreateBatcher<number>(() => 10_000, 3);
+
+    const first = Promise.all([batcher.enqueue("k", send), batcher.enqueue("k", send), batcher.enqueue("k", send)]);
+    expect(await first).toEqual([0, 1, 2]);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledWith(3);
+    expect(batcher.size).toBe(0);
+  });
+
+  it("rejects the group when the server returns the wrong number of records", async () => {
+    const batcher = new CreateBatcher<number>(() => 0);
+    const results = await Promise.allSettled([
+      batcher.enqueue("k", async () => [1]),
+      batcher.enqueue("k", async () => [1]),
+    ]);
+    expect(results.every((r) => r.status === "rejected")).toBe(true);
+  });
+});
+
+describe("SandboxInstance.createMany", () => {
+  beforeEach(() => vi.stubEnv("BL_REGION", ""));
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    mockedCreate.mockReset();
+  });
+
+  it("sends one ?count=N request and returns N instances", async () => {
+    mockedCreate.mockResolvedValueOnce(many(["a", "b", "c", "d"]));
+
+    const instances = await SandboxInstance.createMany(4, { image: "custom:latest" });
+    expect(calls()).toHaveLength(1);
+    expect(calls()[0].query).toEqual({ count: 4 });
+    expect(instances.map((i) => i.metadata.name)).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("refuses names and out-of-range counts before calling the API", async () => {
+    await expect(SandboxInstance.createMany(2, { name: "x" })).rejects.toThrow(/generated names/);
+    await expect(SandboxInstance.createMany(0)).rejects.toThrow(/between 1 and 100/);
+    await expect(SandboxInstance.createMany(101)).rejects.toThrow(/between 1 and 100/);
+    expect(calls()).toHaveLength(0);
+  });
+
+  it("throws the server error as-is", async () => {
+    const quota = { error: "QUOTA_EXCEEDED" };
+    mockedCreate.mockResolvedValueOnce(failure(429, quota));
+    await expect(SandboxInstance.createMany(5, { image: "custom:latest" })).rejects.toBe(quota);
+  });
+
+  it("with safe: true, deletes the whole batch when one sandbox fails the check", async () => {
+    mockedCreate.mockResolvedValueOnce(many(["a", "b", "c"]));
+    const boom = new Error("unreachable");
+    const ls = vi
+      .spyOn(SandboxFileSystem.prototype, "ls")
+      .mockImplementation(function (this: { url: string }) {
+        return this.url.includes("/b") ? Promise.reject(boom) : Promise.resolve({} as never);
+      });
+    const del = vi.spyOn(SandboxInstance, "delete").mockResolvedValue({} as never);
+
+    await expect(SandboxInstance.createMany(3, { image: "custom:latest" }, { safe: true })).rejects.toBe(boom);
+
+    expect(ls).toHaveBeenCalledTimes(3);
+    expect(del.mock.calls.map((c) => c[0]).sort()).toEqual(["a", "b", "c"]);
+    ls.mockRestore();
+    del.mockRestore();
+  });
+});
+
+describe("Snapshot.forkMany", () => {
+  afterEach(() => mockedFork.mockReset());
+
+  it("sends ?count=N without a targetName and returns N forks", async () => {
+    mockedFork.mockResolvedValueOnce({ data: [{ name: "f1", type: "sandbox" }, { name: "f2", type: "sandbox" }] } as never);
+    const snapshot = new Snapshot({ id: "snap-1", name: "snap" } as never);
+
+    const forks = await snapshot.forkMany(2, { envs: [{ name: "A", value: "1" }] });
+
+    const call = mockedFork.mock.calls[0][0] as unknown as { path: { snapshotName: string }; query?: { count?: number }; body: Record<string, unknown> };
+    expect(call.path.snapshotName).toBe("snap-1");
+    expect(call.query).toEqual({ count: 2 });
+    expect(call.body.targetName).toBeUndefined();
+    expect(call.body.targetType).toBe("sandbox");
+    expect(forks.map((f) => f.name)).toEqual(["f1", "f2"]);
+  });
+
+  it("refuses out-of-range counts", async () => {
+    const snapshot = new Snapshot({ id: "snap-1" } as never);
+    await expect(snapshot.forkMany(0)).rejects.toThrow(/between 1 and 100/);
+    expect(mockedFork).not.toHaveBeenCalled();
+  });
+});
