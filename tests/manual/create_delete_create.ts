@@ -23,7 +23,8 @@
  * longer than its 5s wait, which on prod needs the workspace to be busy (CI hits
  * it because the whole integration suite creates/deletes sandboxes at the same
  * time). LOAD=N keeps N create->delete loops on other names running during the
- * rounds to slow the control plane down the same way; BL_REGION=us-was-1 is
+ * rounds to slow the control plane down the same way (LOAD=0 for an idle
+ * workspace, where prod already answers 200); BL_REGION=us-was-1 is
  * what CI uses.
  */
 import { SandboxInstance, settings } from "@blaxel/core"
@@ -31,7 +32,7 @@ import { SandboxInstance, settings } from "@blaxel/core"
 const PLAIN = process.argv.includes("--plain")
 const ROUNDS = parseInt(process.env.ROUNDS || "3", 10)
 const PARALLEL = parseInt(process.env.PARALLEL || "10", 10)
-const LOAD = parseInt(process.env.LOAD || "0", 10)
+const LOAD = parseInt(process.env.LOAD || "10", 10)
 const IMAGE = process.env.IMAGE || "blaxel/base-image:latest"
 const NAME = `create-delete-create-${Math.random().toString(36).slice(2, 8)}`
 const SPEC = { name: NAME, image: IMAGE, memory: 2048 }
