@@ -18,12 +18,20 @@
  * ROUNDS repeats the delete + recreate cycle on the same name. With PARALLEL>1
  * the first creation is also done by PARALLEL concurrent racers on the fresh
  * name (the pure concurrent-creation race).
+ *
+ * The backend only answers 409 when a creation or a deletion of the name takes
+ * longer than its 5s wait, which on prod needs the workspace to be busy (CI hits
+ * it because the whole integration suite creates/deletes sandboxes at the same
+ * time). LOAD=N keeps N create->delete loops on other names running during the
+ * rounds to slow the control plane down the same way; BL_REGION=us-was-1 is
+ * what CI uses.
  */
 import { SandboxInstance, settings } from "@blaxel/core"
 
 const PLAIN = process.argv.includes("--plain")
 const ROUNDS = parseInt(process.env.ROUNDS || "3", 10)
 const PARALLEL = parseInt(process.env.PARALLEL || "10", 10)
+const LOAD = parseInt(process.env.LOAD || "0", 10)
 const IMAGE = process.env.IMAGE || "blaxel/base-image:latest"
 const NAME = `create-delete-create-${Math.random().toString(36).slice(2, 8)}`
 const SPEC = { name: NAME, image: IMAGE, memory: 2048 }
@@ -64,8 +72,39 @@ async function race(label: string, extra: Promise<unknown>[] = []): Promise<Sand
   return ok[0]?.value
 }
 
+/**
+ * LOAD independent names, each doing create -> delete -> create again in a loop.
+ * Besides slowing the control plane down like a busy workspace, every iteration
+ * is itself a "create while the previous row is still DELETING": with the
+ * deletion pushed past the backend's 5s wait, this is where the 409 shows up.
+ */
+function startLoad(stop: { done: boolean }, conflicts: string[]): Promise<void>[] {
+  return Array.from({ length: LOAD }, async (_, i) => {
+    const name = `${NAME}-load-${i}`
+    const spec = { ...SPEC, name }
+    let iteration = 0
+    while (!stop.done) {
+      iteration++
+      try {
+        await (PLAIN ? SandboxInstance.create(spec) : SandboxInstance.createIfNotExists(spec))
+        await SandboxInstance.delete(name)
+      } catch (err) {
+        const msg = `load#${i} iteration ${iteration}: ${describeError(err)}`
+        console.log(`   ${msg}`)
+        if (describeError(err).includes("409")) conflicts.push(msg)
+        await new Promise((r) => setTimeout(r, 2_000))
+      }
+    }
+    await SandboxInstance.delete(name).catch(() => undefined)
+  })
+}
+
 async function main() {
-  console.log(`api=${settings.baseUrl} workspace=${settings.workspace} name=${NAME} mode=${PLAIN ? "create" : "createIfNotExists"} rounds=${ROUNDS} parallel=${PARALLEL}`)
+  console.log(`api=${settings.baseUrl} workspace=${settings.workspace} name=${NAME} mode=${PLAIN ? "create" : "createIfNotExists"} rounds=${ROUNDS} parallel=${PARALLEL} load=${LOAD}`)
+  const stop = { done: false }
+  const conflicts: string[] = []
+  const load = startLoad(stop, conflicts)
+  if (LOAD) await new Promise((r) => setTimeout(r, 3_000))
 
   let current = await race("1. create (fresh name)")
   if (!current) process.exit(1)
@@ -92,9 +131,12 @@ async function main() {
     }
   }
 
+  stop.done = true
+  await Promise.all(load)
   await SandboxInstance.delete(NAME).catch((err: unknown) => console.log(`cleanup delete FAILED: ${describeError(err)}`))
   console.log(`${ROUNDS - failedRounds}/${ROUNDS} rounds re-created the sandbox while it was deleting`)
-  process.exit(failedRounds ? 2 : 0)
+  if (LOAD) console.log(`${conflicts.length} 409s in the ${LOAD} background create->delete->create loops`)
+  process.exit(failedRounds || conflicts.length ? 2 : 0)
 }
 
 main().catch((err) => {
