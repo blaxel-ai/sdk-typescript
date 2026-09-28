@@ -16,14 +16,6 @@ import { SandboxSessions } from "./session.js";
 import { SandboxSystem } from "./system.js";
 import { normalizeEnvs, normalizePorts, normalizeVolumes, SandboxConfiguration, SandboxCreateConfiguration, SandboxUpdateMetadata, SandboxUpdateNetwork, SessionWithToken } from "./types.js";
 
-const NON_REUSABLE_SANDBOX_STATUSES = new Set([
-  "FAILED",
-  "TERMINATED",
-  "TERMINATING",
-  "DELETING",
-  "DEACTIVATING",
-]);
-
 export type SandboxListQuery = NonNullable<ListSandboxesData["query"]>;
 
 export type SandboxForkOptions = {
@@ -51,18 +43,6 @@ export type SandboxForkOptions = {
    */
   envs?: Env[];
 };
-
-// Statuses that resolve on their own (a delete or deactivation in flight). The control
-// plane keeps answering 409 to creates while the record is in one of these, so retrying
-// instantly burns the whole attempt budget inside the window. Terminal statuses
-// (FAILED, TERMINATED) accept a create immediately and are not listed here.
-const TRANSIENT_SANDBOX_STATUSES = new Set([
-  "TERMINATING",
-  "DELETING",
-  "DEACTIVATING",
-]);
-const TRANSIENT_STATUS_MAX_WAIT_MS = 30_000;
-const TRANSIENT_STATUS_POLL_MS = 500;
 
 // Archiving a filesystem, and restoring it, take as long as that filesystem is
 // big — minutes for a few gigabytes.
@@ -667,73 +647,16 @@ export class SandboxInstance {
     return SandboxInstance.attachH2Session(instance);
   }
 
+  /**
+   * Create the sandbox, or return the one already holding this name.
+   *
+   * The control plane owns the reconciliation: an alive sandbox is returned as
+   * is, a FAILED/TERMINATED one is replaced, and a deletion or concurrent
+   * creation still in flight is waited for server-side. A 409 therefore only
+   * surfaces when the name really cannot be used, and is thrown as is.
+   */
   static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration) {
-    const ATTEMPTS = 3;
-    let lastStatus = "unknown";
-    // The 'vanished' window (create 409s while get 404s) is driven by the same
-    // transient causes as 'dying': an in-flight delete finishing, or a
-    // concurrent create whose row is not readable yet. Give it the same time
-    // budget as waitWhileSandboxDying instead of burning the attempt budget
-    // 500ms apart (~1s total), which threw on deletes taking >1s (ENG-3667).
-    const vanishedDeadline = Date.now() + TRANSIENT_STATUS_MAX_WAIT_MS;
-    for (let i = 0; i < ATTEMPTS; ++i) {
-      const finalAttempt = i === ATTEMPTS - 1;
-      try {
-        return await this.create(sandbox, { createIfNotExist: true });
-      } catch (e) {
-        if (typeof e === "object" && e !== null && "code" in e && (e.code === 409 || e.code === 'SANDBOX_ALREADY_EXISTS')) {
-          const name = 'name' in sandbox ? sandbox.name : (sandbox as SandboxModel).metadata.name
-          if (!name) {
-            throw new Error("Sandbox name is required");
-          }
-
-          // The controlplane tags the creation-lock 409 with
-          // reason=CREATION_IN_PROGRESS when the conflict comes from a
-          // concurrent create still in flight (ENG-3776). The field is absent
-          // on older controlplanes and on real row conflicts, so it only
-          // sharpens the give-up error; the polling behavior is the same.
-          const creationInProgress = (e as { reason?: unknown }).reason === "CREATION_IN_PROGRESS";
-
-          // Get the existing sandbox to check its status
-          let sandboxInstance: SandboxInstance;
-          try {
-            sandboxInstance = await this.get(name);
-          } catch (getError) {
-            if (isSandboxNotFound(getError)) {
-              // The record vanished between the create conflict and this status check.
-              lastStatus = creationInProgress ? "creation in progress" : "vanished";
-              if (Date.now() < vanishedDeadline) {
-                // Inside the transient window: poll without consuming attempts.
-                await new Promise((resolve) => setTimeout(resolve, TRANSIENT_STATUS_POLL_MS));
-                --i;
-              } else if (!finalAttempt) {
-                await new Promise((resolve) => setTimeout(resolve, TRANSIENT_STATUS_POLL_MS));
-              }
-              continue;
-            }
-            throw getError;
-          }
-
-          // Recreate instead of returning sandbox records that cannot be reused.
-          if (!NON_REUSABLE_SANDBOX_STATUSES.has(sandboxInstance.status ?? "")) {
-            return sandboxInstance;
-          }
-
-          // A delete or deactivation in flight rejects creates until it finishes;
-          // wait it out instead of burning the remaining attempts inside the window.
-          // No point waiting after the last attempt: nothing will use the result.
-          lastStatus = sandboxInstance.status ?? "unknown";
-          if (TRANSIENT_SANDBOX_STATUSES.has(lastStatus) && !finalAttempt) {
-            await this.waitWhileSandboxDying(name);
-          }
-
-          // Retry creation. We want the same error handling on the retry as creates can race.
-          continue;
-        }
-        throw e;
-      }
-    }
-    throw new Error(`Unable to create sandbox after ${ATTEMPTS} attempts. Last conflicting status: ${lastStatus}.`);
+    return this.create(sandbox, { createIfNotExist: true });
   }
 
   // Poll the record after a create was cut by the edge with a 504 while the
@@ -763,25 +686,6 @@ export class SandboxInstance {
       }
     }
     throw createError;
-  }
-
-  // Poll the record until an in-flight delete/deactivation settles (or the record
-  // disappears), bounded by TRANSIENT_STATUS_MAX_WAIT_MS. Errors from get (e.g. 404
-  // once the record is gone) end the wait: the caller's create retry decides next.
-  private static async waitWhileSandboxDying(name: string): Promise<void> {
-    const deadline = Date.now() + TRANSIENT_STATUS_MAX_WAIT_MS;
-    while (Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, TRANSIENT_STATUS_POLL_MS));
-      try {
-        const current = await this.get(name);
-        if (!TRANSIENT_SANDBOX_STATUSES.has(current.status ?? "")) {
-          return;
-        }
-        logger.debug(`Sandbox ${name} still ${current.status}; waiting for the record to settle before recreating`);
-      } catch {
-        return;
-      }
-    }
   }
 
   /* eslint-disable */
