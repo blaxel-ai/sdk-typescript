@@ -1,46 +1,43 @@
 /**
  * create -> delete -> create again on the same name, without waiting for the
  * deletion to land. Shows what the control plane answers while the row is
- * still DELETING.
+ * still DELETING or while another creation of the same name is in flight.
  *
- *   - Before controlplane#5585: 409 SANDBOX_ALREADY_EXISTS after ~5s.
- *   - After: createIfNotExists waits it out (1s/2s/4s backoff) and returns 200.
- *     A plain create still gets the 409.
+ *   - Before controlplane#5585: a single create during a fast delete already
+ *     fits in the backend's 5s wait and gets 200, but PARALLEL createIfNotExists
+ *     on one name (fresh, or racing the delete) get 409 SANDBOX_ALREADY_EXISTS.
+ *   - After: createIfNotExists waits it out (1s/2s/4s backoff) and every racer
+ *     returns 200. A plain create still gets the 409.
  *
  * Usage:
- *   npx tsx tests/manual/create_delete_create.ts            # createIfNotExists
- *   npx tsx tests/manual/create_delete_create.ts --plain    # plain create
- *   BL_ENV=dev BL_REGION=eu-dub-1 ROUNDS=5 npx tsx tests/manual/create_delete_create.ts
+ *   tsx tests/manual/create_delete_create.ts                # 10 racers x 3 rounds (reproduces the 409 on prod)
+ *   PARALLEL=1 tsx tests/manual/create_delete_create.ts     # single create during the delete (no 409 on prod)
+ *   tsx tests/manual/create_delete_create.ts --plain        # plain create instead of createIfNotExists
+ *   BL_ENV=dev BL_REGION=eu-dub-1 tsx tests/manual/create_delete_create.ts
  *
- * ROUNDS repeats the cycle on the same name: the 409 only shows up when the
- * deletion takes longer than the control plane's wait, so several rounds give
- * it a chance to happen.
+ * ROUNDS repeats the delete + recreate cycle on the same name. With PARALLEL>1
+ * the first creation is also done by PARALLEL concurrent racers on the fresh
+ * name (the pure concurrent-creation race).
  */
 import { SandboxInstance, settings } from "@blaxel/core"
 
 const PLAIN = process.argv.includes("--plain")
-const ROUNDS = parseInt(process.env.ROUNDS || "1", 10)
-const IMAGE = "blaxel/base-image:latest"
+const ROUNDS = parseInt(process.env.ROUNDS || "3", 10)
+const PARALLEL = parseInt(process.env.PARALLEL || "10", 10)
+const IMAGE = process.env.IMAGE || "blaxel/base-image:latest"
 const NAME = `create-delete-create-${Math.random().toString(36).slice(2, 8)}`
+const SPEC = { name: NAME, image: IMAGE, memory: 2048 }
 
-type ApiError = { error?: string; code?: string; status?: number }
+type ApiError = { error?: string; code?: string; status?: number; status_code?: number }
 
 function describeError(err: unknown): string {
   if (err instanceof Error) return err.message
   const e = err as ApiError
-  return JSON.stringify({ status: e.status, code: e.code, error: e.error })
+  return JSON.stringify({ status: e.status ?? e.status_code, code: e.code, error: e.error })
 }
 
-async function timed<T>(label: string, fn: () => Promise<T>): Promise<T | undefined> {
-  const t0 = Date.now()
-  try {
-    const result = await fn()
-    console.log(`[${label}] ok in ${Date.now() - t0}ms`)
-    return result
-  } catch (err) {
-    console.log(`[${label}] FAILED in ${Date.now() - t0}ms: ${describeError(err)}`)
-    return undefined
-  }
+function createOnce(): Promise<SandboxInstance> {
+  return PLAIN ? SandboxInstance.create(SPEC) : SandboxInstance.createIfNotExists(SPEC)
 }
 
 async function statusOf(name: string): Promise<string> {
@@ -52,51 +49,52 @@ async function statusOf(name: string): Promise<string> {
   }
 }
 
-async function round(first: SandboxInstance): Promise<SandboxInstance | undefined> {
-  await timed("2. delete", () => SandboxInstance.delete(NAME))
-  console.log(`   status right after delete: ${await statusOf(NAME)}`)
-
-  const second = await timed(PLAIN ? "3. create (plain)" : "3. createIfNotExists", () =>
-    PLAIN
-      ? SandboxInstance.create({ name: NAME, image: IMAGE, memory: 2048 })
-      : SandboxInstance.createIfNotExists({ name: NAME, image: IMAGE, memory: 2048 }),
-  )
-  if (second) {
-    const recreated = second.metadata.createdAt !== first.metadata.createdAt
-    console.log(`   returned status=${second.status} ${recreated ? "new row" : "SAME row as before the delete"} createdAt=${second.metadata.createdAt}`)
-  }
-  console.log(`   status now: ${await statusOf(NAME)}`)
-  return second
+/** Fires `PARALLEL` creates (plus `extra`, e.g. the delete) together and logs each outcome. */
+async function race(label: string, extra: Promise<unknown>[] = []): Promise<SandboxInstance | undefined> {
+  const t0 = Date.now()
+  const results = await Promise.allSettled([...extra, ...Array.from({ length: PARALLEL }, createOnce)])
+  const creates = results.slice(extra.length)
+  const ok = creates.filter((r): r is PromiseFulfilledResult<SandboxInstance> => r.status === "fulfilled")
+  console.log(`[${label}] ${ok.length}/${PARALLEL} ok in ${Date.now() - t0}ms`)
+  creates.forEach((r, i) => {
+    if (r.status === "rejected") console.log(`   call#${i} FAILED: ${describeError(r.reason)}`)
+  })
+  const rows = new Set(ok.map((r) => r.value.metadata.createdAt))
+  if (ok.length) console.log(`   createdAt seen: ${[...rows].join(", ")}`)
+  return ok[0]?.value
 }
 
 async function main() {
-  console.log(`api=${settings.baseUrl} workspace=${settings.workspace} name=${NAME} mode=${PLAIN ? "create" : "createIfNotExists"} rounds=${ROUNDS}`)
+  console.log(`api=${settings.baseUrl} workspace=${settings.workspace} name=${NAME} mode=${PLAIN ? "create" : "createIfNotExists"} rounds=${ROUNDS} parallel=${PARALLEL}`)
 
-  let current = await timed("1. create", () =>
-    SandboxInstance.create({ name: NAME, image: IMAGE, memory: 2048 }),
-  )
+  let current = await race("1. create (fresh name)")
   if (!current) process.exit(1)
 
-  let failures = 0
+  let failedRounds = 0
   for (let i = 1; i <= ROUNDS; i++) {
     console.log(`--- round ${i}/${ROUNDS}`)
-    const next = await round(current)
+    const before = current.metadata.createdAt
+    const del = SandboxInstance.delete(NAME).then(
+      () => console.log("   delete ok"),
+      (err: unknown) => console.log(`   delete FAILED: ${describeError(err)}`),
+    )
+    const next = await race("2. delete + create", [del])
+    console.log(`   status now: ${await statusOf(NAME)}`)
     if (!next) {
-      failures++
-      // The name is still held by the deleting row; wait for it to go so the
+      failedRounds++
+      // The name is still held by the deleting row; give it a moment so the
       // next round starts from a live sandbox again.
-      current = (await timed("   recover create", () => SandboxInstance.create({ name: NAME, image: IMAGE, memory: 2048 }).catch(async () => {
-        await new Promise((r) => setTimeout(r, 10_000))
-        return SandboxInstance.create({ name: NAME, image: IMAGE, memory: 2048 })
-      }))) ?? current
+      await new Promise((r) => setTimeout(r, 10_000))
+      current = (await race("   recover create")) ?? current
     } else {
+      console.log(`   ${next.metadata.createdAt === before ? "SAME row as before the delete" : "new row"}`)
       current = next
     }
   }
 
-  await timed("4. cleanup delete", () => SandboxInstance.delete(NAME))
-  console.log(`${ROUNDS - failures}/${ROUNDS} rounds re-created the sandbox while it was deleting`)
-  process.exit(failures ? 2 : 0)
+  await SandboxInstance.delete(NAME).catch((err: unknown) => console.log(`cleanup delete FAILED: ${describeError(err)}`))
+  console.log(`${ROUNDS - failedRounds}/${ROUNDS} rounds re-created the sandbox while it was deleting`)
+  process.exit(failedRounds ? 2 : 0)
 }
 
 main().catch((err) => {
