@@ -46,6 +46,7 @@ const ITERATIONS = parseInt(process.env.ITERATIONS || "5", 10)
 const TARGET = process.env.TARGET || "https://example.com"
 const CLEANUP = (process.env.CLEANUP ?? "true") === "true"
 const CONTROL = (process.env.CONTROL ?? "true") === "true"
+const ts = () => new Date().toISOString().slice(11, 23)
 const TARGET_HOST = new URL(TARGET).hostname
 
 const NO_PROXY_ENV = "env -u HTTP_PROXY -u http_proxy -u HTTPS_PROXY -u https_proxy -u NO_PROXY -u no_proxy"
@@ -115,7 +116,7 @@ async function createWhenGone(tag: string, config: Parameters<typeof SandboxInst
     } catch (err) {
       const text = errText(err)
       if (!text.includes("SANDBOX_ALREADY_EXISTS") || attempt >= 30) throw err
-      if (attempt === 1) console.log(`${tag} previous sandbox still exists, retrying the create every 500ms`)
+      if (attempt === 1) console.log(`${ts()} ${tag} previous sandbox still exists, retrying the create every 500ms`)
       await sleep(500)
     }
   }
@@ -140,11 +141,11 @@ async function iteration(n: number): Promise<Iteration> {
       },
     }, it)
     it.createMs = Date.now() - createStart
-    console.log(`${tag} create ok in ${it.createMs}ms (attempts=${it.createAttempts})`)
+    console.log(`${ts()} ${tag} create ok in ${it.createMs}ms (attempts=${it.createAttempts})`)
   } catch (err) {
     it.createMs = Date.now() - createStart
     it.createError = errText(err)
-    console.error(`${tag} CREATE REJECTED after ${it.createMs}ms: ${it.createError}`)
+    console.error(`${ts()} ${tag} CREATE REJECTED after ${it.createMs}ms: ${it.createError}`)
     return it
   }
 
@@ -156,10 +157,10 @@ async function iteration(n: number): Promise<Iteration> {
     it.directExit = direct.exitCode
     it.directLogs = (direct.logs ?? "").trim()
     const verdict = direct.exitCode === 0 ? "LEAK (direct egress succeeded)" : direct.exitCode === -1 || direct.exitCode === 124 ? "blocked (dropped, killed by timeout)" : "blocked (refused)"
-    console.log(`${tag} direct probe: exit=${direct.exitCode} status=${direct.status} → ${verdict} (${it.directLogs.slice(0, 120)})`)
+    console.log(`${ts()} ${tag} direct probe: exit=${direct.exitCode} status=${direct.status} → ${verdict} (${it.directLogs.slice(0, 120)})`)
   } catch (err) {
     it.directLogs = errText(err)
-    console.error(`${tag} direct probe exec REJECTED: ${it.directLogs}`)
+    console.error(`${ts()} ${tag} direct probe exec REJECTED: ${it.directLogs}`)
   }
 
   // 2. steady state through the proxy, retried while the proxy warms up.
@@ -176,17 +177,17 @@ async function iteration(n: number): Promise<Iteration> {
     }
     await sleep(2000)
   }
-  console.log(`${tag} proxied probe: http=${it.proxiedCode ?? "-"} after ${it.proxiedTries} tries (${(it.proxiedLogs ?? "").slice(0, 120)})`)
+  console.log(`${ts()} ${tag} proxied probe: http=${it.proxiedCode ?? "-"} after ${it.proxiedTries} tries (${(it.proxiedLogs ?? "").slice(0, 120)})`)
 
   if (n < ITERATIONS || CLEANUP) {
     const deleteStart = Date.now()
     try {
       await SandboxInstance.delete(NAME)
       it.deleteMs = Date.now() - deleteStart
-      console.log(`${tag} delete ok in ${it.deleteMs}ms`)
+      console.log(`${ts()} ${tag} delete ok in ${it.deleteMs}ms`)
     } catch (err) {
       it.deleteError = errText(err)
-      console.error(`${tag} DELETE REJECTED: ${it.deleteError}`)
+      console.error(`${ts()} ${tag} DELETE REJECTED: ${it.deleteError}`)
     }
   }
   return it
@@ -201,10 +202,10 @@ async function control(): Promise<void> {
   try {
     const direct = await sandbox.process.exec({ command: DIRECT_PROBE, waitForCompletion: true })
     const logs = (direct.logs ?? "").trim()
-    console.log(`${tag} direct probe without lockdown: exit=${direct.exitCode} (${logs.slice(0, 120)})`)
+    console.log(`${ts()} ${tag} direct probe without lockdown: exit=${direct.exitCode} (${logs.slice(0, 120)})`)
     if (direct.exitCode !== 0) throw new Error(`control probe failed (exit=${direct.exitCode}): the probe does not reach ${TARGET} even without lockdown`)
   } finally {
-    await SandboxInstance.delete(name).catch((err) => console.error(`${tag} DELETE REJECTED: ${errText(err)}`))
+    await SandboxInstance.delete(name).catch((err) => console.error(`${ts()} ${tag} DELETE REJECTED: ${errText(err)}`))
   }
 }
 
