@@ -43,11 +43,16 @@ const NAME = process.env.NAME || `lockdown-race-${uuidv4().replace(/-/g, "").sub
 const IMAGE = process.env.IMAGE || "blaxel/base-image:latest"
 const REGION = process.env.REGION || process.env.BL_REGION || (process.env.BL_ENV === "dev" ? "eu-dub-1" : "us-was-1")
 const ITERATIONS = parseInt(process.env.ITERATIONS || "5", 10)
-const TARGET = process.env.TARGET || "https://example.com"
+const TARGET = new URL(process.env.TARGET || "https://example.com").href
 const CLEANUP = (process.env.CLEANUP ?? "true") === "true"
 const CONTROL = (process.env.CONTROL ?? "true") === "true"
 const ts = () => new Date().toISOString().slice(11, 23)
-const TARGET_HOST = new URL(TARGET).hostname
+const TARGET_URL = new URL(TARGET)
+const TARGET_HOST = TARGET_URL.hostname
+// TARGET is interpolated into shell commands run in the sandboxes.
+if (TARGET_URL.protocol !== "https:" || /[\s"'`$\\;|&<>()]/.test(TARGET)) {
+  throw new Error(`TARGET must be a plain https URL, got ${TARGET}`)
+}
 
 const NO_PROXY_ENV = "env -u HTTP_PROXY -u http_proxy -u HTTPS_PROXY -u https_proxy -u NO_PROXY -u no_proxy"
 // Plain node https.get: no proxy awareness, so with the env stripped it goes direct.
@@ -67,15 +72,18 @@ const onSocket = (sock) => {
     buf += c; if (!buf.includes("\\r\\n\\r\\n")) return; sock.removeListener("data", h);
     const code = parseInt(buf.split(" ")[1]);
     if (code !== 200) { console.error("CONNECT " + code); process.exit(1) }
-    https.get({ host: target.hostname, path: target.pathname, socket: sock, agent: false, servername: target.hostname }, (r) => { console.log(r.statusCode); process.exit(0) })
+    https.get({ host: target.hostname, port: target.port || 443, path: target.pathname + target.search, socket: sock, agent: false, servername: target.hostname }, (r) => { console.log(r.statusCode); process.exit(0) })
       .on("error", (e) => { console.error(e.code || e.message); process.exit(1) });
   });
-  sock.write("CONNECT " + target.hostname + ":443 HTTP/1.1\\r\\nHost: " + target.hostname + ":443\\r\\n" + auth + "\\r\\n");
+  const hostPort = target.hostname + ":" + (target.port || 443);
+  sock.write("CONNECT " + hostPort + " HTTP/1.1\\r\\nHost: " + hostPort + "\\r\\n" + auth + "\\r\\n");
 };
 const s = proxy.protocol === "https:" ? tls.connect({ host: proxy.hostname, port }, () => onSocket(s)) : net.connect({ host: proxy.hostname, port }, () => onSocket(s));
 s.on("error", (e) => { console.error("PROXY " + (e.code || e.message)); process.exit(1) });
 `.trim()
 const PROXIED_PROBE = `node ${PROXY_PROBE_PATH} ${TARGET}`
+// What node reports when the connection is refused, reset or unroutable.
+const NETWORK_ERRORS = /E(CONNREFUSED|CONNRESET|HOSTUNREACH|NETUNREACH|TIMEDOUT|AI_AGAIN|NOTFOUND|PIPE)\b/
 
 type Iteration = {
   n: number
@@ -83,6 +91,7 @@ type Iteration = {
   createAttempts?: number
   createError?: string
   directExit?: number
+  directInvalid?: boolean
   directLogs?: string
   directAfterMs?: number
   proxiedCode?: string
@@ -156,28 +165,40 @@ async function iteration(n: number): Promise<Iteration> {
     it.directAfterMs = Date.now() - probeStart
     it.directExit = direct.exitCode
     it.directLogs = (direct.logs ?? "").trim()
-    const verdict = direct.exitCode === 0 ? "LEAK (direct egress succeeded)" : direct.exitCode === -1 || direct.exitCode === 124 ? "blocked (dropped, killed by timeout)" : "blocked (refused)"
+    let verdict: string
+    if (direct.exitCode === 0) verdict = "LEAK (direct egress succeeded)"
+    else if (direct.exitCode === -1 || direct.exitCode === 124) verdict = "blocked (dropped, killed by timeout)"
+    else if (NETWORK_ERRORS.test(it.directLogs)) verdict = "blocked (refused)"
+    else {
+      it.directInvalid = true
+      verdict = "INVALID (the probe failed for another reason than the network)"
+    }
     console.log(`${ts()} ${tag} direct probe: exit=${direct.exitCode} status=${direct.status} → ${verdict} (${it.directLogs.slice(0, 120)})`)
   } catch (err) {
+    it.directInvalid = true
     it.directLogs = errText(err)
     console.error(`${ts()} ${tag} direct probe exec REJECTED: ${it.directLogs}`)
   }
 
   // 2. steady state through the proxy, retried while the proxy warms up.
-  await sandbox.fs.write(PROXY_PROBE_PATH, PROXY_PROBE_SCRIPT)
-  for (let tries = 1; tries <= 10; tries++) {
-    it.proxiedTries = tries
-    try {
-      const proxied = await sandbox.process.exec({ command: PROXIED_PROBE, waitForCompletion: true })
-      it.proxiedLogs = (proxied.logs ?? "").trim()
-      it.proxiedCode = it.proxiedLogs.split("\n").pop()?.trim()
-      if (proxied.exitCode === 0 && it.proxiedCode === "200") break
-    } catch (err) {
-      it.proxiedLogs = errText(err)
+  try {
+    await sandbox.fs.write(PROXY_PROBE_PATH, PROXY_PROBE_SCRIPT)
+    for (let tries = 1; tries <= 10; tries++) {
+      it.proxiedTries = tries
+      try {
+        const proxied = await sandbox.process.exec({ command: PROXIED_PROBE, waitForCompletion: true })
+        it.proxiedLogs = (proxied.logs ?? "").trim()
+        it.proxiedCode = it.proxiedLogs.split("\n").pop()?.trim()
+        if (proxied.exitCode === 0 && it.proxiedCode === "200") break
+      } catch (err) {
+        it.proxiedLogs = errText(err)
+      }
+      await sleep(2000)
     }
-    await sleep(2000)
+  } catch (err) {
+    it.proxiedLogs = errText(err)
   }
-  console.log(`${ts()} ${tag} proxied probe: http=${it.proxiedCode ?? "-"} after ${it.proxiedTries} tries (${(it.proxiedLogs ?? "").slice(0, 120)})`)
+  console.log(`${ts()} ${tag} proxied probe: http=${it.proxiedCode ?? "-"} after ${it.proxiedTries ?? 0} tries (${(it.proxiedLogs ?? "").slice(0, 120)})`)
 
   if (n < ITERATIONS || CLEANUP) {
     const deleteStart = Date.now()
@@ -229,10 +250,12 @@ async function main() {
   }
 
   const leaks = results.filter((r) => r.directExit === 0).length
+  const invalidProbes = results.filter((r) => !r.createError && (r.directExit === undefined || r.directInvalid)).length
   const createFailures = results.filter((r) => r.createError).length
   const notProxied = results.filter((r) => !r.createError && r.proxiedCode !== "200").length
-  console.log(`\nleaks=${leaks} createFailures=${createFailures} notReachableViaProxy=${notProxied}`)
-  if (leaks || createFailures || notProxied) process.exit(1)
+  const deleteFailures = results.filter((r) => r.deleteError).length
+  console.log(`\nleaks=${leaks} invalidProbes=${invalidProbes} createFailures=${createFailures} notReachableViaProxy=${notProxied} deleteFailures=${deleteFailures}`)
+  if (leaks || invalidProbes || createFailures || notProxied || deleteFailures) process.exit(1)
 }
 
 main().catch((err) => {
