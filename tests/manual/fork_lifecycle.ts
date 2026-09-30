@@ -160,7 +160,10 @@ async function updateLifecycleKeepsInstance(name: string, label: string) {
   let watchUntil = Infinity
   const watcher = (async () => {
     while (Date.now() < watchUntil) {
-      const s = (await SandboxInstance.get(name)).status ?? "?"
+      const s = await SandboxInstance.get(name).then(
+        (sbx) => sbx.status ?? "?",
+        () => "<get failed>",
+      )
       if (statuses[statuses.length - 1] !== s) statuses.push(s)
       await sleep(500)
     }
