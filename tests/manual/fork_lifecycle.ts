@@ -9,8 +9,7 @@
 //      legacy ttl (spec.runtime.ttl), write a marker file on its rootfs.
 //   2. Fork it. Check the fork's record carries the source's lifecycle and ttl,
 //      and that the marker was copied.
-//   3. Fork it again asking for a lifecycle in the fork request body (the SDK
-//      has no option for it, so the raw client is called). Check the fork got it.
+//   3. Fork it again with fork(name, { lifecycle }). Check the fork got it.
 //   4. On the first fork: write a second file, read the kernel boot_id, call
 //      SandboxInstance.updateLifecycle(). Then check the boot_id did not change
 //      (no restart), both files are still there, and the new policy is stored.
@@ -32,7 +31,7 @@
 //              for Enter after the forks and after each lifecycle update, and
 //              prints the kubectl command showing the pod's janitor annotations)
 
-import { forkSandbox, SandboxInstance, type SandboxLifecycle } from "@blaxel/core"
+import { SandboxInstance, type SandboxLifecycle } from "@blaxel/core"
 import { v4 as uuidv4 } from "uuid"
 
 const IMAGE = process.env.IMAGE || "blaxel/base-image:latest"
@@ -236,11 +235,7 @@ async function main() {
   // 3. fork with a lifecycle in the request
   console.log(`${ts()} [fork+lifecycle] ${SOURCE} → ${FORK_WITH_LC} with ${policiesOf(REQUESTED_FORK_LIFECYCLE)}`)
   try {
-    await forkSandbox({
-      path: { sandboxName: SOURCE },
-      body: { targetName: FORK_WITH_LC, targetType: "sandbox", lifecycle: REQUESTED_FORK_LIFECYCLE } as Parameters<typeof forkSandbox>[0]["body"],
-      throwOnError: true,
-    })
+    await source.fork(FORK_WITH_LC, { lifecycle: REQUESTED_FORK_LIFECYCLE })
     created.push(FORK_WITH_LC)
     const withLc = await SandboxInstance.get(FORK_WITH_LC)
     check(policiesOf(withLc.spec.lifecycle) === policiesOf(REQUESTED_FORK_LIFECYCLE), "fork request honors lifecycle", `fork=${policiesOf(withLc.spec.lifecycle)}`)
