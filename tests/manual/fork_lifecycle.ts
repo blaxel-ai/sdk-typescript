@@ -25,7 +25,7 @@
 //
 // Env vars:
 //   IMAGE      sandbox image (default blaxel/base-image:latest)
-//   REGION     region (default BL_REGION, or eu-dub-1 on dev / us-was-1 elsewhere)
+//   REGION     region (default BL_REGION, or us-was-1; fork is not available on eu-dub-1)
 //   CONTROL    also run the updateLifecycle check on the (non-fork) source (default "true")
 //   CLEANUP    delete every sandbox at the end (default "true")
 
@@ -33,7 +33,7 @@ import { forkSandbox, SandboxInstance, type SandboxLifecycle } from "@blaxel/cor
 import { v4 as uuidv4 } from "uuid"
 
 const IMAGE = process.env.IMAGE || "blaxel/base-image:latest"
-const REGION = process.env.REGION || process.env.BL_REGION || (process.env.BL_ENV === "dev" ? "eu-dub-1" : "us-was-1")
+const REGION = process.env.REGION || process.env.BL_REGION || "us-was-1"
 const CONTROL = (process.env.CONTROL ?? "true") === "true"
 const CLEANUP = (process.env.CLEANUP ?? "true") === "true"
 
