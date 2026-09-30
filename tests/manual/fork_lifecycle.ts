@@ -135,9 +135,13 @@ async function exec(sbx: SandboxInstance, command: string, tries = 30): Promise<
 }
 
 const bootId = (sbx: SandboxInstance) => exec(sbx, "cat /proc/sys/kernel/random/boot_id")
+// Succeeds whether or not the file exists, so exec only retries while the
+// guest is unreachable and a missing file is reported as undefined.
+const MISSING = "<no-such-file>"
 const readFile = async (sbx: SandboxInstance, path: string) => {
   try {
-    return await exec(sbx, `cat ${path}`, 3)
+    const out = await exec(sbx, `if [ -f ${path} ]; then cat ${path}; else echo -n '${MISSING}'; fi`)
+    return out === MISSING ? undefined : out
   } catch (err) {
     console.log(`${ts()}   read ${path} on ${sbx.metadata.name} failed: ${errText(err)}`)
     return undefined
