@@ -28,6 +28,9 @@
 //   REGION     region (default BL_REGION, or us-was-1; fork is not available on eu-dub-1)
 //   CONTROL    also run the updateLifecycle check on the (non-fork) source (default "true")
 //   CLEANUP    delete every sandbox at the end (default "true")
+//   NO_PAUSE   do not stop for the Kubernetes check (by default the script waits
+//              for Enter after the forks and after each lifecycle update, and
+//              prints the kubectl command showing the pod's janitor annotations)
 
 import { forkSandbox, SandboxInstance, type SandboxLifecycle } from "@blaxel/core"
 import { v4 as uuidv4 } from "uuid"
@@ -78,6 +81,33 @@ const errText = (err: unknown): string => {
 function check(ok: boolean, label: string, detail = "") {
   console.log(`${ts()}   ${ok ? "ok  " : "BUG "} ${label}${detail ? ` — ${detail}` : ""}`)
   if (!ok) bugs.push(`${label}${detail ? ` — ${detail}` : ""}`)
+}
+
+// The pod of an mk3 sandbox is sbx-<name>-<workspace id>, and the workspace id
+// is the last segment of the first label of the sandbox URL.
+function podOf(sbx: SandboxInstance) {
+  const host = sbx.metadata.url ? new URL(sbx.metadata.url).hostname.split(".")[0] : ""
+  const workspaceId = host.split("-").pop()
+  return workspaceId ? `sbx-${sbx.metadata.name}-${workspaceId}` : `<pod of ${sbx.metadata.name}>`
+}
+
+async function k8sBreak(step: string, expected: Record<string, SandboxLifecycle | null>) {
+  const namespace = `${process.env.BL_ENV === "dev" ? "dev" : "prod"}-${process.env.BL_WORKSPACE}`
+  console.log(`\n${ts()} ── Kubernetes check: ${step}`)
+  for (const [name, lifecycle] of Object.entries(expected)) {
+    const pod = podOf(await SandboxInstance.get(name))
+    console.log(`  ${name} expects ${policiesOf(lifecycle)}`)
+    console.log(`    kubectl -n ${namespace} get pod ${pod} -o json | jq '.metadata | {creationTimestamp, uid, annotations: (.annotations | with_entries(select(.key | startswith("janitor/") or . == "lastUsedAt")))}'`)
+  }
+  if (process.env.NO_PAUSE) return
+  process.stdout.write(">>> Press Enter to continue (or set NO_PAUSE=1 to skip): ")
+  await new Promise<void>((resolve) => {
+    process.stdin.resume()
+    process.stdin.once("data", () => {
+      process.stdin.pause()
+      resolve()
+    })
+  })
 }
 
 const policiesOf = (lc: SandboxLifecycle | null | undefined) =>
@@ -144,6 +174,8 @@ async function updateLifecycleKeepsInstance(name: string, label: string) {
   const events = (after.events ?? []).slice(-4).map((e) => `${e.type}/${e.status}`).join(", ")
   console.log(`${ts()}   last events: ${events}`)
 
+  await k8sBreak(`after updateLifecycle on ${name} (pod must keep its uid/creationTimestamp)`, { [name]: UPDATED_LIFECYCLE })
+
   check(policiesOf(after.spec.lifecycle) === policiesOf(UPDATED_LIFECYCLE), `${label}: new lifecycle stored`, policiesOf(after.spec.lifecycle))
   check(!statuses.some((s) => s !== "DEPLOYED"), `${label}: status stayed DEPLOYED`, statuses.join(" → "))
   check(bootAfter === bootBefore, `${label}: instance not restarted (same boot_id)`, `${bootBefore} → ${bootAfter}`)
@@ -196,6 +228,10 @@ async function main() {
   } catch (err) {
     check(false, "fork request with lifecycle accepted", errText(err))
   }
+
+  const expected: Record<string, SandboxLifecycle | null> = { [SOURCE]: SOURCE_LIFECYCLE, [FORK]: SOURCE_LIFECYCLE }
+  if (created.includes(FORK_WITH_LC)) expected[FORK_WITH_LC] = REQUESTED_FORK_LIFECYCLE
+  await k8sBreak("after the forks", expected)
 
   // 4. updateLifecycle on the fork
   await updateLifecycleKeepsInstance(FORK, "fork")
