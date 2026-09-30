@@ -111,7 +111,10 @@ async function k8sBreak(step: string, expected: Record<string, SandboxLifecycle 
 }
 
 const policiesOf = (lc: SandboxLifecycle | null | undefined) =>
-  JSON.stringify((lc?.expirationPolicies ?? []).map((p) => ({ type: p.type, value: p.value })))
+  JSON.stringify({
+    policies: (lc?.expirationPolicies ?? []).map((p) => ({ type: p.type, value: p.value, action: p.action })),
+    terminatedRetention: lc?.terminatedRetention ?? null,
+  })
 
 // A fork is marked DEPLOYED before its VM has resumed, and an update may take
 // the sandbox through a redeploy: retry the exec until the guest answers.
@@ -150,22 +153,30 @@ async function updateLifecycleKeepsInstance(name: string, label: string) {
   const copiedBefore = await readFile(before, COPIED_FILE)
   console.log(`${ts()}   before: status=${before.status} boot_id=${bootBefore}`)
 
+  // Watch the record during the call and for a few seconds after it: a
+  // redeploy shows up as DEPLOYING.
+  const statuses: string[] = []
+  let watchUntil = Infinity
+  const watcher = (async () => {
+    while (Date.now() < watchUntil) {
+      const s = (await SandboxInstance.get(name)).status ?? "?"
+      if (statuses[statuses.length - 1] !== s) statuses.push(s)
+      await sleep(500)
+    }
+  })()
+
   const start = Date.now()
   try {
     await SandboxInstance.updateLifecycle(name, UPDATED_LIFECYCLE)
   } catch (err) {
+    watchUntil = 0
+    await watcher
     check(false, `${label}: updateLifecycle accepted`, errText(err))
     return
   }
   console.log(`${ts()}   updateLifecycle returned in ${Date.now() - start}ms`)
-
-  // Watch the record for a few seconds: a redeploy shows up as DEPLOYING.
-  const statuses: string[] = []
-  for (let i = 0; i < 20; i++) {
-    const s = (await SandboxInstance.get(name)).status ?? "?"
-    if (statuses[statuses.length - 1] !== s) statuses.push(s)
-    await sleep(500)
-  }
+  watchUntil = Date.now() + 10_000
+  await watcher
   const after = await SandboxInstance.get(name)
   const bootAfter = await bootId(after)
   const localAfter = await readFile(after, LOCAL_FILE)
