@@ -92,10 +92,11 @@ function podOf(sbx: SandboxInstance) {
 }
 
 async function k8sBreak(step: string, expected: Record<string, SandboxLifecycle | null>) {
-  const namespace = `${process.env.BL_ENV === "dev" ? "dev" : "prod"}-${process.env.BL_WORKSPACE}`
   console.log(`\n${ts()} ── Kubernetes check: ${step}`)
   for (const [name, lifecycle] of Object.entries(expected)) {
-    const pod = podOf(await SandboxInstance.get(name))
+    const sbx = await SandboxInstance.get(name)
+    const pod = podOf(sbx)
+    const namespace = `${process.env.BL_ENV === "dev" ? "dev" : "prod"}-${sbx.metadata.workspace ?? process.env.BL_WORKSPACE}`
     console.log(`  ${name} expects ${policiesOf(lifecycle)}`)
     console.log(`    kubectl -n ${namespace} get pod ${pod} -o json | jq '.metadata | {creationTimestamp, uid, annotations: (.annotations | with_entries(select(.key | startswith("janitor/") or . == "lastUsedAt")))}'`)
   }
