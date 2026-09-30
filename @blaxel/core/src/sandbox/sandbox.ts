@@ -42,6 +42,12 @@ export type SandboxForkOptions = {
    * one it does not is added, and every other variable of the source is kept.
    */
   envs?: Env[];
+  /**
+   * Lifecycle the fork runs with, replacing the source's. When omitted, a
+   * sandbox fork keeps the source's lifecycle and its runtime ttl and expires.
+   * Only valid when targetType is "sandbox".
+   */
+  lifecycle?: SandboxLifecycle;
 };
 
 // Archiving a filesystem, and restoring it, take as long as that filesystem is
@@ -350,6 +356,7 @@ export class SandboxInstance {
         ...(options.prefix !== undefined ? { prefix: options.prefix } : {}),
         ...(options.snapshotId !== undefined ? { snapshotId: options.snapshotId } : {}),
         ...(options.envs !== undefined ? { envs: options.envs } : {}),
+        ...(options.lifecycle !== undefined ? { lifecycle: options.lifecycle } : {}),
       },
       throwOnError: true,
     });
