@@ -218,6 +218,7 @@ const INTEGRATION_TOKEN_PATTERN = /^[a-z0-9][a-z0-9._-]*\/\d+\.\d+\.\d+(?:-[0-9A
 
 class Settings {
   private _credentials: Credentials | null;
+  private _warnedIntegration: string | null = null;
   config: Config;
 
   constructor() {
@@ -336,9 +337,13 @@ class Settings {
       return "";
     }
     if (!INTEGRATION_TOKEN_PATTERN.test(value)) {
-      logger.warn(
-        `Ignoring invalid Blaxel integration token "${value}": expected <name>/<semver> with a lowercase name`
-      );
+      // Resolved on every request, so warn once per invalid value rather than per request.
+      if (this._warnedIntegration !== value) {
+        this._warnedIntegration = value;
+        logger.warn(
+          `Ignoring invalid Blaxel integration token ${JSON.stringify(value)}: expected <name>/<semver> with a lowercase name`
+        );
+      }
       return "";
     }
     return value;
