@@ -2,9 +2,9 @@ import { Sandbox } from "../../client/types.gen.js";
 import { fs } from "../../common/node.js";
 import { settings } from "../../common/settings.js";
 import { withUploadSlot } from "../../common/h2fetch.js";
-import { isTransientResetError, retryOnTransientReset } from "../../common/transient-retry.js";
+import { GATEWAY_ERROR_STATUSES, isTransientResetError, retryOnTransientReset } from "../../common/transient-retry.js";
 import { shellQuote } from "../../common/shell.js";
-import { SandboxAction } from "../action.js";
+import { SandboxAction, SandboxGatewayError } from "../action.js";
 import { ContentSearchResponse, deleteFilesystemByPath, deleteFilesystemMultipartByUploadIdAbort, Directory, FindResponse, FuzzySearchResponse, getFilesystemByPath, getFilesystemContentSearchByPath, getFilesystemFindByPath, getFilesystemSearchByPath, getWatchFilesystemByPath, MultipartInitiateResponse, MultipartPartInfo, MultipartUploadPartResponse, postFilesystemMultipartByUploadIdComplete, postFilesystemMultipartInitiateByPath, putFilesystemByPath, PutFilesystemByPathError, putFilesystemMultipartByUploadIdPart, SuccessResponse } from "../client/index.js";
 import { SandboxProcess } from "../process/index.js";
 import { CopyResponse, FilesystemFindOptions, FilesystemGrepOptions, FilesystemSearchOptions, SandboxFilesystemFile, WatchEvent } from "./types.js";
@@ -61,13 +61,15 @@ export class SandboxFileSystem extends SandboxAction {
 
   async mkdir(path: string, permissions: string = "0755"): Promise<SuccessResponse> {
     path = this.formatPath(path);
-    const { response, data, error } = await putFilesystemByPath(this.withClient({
-      path: { path },
-      body: { isDirectory: true, permissions },
-      baseUrl: this.url,
-    }));
-    this.handleResponseError(response, data, error);
-    return data as SuccessResponse;
+    return this.retryPut(async () => {
+      const { response, data, error } = await putFilesystemByPath(this.withClient({
+        path: { path },
+        body: { isDirectory: true, permissions },
+        baseUrl: this.url,
+      }));
+      this.handleResponseError(response, data, error);
+      return data as SuccessResponse;
+    });
   }
 
   async write(path: string, content: string): Promise<SuccessResponse> {
@@ -83,13 +85,15 @@ export class SandboxFileSystem extends SandboxAction {
     }
 
     // Use regular upload for small files
-    const { response, data, error } = await putFilesystemByPath(this.withClient({
-      path: { path },
-      body: { content },
-      baseUrl: this.url,
-    }));
-    this.handleResponseError(response, data, error);
-    return data as SuccessResponse;
+    return this.retryPut(async () => {
+      const { response, data, error } = await putFilesystemByPath(this.withClient({
+        path: { path },
+        body: { content },
+        baseUrl: this.url,
+      }));
+      this.handleResponseError(response, data, error);
+      return data as SuccessResponse;
+    });
   }
 
   async writeBinary(path: string, content: Buffer | Blob | File | Uint8Array | string): Promise<SuccessResponse> {
@@ -145,7 +149,6 @@ export class SandboxFileSystem extends SandboxAction {
       url = `${this.forcedUrl.toString()}/filesystem/${path}`;
     }
 
-    const h2Domain = this.sandbox?.h2Domain;
     const putOnce = async (): Promise<SuccessResponse> => {
       const formData = new FormData();
       formData.append("file", fileBlob, "test-binary.bin");
@@ -167,6 +170,9 @@ export class SandboxFileSystem extends SandboxAction {
 
       if (!response.ok) {
         const errorText = await response.text();
+        if (GATEWAY_ERROR_STATUSES.has(response.status)) {
+          throw new SandboxGatewayError(response, errorText, undefined);
+        }
         throw new Error(`Failed to write binary: ${response.status} ${errorText}`);
       }
 
@@ -176,8 +182,9 @@ export class SandboxFileSystem extends SandboxAction {
     // Acquire the upload slot per-attempt INSIDE the retry so the per-domain cap
     // bounds in-flight streams, not retry sequences: the slot is released during
     // backoff, so a failing PUT never pins a slot while it sleeps (Mendral review).
+    const h2Domain = this.sandbox?.h2Domain;
     const putWithSlot = h2Domain ? () => withUploadSlot(h2Domain, putOnce) : putOnce;
-    return retryOnTransient(putWithSlot);
+    return this.retryPut(putWithSlot);
   }
 
   async writeTree(files: SandboxFilesystemFile[], destinationPath: string | null = null) {
@@ -191,15 +198,17 @@ export class SandboxFileSystem extends SandboxAction {
       baseUrl: this.url,
     }
     const path = this.formatPath(destinationPath ?? "")
-    const { response, data, error } = await this.client.put<Directory, PutFilesystemByPathError>({
-      url: `/filesystem/tree/${path}`,
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    })
-    this.handleResponseError(response, data, error);
-    return data;
+    return this.retryPut(async () => {
+      const { response, data, error } = await this.client.put<Directory, PutFilesystemByPathError>({
+        url: `/filesystem/tree/${path}`,
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
+      this.handleResponseError(response, data, error);
+      return data;
+    });
   }
 
   async read(path: string): Promise<string> {
@@ -500,6 +509,12 @@ export class SandboxFileSystem extends SandboxAction {
         controller.abort();
       },
     };
+  }
+
+  // Filesystem PUTs overwrite the target, so a retried PUT is idempotent: every
+  // PUT retries transient resets / edge gateway statuses on the fsPartRetries budget.
+  private retryPut<T>(put: () => Promise<T>): Promise<T> {
+    return retryOnTransient(put);
   }
 
   private formatPath(path: string): string {
