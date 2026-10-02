@@ -52,3 +52,28 @@ describe("filesystem PUT retries", () => {
     expect(puts).toHaveLength(1);
   });
 });
+
+function recordingServer(urls: URL[], body: unknown): RequestListener {
+  return (request, response) => {
+    urls.push(new URL(request.url ?? "/", "http://localhost"));
+    response.setHeader("content-type", "application/json");
+    response.end(JSON.stringify(body));
+  };
+}
+
+describe("filesystem search", () => {
+  it("sends the fuzzy search query as the query param", async () => {
+    const urls: URL[] = [];
+    const fs = await localFilesystem(recordingServer(urls, { matches: [], total: 0 }));
+    await fs.search("main.go", "/app", { maxResults: 5 });
+    expect(urls[0].searchParams.get("query")).toBe("main.go");
+    expect(urls[0].searchParams.get("maxResults")).toBe("5");
+  });
+
+  it("omits an empty fuzzy search query", async () => {
+    const urls: URL[] = [];
+    const fs = await localFilesystem(recordingServer(urls, { matches: [], total: 0 }));
+    await fs.search("", "/app");
+    expect(urls[0].searchParams.has("query")).toBe(false);
+  });
+});

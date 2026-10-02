@@ -291,12 +291,16 @@ export class SandboxFileSystem extends SandboxAction {
     const formattedPath = this.formatPath(path);
 
     const queryParams: {
+      query?: string;
       maxResults?: number;
       patterns?: string;
       excludeDirs?: string;
       excludeHidden?: boolean;
     } = {};
 
+    if (query) {
+      queryParams.query = query;
+    }
     if (options?.maxResults !== undefined) {
       queryParams.maxResults = options.maxResults;
     }
