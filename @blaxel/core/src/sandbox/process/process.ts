@@ -140,7 +140,7 @@ export class SandboxProcess extends SandboxAction {
     const { response, data, error } = await postProcess(this.withClient({
       baseUrl: this.url,
       signal: controller.signal,
-      headers: { Accept: "text/event-stream" },
+      headers: { Accept: "application/x-ndjson, text/event-stream" },
       body: processRequest,
       parseAs: "stream",
     }));
@@ -203,6 +203,7 @@ export class SandboxProcess extends SandboxAction {
       buffer = lines.pop()!;
 
       for (const line of lines) {
+        if (!line.trim()) continue;
         const parsed = JSON.parse(line) as { type: string, data: string };
         switch (parsed.type) {
           case 'stdout':

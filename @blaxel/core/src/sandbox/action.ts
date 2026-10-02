@@ -89,6 +89,11 @@ export function isGatewayTimeout(err: unknown): boolean {
   return err instanceof ResponseError && err.status === 504;
 }
 
+/** Sandbox URLs are joined as `${url}/path`, so they never end with a slash. */
+function trimTrailingSlashes(url: string): string {
+  return url.replace(/\/+$/, "");
+}
+
 export class SandboxAction {
   private _h2Client: Client | null = null;
   private _h2ClientDomain: string | null = null;
@@ -107,7 +112,7 @@ export class SandboxAction {
   }
 
   get externalUrl() {
-    return this.sandbox.metadata.url ?? `${settings.runUrl}/${settings.workspace}/sandboxes/${this.name}`;
+    return trimTrailingSlashes(this.sandbox.metadata.url ?? `${settings.runUrl}/${settings.workspace}/sandboxes/${this.name}`);
   }
 
   get internalUrl() {
@@ -177,8 +182,7 @@ export class SandboxAction {
 
   get url(): string {
     if (this.forcedUrl) {
-      const url = this.forcedUrl.toString();
-      return url.endsWith('/') ? url.slice(0, -1) : url;
+      return trimTrailingSlashes(this.forcedUrl.toString());
     }
     // Uncomment and use this when agent and mcp are available in mk3
     // Update all requests made in this package to use fallbackUrl when internalUrl is not working
