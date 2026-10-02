@@ -77,3 +77,15 @@ describe("filesystem search", () => {
     expect(urls[0].searchParams.has("query")).toBe(false);
   });
 });
+
+describe("filesystem grep", () => {
+  it("sends contextLines and returns each match's context", async () => {
+    const urls: URL[] = [];
+    const match = { path: "/app/main.go", line: 3, column: 1, text: "func main() {", context: "package main\n\nfunc main() {\n}" };
+    const fs = await localFilesystem(recordingServer(urls, { query: "main", total: 1, matches: [match] }));
+    const result = await fs.grep("main", "/app", { contextLines: 2 });
+    expect(urls[0].searchParams.get("query")).toBe("main");
+    expect(urls[0].searchParams.get("contextLines")).toBe("2");
+    expect(result.matches[0].context).toBe(match.context);
+  });
+});
