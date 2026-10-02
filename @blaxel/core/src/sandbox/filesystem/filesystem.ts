@@ -144,10 +144,7 @@ export class SandboxFileSystem extends SandboxAction {
     // retry transient connection resets (ECONNRESET/GOAWAY/ENHANCE_YOUR_CALM). A
     // PUT of the same bytes to the same path is idempotent, so retry is safe.
     // The FormData is rebuilt per attempt so a retried request has a fresh body.
-    let url = `${this.url}/filesystem/${path}`;
-    if (this.forcedUrl) {
-      url = `${this.forcedUrl.toString()}/filesystem/${path}`;
-    }
+    const url = `${this.url}/filesystem/${path}`;
 
     const putOnce = async (): Promise<SuccessResponse> => {
       const formData = new FormData();
