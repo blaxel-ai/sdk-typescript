@@ -75,6 +75,24 @@ describe("process HTTP contract", () => {
     expect(onLog.mock.calls).toEqual([["streamed"], ["reconnected"]]);
     expect(intercept).toHaveBeenCalledTimes(2);
   });
+  it("asks for NDJSON when streaming exec and parses it", async () => {
+    let accept: string | undefined;
+    const process = await localServer((request, response) => {
+      accept = request.headers.accept;
+      response.setHeader("content-type", "application/x-ndjson");
+      response.end([
+        JSON.stringify({ type: "stdout", data: "hi\n" }),
+        "",
+        JSON.stringify({ type: "keepalive", data: "" }),
+        JSON.stringify({ type: "result", data: JSON.stringify({ status: "completed", exitCode: 0, pid: "1" }) }),
+      ].join("\n") + "\n");
+    });
+    const onStdout = vi.fn();
+    const result = await process.exec({ command: "echo hi", waitForCompletion: true, onStdout });
+    expect(accept).toBe("application/x-ndjson, text/event-stream");
+    expect(onStdout.mock.calls).toEqual([["hi\n"]]);
+    expect(result.exitCode).toBe(0);
+  });
   it("observes after a lost kill response, without sending kill twice", async () => {
     let kills = 0;
     const process = await localServer((request, response) => {
