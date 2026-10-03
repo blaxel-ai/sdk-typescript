@@ -644,7 +644,7 @@ export const postProcess = <ThrowOnError extends boolean = false>(options: Optio
 
 /**
  * Stop a process
- * Gracefully stop a running process
+ * Request graceful termination. Poll GET /process/{identifier} until terminal status confirms the managed process has exited.
  */
 export const deleteProcessByIdentifier = <ThrowOnError extends boolean = false>(options: Options<DeleteProcessByIdentifierData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteProcessByIdentifierResponse, DeleteProcessByIdentifierError, ThrowOnError>({
@@ -678,7 +678,7 @@ export const getProcessByIdentifier = <ThrowOnError extends boolean = false>(opt
 
 /**
  * Kill a process
- * Forcefully kill a running process
+ * Request forceful termination. Poll GET /process/{identifier} until terminal status confirms the managed process has exited.
  */
 export const deleteProcessByIdentifierKill = <ThrowOnError extends boolean = false>(options: Options<DeleteProcessByIdentifierKillData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteProcessByIdentifierKillResponse, DeleteProcessByIdentifierKillError, ThrowOnError>({

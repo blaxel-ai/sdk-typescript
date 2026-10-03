@@ -1864,7 +1864,7 @@ export type DeleteProcessByIdentifierError = DeleteProcessByIdentifierErrors[key
 
 export type DeleteProcessByIdentifierResponses = {
     /**
-     * Process stopped
+     * Process stop requested
      */
     200: SuccessResponse;
 };
@@ -1932,7 +1932,7 @@ export type DeleteProcessByIdentifierKillError = DeleteProcessByIdentifierKillEr
 
 export type DeleteProcessByIdentifierKillResponses = {
     /**
-     * Process killed
+     * Process kill requested
      */
     200: SuccessResponse;
 };
