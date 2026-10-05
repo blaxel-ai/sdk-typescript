@@ -36,6 +36,41 @@ This allows you to run Blaxel SDK functions that will automatically connect to y
 
 When running Blaxel SDK from a remote server that is not Blaxel-hosted, we recommend using environment variables as described in the third option above.
 
+## API error types
+
+`@blaxel/core` exports `BlaxelErrorCode` (gateway, auth and sandbox-creation
+code unions), `BlaxelErrorCodeValue` (also unknown string codes and numeric HTTP
+codes), and body types: `BlaxelApiErrorBody`, `BlaxelActionErrorBody`,
+`BlaxelPlatformErrorBody`, `BlaxelSandboxApiErrorBody`.
+
+Errors are **not wrapped or changed**. The SDK still throws raw control-plane
+bodies, existing sandbox error classes, plain `Error`, or text/HTML bodies.
+`isBlaxelError` structurally recognizes these shapes as `BlaxelErrorLike`; it
+also accepts plain errors and nonempty strings, so it does not prove origin.
+Use the non-throwing accessors instead of assuming common properties:
+
+```typescript
+import {
+  SandboxInstance, isBlaxelError, getBlaxelErrorCode,
+  getBlaxelErrorStatus, getBlaxelErrorMessage, getBlaxelErrorRequestId,
+} from "@blaxel/core";
+
+try {
+  await SandboxInstance.create({ name: "my-sandbox", region: "us-was-1" });
+} catch (err) {
+  if (isBlaxelError(err)) {
+    console.error(getBlaxelErrorCode(err), getBlaxelErrorStatus(err),
+      getBlaxelErrorMessage(err), getBlaxelErrorRequestId(err));
+  }
+  throw err;
+}
+```
+
+Unknown codes need a fallback. Missing fields return `undefined`; in particular,
+raw control-plane bodies and creation-timeout errors do not retain response
+headers/request IDs. Empty/unrecognized bodies do not match the guard, but all
+accessors accept `unknown` safely. `POLICY_VIOLATION` is reserved, not emitted today.
+
 ## Usage
 
 ### Sandboxes
