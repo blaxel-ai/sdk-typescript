@@ -264,6 +264,28 @@ const handle = sandbox.fs.watch("/app", (event) => {
 handle.close();
 ```
 
+`readTree` reads every file that `find` selects and returns `{ relative path: text }`. It takes
+`find`'s `patterns`, `excludeDirs` and `excludeHidden` options:
+
+```typescript
+const schemas = await sandbox.fs.readTree("/app/schemas", {
+  patterns: ["*.json"],
+  maxFiles: 20,
+  concurrency: 4,
+});
+// { "Blog.json": "...", "nested/About.json": "..." }
+```
+
+It does one `find` plus one `read` per file, `concurrency` (default 4) at a time. If more than
+`maxFiles` (default 100, at most 999) files match, it throws instead of returning some of them.
+Failures throw a `FilesystemReadTreeError` with a `code` (`MAX_FILES`, `DISCOVERY` or `READ`) and,
+for `READ`, the failing `path`; nothing partial is returned. A symlink to a directory fails as `READ`.
+Files are read as UTF-8 text; binary content is not preserved, so use `patterns` to select text files.
+
+A non-empty `excludeDirs` replaces `find`'s default exclusions (`node_modules`, `vendor`, `.git`,
+`dist`, `build`, `target`, `__pycache__`, `.venv`, `.next`, `coverage`), so list the ones you
+still want skipped.
+
 #### Volumes
 
 Persist data by attaching and using volumes:

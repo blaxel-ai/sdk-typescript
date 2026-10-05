@@ -8,6 +8,8 @@ import { SandboxAction } from "../action.js";
 import { ContentSearchResponse, deleteFilesystemByPath, deleteFilesystemMultipartByUploadIdAbort, Directory, FindResponse, FuzzySearchResponse, getFilesystemByPath, getFilesystemContentSearchByPath, getFilesystemFindByPath, getFilesystemSearchByPath, getWatchFilesystemByPath, MultipartInitiateResponse, MultipartPartInfo, MultipartUploadPartResponse, postFilesystemMultipartByUploadIdComplete, postFilesystemMultipartInitiateByPath, putFilesystemByPath, PutFilesystemByPathError, putFilesystemMultipartByUploadIdPart, SuccessResponse } from "../client/index.js";
 import { SandboxProcess } from "../process/index.js";
 import { CopyResponse, FilesystemFindOptions, FilesystemGrepOptions, FilesystemSearchOptions, SandboxFilesystemFile, WatchEvent } from "./types.js";
+import type { FilesystemReadTreeOptions } from "./types.js";
+import { readTree } from "./read-tree.js";
 
 // Multipart upload constants
 const MULTIPART_THRESHOLD = 5 * 1024 * 1024; // 5MB
@@ -217,6 +219,15 @@ export class SandboxFileSystem extends SandboxAction {
       }
       throw new Error("Unsupported file type");
     });
+  }
+
+  /**
+   * Reads every file under `path` that `find` selects and returns `{ relative path: text }`.
+   * Rejects with `FilesystemReadTreeError` if more than `maxFiles` files match, if
+   * discovery fails, or if any read fails (a symlink to a directory fails as `READ`).
+   */
+  async readTree(path: string, options?: FilesystemReadTreeOptions): Promise<Record<string, string>> {
+    return readTree(this, path, options);
   }
 
   async readBinary(path: string): Promise<Blob> {
