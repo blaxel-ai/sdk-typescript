@@ -17,7 +17,7 @@ const injectionPayloads = [
 ];
 
 type CpHarness = {
-  cp(source: string, destination: string): Promise<unknown>;
+  cp(source: string, destination: string, options?: { noOverwrite?: boolean }): Promise<unknown>;
   process: {
     exec(request: { command: string }): Promise<{ pid: string }>;
     wait(pid: string, options: unknown): Promise<{ status: string; logs: string }>;
@@ -32,7 +32,7 @@ function createCpHarness(): { filesystem: CpHarness; commands: string[] } {
       commands.push(request.command);
       return Promise.resolve({ pid: "pid-1" });
     },
-    wait: () => Promise.resolve({ status: "completed", logs: "" }),
+    wait: () => Promise.resolve({ status: "completed", exitCode: 0, logs: "" }),
   };
   return { filesystem, commands };
 }
@@ -64,6 +64,17 @@ describe("SandboxFileSystem.cp shell injection", () => {
 
       expect(commands).toHaveLength(1);
       assertPayloadIsInert(commands[0], payload);
+    });
+  }
+
+  for (const payload of [...injectionPayloads, "-leading-dash", "line\nname", "ユニコード"]) {
+    it(`quotes protected positional source and destination: ${payload}`, async () => {
+      const { filesystem, commands } = createCpHarness();
+      await filesystem.cp(payload, payload, { noOverwrite: true });
+      expect(commands).toHaveLength(1);
+      const quotedPayload = `'${payload.replace(/'/g, `'\\''`)}'`;
+      expect(commands[0].endsWith(` sh ${quotedPayload} ${quotedPayload}`)).toBe(true);
+      expect(commands[0].split(quotedPayload).join("")).not.toContain("touch /tmp/pwned");
     });
   }
 
