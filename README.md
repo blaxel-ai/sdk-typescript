@@ -264,6 +264,29 @@ const handle = sandbox.fs.watch("/app", (event) => {
 handle.close();
 ```
 
+#### Drives
+
+Pass `mountDrives` to mount drives as soon as the sandbox is created. Give `driveName` for a drive that already exists, or `create` for a new one (a named drive is reused if it already exists). New drives are created in the sandbox's region; an existing drive must be in that region too.
+
+```typescript
+import { SandboxInstance } from "@blaxel/core";
+
+const config = { image: "blaxel/base-image:latest", region: "us-was-1" };
+
+const sandbox = await SandboxInstance.create(config, {
+  mountDrives: [{ create: { name: "app-data" }, mountPath: "/mnt/data" }],
+});
+await sandbox.fs.write("/mnt/data/hello.txt", "hello");
+
+// A second sandbox can mount the same drive by name.
+const reader = await SandboxInstance.create(config, {
+  mountDrives: [{ driveName: "app-data", mountPath: "/mnt/data", readOnly: true }],
+});
+console.log(await reader.fs.read("/mnt/data/hello.txt")); // hello
+```
+
+Each entry also takes `drivePath` (a sub-folder of the drive). With `createIfNotExists`, a new drive needs a `name`. If a drive can't be mounted, `create` throws `SandboxDriveSetupError` with the `sandbox`, the `driveNames` it used and the original `cause`. The sandbox, drives and mounts made so far are kept, so delete only what you created.
+
 #### Volumes
 
 Persist data by attaching and using volumes:

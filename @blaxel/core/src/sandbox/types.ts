@@ -1,4 +1,5 @@
 import type http2 from "http2";
+import type { DriveCreateConfiguration } from "../drive/index.js";
 import { Port, Sandbox, SandboxLifecycle, VolumeAttachment, SandboxNetwork } from "../client/types.gen";
 import { PostProcessResponse, ProcessRequest } from "./client";
 
@@ -45,6 +46,19 @@ export type SandboxUpdateMetadata = {
 export type SandboxUpdateNetwork = {
   network?: SandboxNetwork;
 }
+
+/**
+ * A drive to mount once the sandbox exists: `driveName` for a drive that already
+ * exists, `create` for a new one. New drives are created in the sandbox's region.
+ */
+export type SandboxDriveMountConfiguration = {
+  mountPath: string;
+  drivePath?: string;
+  readOnly?: boolean;
+} & (
+  | { driveName: string; create?: never }
+  | { create: Omit<DriveCreateConfiguration, "region">; driveName?: never }
+);
 
 export type SandboxCreateConfiguration = {
   name?: string;

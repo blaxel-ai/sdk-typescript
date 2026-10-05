@@ -1,4 +1,6 @@
 import type http2 from "http2";
+import { DriveInstance } from "../drive/index.js";
+import type { DriveMountRequest } from "./drive/index.js";
 import { archiveSandbox, createSandbox, createSandboxSnapshot, deleteSandbox, deleteSandboxSnapshot, type Env, forkSandbox, getSandbox, getSandboxByExternalId, listSandboxes, listSandboxSnapshots, type ListSandboxesData, restoreSandboxSnapshot, type SandboxForkResponse, type SandboxLifecycle, type Sandbox as SandboxModel, type SandboxRestoreResponse, type SandboxSnapshot, unarchiveSandbox, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
 import { backoffDelayMs } from "../common/transient-retry.js";
@@ -14,7 +16,7 @@ import { SandboxSchedules } from "./schedule.js";
 import { SandboxSnapshotsResource } from "./snapshot.js";
 import { SandboxSessions } from "./session.js";
 import { SandboxSystem } from "./system.js";
-import { normalizeEnvs, normalizePorts, normalizeVolumes, SandboxConfiguration, SandboxCreateConfiguration, SandboxUpdateMetadata, SandboxUpdateNetwork, SessionWithToken } from "./types.js";
+import { normalizeEnvs, normalizePorts, normalizeVolumes, SandboxConfiguration, SandboxCreateConfiguration, SandboxDriveMountConfiguration, SandboxUpdateMetadata, SandboxUpdateNetwork, SessionWithToken } from "./types.js";
 
 export type SandboxListQuery = NonNullable<ListSandboxesData["query"]>;
 
@@ -108,7 +110,69 @@ export type SandboxCreateOptions = {
    * control plane's default deadline applies.
    */
   timeout?: number;
+  /**
+   * Drives to mount once the sandbox exists. If setup fails the sandbox is kept
+   * and a SandboxDriveSetupError is thrown.
+   */
+  mountDrives?: SandboxDriveMountConfiguration[];
 };
+
+/**
+ * Thrown when a sandbox is ready but one of its `mountDrives` could not be
+ * set up. Nothing is rolled back: the sandbox, drives and mounts made so far
+ * remain. `driveNames` lists the drives this call looked up or created; delete
+ * only the ones you created.
+ */
+export class SandboxDriveSetupError extends Error {
+  constructor(readonly sandbox: SandboxInstance, readonly driveNames: string[], cause: unknown) {
+    const detail = cause instanceof Error ? cause.message : JSON.stringify(cause);
+    super(`Sandbox ${sandbox.metadata.name} is ready, but mounting its drives failed: ${detail}`, { cause });
+    this.name = "SandboxDriveSetupError";
+  }
+}
+
+const cleanPath = (path = "/") => `/${path.split("/").filter(Boolean).join("/")}`;
+
+function validateMountDrives(mounts: SandboxDriveMountConfiguration[], createIfNotExist: boolean) {
+  for (const { driveName, create } of mounts) {
+    if (!driveName === !create) {
+      throw new TypeError("Each mountDrives entry needs exactly one of 'driveName' or 'create'.");
+    }
+    if (createIfNotExist && create && !create.name) {
+      throw new TypeError("With createIfNotExist, a new drive in mountDrives needs a name; otherwise every call would create another drive.");
+    }
+  }
+}
+
+async function mountSandboxDrives(sandbox: SandboxInstance, mounts: SandboxDriveMountConfiguration[]) {
+  const driveNames: string[] = [];
+  try {
+    const region = sandbox.spec?.region;
+    const requests: DriveMountRequest[] = [];
+    for (const mount of mounts) {
+      const { mountPath, drivePath = "/", readOnly = false } = mount;
+      const drive = !mount.create ? await DriveInstance.get(mount.driveName)
+        : mount.create.name ? await DriveInstance.createIfNotExists({ ...mount.create, region })
+        : await DriveInstance.create({ ...mount.create, region });
+      driveNames.push(drive.name);
+      if (drive.region !== region) {
+        throw new Error(`Drive ${drive.name} is in ${drive.region}, but the sandbox is in ${region}.`);
+      }
+      requests.push({ driveName: drive.name, mountPath, drivePath, readOnly });
+    }
+    for (const request of requests) await sandbox.drives.mount(request);
+    // Mounting reports success even if an existing mount at that path keeps a different readOnly, so check.
+    const mounted = await sandbox.drives.list();
+    for (const request of requests) {
+      const actual = mounted.find(mount => cleanPath(mount.mountPath) === cleanPath(request.mountPath));
+      if (actual?.driveName !== request.driveName || cleanPath(actual.drivePath) !== cleanPath(request.drivePath) || (actual.readOnly ?? false) !== request.readOnly) {
+        throw new Error(`${request.mountPath} is not mounted as requested; see sandbox.drives.list().`);
+      }
+    }
+  } catch (cause) {
+    throw new SandboxDriveSetupError(sandbox, driveNames, cause);
+  }
+}
 
 /**
  * Thrown by SandboxInstance.create / createIfNotExists when the sandbox was
@@ -372,6 +436,8 @@ export class SandboxInstance {
   static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, options: SandboxCreateOptions = {}) {
     const { safe = false, createIfNotExist = false } = options;
     const { timeout } = validateCreateOptions(options);
+    const { mountDrives = [] } = options;
+    validateMountDrives(mountDrives, createIfNotExist);
     // No client-side default name: when the caller omits a name we send the
     // creation without metadata.name so the server can assign one and unnamed
     // creations become eligible for warm sandbox pools (ENG-3931).
@@ -499,6 +565,7 @@ export class SandboxInstance {
         throw err;
       }
     }
+    if (mountDrives.length) await mountSandboxDrives(instance, mountDrives);
     return instance;
   }
 
