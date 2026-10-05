@@ -121,9 +121,11 @@ export function mergeTelemetryState(
 		...(ownVersion ? { [SDK_STATE_KEY]: ownVersion } : {}),
 	};
 
-	if (ours.distinct_id) {
-		merged.distinct_id = ours.distinct_id;
-	}
+	// distinct_id is shared by every writer, so the first one persisted wins.
+	// Replacing it would split the same user across two PostHog identities.
+	const onDiskId =
+		typeof onDisk.distinct_id === "string" ? onDisk.distinct_id : "";
+	merged.distinct_id = onDiskId || ours.distinct_id;
 
 	return merged;
 }
@@ -162,11 +164,14 @@ function saveTelemetryState(state: TelemetryState): void {
 			// No readable file yet - this process's state is all there is.
 		}
 
-		fs.writeFileSync(
-			telemetryPath,
-			JSON.stringify(mergeTelemetryState(onDisk, state), null, 2),
-			{ mode: 0o600 },
-		);
+		const merged = mergeTelemetryState(onDisk, state);
+		fs.writeFileSync(telemetryPath, JSON.stringify(merged, null, 2), {
+			mode: 0o600,
+		});
+		// Adopt the persisted identity so events match what other writers use.
+		if (typeof merged.distinct_id === "string" && merged.distinct_id) {
+			state.distinct_id = merged.distinct_id;
+		}
 	} catch {
 		// Silently fail
 	}

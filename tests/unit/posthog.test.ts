@@ -150,4 +150,23 @@ describe("telemetry.json entry ownership", () => {
 
 		expect(merged.sdks).toEqual({ python: "2.0.0", typescript: "1.2.3" });
 	});
+
+	it("keeps the distinct_id another process persisted first", () => {
+		// This process generated an id before seeing the one the CLI just wrote.
+		const ours = { distinct_id: "sdk-generated", sdks: {} };
+		const onDisk = { distinct_id: "cli-generated" };
+
+		const merged = mergeTelemetryState(onDisk, ours) as Record<string, unknown>;
+
+		expect(merged.distinct_id).toBe("cli-generated");
+	});
+
+	it("fills in distinct_id when the file on disk has an empty one", () => {
+		const ours = { distinct_id: "sdk-generated", sdks: {} };
+		const onDisk = { distinct_id: "" };
+
+		const merged = mergeTelemetryState(onDisk, ours) as Record<string, unknown>;
+
+		expect(merged.distinct_id).toBe("sdk-generated");
+	});
 });
