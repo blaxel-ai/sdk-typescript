@@ -5,6 +5,7 @@ import { withUploadSlot } from "../../common/h2fetch.js";
 import { isTransientResetError, retryOnTransientReset } from "../../common/transient-retry.js";
 import { shellQuote } from "../../common/shell.js";
 import { SandboxAction } from "../action.js";
+import type { GetFilesystemSearchByPathData } from "../client/index.js";
 import { ContentSearchResponse, deleteFilesystemByPath, deleteFilesystemMultipartByUploadIdAbort, Directory, FindResponse, FuzzySearchResponse, getFilesystemByPath, getFilesystemContentSearchByPath, getFilesystemFindByPath, getFilesystemSearchByPath, getWatchFilesystemByPath, MultipartInitiateResponse, MultipartPartInfo, MultipartUploadPartResponse, postFilesystemMultipartByUploadIdComplete, postFilesystemMultipartInitiateByPath, putFilesystemByPath, PutFilesystemByPathError, putFilesystemMultipartByUploadIdPart, SuccessResponse } from "../client/index.js";
 import { SandboxProcess } from "../process/index.js";
 import { CopyResponse, FilesystemFindOptions, FilesystemGrepOptions, FilesystemSearchOptions, SandboxFilesystemFile, WatchEvent } from "./types.js";
@@ -281,13 +282,7 @@ export class SandboxFileSystem extends SandboxAction {
   ): Promise<FuzzySearchResponse> {
     const formattedPath = this.formatPath(path);
 
-    const queryParams: {
-      query: string;
-      maxResults?: number;
-      patterns?: string;
-      excludeDirs?: string;
-      excludeHidden?: boolean;
-    } = { query };
+    const queryParams: NonNullable<GetFilesystemSearchByPathData["query"]> = { query };
 
     if (options?.maxResults !== undefined) {
       queryParams.maxResults = options.maxResults;
