@@ -45,9 +45,16 @@ codes), and body types: `BlaxelApiErrorBody`, `BlaxelActionErrorBody`,
 
 Errors are **not wrapped or changed**. The SDK still throws raw control-plane
 bodies, existing sandbox error classes, plain `Error`, or text/HTML bodies.
-`isBlaxelError` structurally recognizes these shapes as `BlaxelErrorLike`; it
-also accepts plain errors and nonempty strings, so it does not prove origin.
-Use the non-throwing accessors instead of assuming common properties:
+`isBlaxelError` is true only for the shapes the SDK throws for API errors
+(`BlaxelErrorLike`): `ResponseError` (including `SandboxGatewayError`),
+`SandboxCreationTimeoutError`, and raw control-plane error bodies that carry a
+code and status. It is false for plain `Error`s (a network error with a code such
+as `ECONNRESET` included), strings, raw HTML/text bodies and empty bodies. Like
+`is_blaxel_error` in the Python SDK, it is false for plain exceptions and
+strings. Unlike Python, a control-plane error with a non-JSON body (an HTML 502,
+say) is thrown as a bare string here, so the guard is false for it; Python raises
+`UnexpectedStatus`, for which `is_blaxel_error` is true. Use the non-throwing
+accessors instead of assuming common properties:
 
 ```typescript
 import {
@@ -68,8 +75,9 @@ try {
 
 Unknown codes need a fallback. Missing fields return `undefined`; in particular,
 raw control-plane bodies and creation-timeout errors do not retain response
-headers/request IDs. Empty/unrecognized bodies do not match the guard, but all
-accessors accept `unknown` safely. `POLICY_VIOLATION` is reserved, not emitted today.
+headers/request IDs, and `getBlaxelErrorStatus` is `undefined` for transport
+errors such as an HTTP/2 stream reset. All accessors accept `unknown` safely,
+including values the guard rejects. `POLICY_VIOLATION` is reserved, not emitted today.
 
 ## Usage
 

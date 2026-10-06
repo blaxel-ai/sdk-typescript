@@ -70,9 +70,8 @@ describe("existing control-plane thrown values", () => {
     { body: generic, code: 404, status: 404, message: generic.error },
     { body: action, code: action.code, status: 409, message: action.message },
     { body: platform, code: platform.error.code, status: 404, message: platform.error.message },
-    { body: sandboxBody, code: undefined, status: undefined, message: sandboxBody.error },
   ])("reads $code without wrapping or adding fields", async ({ body, code, status, message }) => {
-    const err = await thrownBody(JSON.stringify(body), status ?? 404);
+    const err = await thrownBody(JSON.stringify(body), status);
     const keys = Object.keys(err as object);
     const serialized = JSON.stringify(err);
     const stringified = String(err);
@@ -109,7 +108,7 @@ describe("existing control-plane thrown values", () => {
     const html = "<html><body>502 Bad Gateway</body></html>";
     const err = await thrownBody(html, 502);
     expect(err).toBe(html);
-    expect(isBlaxelError(err)).toBe(true);
+    expect(isBlaxelError(err)).toBe(false);
     expect(getBlaxelErrorMessage(err)).toBe(html);
     expect(getBlaxelErrorCode(err)).toBeUndefined();
     expect(getBlaxelErrorStatus(err)).toBeUndefined();
@@ -121,6 +120,15 @@ describe("existing control-plane thrown values", () => {
     expect(err).toEqual({});
     expect(isBlaxelError(err)).toBe(false);
     for (const read of readers) expect(read(err)).toBeUndefined();
+  });
+
+  it("does not recognize a bare sandbox body: it has no code or status", async () => {
+    const err = await thrownBody(JSON.stringify(sandboxBody), 404);
+    expect(err).toEqual(sandboxBody);
+    expect(isBlaxelError(err)).toBe(false);
+    expect(getBlaxelErrorMessage(err)).toBe(sandboxBody.error);
+    expect(getBlaxelErrorCode(err)).toBeUndefined();
+    expect(getBlaxelErrorStatus(err)).toBeUndefined();
   });
 });
 
@@ -189,13 +197,29 @@ describe("existing Error classes", () => {
     expect(err.data).toBe(body);
   });
 
-  it("accepts a plain Error with only its existing message", () => {
+  it("does not recognize a plain Error, but its accessors still read the message", () => {
     const err = new Error("Failed to upload file");
-    expect(isBlaxelError(err)).toBe(true);
+    expect(isBlaxelError(err)).toBe(false);
     expect(getBlaxelErrorMessage(err)).toBe("Failed to upload file");
     expect(getBlaxelErrorCode(err)).toBeUndefined();
     expect(getBlaxelErrorStatus(err)).toBeUndefined();
     expect(getBlaxelErrorRequestId(err)).toBeUndefined();
+  });
+
+  it.each([
+    new TypeError("boom"),
+    Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }),
+    Object.assign(new Error("stream reset"), { code: "ERR_HTTP2_STREAM_ERROR" }),
+    // Blaxel-looking fields on an error that is not one of the SDK's classes.
+    Object.assign(new Error("boom"), { code: "BAD_REQUEST", status_code: 400 }),
+    Object.assign(new Error("boom"), { error: "bad", code: 400, status: 400 }),
+  ])("does not recognize a non-API error: %s", (err) => {
+    expect(isBlaxelError(err)).toBe(false);
+  });
+
+  it("does not recognize a string, even an HTTP-looking one", () => {
+    expect(isBlaxelError("some string")).toBe(false);
+    expect(isBlaxelError("<html>502 Bad Gateway</html>")).toBe(false);
   });
 
   it("uses CF-Ray as the last request ID fallback", () => {
@@ -215,6 +239,7 @@ describe("existing Error classes", () => {
 
 describe("safe inspection of unknown values", () => {
   it.each([undefined, null, false, 0, 123n, Symbol("error"), [], {}, "", { error: 123 },
+    { error: "bad" }, { error: "bad", code: "404" }, { error: "bad", code: 99 },
     { code: "INVALID_IMAGE", message: "bad" },
     { error: { code: "BAD_REQUEST", message: "bad", status: "400" } },
   ])("does not throw for %s", (err) => {

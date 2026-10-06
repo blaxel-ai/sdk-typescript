@@ -68,4 +68,12 @@ describe("API error types over current thrown values", () => {
     expect(getBlaxelErrorRequestId(err)).toBe(requestId);
     expect(Object.keys(err as object)).not.toContain("requestId");
   }, 15_000);
+
+  it("recognizes API errors but not local errors", async () => {
+    const apiError: unknown = await sandbox.fs.read("/pm2046/does-not-exist.txt").catch((err: unknown) => err);
+    expect(isBlaxelError(apiError)).toBe(true);
+    expect(isBlaxelError(new Error("boom"))).toBe(false);
+    expect(isBlaxelError(Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }))).toBe(false);
+    expect(isBlaxelError("boom")).toBe(false);
+  }, 15_000);
 });

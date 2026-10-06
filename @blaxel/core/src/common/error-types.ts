@@ -1,3 +1,6 @@
+import { ResponseError } from "../sandbox/action.js";
+import { SandboxCreationTimeoutError } from "../sandbox/sandbox.js";
+
 /**
  * Codes the edge gateway returns for sandbox, agent, function and MCP URLs,
  * in `error.code` and the `X-Blaxel-Error-Code` header.
@@ -27,7 +30,7 @@ export type BlaxelGatewayErrorCode =
   | "BAD_REQUEST"
   /** 402: the workspace exceeded its plan's usage limits. */
   | "USAGE_LIMIT_EXCEEDED"
-  /** Reserved, not emitted today; cluster-gateway src/proxy/constants.rs keeps this in the published SDK contract. */
+  /** Reserved: defined by the gateway but not currently returned. */
   | "POLICY_VIOLATION"
   /** Retryable: could not connect to the workload. */
   | "UPSTREAM_CONNECT_FAILED"
@@ -168,21 +171,26 @@ export type BlaxelPlatformErrorBody = {
   };
 };
 
-/** Error body of the sandbox API (`sandbox.fs`, `sandbox.process`, ...). */
+/**
+ * Error body of the sandbox API (`sandbox.fs`, `sandbox.process`, ...). It has no
+ * code or status of its own: callers receive it inside `ResponseError`
+ * (`err.data` or `err.error`), which carries the HTTP status.
+ */
 export type BlaxelSandboxApiErrorBody = {
   error: string;
 };
 
 /**
- * Minimum shapes recognized by {@link isBlaxelError}. Error includes the
- * existing ResponseError, SandboxGatewayError and SandboxCreationTimeoutError
- * classes. Only the required body fields are checked, not optional metadata.
- * This is a union of existing values, not a new error class or normalized shape.
+ * Values {@link isBlaxelError} recognizes: the error classes the SDK throws for
+ * API failures (`ResponseError`, which includes `SandboxGatewayError`, and
+ * `SandboxCreationTimeoutError`) and the raw error bodies the control-plane
+ * client throws, each with its required code and status fields. This is a union
+ * of existing values, not a new error class or normalized shape.
  */
 export type BlaxelErrorLike =
-  | Error
-  | string
-  | BlaxelSandboxApiErrorBody
+  | ResponseError
+  | SandboxCreationTimeoutError
+  | BlaxelApiErrorBody
   | Pick<BlaxelActionErrorBody, "code" | "message" | "status_code">
   | { error: Pick<BlaxelPlatformErrorBody["error"], "code" | "message" | "status"> };
 
@@ -205,19 +213,26 @@ const isStatus = (value: unknown): value is number =>
   typeof value === "number" && Number.isInteger(value) && value >= 100 && value <= 599;
 
 /**
- * Recognize an existing SDK thrown-value shape, without wrapping or mutating it.
- * Also accepts plain Error and nonempty text/HTML bodies: this structural check
- * cannot prove a value originated from Blaxel. Empty/unrecognized bodies return
- * false. Use the accessors for fields that may be nested or absent; this guard
- * does not add `code`, `status`, `message` or `requestId` properties. Never throws.
+ * True only for a value that carries a Blaxel error code or HTTP status in a
+ * shape the SDK throws for API failures: a `ResponseError` (including
+ * `SandboxGatewayError`), a `SandboxCreationTimeoutError`, or a raw control-plane
+ * error body (`{ error, code }`, `{ code, message, status_code }` or
+ * `{ error: { code, message, status } }`). Plain `Error`s (including network
+ * errors with a `code` such as `ECONNRESET`), strings, raw HTML/text bodies, empty
+ * bodies and a bare `{ error: string }` are false: they carry neither. Matching
+ * `ResponseError` uses `instanceof`, so an error thrown by a second copy of
+ * `@blaxel/core` does not match. Does not wrap or mutate the value. Never throws.
+ * Like `is_blaxel_error` in the Python SDK, it is false for plain exceptions and
+ * strings.
  */
 export function isBlaxelError(err: unknown): err is BlaxelErrorLike {
   try {
-    if (typeof err === "string") return err.length > 0;
+    if (err instanceof Error) {
+      return err instanceof ResponseError || err instanceof SandboxCreationTimeoutError;
+    }
     if (typeof err !== "object" || err === null || Array.isArray(err)) return false;
-    if (err instanceof Error) return true;
     const error = readProperty(err, "error");
-    if (typeof error === "string") return true;
+    if (typeof error === "string") return isStatus(readProperty(err, "code"));
     if (
       typeof readProperty(err, "code") === "string" &&
       typeof readProperty(err, "message") === "string" &&
