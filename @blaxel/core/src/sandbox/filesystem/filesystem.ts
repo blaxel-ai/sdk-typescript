@@ -5,7 +5,7 @@ import { withUploadSlot } from "../../common/h2fetch.js";
 import { isTransientResetError, retryOnTransientReset } from "../../common/transient-retry.js";
 import { shellQuote } from "../../common/shell.js";
 import { SandboxAction } from "../action.js";
-import { ContentSearchResponse, deleteFilesystemByPath, deleteFilesystemMultipartByUploadIdAbort, Directory, FindResponse, FuzzySearchResponse, getFilesystemByPath, getFilesystemContentSearchByPath, getFilesystemFindByPath, getFilesystemSearchByPath, getWatchFilesystemByPath, MultipartInitiateResponse, MultipartPartInfo, MultipartUploadPartResponse, postFilesystemMultipartByUploadIdComplete, postFilesystemMultipartInitiateByPath, putFilesystemByPath, PutFilesystemByPathError, putFilesystemMultipartByUploadIdPart, SuccessResponse } from "../client/index.js";
+import { ContentSearchResponse, deleteFilesystemByPath, deleteFilesystemMultipartByUploadIdAbort, Directory, FindResponse, FuzzySearchResponse, getFilesystemByPath, getFilesystemContentSearchByPath, getFilesystemFindByPath, getFilesystemSearchByPath, getWatchFilesystemByPath, MultipartInitiateResponse, MultipartPartInfo, MultipartUploadPartResponse, postFilesystemMultipartByUploadIdComplete, postFilesystemMultipartInitiateByPath, putFilesystemByPath, putFilesystemTreeByPath, putFilesystemMultipartByUploadIdPart, SuccessResponse } from "../client/index.js";
 import { SandboxProcess } from "../process/index.js";
 import { CopyResponse, FilesystemFindOptions, FilesystemGrepOptions, FilesystemSearchOptions, SandboxFilesystemFile, WatchEvent } from "./types.js";
 
@@ -180,8 +180,10 @@ export class SandboxFileSystem extends SandboxAction {
     return retryOnTransient(putWithSlot);
   }
 
-  async writeTree(files: SandboxFilesystemFile[], destinationPath: string | null = null) {
-    const options = {
+  async writeTree(files: SandboxFilesystemFile[], destinationPath: string | null = null): Promise<Directory> {
+    const path = this.formatPath(destinationPath ?? "");
+    const { response, data, error } = await putFilesystemTreeByPath(this.withClient({
+      path: { path },
       body: {
         files: files.reduce((acc, file) => {
           acc[file.path] = file.content;
@@ -189,17 +191,9 @@ export class SandboxFileSystem extends SandboxAction {
         }, {} as Record<string, string>),
       },
       baseUrl: this.url,
-    }
-    const path = this.formatPath(destinationPath ?? "")
-    const { response, data, error } = await this.client.put<Directory, PutFilesystemByPathError>({
-      url: `/filesystem/tree/${path}`,
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    })
+    }));
     this.handleResponseError(response, data, error);
-    return data;
+    return data as Directory;
   }
 
   async read(path: string): Promise<string> {

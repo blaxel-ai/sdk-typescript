@@ -1,5 +1,5 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
-import { SandboxInstance } from "@blaxel/core"
+import { SandboxInstance, type Directory } from "@blaxel/core"
 import { uniqueName, defaultImage, defaultLabels, defaultRegion, sleep } from './helpers.js'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
@@ -70,6 +70,28 @@ describe('Sandbox Filesystem Operations', () => {
 
       const result = await sandbox.fs.read(path)
       expect(result).toBe("updated")
+    })
+  })
+
+  describe('writeTree', () => {
+    it('returns the updated Directory and writes every requested file', async () => {
+      const destination = `/tmp/${uniqueName("write-tree")}`
+      const result: Directory = await sandbox.fs.writeTree([
+        { path: "root.txt", content: "root content" },
+        { path: "nested/child.txt", content: "nested content" },
+      ], destination)
+
+      expect(result.path).toBe(destination)
+      expect(result.name).toBe(destination.split("/").pop())
+      expect(result.files).toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: "root.txt", path: `${destination}/root.txt` }),
+      ]))
+      expect(result.subdirectories).toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: "nested", path: `${destination}/nested` }),
+      ]))
+      expect(result).not.toHaveProperty("message")
+      expect(await sandbox.fs.read(`${destination}/root.txt`)).toBe("root content")
+      expect(await sandbox.fs.read(`${destination}/nested/child.txt`)).toBe("nested content")
     })
   })
 

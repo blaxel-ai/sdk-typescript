@@ -1531,7 +1531,7 @@ export type GetFilesystemTreeByPathResponses = {
     /**
      * Directory tree
      */
-    200: Directory | FileWithContent | (Blob | File);
+    200: Directory;
 };
 
 export type GetFilesystemTreeByPathResponse = GetFilesystemTreeByPathResponses[keyof GetFilesystemTreeByPathResponses];
@@ -1572,7 +1572,7 @@ export type PutFilesystemTreeByPathResponses = {
     /**
      * Updated directory tree
      */
-    200: Directory | FileWithContent | (Blob | File);
+    200: Directory;
 };
 
 export type PutFilesystemTreeByPathResponse = PutFilesystemTreeByPathResponses[keyof PutFilesystemTreeByPathResponses];
