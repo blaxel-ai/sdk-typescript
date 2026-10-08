@@ -174,14 +174,12 @@ Previews can also be private, with or without a custom prefix. When you create a
 ```typescript
 // ...
 
-// Create a private preview URL
-const privatePreview = await sandbox.previews.createIfNotExists({
-  metadata: { name: "private-app-preview" },
-  spec: {
-    port: 3000,
-    public: false
-  }
-});
+// Shorthand: preview-3000, private on creation, no prefix required.
+const privatePreview = await sandbox.previews.createIfNotExists({ port: 3000 });
+const token = await privatePreview.tokens.createIfExpired();
+const url = new URL(privatePreview.url); // base URL, without a token
+url.searchParams.set("bl_preview_token", token.value); // credential: do not log
+// When no longer needed: await privatePreview.tokens.delete(token.name);
 
 // Create a public preview URL with a custom prefix
 const customPreview = await sandbox.previews.createIfNotExists({
@@ -193,6 +191,18 @@ const customPreview = await sandbox.previews.createIfNotExists({
   }
 });
 ```
+
+The shorthand name is constant per port within each sandbox. You can supply `name`
+and `public`; custom prefixes and other advanced settings still use the full model
+above. Existing previews are returned **as-is**, even if their port or public
+setting differs: the private default only applies on creation.
+
+`createIfExpired(expiresAt?, minValidity?)` defaults to a new 24-hour expiry and
+one hour of minimum remaining validity (milliseconds). It reuses the latest valid,
+nonempty token no later than the requested expiry, so an explicitly shorter expiry
+never reuses a longer-lived credential. Token names are generated and exposed for
+deletion. Concurrent callers can mint separate tokens; old tokens are not deleted.
+The helpers simplify setup, not its network request count or atomicity.
 
 #### Process execution
 
