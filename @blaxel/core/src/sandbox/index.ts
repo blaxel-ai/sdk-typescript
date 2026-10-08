@@ -7,6 +7,7 @@ export {
   getProcess, getProcessByIdentifier, getProcessByIdentifierLogs, getProcessByIdentifierLogsStream, PortMonitorRequest, postNetworkProcessByPidMonitor, postProcess, ProcessRequest, ProcessResponse, putFilesystemByPath, SuccessResponse
 } from "./client/index.js";
 export { ResponseError, SandboxGatewayError, isGatewayError, isGatewayTimeout } from "./action.js";
+export * from "../common/error-types.js";
 export * from "./filesystem/index.js";
 export * from "./codegen/index.js";
 export { SandboxDrive, type DriveMountRequest, type DriveMountResponse, type DriveMountInfo, type DriveUnmountResponse } from "./drive/index.js";

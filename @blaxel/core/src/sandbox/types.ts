@@ -60,6 +60,14 @@ export type SandboxDriveMountConfiguration = {
   | { create: Omit<DriveCreateConfiguration, "region">; driveName?: never }
 );
 
+export type SandboxPreviewCreateConfiguration = {
+  port: number;
+  /** Defaults to preview-<port> within this sandbox. */
+  name?: string;
+  /** Defaults to false on creation; existing previews are not changed. */
+  public?: boolean;
+};
+
 export type SandboxCreateConfiguration = {
   name?: string;
   image?: string;
