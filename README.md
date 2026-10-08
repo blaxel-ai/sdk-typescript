@@ -36,6 +36,49 @@ This allows you to run Blaxel SDK functions that will automatically connect to y
 
 When running Blaxel SDK from a remote server that is not Blaxel-hosted, we recommend using environment variables as described in the third option above.
 
+## API error types
+
+`@blaxel/core` exports `BlaxelErrorCode` (gateway, auth and sandbox-creation
+code unions), `BlaxelErrorCodeValue` (also unknown string codes and numeric HTTP
+codes), and body types: `BlaxelApiErrorBody`, `BlaxelActionErrorBody`,
+`BlaxelPlatformErrorBody`, `BlaxelSandboxApiErrorBody`.
+
+Errors are **not wrapped or changed**. The SDK still throws raw control-plane
+bodies, existing sandbox error classes, plain `Error`, or text/HTML bodies.
+`isBlaxelError` is true only for the shapes the SDK throws for API errors
+(`BlaxelErrorLike`): `ResponseError` (including `SandboxGatewayError`),
+`SandboxCreationTimeoutError`, and raw control-plane error bodies that carry a
+code and status. It is false for plain `Error`s (a network error with a code such
+as `ECONNRESET` included), strings, raw HTML/text bodies and empty bodies. Like
+`is_blaxel_error` in the Python SDK, it is false for plain exceptions and
+strings. Unlike Python, a control-plane error with a non-JSON body (an HTML 502,
+say) is thrown as a bare string here, so the guard is false for it; Python raises
+`UnexpectedStatus`, for which `is_blaxel_error` is true. Use the non-throwing
+accessors instead of assuming common properties:
+
+```typescript
+import {
+  SandboxInstance, isBlaxelError, getBlaxelErrorCode,
+  getBlaxelErrorStatus, getBlaxelErrorMessage, getBlaxelErrorRequestId,
+} from "@blaxel/core";
+
+try {
+  await SandboxInstance.create({ name: "my-sandbox", region: "us-was-1" });
+} catch (err) {
+  if (isBlaxelError(err)) {
+    console.error(getBlaxelErrorCode(err), getBlaxelErrorStatus(err),
+      getBlaxelErrorMessage(err), getBlaxelErrorRequestId(err));
+  }
+  throw err;
+}
+```
+
+Unknown codes need a fallback. Missing fields return `undefined`; in particular,
+raw control-plane bodies and creation-timeout errors do not retain response
+headers/request IDs, and `getBlaxelErrorStatus` is `undefined` for transport
+errors such as an HTTP/2 stream reset. All accessors accept `unknown` safely,
+including values the guard rejects. `POLICY_VIOLATION` is reserved, not emitted today.
+
 ## Usage
 
 ### Sandboxes
