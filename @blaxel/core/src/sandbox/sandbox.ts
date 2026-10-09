@@ -78,6 +78,10 @@ const RESET_POLL_MS = 500;
 // brings the sandbox back to life) is refused before anything is written.
 const RESETTABLE_STATUSES = new Set(["DEPLOYED", "DEPLOYING", "DEACTIVATING", "DEACTIVATED", "FAILED"]);
 const RESET_ENTRY_OFF_STATUSES = new Set(["DEACTIVATING", "DEACTIVATED"]);
+// Right after the switch-on write the record can still read as off while the
+// control plane starts the redeploy. That is tolerated only until the redeploy
+// has been seen, and never past the wait the caller asked for.
+const RESET_ENTRY_MAX_WAIT_MS = 30_000;
 
 /** How long to wait for a reset to finish. */
 export type SandboxResetOptions = {
@@ -637,6 +641,12 @@ export class SandboxInstance {
       if (record.spec.enabled !== false || !RESET_ENTRY_OFF_STATUSES.has(record.status ?? "")) {
         throw new Error(`Sandbox ${sandboxName} could not be reset: the control plane did not take it down (it is ${record.status})`);
       }
+      // The write can come back while the teardown is still running. Switching
+      // the sandbox back on then cancels it and leaves the old instance, and
+      // its filesystem, in place: let it finish first.
+      if (record.status === "DEACTIVATING") {
+        record = await SandboxInstance.waitForDeactivated(sandboxName, record, options);
+      }
     }
     try {
       await SandboxInstance.writeEnabled(sandboxName, record, true);
@@ -671,6 +681,27 @@ export class SandboxInstance {
     return data;
   }
 
+  // Wait for a sandbox that is DEACTIVATING to be DEACTIVATED, within the entry
+  // window. If the teardown is slow the last record read is returned and the
+  // reset goes on as it would have.
+  private static async waitForDeactivated(
+    sandboxName: string,
+    launched: SandboxModel,
+    { maxWait = RESET_MAX_WAIT_MS, interval = RESET_POLL_MS }: SandboxResetOptions,
+  ): Promise<SandboxModel> {
+    const deadline = Date.now() + Math.min(RESET_ENTRY_MAX_WAIT_MS, maxWait);
+    let record = launched;
+    while (record.status === "DEACTIVATING" && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, interval));
+      const { data } = await retryOnTransientReset(() => getSandbox({ path: { sandboxName }, throwOnError: true }));
+      if (!RESET_ENTRY_OFF_STATUSES.has(data.status ?? "")) {
+        throw new Error(`Sandbox ${sandboxName} could not be reset: the control plane did not finish taking it down (it is ${data.status})`);
+      }
+      record = data;
+    }
+    return record;
+  }
+
   // Wait until the sandbox is DEPLOYED again and answers. The record turns
   // DEPLOYED a couple of seconds before the sandbox is routable, during which
   // calls get a 404 WORKLOAD_UNAVAILABLE (retryable), so DEPLOYED alone is not
@@ -680,8 +711,10 @@ export class SandboxInstance {
     { maxWait = RESET_MAX_WAIT_MS, interval = RESET_POLL_MS }: SandboxResetOptions,
   ): Promise<SandboxInstance> {
     const deadline = Date.now() + maxWait;
+    const entryDeadline = Date.now() + Math.min(RESET_ENTRY_MAX_WAIT_MS, maxWait);
     const seconds = Math.round(maxWait / 1000);
     let instance: SandboxInstance | undefined;
+    let redeploying = false;
     for (;;) {
       await new Promise((resolve) => setTimeout(resolve, interval));
       if (!instance) {
@@ -691,10 +724,15 @@ export class SandboxInstance {
         }
         if (data.status === "DEPLOYED") {
           instance = await SandboxInstance.attachH2Session(new SandboxInstance(data));
-        } else if (data.status !== "DEPLOYING") {
+        } else if (data.status === "DEPLOYING") {
+          redeploying = true;
+          if (Date.now() >= deadline) {
+            throw new Error(`Sandbox ${sandboxName} is still ${data.status} after waiting ${seconds}s for it to deploy again after the reset`);
+          }
+        } else if (!redeploying && RESET_ENTRY_OFF_STATUSES.has(data.status ?? "") && Date.now() < entryDeadline) {
+          continue;
+        } else {
           throw new Error(`Sandbox ${sandboxName} is ${data.status} while it should be deployed again after the reset`);
-        } else if (Date.now() >= deadline) {
-          throw new Error(`Sandbox ${sandboxName} is still ${data.status} after waiting ${seconds}s for it to deploy again after the reset`);
         }
       }
       if (instance) {
