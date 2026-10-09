@@ -277,30 +277,16 @@ try {
 }
 ```
 
-Like `cp -r`, an existing destination directory (or symlink to one) is a container:
-the protected target is its child named after the source, not the container.
-Existing child directories conflict rather than merging. Directory contenders
-using an initially absent destination can resolve different final entries once
-it becomes a container; exactly one winner requires the same stable final entry.
+With `noOverwrite`, the sandbox API copies in one request (`POST /filesystem-copy`) and
+creates every entry exclusively, so there is no check-then-write race. Like `cp -r`, an
+existing destination directory (or symlink to one) is a container: the protected target is
+its child named after the source. An existing target, including an empty directory or a
+dangling symlink, is a conflict and is left unchanged; directories are never merged.
 
-Only the **reservation** is atomic, not publication of complete contents. Empty
-or partial targets may be visible and remain after errors, timeout, disconnect or
-crash; retries conflict with them. Inspect/remove a known partial result yourself;
-there is no automatic rollback. Waiting timeouts do not stop the copy.
-Protection assumes cooperating copies that do not remove/replace entries; it
-does not defend against workload source/parent/target replacement or snapshot
-the source. Top-level sources must be regular files, directories or symlinks.
-After a regular-file claim, a symlink or non-regular final entry is reported as a
-conflict before copying or changing its mode. A symlink to a FIFO raced in after
-the initial check can still block the noclobber redirect before this check runs.
-Ordinary file and top-level directory rwx bits respect umask; protected copies
-clear special bits on those entries (an intentional difference from BusyBox
-`cp -r`). Nested entries retain the recursive copy utility's behavior.
-
-Protected mode requires Linux `sh`, `cp -r`, `mkdir`, `ln -sT`, `readlink -n`,
-`basename`, `stat -Lc %a`, and `chmod` (tested on Alpine 3.21 and Debian
-bookworm/trixie). Missing tools fail safely, never fall back to overwriting.
-No sandbox-api upgrade is required.
+The copy is not a transaction: if it fails part-way, entries it already created remain, and
+a retry conflicts with them. Source symlinks are copied as symlinks; special files are refused.
+It needs a sandbox image whose API has the copy endpoint and throws on older ones, never
+falling back to an overwriting copy.
 
 #### Volumes
 
