@@ -2,11 +2,26 @@ import { SandboxInstance, VolumeInstance } from "@blaxel/core"
 import { afterAll, describe, expect, it } from "vitest"
 import { defaultImage, defaultLabels, defaultRegion, sleep, uniqueName, waitForSandboxDeletion } from "./helpers.js"
 
+// A reset takes seconds; bound every wait so a stuck reset fails inside the test budget.
+const RESET_MAX_WAIT_MS = 15_000
+const TEST_TIMEOUT_MS = 60_000
+
 const BOOT_ID = "cat /proc/sys/kernel/random/boot_id"
 
 async function run(sandbox: SandboxInstance, command: string): Promise<string> {
   const result = await sandbox.process.exec({ command, waitForCompletion: true })
   return (result.logs ?? "").trim()
+}
+
+// VolumeInstance.create returns while the volume is still DEPLOYING, and a sandbox cannot attach it yet.
+async function waitForVolumeReady(name: string, timeoutMs: number = 20_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  for (;;) {
+    const volume = await VolumeInstance.get(name)
+    if (volume.status && volume.status !== "DEPLOYING") return
+    if (Date.now() >= deadline) throw new Error(`Volume ${name} is still ${volume.status} after ${timeoutMs / 1000}s`)
+    await sleep(1000)
+  }
 }
 
 async function exists(sandbox: SandboxInstance, path: string): Promise<boolean> {
@@ -70,14 +85,14 @@ describe("Sandbox reset", () => {
     const before = await SandboxInstance.get(name)
 
     const started = Date.now()
-    const result = await sandbox.reset()
+    const result = await sandbox.reset({ maxWait: RESET_MAX_WAIT_MS })
     const elapsed = Date.now() - started
 
     // Back to DEPLOYED, on the instance that was called, in seconds.
     expect(result).toBe(sandbox)
     expect(sandbox.status).toBe("DEPLOYED")
     expect(sandbox.spec.enabled).not.toBe(false)
-    expect(elapsed).toBeLessThan(45_000)
+    expect(elapsed).toBeLessThan(RESET_MAX_WAIT_MS)
 
     // A new instance from the image: another boot, nothing left behind.
     expect(await run(sandbox, BOOT_ID)).not.toBe(bootBefore)
@@ -100,16 +115,19 @@ describe("Sandbox reset", () => {
 
     // It keeps working afterwards, and resetting again works too.
     await after.fs.write("/home/user/after.txt", "ok")
-    const again = await SandboxInstance.reset(name)
+    const again = await SandboxInstance.reset(name, { maxWait: RESET_MAX_WAIT_MS })
     expect(again.status).toBe("DEPLOYED")
     expect(await exists(again, "/home/user/after.txt")).toBe(false)
-  })
+  }, TEST_TIMEOUT_MS)
 
   it("keeps an attached volume and its data", async () => {
     const volumeName = uniqueName("reset-vol")
     const name = uniqueName("reset-volume")
     await VolumeInstance.create({ name: volumeName, size: 1024, region: defaultRegion, labels: defaultLabels })
     volumes.push(volumeName)
+    await waitForVolumeReady(volumeName)
+    // Registered before the create so a sandbox that deploys badly is still deleted, which frees the volume.
+    sandboxes.push(name)
     const sandbox = await SandboxInstance.create({
       name,
       image: defaultImage,
@@ -117,11 +135,10 @@ describe("Sandbox reset", () => {
       volumes: [{ name: volumeName, mountPath: "/data", readOnly: false }],
       labels: defaultLabels,
     })
-    sandboxes.push(name)
     await run(sandbox, "echo persistent > /data/keep.txt")
     await sandbox.fs.write("/home/user/leftover.txt", "build artifact")
 
-    await sandbox.reset()
+    await sandbox.reset({ maxWait: RESET_MAX_WAIT_MS })
 
     expect(await exists(sandbox, "/home/user/leftover.txt")).toBe(false)
     expect(await run(sandbox, "cat /data/keep.txt")).toBe("persistent")
@@ -129,7 +146,7 @@ describe("Sandbox reset", () => {
     // The volume is mounted for writing again.
     await run(sandbox, "echo second > /data/second.txt")
     expect(await run(sandbox, "cat /data/second.txt")).toBe("second")
-  })
+  }, TEST_TIMEOUT_MS)
 
   it("does not bring a deleted sandbox back to life", async () => {
     const name = uniqueName("reset-deleted")
