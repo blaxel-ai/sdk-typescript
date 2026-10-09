@@ -88,6 +88,17 @@ describe("SandboxInstance.createIfNotExists drift warning", () => {
     expect(driftWarnings()).toEqual([]);
   });
 
+  it("does not treat the BL_REGION default as a requested region", async () => {
+    vi.stubEnv("BL_REGION", "us-pdx-1");
+    mockedCreate.mockResolvedValueOnce(existing());
+    await SandboxInstance.createIfNotExists({ name: "sbx" });
+    expect(driftWarnings()).toEqual([]);
+    // An explicit region is still compared, whatever BL_REGION says.
+    mockedCreate.mockResolvedValueOnce(existing());
+    await SandboxInstance.createIfNotExists({ name: "sbx", region: "us-pdx-1" });
+    expect(driftWarnings()[0]).toContain("region (requested us-pdx-1, existing us-was-1)");
+  });
+
   it("treats an untagged image as :latest", async () => {
     mockedCreate.mockResolvedValueOnce(record({ image: "blaxel/base-image:latest" }));
     await SandboxInstance.createIfNotExists({ name: "sbx", image: "blaxel/base-image" });

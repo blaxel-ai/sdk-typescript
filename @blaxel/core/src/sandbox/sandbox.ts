@@ -399,7 +399,7 @@ export class SandboxInstance {
       'extraArgs' in sandbox
     ) {
       if (!sandbox) sandbox = {} as SandboxCreateConfiguration
-      requested = { image: sandbox.image, memory: sandbox.memory, region: sandbox.region || settings.region, envs: normalizeEnvs(sandbox.envs) }
+      requested = { image: sandbox.image, memory: sandbox.memory, region: sandbox.region, envs: normalizeEnvs(sandbox.envs) }
       if (!sandbox.image) sandbox.image = defaultImage
       if (!sandbox.memory) sandbox.memory = defaultMemory
 
