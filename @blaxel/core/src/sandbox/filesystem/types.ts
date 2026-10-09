@@ -32,17 +32,15 @@ export interface FilesystemFindOptions {
   excludeHidden?: boolean;
 }
 
-export type FilesystemReadTreeOptions = Pick<FilesystemFindOptions, "patterns" | "excludeHidden"> & {
-  /**
-   * Directory names to skip. A non-empty list replaces `find`'s default exclusions
-   * (`node_modules`, `vendor`, `.git`, `dist`, `build`, `target`, `__pycache__`, `.venv`,
-   * `.next`, `coverage`), so list those you still want skipped.
-   */
+export type FilesystemReadTreeOptions = Pick<FilesystemFindOptions, "patterns"> & {
+  /** Directory names to skip, with everything below them. Default: none. */
   excludeDirs?: string[];
-  /** Reject instead of truncating when more files match. Default 100, at most 999. */
+  /** Skip files and directories whose name starts with a dot. Default: false. */
+  excludeHidden?: boolean;
+  /** Reject instead of truncating when more files match. Default 10000, at most 100000. */
   maxFiles?: number;
-  /** Maximum reads in flight. Default 4. */
-  concurrency?: number;
+  /** Reject when the matching files hold more bytes. Default 32 MiB, at most 256 MiB. */
+  maxBytes?: number;
 };
 
 export interface FilesystemGrepOptions {
