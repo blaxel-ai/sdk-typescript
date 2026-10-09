@@ -38,8 +38,7 @@ describe("SandboxInstance.create mountDrives", () => {
     vi.spyOn(settings, "disableH2", "get").mockReturnValue(true);
     vi.spyOn(DriveInstance, "get").mockResolvedValue(drive("data"));
     vi.spyOn(DriveInstance, "create").mockResolvedValue(drive("drive-1234abcd"));
-    vi.spyOn(DriveInstance, "createIfNotExists").mockResolvedValue(drive("app-data"));
-    vi.spyOn(DriveInstance, "delete");
+    vi.spyOn(DriveInstance, "delete").mockResolvedValue({} as never);
     vi.spyOn(SandboxInstance, "delete");
     vi.spyOn(SandboxDrive.prototype, "unmount");
     mount.mockResolvedValue({ success: true });
@@ -47,7 +46,7 @@ describe("SandboxInstance.create mountDrives", () => {
   });
 
   afterEach(() => {
-    // However setup ends, nothing is deleted or unmounted.
+    // Once the sandbox exists, nothing is deleted or unmounted, however setup ends.
     expect(DriveInstance.delete).not.toHaveBeenCalled();
     expect(SandboxInstance.delete).not.toHaveBeenCalled();
     expect(SandboxDrive.prototype.unmount).not.toHaveBeenCalled();
@@ -80,12 +79,22 @@ describe("SandboxInstance.create mountDrives", () => {
   });
 
   it("creates new drives in the sandbox's region; a named one is reused if it exists", async () => {
+    vi.mocked(DriveInstance.create).mockImplementation(config => Promise.resolve(drive((config as { name?: string }).name ?? "drive-1234abcd")));
     list.mockResolvedValue([mounted({ driveName: "drive-1234abcd" }), mounted({ driveName: "app-data", mountPath: "/mnt/app" })]);
     await SandboxInstance.create(config, {
       mountDrives: [{ create: {}, mountPath: "/mnt/data" }, { create: { name: "app-data" }, mountPath: "/mnt/app" }],
     });
-    expect(DriveInstance.create).toHaveBeenCalledExactlyOnceWith({ region: "us-was-1" });
-    expect(DriveInstance.createIfNotExists).toHaveBeenCalledExactlyOnceWith({ name: "app-data", region: "us-was-1" });
+    expect(DriveInstance.create).toHaveBeenCalledWith({ region: "us-was-1" });
+    expect(DriveInstance.create).toHaveBeenCalledWith({ name: "app-data", region: "us-was-1" });
+    expect(DriveInstance.get).not.toHaveBeenCalled();
+  });
+
+  it("reuses a named drive that already exists", async () => {
+    vi.mocked(DriveInstance.create).mockRejectedValue({ code: 409 });
+    vi.mocked(DriveInstance.get).mockResolvedValue(drive("app-data"));
+    list.mockResolvedValue([mounted({ driveName: "app-data" })]);
+    await SandboxInstance.create(config, { mountDrives: [{ create: { name: "app-data" }, mountPath: "/mnt/data" }] });
+    expect(DriveInstance.get).toHaveBeenCalledExactlyOnceWith("app-data");
   });
 
   it("rejects a drive from another region, keeping the sandbox and mounting nothing", async () => {

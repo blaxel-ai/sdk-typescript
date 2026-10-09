@@ -48,7 +48,7 @@ export type SandboxUpdateNetwork = {
 }
 
 /**
- * A drive to mount once the sandbox exists: `driveName` for a drive that already
+ * A drive to mount on the sandbox: `driveName` for a drive that already
  * exists, `create` for a new one. New drives are created in the sandbox's region.
  */
 export type SandboxDriveMountConfiguration = {
