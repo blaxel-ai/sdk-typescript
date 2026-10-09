@@ -308,7 +308,7 @@ export const postFilesystemMultipartByUploadIdComplete = <ThrowOnError extends b
 
 /**
  * Upload part
- * Upload a single part of a multipart upload
+ * Upload a single part of a multipart upload. Re-uploading a part number replaces that part. Wait for the previous request for that part to finish before retrying.
  */
 export const putFilesystemMultipartByUploadIdPart = <ThrowOnError extends boolean = false>(options: Options<PutFilesystemMultipartByUploadIdPartData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).put<PutFilesystemMultipartByUploadIdPartResponse, PutFilesystemMultipartByUploadIdPartError, ThrowOnError>({
@@ -368,7 +368,8 @@ export const postFilesystemMultipartInitiateByPath = <ThrowOnError extends boole
 
 /**
  * Fuzzy search for files and directories
- * Performs fuzzy search on filesystem paths using fuzzy matching algorithm. Optimized alternative to find and grep commands.
+ * Ranks the files and directories under a path by how well their relative path fuzzy-matches `query` (fzf algorithm: the query's characters must appear in order, not necessarily next to each other), best match first.
+ * Fuzzy search is for "jump to file" lookups from a partial name. The `patterns` parameter is currently ignored by this endpoint; use find for exact glob filtering.
  */
 export const getFilesystemSearchByPath = <ThrowOnError extends boolean = false>(options: Options<GetFilesystemSearchByPathData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetFilesystemSearchByPathResponse, GetFilesystemSearchByPathError, ThrowOnError>({
@@ -419,7 +420,11 @@ export const getFilesystemByPath = <ThrowOnError extends boolean = false>(option
 
 /**
  * Create or update a file or directory
- * Create or update a file or directory
+ * Create or update a file or directory.
+ *
+ * Idempotent: an existing file is overwritten (truncated, not appended to) and an existing directory is kept, so retrying the same request is safe.
+ *
+ * Send either a JSON body (FileRequest) or `multipart/form-data` for binary files. Multipart fields, in any order: `file` (required, the file content), `permissions` (optional octal mode such as `0755`, applied when the file is created, default `0644`; an existing file keeps its mode), `path` (optional, ignored: the target is always the URL path).
  */
 export const putFilesystemByPath = <ThrowOnError extends boolean = false>(options: Options<PutFilesystemByPathData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).put<PutFilesystemByPathResponse, PutFilesystemByPathError, ThrowOnError>({
@@ -474,7 +479,7 @@ export const getFilesystemTreeByPath = <ThrowOnError extends boolean = false>(op
 
 /**
  * Create or update directory tree
- * Create or update multiple files within a directory tree structure
+ * Create or update multiple files within a directory tree structure. Idempotent: existing files are overwritten, so retrying the same request is safe.
  */
 export const putFilesystemTreeByPath = <ThrowOnError extends boolean = false>(options: Options<PutFilesystemTreeByPathData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).put<PutFilesystemTreeByPathResponse, PutFilesystemTreeByPathError, ThrowOnError>({
@@ -623,7 +628,10 @@ export const getProcess = <ThrowOnError extends boolean = false>(options?: Optio
 
 /**
  * Execute a command
- * Execute a command and return process information. If Accept header is text/event-stream, streams logs in SSE format and returns the process response as a final event.
+ * Execute a command and return process information.
+ *
+ * Streaming: with `Accept: application/x-ndjson` (or `Accept: text/event-stream`, kept for compatibility) the response is NDJSON (`Content-Type: application/x-ndjson`), not SSE: one JSON object per line, `{"type": "...", "data": "..."}`.
+ * `type` is `stdout` or `stderr` (`data` is a raw output chunk, sent as soon as the process writes it, newlines included; if the process finished before any chunk was streamed, its output is sent instead as one event per line, without the newline), `keepalive` (every 5 seconds, no data), `error` (`data` is the message, ends the stream) or `result` (last event, `data` is the ProcessResponse as a JSON string).
  */
 export const postProcess = <ThrowOnError extends boolean = false>(options: Options<PostProcessData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).post<PostProcessResponse, PostProcessError, ThrowOnError>({
@@ -644,7 +652,7 @@ export const postProcess = <ThrowOnError extends boolean = false>(options: Optio
 
 /**
  * Stop a process
- * Gracefully stop a running process
+ * Request graceful termination. Poll GET /process/{identifier} until terminal status confirms the managed process has exited.
  */
 export const deleteProcessByIdentifier = <ThrowOnError extends boolean = false>(options: Options<DeleteProcessByIdentifierData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteProcessByIdentifierResponse, DeleteProcessByIdentifierError, ThrowOnError>({
@@ -678,7 +686,7 @@ export const getProcessByIdentifier = <ThrowOnError extends boolean = false>(opt
 
 /**
  * Kill a process
- * Forcefully kill a running process
+ * Request forceful termination. Poll GET /process/{identifier} until terminal status confirms the managed process has exited.
  */
 export const deleteProcessByIdentifierKill = <ThrowOnError extends boolean = false>(options: Options<DeleteProcessByIdentifierKillData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).delete<DeleteProcessByIdentifierKillResponse, DeleteProcessByIdentifierKillError, ThrowOnError>({
@@ -712,7 +720,8 @@ export const getProcessByIdentifierLogs = <ThrowOnError extends boolean = false>
 
 /**
  * Stream process logs in real time
- * Streams the stdout and stderr output of a process in real time, one line per log, prefixed with 'stdout:' or 'stderr:'. Closes when the process exits or the client disconnects.
+ * Streams the stdout and stderr output of a process in real time: the output so far, then live output as the process writes it. Closes when the process exits or the client disconnects.
+ * Each output line starts with `stdout:` or `stderr:` and keeps its trailing newline. A partial line (e.g. a prompt) is sent as soon as it is written; when the process completes it, the rest follows without a new prefix. `[keepalive]` lines are sent every 30 seconds.
  */
 export const getProcessByIdentifierLogsStream = <ThrowOnError extends boolean = false>(options: Options<GetProcessByIdentifierLogsStreamData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetProcessByIdentifierLogsStreamResponse, GetProcessByIdentifierLogsStreamError, ThrowOnError>({

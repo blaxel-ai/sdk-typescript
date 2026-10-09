@@ -302,11 +302,17 @@ export type FuzzySearchResponse = {
 
 export type HealthResponse = {
     arch: string;
+    /**
+     * Build time in RFC 3339 (UTC), or "unknown" for builds without it
+     */
     buildTime: string;
     gitCommit: string;
     goVersion: string;
     lastUpgrade: UpgradeStatus;
     os: string;
+    /**
+     * API start time in RFC 3339
+     */
     startedAt: string;
     status: string;
     upgradeCount: number;
@@ -413,6 +419,9 @@ export type ProcessRequest = {
 
 export type ProcessResponse = {
     command: string;
+    /**
+     * Completion time, same format as startedAt. Empty string while the process runs
+     */
     completedAt: string;
     exitCode: number;
     /**
@@ -425,6 +434,9 @@ export type ProcessResponse = {
     pid: string;
     restartCount?: number;
     restartOnFailure?: boolean;
+    /**
+     * Start time as an HTTP date (RFC 1123, e.g. Wed, 01 Jan 2023 12:00:00 GMT)
+     */
     startedAt: string;
     status: 'failed' | 'killed' | 'stopped' | 'running' | 'completed';
     stderr: string;
@@ -1283,11 +1295,15 @@ export type GetFilesystemSearchByPathData = {
     };
     query?: {
         /**
+         * Fuzzy pattern matched against each relative path (e.g., mngo for src/main.go). When omitted, the search path itself is used as the pattern.
+         */
+        query?: string;
+        /**
          * Maximum number of results to return (default: 20)
          */
         maxResults?: number;
         /**
-         * Comma-separated file patterns to include (e.g., *.go,*.js)
+         * Accepted for compatibility but currently ignored; use filesystem-find for glob filtering
          */
         patterns?: string;
         /**
@@ -1375,7 +1391,7 @@ export type GetFilesystemByPathData = {
     body?: never;
     path: {
         /**
-         * File or directory path
+         * File or directory path. Relative paths are resolved against the filesystem working directory. For example, with a working directory of /app, GET /filesystem/workspace resolves to /app/workspace. To access the absolute path /workspace over HTTP, encode its leading slash as %2F: GET /filesystem/%2Fworkspace. The double-slash form GET /filesystem//workspace also addresses /workspace.
          */
         path: string;
     };
@@ -1864,7 +1880,7 @@ export type DeleteProcessByIdentifierError = DeleteProcessByIdentifierErrors[key
 
 export type DeleteProcessByIdentifierResponses = {
     /**
-     * Process stopped
+     * Process stop requested
      */
     200: SuccessResponse;
 };
@@ -1932,7 +1948,7 @@ export type DeleteProcessByIdentifierKillError = DeleteProcessByIdentifierKillEr
 
 export type DeleteProcessByIdentifierKillResponses = {
     /**
-     * Process killed
+     * Process kill requested
      */
     200: SuccessResponse;
 };
@@ -2008,7 +2024,7 @@ export type GetProcessByIdentifierLogsStreamError = GetProcessByIdentifierLogsSt
 
 export type GetProcessByIdentifierLogsStreamResponses = {
     /**
-     * Stream of process logs, one line per log (prefixed with stdout:/stderr:)
+     * Process output, each line prefixed with stdout: or stderr:
      */
     200: string;
 };
