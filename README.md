@@ -317,6 +317,30 @@ const handle = sandbox.fs.watch("/app", (event) => {
 handle.close();
 ```
 
+Copying with `cp` still overwrites by default. Opt in to protecting the resolved
+final target (including dangling symlinks):
+
+```typescript
+import { SandboxFileExistsError } from "@blaxel/core";
+try {
+  await sandbox.fs.cp("/tmp/source.txt", "/tmp/target.txt", { noOverwrite: true });
+} catch (error) {
+  if (!(error instanceof SandboxFileExistsError)) throw error;
+  // Existing effective target was left unchanged.
+}
+```
+
+With `noOverwrite`, the sandbox API copies in one request (`POST /filesystem-copy`) and
+creates every entry exclusively, so there is no check-then-write race. Like `cp -r`, an
+existing destination directory (or symlink to one) is a container: the protected target is
+its child named after the source. An existing target, including an empty directory or a
+dangling symlink, is a conflict and is left unchanged; directories are never merged.
+
+The copy is not a transaction: if it fails part-way, entries it already created remain, and
+a retry conflicts with them. Source symlinks are copied as symlinks; special files are refused.
+It needs a sandbox image whose API has the copy endpoint and throws on older ones, never
+falling back to an overwriting copy.
+
 #### Volumes
 
 Persist data by attaching and using volumes:

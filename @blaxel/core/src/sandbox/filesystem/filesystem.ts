@@ -8,6 +8,7 @@ import { SandboxAction } from "../action.js";
 import type { GetFilesystemSearchByPathData } from "../client/index.js";
 import { ContentSearchResponse, deleteFilesystemByPath, deleteFilesystemMultipartByUploadIdAbort, Directory, FindResponse, FuzzySearchResponse, getFilesystemByPath, getFilesystemContentSearchByPath, getFilesystemFindByPath, getFilesystemSearchByPath, getWatchFilesystemByPath, MultipartInitiateResponse, MultipartPartInfo, MultipartUploadPartResponse, postFilesystemMultipartByUploadIdComplete, postFilesystemMultipartInitiateByPath, putFilesystemByPath, PutFilesystemByPathError, putFilesystemMultipartByUploadIdPart, SuccessResponse } from "../client/index.js";
 import { SandboxProcess } from "../process/index.js";
+import { SandboxFileExistsError } from "./copy-no-overwrite.js";
 import { CopyResponse, FilesystemFindOptions, FilesystemGrepOptions, FilesystemSearchOptions, SandboxFilesystemFile, WatchEvent } from "./types.js";
 
 // Multipart upload constants
@@ -394,7 +395,10 @@ export class SandboxFileSystem extends SandboxAction {
     });
   }
 
-  async cp(source: string, destination: string, { maxWait = 180000 }: { maxWait?: number } = {}): Promise<CopyResponse> {
+  async cp(source: string, destination: string, { maxWait = 180000, noOverwrite = false }: { maxWait?: number; noOverwrite?: boolean } = {}): Promise<CopyResponse> {
+    if (noOverwrite) {
+      return this.copyNoOverwrite(source, destination);
+    }
     // Quote both paths so the shell that runs this command treats them as
     // single literal arguments instead of interpreting metacharacters in them.
     let process = await this.process.exec({
@@ -409,6 +413,30 @@ export class SandboxFileSystem extends SandboxAction {
       source,
       destination,
     }
+  }
+
+  // One request: the sandbox API copies with exclusive creates and answers 409
+  // FILE_ALREADY_EXISTS when the final target exists. Not retried: a POST copy
+  // may have created entries before a connection reset.
+  private async copyNoOverwrite(source: string, destination: string): Promise<CopyResponse> {
+    if (!source || !destination) {
+      throw new RangeError("source and destination must be nonempty paths");
+    }
+    const { response, data, error } = await this.client.post<CopyResponse, { code?: string; error?: string }>({
+      url: "/filesystem-copy",
+      body: { source, destination, noOverwrite: true },
+      headers: { "Content-Type": "application/json" },
+      baseUrl: this.url,
+    });
+    if (response.status === 409 && error?.code === "FILE_ALREADY_EXISTS") {
+      throw new SandboxFileExistsError(source, destination, { cause: error });
+    }
+    if (response.status === 404 && !error?.code && !error?.error) {
+      // An older sandbox API has no copy endpoint. Never fall back to an overwriting copy.
+      throw new Error("cp with noOverwrite needs a newer sandbox API: this sandbox has no /filesystem-copy endpoint; update its image");
+    }
+    this.handleResponseError(response, data, error);
+    return { message: "Files copied", source, destination };
   }
 
   watch(
