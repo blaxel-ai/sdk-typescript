@@ -56,6 +56,9 @@ export type ArchiveManifest = {
 
 export type ContentSearchMatch = {
     column: number;
+    /**
+     * The matching line with up to contextLines lines before and after it, newline-separated; omitted when contextLines is 0
+     */
     context?: string;
     line: number;
     path: string;
@@ -384,6 +387,9 @@ export type PortMonitorRequest = {
 };
 
 export type ProcessLogs = {
+    /**
+     * Concatenation of the returned stdout followed by the returned stderr. Output from the two streams is not interleaved.
+     */
     logs: string;
     stderr: string;
     stdout: string;
@@ -647,7 +653,7 @@ export type PostArchiveExportErrors = {
      */
     400: ErrorResponse;
     /**
-     * An export is already in progress
+     * An export is already in progress, or the sandbox is frozen for a restore
      */
     409: ErrorResponse;
     /**
@@ -969,6 +975,10 @@ export type GetFilesystemContentSearchByPathData = {
          * Comma-separated directory names to skip (default: node_modules,vendor,.git,dist,build,target,__pycache__,.venv,.next,coverage)
          */
         excludeDirs?: string;
+        /**
+         * Lines to include before and after each match in its context field (default: 0, max: 20; invalid values count as 0)
+         */
+        contextLines?: number;
     };
     url: '/filesystem-content-search/{path}';
 };
@@ -1430,6 +1440,25 @@ export type GetFilesystemByPathResponses = {
 
 export type GetFilesystemByPathResponse = GetFilesystemByPathResponses[keyof GetFilesystemByPathResponses];
 
+export type HeadFilesystemByPathData = {
+    body?: never;
+    path: {
+        /**
+         * File or directory path
+         */
+        path: string;
+    };
+    query?: never;
+    url: '/filesystem/{path}';
+};
+
+export type HeadFilesystemByPathResponses = {
+    /**
+     * Path metadata (X-File-Type is set only when stat succeeds)
+     */
+    200: unknown;
+};
+
 export type PutFilesystemByPathData = {
     /**
      * File or directory details
@@ -1547,7 +1576,7 @@ export type GetFilesystemTreeByPathResponses = {
     /**
      * Directory tree
      */
-    200: Directory | FileWithContent | (Blob | File);
+    200: Directory;
 };
 
 export type GetFilesystemTreeByPathResponse = GetFilesystemTreeByPathResponses[keyof GetFilesystemTreeByPathResponses];
@@ -1588,7 +1617,7 @@ export type PutFilesystemTreeByPathResponses = {
     /**
      * Updated directory tree
      */
-    200: Directory | FileWithContent | (Blob | File);
+    200: Directory;
 };
 
 export type PutFilesystemTreeByPathResponse = PutFilesystemTreeByPathResponses[keyof PutFilesystemTreeByPathResponses];
@@ -1995,6 +2024,12 @@ export type GetProcessByIdentifierLogsResponse = GetProcessByIdentifierLogsRespo
 
 export type GetProcessByIdentifierLogsStreamData = {
     body?: never;
+    headers?: {
+        /**
+         * Explicit application/x-ndjson opts into structured records; absent or wildcard Accept retains text/plain. Supported explicit media types honor q weights, preferring NDJSON on a tie.
+         */
+        Accept?: string;
+    };
     path: {
         /**
          * Process identifier (PID or name)
@@ -2007,13 +2042,17 @@ export type GetProcessByIdentifierLogsStreamData = {
 
 export type GetProcessByIdentifierLogsStreamErrors = {
     /**
+     * Invalid process identifier
+     */
+    400: ErrorResponse;
+    /**
      * Process not found
      */
     404: ErrorResponse;
     /**
-     * Unprocessable entity
+     * Structured history unavailable for this older process
      */
-    422: ErrorResponse;
+    409: ErrorResponse;
     /**
      * Internal server error
      */
@@ -2024,7 +2063,7 @@ export type GetProcessByIdentifierLogsStreamError = GetProcessByIdentifierLogsSt
 
 export type GetProcessByIdentifierLogsStreamResponses = {
     /**
-     * Process output, each line prefixed with stdout: or stderr:
+     * Process output as prefixed text or NDJSON records
      */
     200: string;
 };
@@ -2146,13 +2185,13 @@ export type GetWatchFilesystemByPathData = {
     body?: never;
     path: {
         /**
-         * Directory path to watch
+         * Directory path to watch (append ** to watch subdirectories)
          */
         path: string;
     };
     query?: {
         /**
-         * Ignore patterns (comma-separated)
+         * Comma-separated substrings; events whose full path contains one are skipped
          */
         ignore?: string;
     };
@@ -2174,7 +2213,7 @@ export type GetWatchFilesystemByPathError = GetWatchFilesystemByPathErrors[keyof
 
 export type GetWatchFilesystemByPathResponses = {
     /**
-     * Stream of modified file paths, one per line
+     * JSON lines stream of change events
      */
     200: string;
 };
