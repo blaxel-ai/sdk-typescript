@@ -45,7 +45,7 @@ describe("SandboxInstance.create mountDrives concurrency", () => {
     vi.spyOn(settings, "disableH2", "get").mockReturnValue(true);
     vi.spyOn(DriveInstance, "get").mockImplementation(name => Promise.resolve(drive(name)));
     vi.spyOn(DriveInstance, "create").mockImplementation(c => Promise.resolve(drive((c as { name: string }).name)));
-    vi.spyOn(DriveInstance, "delete").mockResolvedValue({} as never);
+    vi.spyOn(DriveInstance, "delete").mockResolvedValue({});
     vi.spyOn(SandboxInstance, "delete");
   });
 
@@ -128,7 +128,7 @@ describe("SandboxInstance.create mountDrives concurrency", () => {
   });
 
   it("when the sandbox's region is not known up front, creates drives once it is created, in its region", async () => {
-    vi.spyOn(settings, "region", "get").mockReturnValue(undefined as never);
+    vi.spyOn(settings, "region", "get").mockReturnValue(undefined);
     const sandbox = deferred<typeof sandboxResponse>();
     vi.mocked(createSandbox).mockReturnValue(sandbox.promise as never);
     const lookedUp = vi.mocked(DriveInstance.get);
@@ -146,7 +146,7 @@ describe("SandboxInstance.create mountDrives concurrency", () => {
       const failure = new Error("quota exceeded");
       const sandbox = deferred<typeof sandboxResponse>();
       vi.mocked(createSandbox).mockReturnValue(sandbox.promise as never);
-      vi.mocked(DriveInstance.create).mockImplementation(c => (c as { name: string }).name === "old" ? Promise.reject({ code: 409 }) : Promise.resolve(drive((c as { name: string }).name)));
+      vi.mocked(DriveInstance.create).mockImplementation(c => (c as { name: string }).name === "old" ? Promise.reject(Object.assign(new Error("conflict"), { code: 409 })) : Promise.resolve(drive((c as { name: string }).name)));
       const result = SandboxInstance.create(config, { mountDrives: [entry("new"), entry("old"), { driveName: "data", mountPath: "/mnt/data" }] }).catch((e: unknown) => e);
       await settle();
       sandbox.reject(failure);
@@ -168,16 +168,16 @@ describe("SandboxInstance.create mountDrives concurrency", () => {
     });
 
     it("does not create drives for a sandbox that failed before its region was known", async () => {
-      vi.spyOn(settings, "region", "get").mockReturnValue(undefined as never);
+      vi.spyOn(settings, "region", "get").mockReturnValue(undefined);
       vi.mocked(createSandbox).mockRejectedValue(new Error("boom"));
       await expect(SandboxInstance.create({ image: config.image }, { mountDrives: [entry("a")] })).rejects.toThrow("boom");
       expect(DriveInstance.create).not.toHaveBeenCalled();
       expect(DriveInstance.delete).not.toHaveBeenCalled();
     });
 
-    it("keeps the sandbox and what exists when one drive fails, starts no more drives and reports the cause", async () => {
+    it("deletes the drives it created but did not mount when one drive fails, and starts no more drives", async () => {
       const total = MOUNT_DRIVES_CONCURRENCY + 3;
-      const cause = new Error("drive quota");
+      const cause = Object.assign(new Error("drive quota"), { code: 429 });
       const sandbox = deferred<typeof sandboxResponse>();
       vi.mocked(createSandbox).mockReturnValue(sandbox.promise as never);
       const gate = deferred();
@@ -186,25 +186,27 @@ describe("SandboxInstance.create mountDrives concurrency", () => {
         await gate.promise;
         return drive((c as { name: string }).name);
       });
-      const result = SandboxInstance.create(config, { mountDrives: Array.from({ length: total }, (_, i) => entry(`d${i}`)) }).catch((e: unknown) => e);
+      const result = SandboxInstance.create(config, { mountDrives: [...Array.from({ length: total }, (_, i) => entry(`d${i}`)), { driveName: "data", mountPath: "/mnt/data" }] }).catch((e: unknown) => e);
       await settle();
       gate.resolve();
       sandbox.resolve(sandboxResponse);
       const error = await result;
       expect(error).toBeInstanceOf(SandboxDriveSetupError);
-      const { sandbox: kept, driveNames, cause: reported } = error as SandboxDriveSetupError;
+      const { sandbox: kept, driveNames, createdDrives, cause: reported } = error as SandboxDriveSetupError;
       expect(reported).toBe(cause);
-      expect(kept.metadata.name).toBe("sandbox");
+      expect(kept?.metadata.name).toBe("sandbox");
       // Drives in flight when d1 failed finished; the queued ones were never started.
       expect(DriveInstance.create).toHaveBeenCalledTimes(MOUNT_DRIVES_CONCURRENCY);
-      expect(driveNames).toEqual(["d0", "d2", "d3", "d4"]);
       expect(mount).not.toHaveBeenCalled();
-      expect(DriveInstance.delete).not.toHaveBeenCalled();
+      expect(vi.mocked(DriveInstance.delete).mock.calls.map(([name]) => name).sort()).toEqual(["d0", "d2", "d3", "d4"]);
+      expect(DriveInstance.get).not.toHaveBeenCalled();
+      expect(driveNames).toEqual([]);
+      expect(createdDrives).toEqual([]);
       expect(SandboxInstance.delete).not.toHaveBeenCalled();
     });
 
-    it("keeps the sandbox and the other mounts when one mount fails", async () => {
-      const cause = new Error("409 mount path already in use");
+    it("keeps the sandbox and the mounted drives when one mount is refused, and deletes the refused new drive", async () => {
+      const cause = Object.assign(new Error("mount path already in use"), { response: { status: 409 } });
       mount.mockImplementation(request => {
         if (request.driveName === "b") return Promise.reject(cause);
         mounted.push({ drivePath: "/", readOnly: false, ...request });
@@ -213,10 +215,151 @@ describe("SandboxInstance.create mountDrives concurrency", () => {
       const error = await SandboxInstance.create(config, { mountDrives: [entry("a"), entry("b"), entry("c")] }).catch((e: unknown) => e) as SandboxDriveSetupError;
       expect(error).toBeInstanceOf(SandboxDriveSetupError);
       expect(error.cause).toBe(cause);
-      expect(error.driveNames).toEqual(["a", "b", "c"]);
+      expect(DriveInstance.delete).toHaveBeenCalledExactlyOnceWith("b");
+      expect(error.driveNames).toEqual(["a", "c"]);
+      expect(error.createdDrives).toEqual(["a", "c"]);
+      expect(error.message).toContain("left in place: a, c.");
       expect(list).not.toHaveBeenCalled();
-      expect(DriveInstance.delete).not.toHaveBeenCalled();
       expect(SandboxInstance.delete).not.toHaveBeenCalled();
+    });
+
+    it("keeps a new drive whose mount may have gone through", async () => {
+      mount.mockRejectedValue(new TypeError("fetch failed"));
+      const error = await SandboxInstance.create(config, { mountDrives: [entry("a")] }).catch((e: unknown) => e) as SandboxDriveSetupError;
+      expect(error).toBeInstanceOf(SandboxDriveSetupError);
+      expect(DriveInstance.delete).not.toHaveBeenCalled();
+      expect(error.createdDrives).toEqual(["a"]);
+    });
+
+    it("names the drives it could not delete when the sandbox cannot be created", async () => {
+      const failure = new Error("quota exceeded");
+      vi.mocked(createSandbox).mockRejectedValue(failure);
+      vi.mocked(DriveInstance.delete).mockImplementation(name => name === "b" ? Promise.reject(new TypeError("fetch failed")) : Promise.resolve({} as never));
+      const error = await SandboxInstance.create(config, { mountDrives: [entry("a"), entry("b")] }).catch((e: unknown) => e) as SandboxDriveSetupError;
+      expect(error).toBeInstanceOf(SandboxDriveSetupError);
+      expect(error.sandbox).toBeUndefined();
+      expect(error.cause).toBe(failure);
+      expect(error.createdDrives).toEqual(["b"]);
+      expect(error.message).toBe("Sandbox creation failed: quota exceeded. Drives this call created (or may have created) are left in place: b.");
+    });
+  });
+
+  describe("region", () => {
+    it("creates drives in the region the request sends, not BL_REGION, when the request sends none", async () => {
+      // An empty object is sent as is: no region, so the control plane picks one (here us-was-1).
+      vi.spyOn(settings, "region", "get").mockReturnValue("eu-lon-1");
+      const sandbox = deferred<typeof sandboxResponse>();
+      vi.mocked(createSandbox).mockReturnValue(sandbox.promise as never);
+      const created = SandboxInstance.create({}, { mountDrives: [entry("a")] });
+      await settle();
+      expect(vi.mocked(createSandbox).mock.calls[0][0].body.spec?.region).toBeUndefined();
+      expect(DriveInstance.create).not.toHaveBeenCalled();
+      sandbox.resolve(sandboxResponse);
+      await created;
+      expect(DriveInstance.create).toHaveBeenCalledExactlyOnceWith({ name: "a", region: REGION });
+    });
+
+    it("creates drives early in BL_REGION when that is what the request sends", async () => {
+      vi.spyOn(settings, "region", "get").mockReturnValue(REGION);
+      const sandbox = deferred<typeof sandboxResponse>();
+      vi.mocked(createSandbox).mockReturnValue(sandbox.promise as never);
+      const created = SandboxInstance.create({ image: config.image }, { mountDrives: [entry("a")] });
+      await settle();
+      expect(vi.mocked(createSandbox).mock.calls[0][0].body.spec?.region).toBe(REGION);
+      expect(DriveInstance.create).toHaveBeenCalledExactlyOnceWith({ name: "a", region: REGION });
+      sandbox.resolve(sandboxResponse);
+      await created;
+    });
+
+    it("deletes a drive it created in the requested region when the sandbox it gets is elsewhere", async () => {
+      // createIfNotExist returns an existing sandbox as is, whatever region the request asked for.
+      const elsewhere = { ...sandboxResponse, data: { ...sandboxResponse.data, spec: { ...sandboxResponse.data.spec, region: "eu-lon-1" } } };
+      vi.mocked(createSandbox).mockResolvedValue(elsewhere as never);
+      vi.mocked(DriveInstance.create).mockImplementation(c => (c as { name: string }).name === "old" ? Promise.reject(Object.assign(new Error("conflict"), { code: 409 })) : Promise.resolve(drive((c as { name: string }).name)));
+      const error = await SandboxInstance.create({ ...config, name: "sandbox" }, { createIfNotExist: true, mountDrives: [entry("new"), entry("old")] }).catch((e: unknown) => e) as SandboxDriveSetupError;
+      expect(error).toBeInstanceOf(SandboxDriveSetupError);
+      expect(error.message).toContain("is in us-was-1, but the sandbox is in eu-lon-1");
+      expect(DriveInstance.delete).toHaveBeenCalledExactlyOnceWith("new");
+      expect(error.driveNames).toEqual(["old"]);
+      expect(error.createdDrives).toEqual([]);
+      expect(mount).not.toHaveBeenCalled();
+    });
+
+    it("creates no drive when the sandbox reports no region", async () => {
+      vi.spyOn(settings, "region", "get").mockReturnValue(undefined);
+      const noRegion = { ...sandboxResponse, data: { ...sandboxResponse.data, spec: { runtime: {} } } };
+      vi.mocked(createSandbox).mockResolvedValue(noRegion as never);
+      const error = await SandboxInstance.create({ image: config.image }, { mountDrives: [entry("a")] }).catch((e: unknown) => e) as SandboxDriveSetupError;
+      expect(error).toBeInstanceOf(SandboxDriveSetupError);
+      expect(error.message).toContain("reports no region");
+      expect(DriveInstance.create).not.toHaveBeenCalled();
+    });
+
+    it("rejects an explicit drive region that differs from the sandbox's", async () => {
+      const error = await SandboxInstance.create(config, { mountDrives: [{ create: { name: "a", region: "eu-lon-1" } as never, mountPath: "/mnt/a" }] }).catch((e: unknown) => e) as SandboxDriveSetupError;
+      expect(error).toBeInstanceOf(SandboxDriveSetupError);
+      expect(error.message).toContain("Drive region eu-lon-1 does not match the sandbox region us-was-1");
+      expect(DriveInstance.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("lost create responses", () => {
+    const lost = () => new TypeError("fetch failed");
+
+    it("looks a new unnamed drive up by the name it gave it, and treats it as its own", async () => {
+      vi.mocked(DriveInstance.create).mockRejectedValue(lost());
+      vi.mocked(createSandbox).mockRejectedValue(new Error("boom"));
+      const result = SandboxInstance.create(config, { mountDrives: [{ create: {}, mountPath: "/mnt/a" }] }).catch((e: unknown) => e);
+      expect(await result).toEqual(new Error("boom"));
+      const name = (vi.mocked(DriveInstance.create).mock.calls[0][0] as { name: string }).name;
+      expect(DriveInstance.get).toHaveBeenCalledExactlyOnceWith(name);
+      // Found under its generated name, so it is this call's drive and is deleted with the failed sandbox.
+      expect(DriveInstance.delete).toHaveBeenCalledExactlyOnceWith(name);
+    });
+
+    it("mounts a drive found after a lost response", async () => {
+      vi.mocked(DriveInstance.create).mockRejectedValue({ code: 502, error: "Bad Gateway" });
+      await SandboxInstance.create(config, { mountDrives: [entry("a")] });
+      expect(DriveInstance.get).toHaveBeenCalledExactlyOnceWith("a");
+      expect(mount).toHaveBeenCalledOnce();
+    });
+
+    it("never deletes a named drive it only found after a lost response", async () => {
+      // A chosen name may belong to a drive that existed before this call.
+      vi.mocked(DriveInstance.create).mockRejectedValue(lost());
+      mount.mockRejectedValue({ response: { status: 400 } });
+      const error = await SandboxInstance.create(config, { mountDrives: [entry("a")] }).catch((e: unknown) => e) as SandboxDriveSetupError;
+      expect(error).toBeInstanceOf(SandboxDriveSetupError);
+      expect(DriveInstance.delete).not.toHaveBeenCalled();
+      expect(error.driveNames).toEqual(["a"]);
+      expect(error.createdDrives).toEqual([]);
+    });
+
+    it("names a drive that may exist when it cannot be found after a lost response", async () => {
+      const failure = lost();
+      vi.mocked(DriveInstance.create).mockRejectedValue(failure);
+      vi.mocked(DriveInstance.get).mockRejectedValue({ code: 404, error: "Drive not found" });
+      const error = await SandboxInstance.create(config, { mountDrives: [entry("a")] }).catch((e: unknown) => e) as SandboxDriveSetupError;
+      expect(error).toBeInstanceOf(SandboxDriveSetupError);
+      expect(error.cause).toBe(failure);
+      expect(error.createdDrives).toEqual(["a"]);
+      expect(DriveInstance.delete).not.toHaveBeenCalled();
+    });
+
+    it("does not look up a drive the server refused to create", async () => {
+      vi.mocked(DriveInstance.create).mockRejectedValue({ code: 403, error: "Drives feature is not enabled for this workspace" });
+      const error = await SandboxInstance.create(config, { mountDrives: [entry("a")] }).catch((e: unknown) => e) as SandboxDriveSetupError;
+      expect(error).toBeInstanceOf(SandboxDriveSetupError);
+      expect(DriveInstance.get).not.toHaveBeenCalled();
+      expect(error.createdDrives).toEqual([]);
+    });
+
+    it("does not take over another drive whose name collides with a generated one", async () => {
+      vi.mocked(DriveInstance.create).mockRejectedValue({ code: 409 });
+      const error = await SandboxInstance.create(config, { mountDrives: [{ create: {}, mountPath: "/mnt/a" }] }).catch((e: unknown) => e) as SandboxDriveSetupError;
+      expect(error).toBeInstanceOf(SandboxDriveSetupError);
+      expect(DriveInstance.get).not.toHaveBeenCalled();
+      expect(DriveInstance.delete).not.toHaveBeenCalled();
     });
   });
 });

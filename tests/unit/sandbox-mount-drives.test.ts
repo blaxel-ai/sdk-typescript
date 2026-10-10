@@ -38,7 +38,7 @@ describe("SandboxInstance.create mountDrives", () => {
     vi.spyOn(settings, "disableH2", "get").mockReturnValue(true);
     vi.spyOn(DriveInstance, "get").mockResolvedValue(drive("data"));
     vi.spyOn(DriveInstance, "create").mockResolvedValue(drive("drive-1234abcd"));
-    vi.spyOn(DriveInstance, "delete").mockResolvedValue({} as never);
+    vi.spyOn(DriveInstance, "delete").mockResolvedValue({});
     vi.spyOn(SandboxInstance, "delete");
     vi.spyOn(SandboxDrive.prototype, "unmount");
     mount.mockResolvedValue({ success: true });
@@ -46,7 +46,7 @@ describe("SandboxInstance.create mountDrives", () => {
   });
 
   afterEach(() => {
-    // Once the sandbox exists, nothing is deleted or unmounted, however setup ends.
+    // These cases only use existing drives or succeed: nothing is deleted or unmounted.
     expect(DriveInstance.delete).not.toHaveBeenCalled();
     expect(SandboxInstance.delete).not.toHaveBeenCalled();
     expect(SandboxDrive.prototype.unmount).not.toHaveBeenCalled();
@@ -79,12 +79,13 @@ describe("SandboxInstance.create mountDrives", () => {
   });
 
   it("creates new drives in the sandbox's region; a named one is reused if it exists", async () => {
-    vi.mocked(DriveInstance.create).mockImplementation(config => Promise.resolve(drive((config as { name?: string }).name ?? "drive-1234abcd")));
-    list.mockResolvedValue([mounted({ driveName: "drive-1234abcd" }), mounted({ driveName: "app-data", mountPath: "/mnt/app" })]);
+    vi.mocked(DriveInstance.create).mockImplementation(config => Promise.resolve(drive((config as { name: string }).name)));
+    list.mockImplementation(() => Promise.resolve(mount.mock.calls.map(([request]) => mounted(request))));
     await SandboxInstance.create(config, {
       mountDrives: [{ create: {}, mountPath: "/mnt/data" }, { create: { name: "app-data" }, mountPath: "/mnt/app" }],
     });
-    expect(DriveInstance.create).toHaveBeenCalledWith({ region: "us-was-1" });
+    // An unnamed drive is named here, so a create whose response is lost can be looked up.
+    expect(DriveInstance.create).toHaveBeenCalledWith({ name: expect.stringMatching(/^drive-[0-9a-f]{16}$/) as unknown, region: "us-was-1" });
     expect(DriveInstance.create).toHaveBeenCalledWith({ name: "app-data", region: "us-was-1" });
     expect(DriveInstance.get).not.toHaveBeenCalled();
   });
@@ -102,7 +103,7 @@ describe("SandboxInstance.create mountDrives", () => {
     const error = await setupError(SandboxInstance.create(config, { mountDrives: [existing] }));
     expect(error.message).toContain("eu-lon-1");
     expect(error.driveNames).toEqual(["data"]);
-    expect(error.sandbox.metadata.name).toBe("sandbox");
+    expect(error.sandbox?.metadata.name).toBe("sandbox");
     expect(mount).not.toHaveBeenCalled();
   });
 
@@ -115,7 +116,7 @@ describe("SandboxInstance.create mountDrives", () => {
     }));
     expect(error.cause).toBe(cause);
     expect(error.driveNames).toEqual(["data", "other"]);
-    expect(error.sandbox.metadata.name).toBe("sandbox");
+    expect(error.sandbox?.metadata.name).toBe("sandbox");
   });
 
   it("puts the body of a plain-object cause in the message", async () => {

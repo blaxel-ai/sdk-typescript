@@ -49,9 +49,10 @@ describe('Sandbox create with mountDrives', () => {
     }).catch((error: unknown) => error)
     expect(otherRegion).toBeInstanceOf(SandboxDriveSetupError)
     const { sandbox, driveNames } = otherRegion as SandboxDriveSetupError
-    sandboxes.push(sandbox.metadata.name)
+    const name = sandbox?.metadata.name ?? ''
+    if (name) sandboxes.push(name)
     expect(driveNames).toEqual([driveName])
-    expect((await SandboxInstance.get(sandbox.metadata.name)).status).not.toBe('TERMINATED')
+    expect((await SandboxInstance.get(name)).status).not.toBe('TERMINATED')
   }, 55000)
 
   it('rejects a missing drive without creating it', async () => {
@@ -60,7 +61,8 @@ describe('Sandbox create with mountDrives', () => {
       mountDrives: [{ driveName: missing, mountPath: '/mnt/data' }],
     }).catch((e: unknown) => e)
     expect(error).toBeInstanceOf(SandboxDriveSetupError)
-    sandboxes.push((error as SandboxDriveSetupError).sandbox.metadata.name)
+    const name = (error as SandboxDriveSetupError).sandbox?.metadata.name
+    if (name) sandboxes.push(name)
     expect((error as Error).message).toContain('Drive not found')
     await expect(DriveInstance.get(missing)).rejects.toMatchObject({ code: 404 })
   }, 30000)

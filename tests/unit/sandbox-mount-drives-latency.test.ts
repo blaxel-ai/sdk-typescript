@@ -1,5 +1,5 @@
 // Vitest asserts on method references (spies) and never calls them detached.
-/* eslint-disable @typescript-eslint/unbound-method */
+ 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../@blaxel/core/src/client/index.js", async (importOriginal) => {

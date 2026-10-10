@@ -1,30 +1,60 @@
-import { DriveInstance } from "../drive/index.js";
+import { v4 as uuidv4 } from "uuid";
+import { DriveInstance, type DriveCreateConfiguration } from "../drive/index.js";
 import type { DriveMountRequest } from "./drive/index.js";
 import type { SandboxInstance } from "./sandbox.js";
 import type { SandboxDriveMountConfiguration } from "./types.js";
 
-/** Most drive lookups/creations, and most mounts, in flight at once. */
+/** Most drive lookups/creations, mounts and deletions in flight at once. */
 export const MOUNT_DRIVES_CONCURRENCY = 5;
 
 /**
- * Thrown when a sandbox is ready but one of its `mountDrives` could not be
- * set up. The sandbox, drives and mounts made so far remain. `driveNames` lists
- * the drives this call looked up or created; delete only the ones you created.
- * (If the sandbox itself cannot be created, its error is thrown instead and the
- * drives this call created are deleted.)
+ * Thrown when `mountDrives` could not be set up. Drives this call created and
+ * did not mount are deleted first; `createdDrives` names the ones it created
+ * (or may have created, when a response was lost) that are left in place.
+ *
+ * - `sandbox` is set when the sandbox is ready: it and the mounts made so far
+ *   are kept. `driveNames` lists the drives this call looked up or created that
+ *   are left in place.
+ * - `sandbox` is undefined when the sandbox could not be created (its error is
+ *   the `cause`) and some drives created for it could not be deleted. When they
+ *   all could, the sandbox's error is thrown as is instead.
  */
 export class SandboxDriveSetupError extends Error {
-  constructor(readonly sandbox: SandboxInstance, readonly driveNames: string[], cause: unknown) {
+  constructor(
+    readonly sandbox: SandboxInstance | undefined,
+    readonly driveNames: string[],
+    readonly createdDrives: string[],
+    cause: unknown,
+  ) {
     const detail = cause instanceof Error ? cause.message : JSON.stringify(cause);
-    super(`Sandbox ${sandbox.metadata.name} is ready, but mounting its drives failed: ${detail}`, { cause });
+    const left = createdDrives.length ? ` Drives this call created (or may have created) are left in place: ${createdDrives.join(", ")}.` : "";
+    super(sandbox
+      ? `Sandbox ${sandbox.metadata.name} is ready, but mounting its drives failed: ${detail}.${left}`
+      : `Sandbox creation failed: ${detail}.${left}`, { cause });
     this.name = "SandboxDriveSetupError";
   }
 }
 
 const cleanPath = (path = "/") => `/${path.split("/").filter(Boolean).join("/")}`;
 
+/** The HTTP status of an API error, if it has one. */
+function httpStatus(e: unknown): number | undefined {
+  if (typeof e !== "object" || e === null) return undefined;
+  const error = e as { code?: unknown; status?: unknown; response?: { status?: unknown } };
+  for (const value of [error.response?.status, error.status, error.code]) {
+    if (typeof value === "number" && value >= 100 && value < 600) return value;
+  }
+  return undefined;
+}
+
 const isConflict = (e: unknown) =>
-  typeof e === "object" && e !== null && "code" in e && (e.code === 409 || e.code === "DRIVE_ALREADY_EXISTS");
+  httpStatus(e) === 409 || (typeof e === "object" && e !== null && "code" in e && e.code === "DRIVE_ALREADY_EXISTS");
+
+/** The server answered and refused the request, so it changed nothing. Anything else (5xx, network error, timeout) may have gone through. */
+function isRejected(e: unknown) {
+  const status = httpStatus(e);
+  return status !== undefined && status >= 400 && status < 500 && status !== 408;
+}
 
 export function validateMountDrives(mounts: SandboxDriveMountConfiguration[], createIfNotExist: boolean) {
   for (const { driveName, create } of mounts) {
@@ -54,23 +84,41 @@ function limiter(limit: number) {
   };
 }
 
+/** What this call did with one `mountDrives` entry. */
+type Entry = {
+  /** The drive's name, once known. */
+  name?: string;
+  /** Looked up or created, and not deleted since. */
+  exists?: boolean;
+  /** Created by this call (not an existing drive it reused). */
+  created?: boolean;
+  /** The create request's outcome is unknown: the drive may exist. */
+  unconfirmed?: boolean;
+  /** Mounted, or the mount's outcome is unknown. */
+  mounted?: boolean;
+};
+
 /**
  * Drives for one `SandboxInstance.create` call. Looking up or creating drives
  * (`start`) runs alongside the sandbox creation, at most
  * `MOUNT_DRIVES_CONCURRENCY` at a time; only mounting waits for both the sandbox
- * and its drive (`mount`). A drive created for a sandbox that could not be
- * created is deleted again (`discard`).
+ * and its drive (`mount`). On failure, drives this call created and did not
+ * mount are deleted (`discard`, or `mount` when it fails).
  */
 export class SandboxDriveSetup {
   private stopped = false;
   private prepared: Promise<DriveInstance | undefined>[] = [];
-  private looked: (string | undefined)[] = [];
-  private created: string[] = [];
+  private entries: Entry[];
   private region: Promise<string | undefined>;
   private setRegion!: (region: string | undefined) => void;
 
-  /** `region` is the sandbox's region if known before it is created; otherwise new drives wait for the created sandbox. */
+  /**
+   * `region` is the region the sandbox creation request sends, if any. New
+   * drives are created in it at once; without one they wait for the created
+   * sandbox and use its region.
+   */
   constructor(private mounts: SandboxDriveMountConfiguration[], region?: string) {
+    this.entries = mounts.map(() => ({}));
     this.region = new Promise(resolve => { this.setRegion = resolve; });
     if (region) this.setRegion(region);
   }
@@ -79,40 +127,64 @@ export class SandboxDriveSetup {
     const limit = limiter(MOUNT_DRIVES_CONCURRENCY);
     this.prepared = this.mounts.map((mount, index) => limit(async () => {
       if (this.stopped) return undefined;
-      let drive: DriveInstance;
       try {
-        if (!mount.create) {
-          drive = await DriveInstance.get(mount.driveName);
-        } else {
-          const region = await this.region;
-          if (this.stopped) return undefined;
-          const config = { ...mount.create, region };
-          try {
-            drive = await DriveInstance.create(config);
-            this.created.push(drive.name);
-          } catch (e) {
-            // A named drive is reused if it exists; an unnamed one cannot conflict.
-            if (!config.name || !isConflict(e)) throw e;
-            drive = await DriveInstance.get(config.name);
-          }
-        }
+        const drive = mount.create ? await this.createDrive(this.entries[index], mount.create) : await DriveInstance.get(mount.driveName);
+        if (drive) Object.assign(this.entries[index], { name: drive.name, exists: true });
+        return drive;
       } catch (e) {
         this.stopped = true;
         throw e;
       }
-      this.looked[index] = drive.name;
-      return drive;
     }));
     // Failures surface in mount() or discard().
     for (const promise of this.prepared) promise.catch(() => { });
   }
 
-  /** The sandbox could not be created: stop, wait for drives in flight, delete the ones this call created. */
-  async discard() {
+  /** Create a drive in the sandbox's region; a named one that already exists is reused. */
+  private async createDrive(entry: Entry, create: Omit<DriveCreateConfiguration, "region">) {
+    const region = await this.region;
+    if (this.stopped) return undefined;
+    if (!region) throw new Error("The sandbox reports no region, so its drives were not created.");
+    const requested = (create as DriveCreateConfiguration).region;
+    if (requested && requested !== region) {
+      throw new Error(`Drive region ${requested} does not match the sandbox region ${region}.`);
+    }
+    // Name unnamed drives here so that a create whose response is lost can still be looked up.
+    const name = create.name || `drive-${uuidv4().replace(/-/g, "").slice(0, 16)}`;
+    entry.name = name;
+    try {
+      const drive = await DriveInstance.create({ ...create, name, region });
+      entry.created = true;
+      return drive;
+    } catch (e) {
+      if (isConflict(e)) {
+        // Only a name the caller chose can belong to an existing drive worth reusing.
+        if (!create.name) throw e;
+        return DriveInstance.get(name);
+      }
+      if (isRejected(e)) throw e;
+      // The create may have succeeded server-side: look the drive up by its name.
+      entry.unconfirmed = true;
+      const drive = await DriveInstance.get(name).catch(() => { throw e; });
+      entry.unconfirmed = false;
+      // A generated name is this call's own; a chosen one may be an existing drive, which is never deleted.
+      if (!create.name) entry.created = true;
+      return drive;
+    }
+  }
+
+  /**
+   * The sandbox could not be created: stop, wait for drives in flight and delete
+   * the ones this call created. Returns the error to throw: `cause` itself, or a
+   * `SandboxDriveSetupError` naming drives that could not be deleted.
+   */
+  async discard(cause: unknown) {
     this.stopped = true;
     this.setRegion(undefined);
     await Promise.allSettled(this.prepared);
-    await Promise.all(this.created.map(name => DriveInstance.delete(name).catch(() => { })));
+    await this.rollback();
+    const left = this.leftCreated();
+    return left.length ? new SandboxDriveSetupError(undefined, this.leftNames(), left, cause) : cause;
   }
 
   /** Mount each drive as soon as it is ready, then check the sandbox lists the mounts as requested. */
@@ -130,16 +202,23 @@ export class SandboxDriveSetup {
         }
         const { mountPath, drivePath = "/", readOnly = false } = this.mounts[index];
         const request = { driveName: drive.name, mountPath, drivePath, readOnly };
-        requests.push(request);
         await limit(async () => {
-          if (!this.stopped) await sandbox.drives.mount(request);
+          if (this.stopped) return;
+          requests.push(request);
+          try {
+            await sandbox.drives.mount(request);
+            this.entries[index].mounted = true;
+          } catch (e) {
+            // A mount whose outcome is unknown may be in use: its drive is kept.
+            if (!isRejected(e)) this.entries[index].mounted = true;
+            throw e;
+          }
         });
       } catch (e) {
         this.stopped = true;
         throw e;
       }
     }));
-    const driveNames = this.looked.filter((name): name is string => name !== undefined);
     try {
       const failed = results.find((result): result is PromiseRejectedResult => result.status === "rejected");
       if (failed) throw failed.reason;
@@ -152,7 +231,29 @@ export class SandboxDriveSetup {
         }
       }
     } catch (cause) {
-      throw new SandboxDriveSetupError(sandbox, driveNames, cause);
+      await this.rollback();
+      throw new SandboxDriveSetupError(sandbox, this.leftNames(), this.leftCreated(), cause);
     }
+  }
+
+  /** Delete the drives this call created and did not mount. A failed deletion leaves the drive listed in `leftCreated`. */
+  private async rollback() {
+    const limit = limiter(MOUNT_DRIVES_CONCURRENCY);
+    await Promise.all(this.entries.filter(entry => entry.created && entry.exists && !entry.mounted).map(entry => limit(async () => {
+      try {
+        await DriveInstance.delete(entry.name!);
+        entry.exists = false;
+      } catch {
+        // Reported through SandboxDriveSetupError.createdDrives.
+      }
+    })));
+  }
+
+  private leftNames() {
+    return this.entries.filter(entry => entry.exists).map(entry => entry.name!);
+  }
+
+  private leftCreated() {
+    return this.entries.filter(entry => (entry.created && entry.exists) || entry.unconfirmed).map(entry => entry.name!);
   }
 }
