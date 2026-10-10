@@ -6,6 +6,7 @@ import { createPaginatedList } from "../common/pagination.js";
 import { settings } from "../common/settings.js";
 import { SandboxCodegen } from "./codegen/index.js";
 import { SandboxDrive } from "./drive/index.js";
+import { describeDrift, driftWarning, type RequestedSandbox } from "./drift.js";
 import { SandboxFileSystem } from "./filesystem/index.js";
 import { SandboxNetwork } from "./network/index.js";
 import { SandboxPreviews } from "./preview.js";
@@ -378,6 +379,10 @@ export class SandboxInstance {
     const defaultImage = `blaxel/base-image:latest`
     const defaultMemory = 4096
 
+    // What the caller asked for, read before the defaults below fill the gaps:
+    // createIfNotExists compares only these with the sandbox it gets back.
+    let requested: RequestedSandbox = {}
+
     // Handle SandboxCreateConfiguration or simple dict with name/image/memory/ports/envs/volumes keys
     if (
       !sandbox ||
@@ -394,6 +399,7 @@ export class SandboxInstance {
       'extraArgs' in sandbox
     ) {
       if (!sandbox) sandbox = {} as SandboxCreateConfiguration
+      requested = { image: sandbox.image, memory: sandbox.memory, region: sandbox.region, envs: normalizeEnvs(sandbox.envs) }
       if (!sandbox.image) sandbox.image = defaultImage
       if (!sandbox.memory) sandbox.memory = defaultMemory
 
@@ -438,6 +444,9 @@ export class SandboxInstance {
       if (expires) {
         sandbox.spec!.runtime!.expires = expires.toISOString();
       }
+    } else {
+      const { region, runtime } = (sandbox as SandboxModel).spec ?? {}
+      requested = { image: runtime?.image, memory: runtime?.memory, region, envs: runtime?.envs }
     }
 
     sandbox = sandbox as SandboxModel
@@ -485,6 +494,7 @@ export class SandboxInstance {
         throw createResult.error;
       }
     }
+    if (createIfNotExist) SandboxInstance.warnOnDrift(requested, data)
     // Inject the H2 session into the config so subsystems can use it
     const config = { ...data, h2Session, h2Domain: settings.disableH2 ? null : edgeDomain } as SandboxConfiguration;
     const instance = new SandboxInstance(config);
@@ -744,6 +754,19 @@ export class SandboxInstance {
    */
   static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration, options: Omit<SandboxCreateOptions, "createIfNotExist"> = {}) {
     return this.create(sandbox, { ...options, createIfNotExist: true });
+  }
+
+  // createIfNotExists hands back the sandbox already holding the name, whatever
+  // it was created with. Say so when it is not what was asked for; this only
+  // logs and never throws or changes what is returned.
+  private static warnOnDrift(requested: RequestedSandbox, existing: SandboxModel | undefined) {
+    if (!existing) return;
+    try {
+      const drift = describeDrift(requested, existing);
+      if (drift.length) console.warn(driftWarning(existing.metadata?.name, drift));
+    } catch {
+      // Best-effort diagnostics: a failed comparison must not fail the create.
+    }
   }
 
   // Poll the record after a create was cut by the edge with a 504 while the
