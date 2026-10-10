@@ -94,7 +94,7 @@ type Entry = {
   created?: boolean;
   /** The create request's outcome is unknown: the drive may exist. */
   unconfirmed?: boolean;
-  /** Mounted, or the mount's outcome is unknown. */
+  /** A mount was attempted; on failure the sandbox's mount list decides whether it took. */
   mounted?: boolean;
 };
 
@@ -205,14 +205,8 @@ export class SandboxDriveSetup {
         await limit(async () => {
           if (this.stopped) return;
           requests.push(request);
-          try {
-            await sandbox.drives.mount(request);
-            this.entries[index].mounted = true;
-          } catch (e) {
-            // A mount whose outcome is unknown may be in use: its drive is kept.
-            if (!isRejected(e)) this.entries[index].mounted = true;
-            throw e;
-          }
+          this.entries[index].mounted = true;
+          await sandbox.drives.mount(request);
         });
       } catch (e) {
         this.stopped = true;
@@ -231,15 +225,26 @@ export class SandboxDriveSetup {
         }
       }
     } catch (cause) {
-      await this.rollback();
+      await this.rollback(sandbox);
       throw new SandboxDriveSetupError(sandbox, this.leftNames(), this.leftCreated(), cause);
     }
   }
 
   /** Delete the drives this call created and did not mount. A failed deletion leaves the drive listed in `leftCreated`. */
-  private async rollback() {
+  private async rollback(sandbox?: SandboxInstance) {
+    const created = this.entries.filter(entry => entry.created && entry.exists);
+    if (sandbox && created.some(entry => entry.mounted)) {
+      // A failed mount call may still have mounted its drive (a lost response), and a
+      // successful one may not have (the path was already mounted): ask the sandbox.
+      try {
+        const mounted = new Set((await sandbox.drives.list()).map(mount => mount.driveName));
+        for (const entry of created) entry.mounted = mounted.has(entry.name);
+      } catch {
+        // Unknown: keep every drive a mount was attempted for.
+      }
+    }
     const limit = limiter(MOUNT_DRIVES_CONCURRENCY);
-    await Promise.all(this.entries.filter(entry => entry.created && entry.exists && !entry.mounted).map(entry => limit(async () => {
+    await Promise.all(created.filter(entry => !entry.mounted).map(entry => limit(async () => {
       try {
         await DriveInstance.delete(entry.name!);
         entry.exists = false;

@@ -205,7 +205,7 @@ describe("SandboxInstance.create mountDrives concurrency", () => {
       expect(SandboxInstance.delete).not.toHaveBeenCalled();
     });
 
-    it("keeps the sandbox and the mounted drives when one mount is refused, and deletes the refused new drive", async () => {
+    it("keeps the sandbox and the mounted drives when one mount fails, and deletes the new drive it could not mount", async () => {
       const cause = Object.assign(new Error("mount path already in use"), { response: { status: 409 } });
       mount.mockImplementation(request => {
         if (request.driveName === "b") return Promise.reject(cause);
@@ -219,16 +219,42 @@ describe("SandboxInstance.create mountDrives concurrency", () => {
       expect(error.driveNames).toEqual(["a", "c"]);
       expect(error.createdDrives).toEqual(["a", "c"]);
       expect(error.message).toContain("left in place: a, c.");
-      expect(list).not.toHaveBeenCalled();
+      // The sandbox's mount list, not the failed call, says what is mounted.
+      expect(list).toHaveBeenCalledOnce();
       expect(SandboxInstance.delete).not.toHaveBeenCalled();
     });
 
-    it("keeps a new drive whose mount may have gone through", async () => {
-      mount.mockRejectedValue(new TypeError("fetch failed"));
+    it("keeps a new drive whose failed mount went through", async () => {
+      mount.mockImplementation(request => {
+        mounted.push({ drivePath: "/", readOnly: false, ...request });
+        return Promise.reject(new TypeError("fetch failed"));
+      });
       const error = await SandboxInstance.create(config, { mountDrives: [entry("a")] }).catch((e: unknown) => e) as SandboxDriveSetupError;
       expect(error).toBeInstanceOf(SandboxDriveSetupError);
       expect(DriveInstance.delete).not.toHaveBeenCalled();
       expect(error.createdDrives).toEqual(["a"]);
+    });
+
+    it("keeps a new drive a mount was attempted for when the mount list cannot be read", async () => {
+      mount.mockRejectedValue(new TypeError("fetch failed"));
+      list.mockRejectedValue(new TypeError("fetch failed"));
+      const error = await SandboxInstance.create(config, { mountDrives: [entry("a")] }).catch((e: unknown) => e) as SandboxDriveSetupError;
+      expect(error).toBeInstanceOf(SandboxDriveSetupError);
+      expect(DriveInstance.delete).not.toHaveBeenCalled();
+      expect(error.createdDrives).toEqual(["a"]);
+    });
+
+    it("deletes a new drive the sandbox does not list after its mount reported success", async () => {
+      // e.g. createIfNotExist returned a sandbox that already mounts another drive at that path.
+      mount.mockImplementation(request => {
+        mounted.push({ drivePath: "/", readOnly: false, ...request, driveName: "other" });
+        return Promise.resolve({ success: true });
+      });
+      const error = await SandboxInstance.create(config, { mountDrives: [entry("a")] }).catch((e: unknown) => e) as SandboxDriveSetupError;
+      expect(error).toBeInstanceOf(SandboxDriveSetupError);
+      expect(error.message).toContain("/mnt/a is not mounted as requested");
+      expect(DriveInstance.delete).toHaveBeenCalledExactlyOnceWith("a");
+      expect(error.createdDrives).toEqual([]);
     });
 
     it("names the drives it could not delete when the sandbox cannot be created", async () => {
