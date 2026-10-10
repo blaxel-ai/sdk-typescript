@@ -113,11 +113,12 @@ export type SandboxCreateOptions = {
    * Drives to mount on the sandbox. Drives are looked up or created while the
    * sandbox is being created (a few at a time), in the region the request sends
    * (or, without one, in the region the sandbox gets), and each is mounted as
-   * soon as the sandbox and that drive are ready. On failure, drives this call
-   * created and did not mount are deleted. If drive setup fails the sandbox is
-   * kept and a SandboxDriveSetupError is thrown; if the sandbox cannot be
-   * created, its error is thrown (wrapped in a SandboxDriveSetupError only if
-   * a drive created for it could not be deleted).
+   * soon as the sandbox and that drive are ready. On failure, unnamed drives
+   * this call created and did not mount are deleted; named ones are kept (a
+   * concurrent call may be using them) and listed in the error. If drive setup
+   * fails the sandbox is kept and a SandboxDriveSetupError is thrown; if the
+   * sandbox cannot be created, its error is thrown (wrapped in a
+   * SandboxDriveSetupError only if a drive created for it is left in place).
    */
   mountDrives?: SandboxDriveMountConfiguration[];
 };

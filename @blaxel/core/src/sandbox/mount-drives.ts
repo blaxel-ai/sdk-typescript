@@ -8,9 +8,11 @@ import type { SandboxDriveMountConfiguration } from "./types.js";
 export const MOUNT_DRIVES_CONCURRENCY = 5;
 
 /**
- * Thrown when `mountDrives` could not be set up. Drives this call created and
- * did not mount are deleted first; `createdDrives` names the ones it created
- * (or may have created, when a response was lost) that are left in place.
+ * Thrown when `mountDrives` could not be set up. Drives this call created
+ * under a name it generated and did not mount are deleted first; a drive
+ * created under a name you chose is never deleted, since a concurrent call may
+ * be using it. `createdDrives` names the drives this call created (or may have
+ * created, when a response was lost) that are left in place.
  *
  * - `sandbox` is set when the sandbox is ready: it and the mounts made so far
  *   are kept. `driveNames` lists the drives this call looked up or created that
@@ -92,6 +94,8 @@ type Entry = {
   exists?: boolean;
   /** Created by this call (not an existing drive it reused). */
   created?: boolean;
+  /** Named by this call, so nobody else can be using it: the only kind rollback deletes. */
+  generated?: boolean;
   /** The create request's outcome is unknown: the drive may exist. */
   unconfirmed?: boolean;
   /** A mount was attempted; on failure the sandbox's mount list decides whether it took. */
@@ -102,8 +106,9 @@ type Entry = {
  * Drives for one `SandboxInstance.create` call. Looking up or creating drives
  * (`start`) runs alongside the sandbox creation, at most
  * `MOUNT_DRIVES_CONCURRENCY` at a time; only mounting waits for both the sandbox
- * and its drive (`mount`). On failure, drives this call created and did not
- * mount are deleted (`discard`, or `mount` when it fails).
+ * and its drive (`mount`). On failure, drives this call created under a
+ * generated name and did not mount are deleted (`discard`, or `mount` when it
+ * fails); drives under a caller's name are kept and reported.
  */
 export class SandboxDriveSetup {
   private stopped = false;
@@ -155,6 +160,7 @@ export class SandboxDriveSetup {
     // Name unnamed drives here so that a create whose response is lost can still be looked up.
     const name = create.name || `drive-${uuidv4().replace(/-/g, "").slice(0, 16)}`;
     entry.name = name;
+    entry.generated = !create.name;
     try {
       const drive = await DriveInstance.create({ ...create, name, region });
       entry.created = true;
@@ -178,8 +184,8 @@ export class SandboxDriveSetup {
 
   /**
    * The sandbox could not be created: stop, wait for drives in flight and delete
-   * the ones this call created. Returns the error to throw: `cause` itself, or a
-   * `SandboxDriveSetupError` naming drives that could not be deleted.
+   * the ones this call created under a generated name. Returns the error to
+   * throw: `cause` itself, or a `SandboxDriveSetupError` naming drives left in place.
    */
   async discard(cause: unknown) {
     this.stopped = true;
@@ -233,9 +239,13 @@ export class SandboxDriveSetup {
     }
   }
 
-  /** Delete the drives this call created and did not mount. A failed deletion leaves the drive listed in `leftCreated`. */
+  /**
+   * Delete the drives this call created under a generated name and did not mount.
+   * A drive under a caller's name may already be mounted by a concurrent call that
+   * reused it, so it is kept. Drives left in place are listed in `leftCreated`.
+   */
   private async rollback(sandbox?: SandboxInstance) {
-    const created = this.entries.filter(entry => entry.created && entry.exists);
+    const created = this.entries.filter(entry => entry.created && entry.generated && entry.exists);
     if (sandbox && created.some(entry => entry.mounted)) {
       // A failed mount call may still have mounted its drive (a lost response), and a
       // successful one may not have (the path was already mounted): ask the sandbox.

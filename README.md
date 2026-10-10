@@ -338,7 +338,7 @@ const reader = await SandboxInstance.create(config, {
 console.log(await reader.fs.read("/mnt/data/hello.txt")); // hello
 ```
 
-Each entry also takes `drivePath` (a sub-folder of the drive). With `createIfNotExists`, a new drive needs a `name`. If anything fails, the drives this call created and did not mount are deleted. If a drive can't be set up or mounted, `create` throws `SandboxDriveSetupError` with the `sandbox`, the `driveNames` left in place, the `createdDrives` among them that this call created (or may have created, if a response was lost) and the original `cause`; the sandbox and the mounts made so far are kept. If the sandbox itself can't be created, its error is thrown, wrapped in a `SandboxDriveSetupError` without a `sandbox` only if a drive created for it could not be deleted.
+Each entry also takes `drivePath` (a sub-folder of the drive). With `createIfNotExists`, a new drive needs a `name`. If anything fails, the drives this call created under a generated name (no `name` given) and did not mount are deleted; a drive created under a name you chose is never deleted, since a concurrent call may be using it, and is listed in `createdDrives` instead. If a drive can't be set up or mounted, `create` throws `SandboxDriveSetupError` with the `sandbox`, the `driveNames` left in place, the `createdDrives` among them that this call created (or may have created, if a response was lost) and the original `cause`; the sandbox and the mounts made so far are kept. If the sandbox itself can't be created, its error is thrown, wrapped in a `SandboxDriveSetupError` without a `sandbox` only if a drive created for it is left in place.
 
 #### Volumes
 
