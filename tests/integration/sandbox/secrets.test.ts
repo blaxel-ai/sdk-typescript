@@ -1,10 +1,13 @@
-import { SecretInstance } from "@blaxel/core";
+import { SecretInstance, listSecrets } from "@blaxel/core";
 import { afterAll, describe, expect, it } from "vitest";
 import { uniqueName } from "./helpers.js";
 
 const secretName = (prefix: string) => uniqueName(prefix).replace(/[^A-Za-z0-9_-]/g, "-");
 
-describe("Workspace secrets", () => {
+// /secrets ships with controlplane#5736; skip until the target environment serves it.
+const secretsApiDeployed = (await listSecrets()).response.status !== 404;
+
+describe.skipIf(!secretsApiDeployed)("Workspace secrets", () => {
   const created: string[] = [];
 
   afterAll(async () => {
