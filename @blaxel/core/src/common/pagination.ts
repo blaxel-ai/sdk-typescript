@@ -2,6 +2,8 @@ export type PaginatedListMeta = {
   hasMore?: boolean;
   nextCursor?: string;
   total?: number;
+  /** True when total is a lower bound; do not derive a page count from it. */
+  totalIsPartial?: boolean;
 };
 
 export type CursorPaginationQuery = {

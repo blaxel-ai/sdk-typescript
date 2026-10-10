@@ -102,7 +102,7 @@ describe('Sandbox label update does not recreate', () => {
     const afterUpdates = await SandboxInstance.get(name)
 
     // Status must still be DEPLOYED
-    expect(afterUpdates.status).toBe("DEPLOYED")
+    expect(afterUpdates.status, JSON.stringify({ name, ttl: afterUpdates.spec.runtime?.ttl })).toBe("DEPLOYED")
 
     // No new deployment events
     const eventCountAfter = afterUpdates.events?.length ?? 0

@@ -344,7 +344,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
 
       // Sandbox must still be alive — it would be TERMINATED if the clear had not taken effect
       const stillAlive = await SandboxInstance.get(name)
-      expect(stillAlive.status).not.toBe("TERMINATED")
+      expect(stillAlive.status, JSON.stringify({ name, ttl: stillAlive.spec.runtime?.ttl })).not.toBe("TERMINATED")
 
       // And its content must be untouched (no recreation, no termination)
       expect(await stillAlive.fs.read(testFilePath)).toBe(testContent)

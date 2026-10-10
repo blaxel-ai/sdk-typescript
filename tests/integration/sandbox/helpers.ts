@@ -16,6 +16,7 @@ export const defaultLabels = {
   env: "integration-test",
   language: "typescript",
   "created-by": "vitest-integration",
+  "test-run-id": process.env.BL_TEST_RUN_ID ?? "",
 }
 
 /**

@@ -161,9 +161,21 @@ describe('Drive Operations', () => {
       })
       await drive.delete()
 
-      // Drive should no longer exist
+      // Deletion is asynchronous: the drive is marked DELETING while the
+      // storage is wiped, then the record disappears.
+      const deleting = await DriveInstance.get(name).catch(() => undefined)
+      if (deleting) expect(deleting.status).toBe("DELETING")
+
+      // An empty drive is wiped in a few seconds; keep the default run under a minute.
+      const deadline = Date.now() + 45_000
+      let gone = false
+      while (!gone && Date.now() < deadline) {
+        gone = await DriveInstance.get(name).then(() => false, () => true)
+        if (!gone) await new Promise((r) => setTimeout(r, 2_000))
+      }
+      expect(gone).toBe(true)
       await expect(DriveInstance.get(name)).rejects.toThrow()
-    })
+    }, 60_000)
 
     it('creates drive if not exists', async () => {
       const name = uniqueName("drive-idempotent")

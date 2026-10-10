@@ -116,6 +116,10 @@ jobs:
         working-directory: '@blaxel/core'
         run: npx vitest run --config vitest.config.ts src/common/h2-runtime.test.ts src/common/settings.test.ts
 
+      - name: Run process state and HTTP contract tests
+        working-directory: '@blaxel/core'
+        run: npx vitest run --config vitest.config.ts src/sandbox/process
+
   eve-sandbox-contract-tests:
     name: eve sandbox contract tests
     runs-on: ubuntu-latest

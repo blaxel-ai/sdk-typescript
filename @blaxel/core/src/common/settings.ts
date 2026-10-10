@@ -39,6 +39,15 @@ export type Config = {
   apikey?: string;
   workspace?: string;
   /**
+   * Product token identifying the integration built on this SDK, appended to
+   * the `User-Agent` so Blaxel can attribute traffic to it. Format
+   * `<name>/<semver>` with a lowercase name, e.g.
+   * `"deepseek-harness-blaxel-sandbox/0.1.2"`. Also settable through
+   * `BL_INTEGRATION` or `settings.integration`. An invalid value is ignored
+   * with a warning.
+   */
+  integration?: string;
+  /**
    * Disables the SDK-managed HTTP/2 transport. Defaults to `false` (H2 on);
    * set this to `true` (or `BL_DISABLE_H2=1`) to opt out of H2. Note that H2 is
    * always force-disabled on Bun < 1.3.11, which has a broken H2 flow-control
@@ -133,7 +142,7 @@ export type Config = {
 const BUILD_VERSION = "__BUILD_VERSION__";
 const BUILD_COMMIT = "__BUILD_COMMIT__";
 const BUILD_SENTRY_DSN = "__BUILD_SENTRY_DSN__";
-const BLAXEL_API_VERSION = "2026-04-28";
+const BLAXEL_API_VERSION = "2026-09-22";
 
 // Bun < 1.3.11 never sends connection-level WINDOW_UPDATE: the pooled h2
 // session freezes after exactly 65535 cumulative body bytes and every request
@@ -215,8 +224,15 @@ function getOsArch(): string {
   return "browser/unknown";
 }
 
+/**
+ * An integration built on this SDK identifies itself with one User-Agent
+ * product token: `<name>/<semver>`, lowercase name.
+ */
+const INTEGRATION_TOKEN_PATTERN = /^[a-z0-9][a-z0-9._-]*\/\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+
 class Settings {
   private _credentials: Credentials | null;
+  private _warnedIntegration: string | null = null;
   config: Config;
 
   constructor() {
@@ -325,14 +341,42 @@ class Settings {
     return env.BL_API_VERSION || BLAXEL_API_VERSION;
   }
 
+  /**
+   * Product token identifying the integration built on this SDK, or `""`.
+   * Resolved from `config.integration`, then `BL_INTEGRATION`. See `Config.integration`.
+   */
+  get integration(): string {
+    const value = this.config.integration ?? env.BL_INTEGRATION ?? "";
+    if (!value) {
+      return "";
+    }
+    if (!INTEGRATION_TOKEN_PATTERN.test(value)) {
+      // Resolved on every request, so warn once per invalid value rather than per request.
+      if (this._warnedIntegration !== value) {
+        this._warnedIntegration = value;
+        logger.warn(
+          `Ignoring invalid Blaxel integration token ${JSON.stringify(value)}: expected <name>/<semver> with a lowercase name`
+        );
+      }
+      return "";
+    }
+    return value;
+  }
+
+  set integration(value: string | undefined) {
+    this.config.integration = value;
+  }
+
   get headers(): Record<string, string> {
     this.assertCredentials();
     const osArch = getOsArch();
+    const sdkUserAgent = `blaxel/sdk/typescript/${this.version} (${osArch}) blaxel/${this.commit}`;
+    const integration = this.integration;
     return {
       "x-blaxel-authorization": this.authorization,
       "x-blaxel-workspace": this.workspace || "",
       "Blaxel-Version": this.apiVersion,
-      "User-Agent": `blaxel/sdk/typescript/${this.version} (${osArch}) blaxel/${this.commit}`,
+      "User-Agent": integration ? `${sdkUserAgent} ${integration}` : sdkUserAgent,
     };
   }
 

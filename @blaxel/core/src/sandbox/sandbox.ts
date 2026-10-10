@@ -17,14 +17,6 @@ import { SandboxSessions } from "./session.js";
 import { SandboxSystem } from "./system.js";
 import { normalizeEnvs, normalizePorts, normalizeVolumes, SandboxConfiguration, SandboxCreateConfiguration, SandboxUpdateMetadata, SandboxUpdateNetwork, SessionWithToken } from "./types.js";
 
-const NON_REUSABLE_SANDBOX_STATUSES = new Set([
-  "FAILED",
-  "TERMINATED",
-  "TERMINATING",
-  "DELETING",
-  "DEACTIVATING",
-]);
-
 export type SandboxListQuery = NonNullable<ListSandboxesData["query"]>;
 
 export type SandboxForkOptions = {
@@ -51,19 +43,13 @@ export type SandboxForkOptions = {
    * one it does not is added, and every other variable of the source is kept.
    */
   envs?: Env[];
+  /**
+   * Lifecycle the fork runs with, replacing the source's. When omitted, a
+   * sandbox fork keeps the source's lifecycle and its runtime ttl and expires.
+   * Only valid when targetType is "sandbox".
+   */
+  lifecycle?: SandboxLifecycle;
 };
-
-// Statuses that resolve on their own (a delete or deactivation in flight). The control
-// plane keeps answering 409 to creates while the record is in one of these, so retrying
-// instantly burns the whole attempt budget inside the window. Terminal statuses
-// (FAILED, TERMINATED) accept a create immediately and are not listed here.
-const TRANSIENT_SANDBOX_STATUSES = new Set([
-  "TERMINATING",
-  "DELETING",
-  "DEACTIVATING",
-]);
-const TRANSIENT_STATUS_MAX_WAIT_MS = 30_000;
-const TRANSIENT_STATUS_POLL_MS = 500;
 
 // Archiving a filesystem, and restoring it, take as long as that filesystem is
 // big — minutes for a few gigabytes.
@@ -82,19 +68,6 @@ const UNARCHIVING_STATUSES = new Set(["UNARCHIVING", "DEPLOYING", "BUILDING", "U
 const ARCHIVE_ENTRY_STATUS = "DEPLOYED";
 const UNARCHIVE_ENTRY_STATUS = "ARCHIVED";
 const ARCHIVE_ENTRY_MAX_WAIT_MS = 30_000;
-
-/** Options of `SandboxInstance.create`. */
-export type SandboxCreateOptions = {
-  /** Check the sandbox answers (`fs.ls('/')`) before returning it, deleting it if not. */
-  safe?: boolean;
-  /** Return the existing sandbox of that name instead of failing with a 409. */
-  createIfNotExist?: boolean;
-  /**
-   * Opt this call out of the transparent batching of concurrent identical
-   * creations (see `settings.disableCreateBatching`).
-   */
-  batch?: boolean;
-};
 
 // Shared by every SandboxInstance.create() of the process: concurrent unnamed
 // creations with the same spec are merged into one `POST /sandboxes?count=N`.
@@ -133,6 +106,83 @@ export type SandboxArchiveOptions = {
 const CREATE_GATEWAY_TIMEOUT_MAX_WAIT_MS = 120_000;
 const CREATE_GATEWAY_TIMEOUT_BASE_POLL_MS = 1_000;
 const CREATE_GATEWAY_TIMEOUT_MAX_POLL_MS = 5_000;
+
+// A creation deadline the caller sets per request through an undocumented
+// header; it can only shorten the control plane's default. Capped below the
+// edge's 60s origin-read timeout so the control plane's 408 always reaches the
+// client instead of being masked by an edge 504.
+const CREATION_TIMEOUT_HEADER = "X-Blaxel-Creation-Timeout";
+export const MAX_CREATION_TIMEOUT_SECONDS = 50;
+
+/** Options of SandboxInstance.create / createIfNotExists. */
+export type SandboxCreateOptions = {
+  /** Check the sandbox answers (fs.ls) and delete it if it does not. Defaults to false. */
+  safe?: boolean;
+  /** Return the existing sandbox instead of failing when the name is taken. */
+  createIfNotExist?: boolean;
+  /**
+   * Opt this call out of the transparent batching of concurrent identical
+   * creations (see `settings.disableCreateBatching`).
+   */
+  batch?: boolean;
+  /**
+   * Give up on the creation after this many seconds (whole number, 1 to
+   * MAX_CREATION_TIMEOUT_SECONDS). The control plane releases the sandbox
+   * and the call rejects with a SandboxCreationTimeoutError. Unset, the
+   * control plane's default deadline applies.
+   */
+  timeout?: number;
+};
+
+/**
+ * Thrown by SandboxInstance.create / createIfNotExists when the sandbox was
+ * not ready within the creation deadline. The control plane has released the
+ * sandbox, so the name is free again and the creation can simply be started
+ * over. Catch it with `err instanceof SandboxCreationTimeoutError` or
+ * `isCreationTimeoutError(err)`.
+ */
+export class SandboxCreationTimeoutError extends Error {
+  readonly code = "CREATION_TIMEOUT";
+  readonly status = 408;
+  /** Raw error body returned by the control plane. */
+  readonly data: unknown;
+
+  constructor(
+    /** Name of the sandbox that was being created, if one was requested. */
+    readonly sandboxName: string | undefined,
+    /** The `timeout` option of the call, in seconds; undefined when the control plane's default applied. */
+    readonly timeout: number | undefined,
+    data: unknown,
+  ) {
+    const detail = typeof data === "object" && data !== null && typeof (data as { message?: unknown }).message === "string"
+      ? (data as { message: string }).message
+      : undefined;
+    const target = sandboxName ? `Sandbox ${sandboxName}` : "Sandbox";
+    const deadline = timeout !== undefined ? ` within ${timeout}s` : " within the creation deadline";
+    super(`${target} was not ready${deadline}; the creation was cancelled.${detail ? ` ${detail}` : ""}`);
+    this.name = "SandboxCreationTimeoutError";
+    this.data = data;
+  }
+}
+
+/** True when `err` is a sandbox creation timeout (408 CREATION_TIMEOUT). */
+export function isCreationTimeoutError(err: unknown): err is SandboxCreationTimeoutError {
+  return err instanceof SandboxCreationTimeoutError;
+}
+
+const isCreationTimeoutResponse = (status: number | undefined, e: unknown): boolean => {
+  if (status === 408) return true;
+  if (typeof e !== "object" || e === null) return false;
+  return (e as { code?: unknown }).code === "CREATION_TIMEOUT";
+};
+
+function validateCreateOptions({ timeout }: SandboxCreateOptions): { timeout?: number } {
+  if (timeout === undefined) return {};
+  if (!Number.isInteger(timeout) || timeout < 1 || timeout > MAX_CREATION_TIMEOUT_SECONDS) {
+    throw new Error(`SandboxInstance.create: 'timeout' must be a whole number of seconds between 1 and ${MAX_CREATION_TIMEOUT_SECONDS}, got ${timeout}.`);
+  }
+  return { timeout };
+}
 
 const isSandboxNotFound = (e: unknown): boolean => {
   if (typeof e !== "object" || e === null) return false;
@@ -330,6 +380,7 @@ export class SandboxInstance {
         ...(options.prefix !== undefined ? { prefix: options.prefix } : {}),
         ...(options.snapshotId !== undefined ? { snapshotId: options.snapshotId } : {}),
         ...(options.envs !== undefined ? { envs: options.envs } : {}),
+        ...(options.lifecycle !== undefined ? { lifecycle: options.lifecycle } : {}),
       },
       throwOnError: true,
     });
@@ -522,7 +573,9 @@ export class SandboxInstance {
    * batched. Set `settings.disableCreateBatching` or `{ batch: false }` to
    * opt out.
    */
-  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = false, createIfNotExist = false, batch = true }: SandboxCreateOptions = {}) {
+  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, options: SandboxCreateOptions = {}) {
+    const { safe = false, createIfNotExist = false, batch = true } = options;
+    const { timeout } = validateCreateOptions(options);
     const body = SandboxInstance.toCreateBody(sandbox);
     const edgeDomain = SandboxInstance.edgeDomainForRegion(body.spec?.region);
     const h2Warm = SandboxInstance.warmEdge(edgeDomain);
@@ -532,11 +585,12 @@ export class SandboxInstance {
       !settings.disableCreateBatching &&
       !SandboxInstance.bulkUnsupported &&
       !createIfNotExist &&
+      // A deadline applies to a single request, so timed creates cannot be combined.
+      timeout === undefined &&
       !body.metadata.name &&
       !body.metadata.displayName &&
       !body.metadata.externalId;
 
-    let data: SandboxModel;
     if (batchable) {
       // The request is sent later, so freeze the body now: the key and the
       // payload must describe the same spec even if the caller mutates its
@@ -552,16 +606,21 @@ export class SandboxInstance {
       return SandboxInstance.checkedInstance(record, h2Session, edgeDomain, safe);
     }
 
+    const headers = timeout !== undefined ? { [CREATION_TIMEOUT_HEADER]: String(timeout) } : undefined;
     const [createResult, h2Session] = await Promise.all([
       createSandbox({
         body,
         query: createIfNotExist ? { createIfNotExist } : undefined,
+        headers,
       }),
       h2Warm,
     ]);
-    data = createResult.data as SandboxModel;
+    let data = createResult.data as SandboxModel;
     if (createResult.error !== undefined) {
       const name = body.metadata.name;
+      if (isCreationTimeoutResponse(createResult.response.status, createResult.error)) {
+        throw new SandboxCreationTimeoutError(name, timeout, createResult.error);
+      }
       if (createResult.response.status === 504 && name) {
         // The edge gave up on the connection but the creation is still running
         // server-side; wait for the record instead of failing (ENG-3662).
@@ -843,73 +902,17 @@ export class SandboxInstance {
     return SandboxInstance.attachH2Session(instance);
   }
 
-  static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration) {
-    const ATTEMPTS = 3;
-    let lastStatus = "unknown";
-    // The 'vanished' window (create 409s while get 404s) is driven by the same
-    // transient causes as 'dying': an in-flight delete finishing, or a
-    // concurrent create whose row is not readable yet. Give it the same time
-    // budget as waitWhileSandboxDying instead of burning the attempt budget
-    // 500ms apart (~1s total), which threw on deletes taking >1s (ENG-3667).
-    const vanishedDeadline = Date.now() + TRANSIENT_STATUS_MAX_WAIT_MS;
-    for (let i = 0; i < ATTEMPTS; ++i) {
-      const finalAttempt = i === ATTEMPTS - 1;
-      try {
-        return await this.create(sandbox, { createIfNotExist: true });
-      } catch (e) {
-        if (typeof e === "object" && e !== null && "code" in e && (e.code === 409 || e.code === 'SANDBOX_ALREADY_EXISTS')) {
-          const name = 'name' in sandbox ? sandbox.name : (sandbox as SandboxModel).metadata.name
-          if (!name) {
-            throw new Error("Sandbox name is required");
-          }
-
-          // The controlplane tags the creation-lock 409 with
-          // reason=CREATION_IN_PROGRESS when the conflict comes from a
-          // concurrent create still in flight (ENG-3776). The field is absent
-          // on older controlplanes and on real row conflicts, so it only
-          // sharpens the give-up error; the polling behavior is the same.
-          const creationInProgress = (e as { reason?: unknown }).reason === "CREATION_IN_PROGRESS";
-
-          // Get the existing sandbox to check its status
-          let sandboxInstance: SandboxInstance;
-          try {
-            sandboxInstance = await this.get(name);
-          } catch (getError) {
-            if (isSandboxNotFound(getError)) {
-              // The record vanished between the create conflict and this status check.
-              lastStatus = creationInProgress ? "creation in progress" : "vanished";
-              if (Date.now() < vanishedDeadline) {
-                // Inside the transient window: poll without consuming attempts.
-                await new Promise((resolve) => setTimeout(resolve, TRANSIENT_STATUS_POLL_MS));
-                --i;
-              } else if (!finalAttempt) {
-                await new Promise((resolve) => setTimeout(resolve, TRANSIENT_STATUS_POLL_MS));
-              }
-              continue;
-            }
-            throw getError;
-          }
-
-          // Recreate instead of returning sandbox records that cannot be reused.
-          if (!NON_REUSABLE_SANDBOX_STATUSES.has(sandboxInstance.status ?? "")) {
-            return sandboxInstance;
-          }
-
-          // A delete or deactivation in flight rejects creates until it finishes;
-          // wait it out instead of burning the remaining attempts inside the window.
-          // No point waiting after the last attempt: nothing will use the result.
-          lastStatus = sandboxInstance.status ?? "unknown";
-          if (TRANSIENT_SANDBOX_STATUSES.has(lastStatus) && !finalAttempt) {
-            await this.waitWhileSandboxDying(name);
-          }
-
-          // Retry creation. We want the same error handling on the retry as creates can race.
-          continue;
-        }
-        throw e;
-      }
-    }
-    throw new Error(`Unable to create sandbox after ${ATTEMPTS} attempts. Last conflicting status: ${lastStatus}.`);
+  /**
+   * Create the sandbox, or return the one already holding this name.
+   *
+   * The control plane owns the reconciliation: an alive sandbox is returned as
+   * is, a FAILED/TERMINATED one is replaced, and a deletion or concurrent
+   * creation still in flight is waited for server-side. A 409 therefore only
+   * surfaces when the name really cannot be used, and is thrown as is.
+   * `options` (e.g. `timeout`) are forwarded to `create`.
+   */
+  static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration, options: Omit<SandboxCreateOptions, "createIfNotExist"> = {}) {
+    return this.create(sandbox, { ...options, createIfNotExist: true });
   }
 
   // Poll the record after a create was cut by the edge with a 504 while the
@@ -939,25 +942,6 @@ export class SandboxInstance {
       }
     }
     throw createError;
-  }
-
-  // Poll the record until an in-flight delete/deactivation settles (or the record
-  // disappears), bounded by TRANSIENT_STATUS_MAX_WAIT_MS. Errors from get (e.g. 404
-  // once the record is gone) end the wait: the caller's create retry decides next.
-  private static async waitWhileSandboxDying(name: string): Promise<void> {
-    const deadline = Date.now() + TRANSIENT_STATUS_MAX_WAIT_MS;
-    while (Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, TRANSIENT_STATUS_POLL_MS));
-      try {
-        const current = await this.get(name);
-        if (!TRANSIENT_SANDBOX_STATUSES.has(current.status ?? "")) {
-          return;
-        }
-        logger.debug(`Sandbox ${name} still ${current.status}; waiting for the record to settle before recreating`);
-      } catch {
-        return;
-      }
-    }
   }
 
   /* eslint-disable */
