@@ -63,7 +63,7 @@ async function timedCreate(runType: "parallel" | "sequential", testName: string)
 
 async function cleanup(testName: string) {
   try {
-    const sandboxes = await SandboxInstance.list()
+    const sandboxes = await (await SandboxInstance.list()).autoPagingToArray({ limit: 10000 })
     console.log(`\nFound ${sandboxes.length} total sandboxes`)
     for (const s of sandboxes.slice(0, 5)) {
       console.log(`  ${s.metadata.name} labels:`, JSON.stringify(s.metadata.labels))

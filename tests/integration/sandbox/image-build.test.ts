@@ -8,7 +8,7 @@
 
 import { describe, it, expect, afterAll } from 'vitest'
 import { ImageInstance, SandboxInstance, deleteSandbox } from "@blaxel/core"
-import { uniqueName, waitForSandboxDeletion } from './helpers'
+import { uniqueName, waitForSandboxDeletion } from './helpers.js'
 
 const IMAGE_BUILD = process.env.IMAGE_BUILD === 'true'
 

@@ -69,7 +69,6 @@ describe('Drive ACL Permissions', () => {
           labels: defaultLabels,
         },
         spec: {
-          size: 1,
           region: defaultRegion,
           permissions,
         },
