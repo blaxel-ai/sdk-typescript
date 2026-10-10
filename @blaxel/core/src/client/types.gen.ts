@@ -4588,6 +4588,42 @@ export type SandboxSpec = {
 };
 
 /**
+ * Workspace secret, referenced from proxy routing as {{SECRET:name}}. Values are write-only and can never be read back. Every upsert stores a new immutable version and the latest one is resolved at runtime.
+ */
+export type Secret = {
+    /**
+     * The date and time when the secret was first created
+     */
+    readonly createdAt?: string;
+    /**
+     * Case-sensitive secret name
+     */
+    name: string;
+    /**
+     * The date and time of the latest version
+     */
+    readonly updatedAt?: string;
+    /**
+     * Secret value. Write-only, never returned by the API
+     */
+    value?: string;
+};
+
+/**
+ * Workspace secret, referenced from proxy routing as {{SECRET:name}}. Values are write-only and can never be read back. Every upsert stores a new immutable version and the latest one is resolved at runtime.
+ */
+export type SecretWritable = {
+    /**
+     * Case-sensitive secret name
+     */
+    name: string;
+    /**
+     * Secret value. Write-only, never returned by the API
+     */
+    value?: string;
+};
+
+/**
  * Deployment status of a resource deployed on Blaxel
  */
 export type Status = 'DELETING' | 'TERMINATED' | 'FAILED' | 'DEACTIVATED' | 'DEACTIVATING' | 'UPLOADING' | 'BUILDING' | 'DEPLOYING' | 'DEPLOYED' | 'BUILT' | 'ARCHIVING' | 'ARCHIVED' | 'UNARCHIVING';
@@ -9448,6 +9484,80 @@ export type GetSandboxScheduleMetricsResponses = {
 };
 
 export type GetSandboxScheduleMetricsResponse = GetSandboxScheduleMetricsResponses[keyof GetSandboxScheduleMetricsResponses];
+
+export type DeleteSecretByQueryData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Name of the secret
+         */
+        name: string;
+    };
+    url: '/secrets';
+};
+
+export type DeleteSecretByQueryResponses = {
+    /**
+     * successful operation
+     */
+    200: Secret;
+};
+
+export type DeleteSecretByQueryResponse = DeleteSecretByQueryResponses[keyof DeleteSecretByQueryResponses];
+
+export type ListSecretsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/secrets';
+};
+
+export type ListSecretsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<Secret>;
+};
+
+export type ListSecretsResponse = ListSecretsResponses[keyof ListSecretsResponses];
+
+export type UpsertSecretData = {
+    body: SecretWritable;
+    path?: never;
+    query?: never;
+    url: '/secrets';
+};
+
+export type UpsertSecretResponses = {
+    /**
+     * successful operation
+     */
+    200: Secret;
+};
+
+export type UpsertSecretResponse = UpsertSecretResponses[keyof UpsertSecretResponses];
+
+export type DeleteSecretData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the secret
+         */
+        secretName: string;
+    };
+    query?: never;
+    url: '/secrets/{secretName}';
+};
+
+export type DeleteSecretResponses = {
+    /**
+     * successful operation
+     */
+    200: Secret;
+};
+
+export type DeleteSecretResponse = DeleteSecretResponses[keyof DeleteSecretResponses];
 
 export type GetWorkspaceServiceAccountsData = {
     body?: never;
