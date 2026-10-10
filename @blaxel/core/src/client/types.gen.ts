@@ -1108,7 +1108,7 @@ export type ExpirationPolicy = {
      */
     type?: 'ttl-idle' | 'ttl-max-age' | 'date';
     /**
-     * Duration value for TTL policies (e.g., '30m', '24h', '7d') or ISO 8601 date for date policies
+     * Duration value for TTL policies (e.g., '30m', '24h', '7d', minimum '5m') or ISO 8601 date for date policies
      */
     value?: string;
 };
@@ -1303,9 +1303,9 @@ export type GroupWorkspaceMapping = {
      */
     groupName?: string;
     /**
-     * Role to assign in this workspace (admin or member)
+     * Role to assign in this workspace (admin, member or viewer)
      */
-    role?: 'admin' | 'member';
+    role?: 'admin' | 'member' | 'viewer';
 };
 
 export type Image = {
@@ -1829,9 +1829,17 @@ export type JobExecutionSpec = {
      */
     parallelism?: number;
     /**
+     * Number of tasks of this execution
+     */
+    taskCount?: number;
+    /**
      * List of execution tasks
      */
     tasks?: Array<JobExecutionTask>;
+    /**
+     * Where this execution's task list is stored (server-managed)
+     */
+    readonly tasksRef?: string;
     /**
      * Job timeout in seconds (captured at execution creation time)
      */
@@ -1856,6 +1864,10 @@ export type JobExecutionSpecWritable = {
      * Number of parallel tasks
      */
     parallelism?: number;
+    /**
+     * Number of tasks of this execution
+     */
+    taskCount?: number;
     /**
      * List of execution tasks
      */
@@ -3882,6 +3894,14 @@ export type SandboxDefinition = {
      */
     icon?: string;
     /**
+     * Nonempty dark-mode icon URL in responses. Blank inputs use the resolved light-mode icon.
+     */
+    iconDark?: string;
+    /**
+     * Nonempty light-mode icon URL in responses. Blank inputs use icon, iconDark, then the default Hub icon.
+     */
+    iconLight?: string;
+    /**
      * Image of the Sandbox definition
      */
     image?: string;
@@ -3960,6 +3980,7 @@ export type SandboxForkRequest = {
      * Environment variables the fork runs with, on top of the ones the source has. A variable the source already carries takes this value in the fork, one it does not is added, and every other variable of the source is kept.
      */
     envs?: Array<Env>;
+    lifecycle?: SandboxLifecycle;
     /**
      * Port to expose from the sandbox
      */
@@ -4114,7 +4135,7 @@ export type SandboxRuntime = {
      */
     expires?: string;
     /**
-     * Extra arguments for kernel selection. Supported keys: 'iptables', 'nfs' (mk3.0), 'tun' and 'android' (mk3.1). The android variant includes tun and iptables and cannot be combined with nfs. Android requests are rejected if routing selects mk3.0. Values: 'enabled' or 'disabled'. Determines which kernel variant the workload runs on. Immutable after creation.
+     * Extra arguments for kernel selection. Supported keys: 'iptables', 'nfs' (mk3.0), 'tun', 'android' and 'landlock' (mk3.1). The android variant includes tun and iptables and cannot be combined with nfs. The landlock variant enables the Landlock LSM, includes tun and iptables, and cannot be combined with android or nfs. Android and landlock requests are rejected if routing selects mk3.0. Values: 'enabled' or 'disabled'. Determines which kernel variant the workload runs on. Immutable after creation.
      */
     extraArgs?: {
         [key: string]: string;
@@ -4133,7 +4154,7 @@ export type SandboxRuntime = {
      */
     terminationGracePeriodSeconds?: number;
     /**
-     * Max-age from creation: the sandbox is deleted this long after it is created, regardless of activity (not an idle timeout). Units s, m, h, d, w (e.g., '30m', '24h', '7d', '2w'). For idle-based cleanup, use a lifecycle expiration policy of type ttl-idle.
+     * Max-age from creation: the sandbox is deleted this long after it is created, regardless of activity (not an idle timeout). Units s, m, h, d, w (e.g., '30m', '24h', '7d', '2w'), minimum '5m'. For idle-based cleanup, use a lifecycle expiration policy of type ttl-idle.
      */
     ttl?: string;
 };
@@ -4757,6 +4778,10 @@ export type TriggerConfiguration = {
      */
     tasks?: Array<TriggerConfigurationTask>;
     /**
+     * Where this trigger's task list is stored (server-managed)
+     */
+    readonly tasksRef?: string;
+    /**
      * The timeout in seconds for async triggers (max 900s, MK3 only)
      */
     timeout?: number;
@@ -5093,6 +5118,10 @@ export type Workspace = TimeFields & OwnerFields & {
      */
     accountId?: string;
     /**
+     * Baseten team this workspace was provisioned for; absent on native workspaces
+     */
+    readonly basetenTeamId?: string;
+    /**
      * Workspace display name
      */
     displayName?: string;
@@ -5281,6 +5310,10 @@ export type WorkspaceUser = {
      * Workspace user given name
      */
     given_name?: string;
+    /**
+     * Whether the user has at least one verified MFA factor. Omitted when the caller is not entitled to see it (only workspace admins and owners see other members' MFA status) and for pending invitations, which have no account yet.
+     */
+    mfa_enabled?: boolean;
     /**
      * Workspace user role
      */
@@ -6830,13 +6863,21 @@ export type ListImagesResponse = ListImagesResponses[keyof ListImagesResponses];
 export type CreateImageData = {
     body: {
         /**
+         * Docker configuration JSON containing credentials for the source registry.
+         */
+        dockerConfig?: string;
+        /**
          * Runtime generation (e.g., mk3). Defaults to mk3 if not specified.
          */
         generation?: string;
         /**
-         * A pre-built Docker image reference (e.g., docker.io/myorg/myimage:latest). When provided, the build step is skipped and the image is used directly as the source for the resource runtime.
+         * A pre-built Docker image reference (e.g., docker.io/myorg/myimage:latest). References with a registry hostname start an asynchronous import that downloads and converts the image for the resource runtime.
          */
         image?: string;
+        /**
+         * Memory for the registry import worker in MiB. Only supported when image is a registry reference. When omitted, the platform default is used.
+         */
+        memoryMb?: number;
         /**
          * Name of the image to build
          */
@@ -6845,6 +6886,10 @@ export type CreateImageData = {
          * Resource type (agent, function, sandbox, job)
          */
         resourceType: string;
+        /**
+         * Temporary scratch disk for the registry import worker in MiB. Only supported when image is a registry reference. When omitted, the platform default is used. Set to 0 to use memory-backed scratch. Positive values are not supported for HIPAA workspaces.
+         */
+        volumeMb?: number;
     };
     path?: never;
     query?: never;
@@ -8456,7 +8501,7 @@ export type CreateSandboxData = {
     path?: never;
     query?: {
         /**
-         * If true, return existing sandbox instead of 409 error when sandbox exists and is not in FAILED/TERMINATED/TERMINATING state
+         * If true, return the existing sandbox instead of a 409 when one with this name is alive. A name held by a FAILED or TERMINATED sandbox is reused, and a deletion or a concurrent creation still in flight is waited for (with backoff) so the response is the sandbox, not a conflict to retry.
          */
         createIfNotExist?: boolean;
     };
@@ -9478,6 +9523,10 @@ export type GetWorkspaceServiceAccountsResponses = {
          */
         name?: string;
         /**
+         * Role of the service account in the workspace
+         */
+        role?: string;
+        /**
          * Last update timestamp
          */
         updated_at?: string;
@@ -9496,6 +9545,10 @@ export type CreateWorkspaceServiceAccountData = {
          * Service account name
          */
         name: string;
+        /**
+         * Role of the service account in the workspace. Defaults to admin on creation; unchanged on update when omitted.
+         */
+        role?: 'viewer' | 'member' | 'admin';
     };
     path?: never;
     query?: never;
@@ -9527,6 +9580,10 @@ export type CreateWorkspaceServiceAccountResponses = {
          * Service account name
          */
         name?: string;
+        /**
+         * Role of the service account in the workspace
+         */
+        role?: string;
         /**
          * Last update timestamp
          */
@@ -9588,6 +9645,10 @@ export type UpdateWorkspaceServiceAccountData = {
          * Service account name
          */
         name?: string;
+        /**
+         * Role of the service account in the workspace. Defaults to admin on creation; unchanged on update when omitted.
+         */
+        role?: 'viewer' | 'member' | 'admin';
     };
     path: {
         /**
@@ -9620,6 +9681,10 @@ export type UpdateWorkspaceServiceAccountResponses = {
          * Service account name
          */
         name?: string;
+        /**
+         * Role of the service account in the workspace
+         */
+        role?: string;
         /**
          * Last update timestamp
          */
