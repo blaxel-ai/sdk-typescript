@@ -1,6 +1,24 @@
 import { describe, it, expect, afterAll } from 'vitest'
 import { SandboxInstance, updateSandbox, Sandbox } from "@blaxel/core"
-import { uniqueName, defaultImage, defaultLabels, defaultRegion, sleep, waitForSandboxDeployed, retry, expectTtlCleared } from './helpers.js'
+import { uniqueName, defaultImage, defaultLabels, defaultRegion, sleep, waitForSandboxDeployed, retry, expectTtlCleared, isSlowTestEnabled } from './helpers.js'
+
+// The API rejects sandbox TTLs and ttl-max-age/ttl-idle policies under 5m, so
+// any test that has to wait out a TTL takes 5+ minutes: opt-in via RUN_SLOW_TTL.
+const runSlowTtl = isSlowTestEnabled("RUN_SLOW_TTL")
+const MIN_TTL = "5m"
+const MIN_TTL_MS = 5 * 60_000
+const SLOW_TTL_TIMEOUT = 12 * 60_000
+
+// Polls until the sandbox reports TERMINATED (the reaper runs after the TTL, not exactly at it).
+async function waitForTerminated(name: string, maxWaitMs: number = 3 * 60_000): Promise<string | undefined> {
+  const deadline = Date.now() + maxWaitMs
+  let status = (await SandboxInstance.get(name)).status
+  while (status !== "TERMINATED" && Date.now() < deadline) {
+    await sleep(10_000)
+    status = (await SandboxInstance.get(name)).status
+  }
+  return status
+}
 
 describe('Sandbox Lifecycle and Expiration', () => {
   const createdSandboxes: string[] = []
@@ -23,7 +41,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
   })
 
   describe('expiration behavior', { timeout: 180000 }, () => {
-    it('sandbox terminates after TTL string expires', async () => {
+    it.runIf(runSlowTtl)('sandbox terminates after TTL string expires', { timeout: SLOW_TTL_TIMEOUT }, async () => {
       const name = uniqueName("ttl-string-expire")
       const testFile = "/tmp/ttl-string-test-marker.txt"
       const testContent = "this-should-not-persist-ttl-string"
@@ -32,7 +50,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
         name,
         image: defaultImage,
         region: defaultRegion,
-        ttl: "1s",
+        ttl: MIN_TTL,
         labels: defaultLabels,
       })
 
@@ -41,11 +59,9 @@ describe('Sandbox Lifecycle and Expiration', () => {
       const written = await firstSandbox.fs.read(testFile)
       expect(written).toBe(testContent)
 
-      // Wait for TTL + buffer
-      await sleep(1100)
-
-      const retrievedSandbox = await SandboxInstance.get(name)
-      expect(retrievedSandbox.status).toBe("TERMINATED")
+      // Wait for the TTL, then poll for termination
+      await sleep(MIN_TTL_MS)
+      expect(await waitForTerminated(name)).toBe("TERMINATED")
 
       // Create a new sandbox with the same name
       const secondSandbox = await SandboxInstance.create({name, region: defaultRegion, labels: defaultLabels})
@@ -91,7 +107,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
       await expect(secondSandbox.fs.read(testFile)).rejects.toThrow()
     })
 
-    it('sandbox terminates after lifecycle ttl-max-age policy expires', async () => {
+    it.runIf(runSlowTtl)('sandbox terminates after lifecycle ttl-max-age policy expires', { timeout: SLOW_TTL_TIMEOUT }, async () => {
       const name = uniqueName("lifecycle-maxage-expire")
       const testFile = "/tmp/lifecycle-maxage-test-marker.txt"
       const testContent = "this-should-not-persist-lifecycle-maxage"
@@ -102,7 +118,7 @@ describe('Sandbox Lifecycle and Expiration', () => {
         region: defaultRegion,
         lifecycle: {
           expirationPolicies: [
-            { type: "ttl-max-age", value: "1s", action: "delete" }
+            { type: "ttl-max-age", value: MIN_TTL, action: "delete" }
           ]
         },
         labels: defaultLabels,
@@ -113,11 +129,9 @@ describe('Sandbox Lifecycle and Expiration', () => {
       const written = await firstSandbox.fs.read(testFile)
       expect(written).toBe(testContent)
 
-      // Wait for TTL + buffer
-      await sleep(1100)
-
-      const retrievedSandbox = await SandboxInstance.get(name)
-      expect(retrievedSandbox.status).toBe("TERMINATED")
+      // Wait for the TTL, then poll for termination
+      await sleep(MIN_TTL_MS)
+      expect(await waitForTerminated(name)).toBe("TERMINATED")
 
       // Create a new sandbox with the same name
       const secondSandbox = await SandboxInstance.create({name, region: defaultRegion, labels: defaultLabels})
@@ -312,21 +326,21 @@ describe('Sandbox Lifecycle and Expiration', () => {
       expect(await updatedSandbox.fs.read(testFilePath)).toBe(testContent)
     })
 
-    it('clearing a short TTL keeps the sandbox alive and content intact past its original expiration', { timeout: 120000 }, async () => {
+    it.runIf(runSlowTtl)('clearing a short TTL keeps the sandbox alive and content intact past its original expiration', { timeout: SLOW_TTL_TIMEOUT }, async () => {
       const name = uniqueName("clear-ttl-keepalive")
       const testFilePath = "/tmp/clear-ttl-keepalive-test.txt"
       const testContent = `clear-ttl-keepalive-content-${Date.now()}`
 
-      // Create with a short 20s TTL
+      // Create with the shortest allowed TTL
       const sandbox = await SandboxInstance.create({
         name,
         image: defaultImage,
         region: defaultRegion,
-        ttl: "20s",
+        ttl: MIN_TTL,
         labels: defaultLabels,
       })
       createdSandboxes.push(name)
-      expect(sandbox.spec.runtime?.ttl).toBe("20s")
+      expect(sandbox.spec.runtime?.ttl).toBe(MIN_TTL)
 
       // Write a file before clearing the TTL
       await sandbox.fs.write(testFilePath, testContent)
@@ -336,11 +350,11 @@ describe('Sandbox Lifecycle and Expiration', () => {
       await SandboxInstance.updateTtl(name, null)
       await waitForSandboxDeployed(name)
       // TTL should be cleared (or reset to the account's enforced floor TTL on
-      // tier_0/free accounts -- either way it must be far beyond the 20s window below)
+      // tier_0/free accounts -- either way it must be far beyond the 5m window below)
       await expectTtlCleared((await SandboxInstance.get(name)).spec.runtime?.ttl)
 
-      // Wait well past the original 20s window
-      await sleep(25000)
+      // Wait well past the original 5m window
+      await sleep(MIN_TTL_MS + 60_000)
 
       // Sandbox must still be alive — it would be TERMINATED if the clear had not taken effect
       const stillAlive = await SandboxInstance.get(name)
