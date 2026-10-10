@@ -141,6 +141,20 @@ describe("SandboxInstance.create mountDrives concurrency", () => {
     expect(DriveInstance.create).toHaveBeenCalledExactlyOnceWith({ name: "a", region: REGION });
   });
 
+  it("does not hold a slot for drives waiting for the sandbox's region", async () => {
+    vi.spyOn(settings, "region", "get").mockReturnValue(undefined);
+    const sandbox = deferred<typeof sandboxResponse>();
+    vi.mocked(createSandbox).mockReturnValue(sandbox.promise as never);
+    const waiting = Array.from({ length: MOUNT_DRIVES_CONCURRENCY }, (_, i) => entry(`d${i}`));
+    const created = SandboxInstance.create({ image: config.image }, { mountDrives: [...waiting, { driveName: "data", mountPath: "/mnt/data" }] });
+    await settle();
+    expect(DriveInstance.get).toHaveBeenCalledExactlyOnceWith("data");
+    expect(DriveInstance.create).not.toHaveBeenCalled();
+    sandbox.resolve(sandboxResponse);
+    await created;
+    expect(DriveInstance.create).toHaveBeenCalledTimes(MOUNT_DRIVES_CONCURRENCY);
+  });
+
   describe("failures", () => {
     it("deletes the drives it created, and only those, when the sandbox cannot be created", async () => {
       const failure = new Error("quota exceeded");

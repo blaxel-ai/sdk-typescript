@@ -27,10 +27,10 @@ export class SandboxDriveSetupError extends Error {
     cause: unknown,
   ) {
     const detail = cause instanceof Error ? cause.message : JSON.stringify(cause);
-    const left = createdDrives.length ? ` Drives this call created (or may have created) are left in place: ${createdDrives.join(", ")}.` : "";
+    const left = createdDrives.length ? `. Drives this call created (or may have created) are left in place: ${createdDrives.join(", ")}.` : "";
     super(sandbox
-      ? `Sandbox ${sandbox.metadata.name} is ready, but mounting its drives failed: ${detail}.${left}`
-      : `Sandbox creation failed: ${detail}.${left}`, { cause });
+      ? `Sandbox ${sandbox.metadata.name} is ready, but mounting its drives failed: ${detail}${left}`
+      : `Sandbox creation failed: ${detail}${left}`, { cause });
     this.name = "SandboxDriveSetupError";
   }
 }
@@ -125,25 +125,28 @@ export class SandboxDriveSetup {
 
   start() {
     const limit = limiter(MOUNT_DRIVES_CONCURRENCY);
-    this.prepared = this.mounts.map((mount, index) => limit(async () => {
-      if (this.stopped) return undefined;
-      try {
-        const drive = mount.create ? await this.createDrive(this.entries[index], mount.create) : await DriveInstance.get(mount.driveName);
-        if (drive) Object.assign(this.entries[index], { name: drive.name, exists: true });
-        return drive;
-      } catch (e) {
-        this.stopped = true;
-        throw e;
-      }
-    }));
+    this.prepared = this.mounts.map(async (mount, index) => {
+      // A new drive goes in the sandbox's region, so it waits for it (without holding a slot) if it is not known yet.
+      // Lookups await too, so that entries keep their order in the queue.
+      const region = await (mount.create ? this.region : undefined);
+      return limit(async () => {
+        if (this.stopped) return undefined;
+        try {
+          const drive = mount.create ? await this.createDrive(this.entries[index], mount.create, region) : await DriveInstance.get(mount.driveName);
+          Object.assign(this.entries[index], { name: drive.name, exists: true });
+          return drive;
+        } catch (e) {
+          this.stopped = true;
+          throw e;
+        }
+      });
+    });
     // Failures surface in mount() or discard().
     for (const promise of this.prepared) promise.catch(() => { });
   }
 
   /** Create a drive in the sandbox's region; a named one that already exists is reused. */
-  private async createDrive(entry: Entry, create: Omit<DriveCreateConfiguration, "region">) {
-    const region = await this.region;
-    if (this.stopped) return undefined;
+  private async createDrive(entry: Entry, create: Omit<DriveCreateConfiguration, "region">, region: string | undefined) {
     if (!region) throw new Error("The sandbox reports no region, so its drives were not created.");
     const requested = (create as DriveCreateConfiguration).region;
     if (requested && requested !== region) {
