@@ -74,7 +74,7 @@ describe('Sandbox System Operations', () => {
         image: "blaxel/nextjs:latest",
         memory: 4096,
         region: defaultRegion,
-        ports: [{ target: 3000 }],
+        ports: [{ target: 3001 }],
         labels: defaultLabels,
       })
       createdSandboxes.push(name)
@@ -99,18 +99,20 @@ describe('Sandbox System Operations', () => {
       const devServerStart = Date.now()
       await sandbox.process.exec({
         name: "nextjs-dev",
-        command: "npm run dev -- --port 3000",
+        command: "npm run dev -- --port 3001",
         workingDir: "/blaxel/app",
-        waitForPorts: [3000],
+        waitForPorts: [3001],
       })
       console.log(`[TEST] Next.js dev server started in ${Date.now() - devServerStart}ms`)
 
-      // Create a public preview on port 3000
-      console.log(`[TEST] Creating preview on port 3000...`)
+      // Port 3001: the nextjs image already runs its own dev server on 3000 at boot.
+
+      // Create a public preview on port 3001
+      console.log(`[TEST] Creating preview on port 3001...`)
       const preview = await sandbox.previews.create({
         metadata: { name: "upgrade-test-preview" },
         spec: {
-          port: 3000,
+          port: 3001,
           public: true,
         },
       })
