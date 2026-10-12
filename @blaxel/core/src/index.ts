@@ -7,6 +7,7 @@ export * from "./common/env.js";
 export * from "./common/h2-runtime.js";
 export * from "./common/node.js";
 export * from "./common/errors.js";
+export * from "./common/error-types.js";
 export * from "./common/internal.js";
 export * from "./common/logger.js";
 export * from "./common/pagination.js";
