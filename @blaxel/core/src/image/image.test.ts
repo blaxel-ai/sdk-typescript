@@ -748,7 +748,7 @@ describe("ImageInstance.build worker resources", () => {
   });
 
   it("sends build memory and volume as labels and signed upload headers", async () => {
-    const { create, upload } = await buildWith({ buildMemoryMb: 16384, buildVolumeMb: 32768 });
+    const { create, upload } = await buildWith({ buildMemory: 16384, buildVolume: 32768 });
     const labels = (create.body as Sandbox).metadata?.labels;
     expect(labels?.["x-blaxel-build-memory"]).toBe("16384");
     expect(labels?.["x-blaxel-build-volume"]).toBe("32768");
@@ -759,13 +759,13 @@ describe("ImageInstance.build worker resources", () => {
   });
 
   it("asks again when creating a sandbox does not sign the settings", async () => {
-    const { upload } = await buildWith({ buildMemoryMb: 2048 }, undefined, "update");
+    const { upload } = await buildWith({ buildMemory: 2048 }, undefined, "update");
     expect(calls.filter((call) => call.url.includes("upload=true")).map((call) => call.method)).toEqual(["PUT", "POST", "PUT"]);
     expect(upload.headers["x-amz-meta-x-blaxel-build-memory"]).toBe("2048");
   });
 
   it("fails clearly when the settings are never signed", async () => {
-    await expect(buildWith({ buildVolumeMb: 32768 }, undefined, "none")).rejects.toThrow("x-blaxel-build-volume");
+    await expect(buildWith({ buildVolume: 32768 }, undefined, "none")).rejects.toThrow("x-blaxel-build-volume");
     expect(calls.some((call) => call.url.startsWith("https://upload.test"))).toBe(false);
   });
 
@@ -774,8 +774,14 @@ describe("ImageInstance.build worker resources", () => {
     expect(upload.headers["x-amz-meta-x-blaxel-build-memory"]).toBeUndefined();
   });
 
+  it("still accepts the deprecated Mb spellings", async () => {
+    const { create, upload } = await buildWith({ buildMemoryMb: 8192, buildVolumeMb: 0 });
+    expect((create.body as Sandbox).metadata?.labels?.["x-blaxel-build-memory"]).toBe("8192");
+    expect(upload.headers["x-amz-meta-x-blaxel-build-volume"]).toBe("0");
+  });
+
   it("keeps an explicit zero volume", async () => {
-    const { upload } = await buildWith({ buildVolumeMb: 0 });
+    const { upload } = await buildWith({ buildVolume: 0 });
     expect(upload.headers["x-amz-meta-x-blaxel-build-volume"]).toBe("0");
     expect(upload.headers["x-amz-meta-x-blaxel-build-memory"]).toBeUndefined();
   });
@@ -791,11 +797,15 @@ describe("ImageInstance.build worker resources", () => {
   });
 
   it.each([
-    [{ buildMemoryMb: 0 }, "buildMemoryMb"],
-    [{ buildMemoryMb: 32769 }, "buildMemoryMb"],
-    [{ buildMemoryMb: 1.5 }, "buildMemoryMb"],
-    [{ buildVolumeMb: -1 }, "buildVolumeMb"],
-    [{ buildVolumeMb: 131073 }, "buildVolumeMb"],
+    [{ buildMemory: 0 }, "buildMemory must"],
+    [{ buildMemory: 32769 }, "buildMemory must"],
+    [{ buildMemory: 1.5 }, "buildMemory must"],
+    [{ buildVolume: -1 }, "buildVolume must"],
+    [{ buildVolume: 131073 }, "buildVolume must"],
+    [{ buildMemoryMb: 0 }, "buildMemoryMb must"],
+    [{ buildVolumeMb: -1 }, "buildVolumeMb must"],
+    [{ buildMemory: 2048, buildMemoryMb: 2048 }, "not both"],
+    [{ buildVolume: 0, buildVolumeMb: 0 }, "not both"],
   ])("rejects out-of-range %o before any request", async (options, option) => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);

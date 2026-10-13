@@ -32,7 +32,11 @@ export interface ImageBuildOptions {
   timeout?: number;
   onStatusChange?: (status: string) => void;
   sandboxVersion?: string;
+  buildMemory?: number;
+  buildVolume?: number;
+  /** @deprecated Use `buildMemory`. */
   buildMemoryMb?: number;
+  /** @deprecated Use `buildVolume`. */
   buildVolumeMb?: number;
 }
 

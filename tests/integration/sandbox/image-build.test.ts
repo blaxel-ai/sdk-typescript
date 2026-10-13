@@ -211,8 +211,8 @@ describe.skipIf(!IMAGE_BUILD)('Image Build Integration', () => {
       memory: 2048,
       timeout: 900000,
       onStatusChange: printStatus,
-      buildMemoryMb: 8192,
-      buildVolumeMb: 16384,
+      buildMemory: 8192,
+      buildVolume: 16384,
     })
 
     expect(sandbox.status).toBe("DEPLOYED")
