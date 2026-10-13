@@ -32,6 +32,8 @@ export interface ImageBuildOptions {
   timeout?: number;
   onStatusChange?: (status: string) => void;
   sandboxVersion?: string;
+  buildMemoryMb?: number;
+  buildVolumeMb?: number;
 }
 
 function throwBrowserError(): never {

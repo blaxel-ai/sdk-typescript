@@ -5,7 +5,9 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Sandbox } from "../client/types.gen.js";
+import { settings } from "../common/settings.js";
 import { ImageInstance } from "./image.js";
 
 // Test fixtures
@@ -682,5 +684,89 @@ describe("Dockerfile instruction order", () => {
     expect(workdirIdx).toBeLessThan(secondIdx);
     expect(secondIdx).toBeLessThan(runIdx);
     expect(runIdx).toBeLessThan(thirdIdx);
+  });
+});
+
+describe("ImageInstance.build worker resources", () => {
+  type Call = { url: string; method: string; headers: Record<string, string>; body: unknown };
+
+  async function buildWith(options: Partial<Parameters<ImageInstance["build"]>[0]>, storedLabels?: Record<string, string>) {
+    const calls: Call[] = [];
+    vi.spyOn(settings, "authenticate").mockResolvedValue(undefined);
+    vi.spyOn(settings, "headers", "get").mockReturnValue({});
+    vi.spyOn(settings, "baseUrl", "get").mockReturnValue("https://api.test");
+    vi.stubGlobal("fetch", (url: string, init: RequestInit = {}) => {
+      const headers = init.headers as Record<string, string>;
+      const body: unknown = typeof init.body === "string" ? JSON.parse(init.body) : undefined;
+      calls.push({ url, method: init.method ?? "GET", headers, body });
+      if (url.includes("upload=true")) {
+        const sent = (body as Sandbox).metadata?.labels;
+        return Promise.resolve(
+          new Response(JSON.stringify({ metadata: { name: "img", labels: storedLabels ?? sent } }), {
+            status: 200,
+            headers: { "x-blaxel-upload-url": "https://upload.test/object" },
+          })
+        );
+      }
+      if (url.startsWith("https://upload.test")) {
+        return Promise.resolve(new Response("", { status: 200 }));
+      }
+      return Promise.resolve(new Response(JSON.stringify({ metadata: { name: "img" }, status: "DEPLOYED" }), { status: 200 }));
+    });
+    const image = ImageInstance.fromRegistry("alpine:3.20");
+    // @ts-expect-error - private method
+    vi.spyOn(image, "_prepareForSandbox").mockReturnValue(image);
+    // @ts-expect-error - private method
+    vi.spyOn(image, "_waitForDeployment").mockResolvedValue("DEPLOYED");
+    await image.build({ name: "img", ...options });
+    return {
+      create: calls.find((call) => call.url.includes("upload=true"))!,
+      upload: calls.find((call) => call.url.startsWith("https://upload.test"))!,
+    };
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("sends build memory and volume as labels and signed upload headers", async () => {
+    const { create, upload } = await buildWith({ buildMemoryMb: 16384, buildVolumeMb: 32768 });
+    const labels = (create.body as Sandbox).metadata?.labels;
+    expect(labels?.["x-blaxel-build-memory"]).toBe("16384");
+    expect(labels?.["x-blaxel-build-volume"]).toBe("32768");
+    expect((create.body as Sandbox).spec?.runtime?.memory).toBe(4096);
+    expect(upload.headers["x-amz-meta-x-blaxel-build-memory"]).toBe("16384");
+    expect(upload.headers["x-amz-meta-x-blaxel-build-volume"]).toBe("32768");
+    expect(upload.headers["x-amz-meta-x-blaxel-auto-generated"]).toBeUndefined();
+  });
+
+  it("keeps an explicit zero volume", async () => {
+    const { upload } = await buildWith({ buildVolumeMb: 0 });
+    expect(upload.headers["x-amz-meta-x-blaxel-build-volume"]).toBe("0");
+    expect(upload.headers["x-amz-meta-x-blaxel-build-memory"]).toBeUndefined();
+  });
+
+  it("sends no build headers by default", async () => {
+    const { upload } = await buildWith({});
+    expect(Object.keys(upload.headers).filter((name) => name.startsWith("x-amz-meta-"))).toEqual([]);
+  });
+
+  it("mirrors build labels the control plane already stored", async () => {
+    const { upload } = await buildWith({}, { "x-blaxel-auto-generated": "true", "x-blaxel-build-memory": "8192" });
+    expect(upload.headers["x-amz-meta-x-blaxel-build-memory"]).toBe("8192");
+  });
+
+  it.each([
+    [{ buildMemoryMb: 0 }, "buildMemoryMb"],
+    [{ buildMemoryMb: 32769 }, "buildMemoryMb"],
+    [{ buildMemoryMb: 1.5 }, "buildMemoryMb"],
+    [{ buildVolumeMb: -1 }, "buildVolumeMb"],
+    [{ buildVolumeMb: 131073 }, "buildVolumeMb"],
+  ])("rejects out-of-range %o before any request", async (options, option) => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    await expect(ImageInstance.fromRegistry("alpine:3.20").build({ name: "img", ...options })).rejects.toThrow(option);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
