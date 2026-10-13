@@ -690,8 +690,17 @@ describe("Dockerfile instruction order", () => {
 describe("ImageInstance.build worker resources", () => {
   type Call = { url: string; method: string; headers: Record<string, string>; body: unknown };
 
-  async function buildWith(options: Partial<Parameters<ImageInstance["build"]>[0]>, storedLabels?: Record<string, string>) {
-    const calls: Call[] = [];
+  // signing: "all" signs every build label, "update" signs only on PUT after a
+  // 404 then POST create (production today), "none" never signs them.
+  let calls: Call[] = [];
+
+  async function buildWith(
+    options: Partial<Parameters<ImageInstance["build"]>[0]>,
+    storedLabels?: Record<string, string>,
+    signing: "all" | "update" | "none" = "all"
+  ) {
+    calls = [];
+    let created = false;
     vi.spyOn(settings, "authenticate").mockResolvedValue(undefined);
     vi.spyOn(settings, "headers", "get").mockReturnValue({});
     vi.spyOn(settings, "baseUrl", "get").mockReturnValue("https://api.test");
@@ -700,11 +709,19 @@ describe("ImageInstance.build worker resources", () => {
       const body: unknown = typeof init.body === "string" ? JSON.parse(init.body) : undefined;
       calls.push({ url, method: init.method ?? "GET", headers, body });
       if (url.includes("upload=true")) {
-        const sent = (body as Sandbox).metadata?.labels;
+        if (signing === "update" && init.method === "PUT" && !created) {
+          return Promise.resolve(new Response("{}", { status: 404 }));
+        }
+        created ||= init.method === "POST";
+        const labels = storedLabels ?? (body as Sandbox).metadata?.labels ?? {};
+        const signed = ["host"];
+        if (signing === "all" || (signing === "update" && init.method === "PUT")) {
+          signed.push(...Object.keys(labels).filter((k) => k.startsWith("x-blaxel-build")).map((k) => `x-amz-meta-${k}`));
+        }
         return Promise.resolve(
-          new Response(JSON.stringify({ metadata: { name: "img", labels: storedLabels ?? sent } }), {
+          new Response(JSON.stringify({ metadata: { name: "img", labels } }), {
             status: 200,
-            headers: { "x-blaxel-upload-url": "https://upload.test/object" },
+            headers: { "x-blaxel-upload-url": `https://upload.test/object?X-Amz-SignedHeaders=${signed.join(";")}` },
           })
         );
       }
@@ -739,6 +756,22 @@ describe("ImageInstance.build worker resources", () => {
     expect(upload.headers["x-amz-meta-x-blaxel-build-memory"]).toBe("16384");
     expect(upload.headers["x-amz-meta-x-blaxel-build-volume"]).toBe("32768");
     expect(upload.headers["x-amz-meta-x-blaxel-auto-generated"]).toBeUndefined();
+  });
+
+  it("asks again when creating a sandbox does not sign the settings", async () => {
+    const { upload } = await buildWith({ buildMemoryMb: 2048 }, undefined, "update");
+    expect(calls.filter((call) => call.url.includes("upload=true")).map((call) => call.method)).toEqual(["PUT", "POST", "PUT"]);
+    expect(upload.headers["x-amz-meta-x-blaxel-build-memory"]).toBe("2048");
+  });
+
+  it("fails clearly when the settings are never signed", async () => {
+    await expect(buildWith({ buildVolumeMb: 32768 }, undefined, "none")).rejects.toThrow("x-blaxel-build-volume");
+    expect(calls.some((call) => call.url.startsWith("https://upload.test"))).toBe(false);
+  });
+
+  it("drops stored labels the upload URL was not signed for", async () => {
+    const { upload } = await buildWith({}, { "x-blaxel-auto-generated": "true", "x-blaxel-build-memory": "8192" }, "none");
+    expect(upload.headers["x-amz-meta-x-blaxel-build-memory"]).toBeUndefined();
   });
 
   it("keeps an explicit zero volume", async () => {

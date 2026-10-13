@@ -883,6 +883,46 @@ export class ImageInstance {
     return { response, uploadUrl };
   }
 
+  /**
+   * Creates or updates the sandbox and returns its upload URL with the build
+   * metadata that URL was signed for, plus requested settings it was not.
+   */
+  private async _requestUpload(
+    sandbox: Sandbox,
+    requested: MetadataLabels
+  ): Promise<{ uploadUrl: string; metadata: Record<string, string>; missing: string[] }> {
+    const { response, uploadUrl } = await this._createSandboxWithUpload(sandbox);
+
+    if (response.status >= 400) {
+      const text = await response.text();
+      throw new Error(`Failed to create sandbox: ${response.status} - ${text}`);
+    }
+
+    if (!uploadUrl) {
+      throw new Error("No upload URL returned from API");
+    }
+
+    // Sign-matching headers come from the labels the control plane stored,
+    // which can include build settings already on an existing sandbox.
+    let storedLabels: Record<string, unknown> | undefined = sandbox.metadata?.labels;
+    try {
+      const stored = (await response.json()) as Sandbox;
+      storedLabels = stored.metadata?.labels ?? storedLabels;
+    } catch {
+      // Fall back to the labels we sent
+    }
+
+    // Storage rejects headers the URL was not signed for, so drop those.
+    let metadata = buildUploadMetadata(storedLabels);
+    const query = new URL(uploadUrl).searchParams;
+    const signedHeaders = query.get("X-Amz-SignedHeaders") ?? query.get("X-Goog-SignedHeaders");
+    if (signedHeaders) {
+      const signed = new Set(signedHeaders.split(";").map((header) => header.trim().toLowerCase()));
+      metadata = Object.fromEntries(Object.entries(metadata).filter(([name]) => signed.has(`x-amz-meta-${name}`)));
+    }
+    return { uploadUrl, metadata, missing: Object.keys(requested).filter((name) => !(name in metadata)) };
+  }
+
   private async _uploadZip(uploadUrl: string, zipContent: Uint8Array, metadata: Record<string, string> = {}): Promise<void> {
     const headers: Record<string, string> = {
       "Content-Type": "application/zip",
@@ -1005,29 +1045,18 @@ export class ImageInstance {
       const sandboxPayload = this._createSandboxPayload(name, memory, buildLabels);
 
       // Create/update sandbox and get upload URL
-      const { response, uploadUrl } = await this._createSandboxWithUpload(sandboxPayload);
-
-      if (response.status >= 400) {
-        const text = await response.text();
-        throw new Error(`Failed to create sandbox: ${response.status} - ${text}`);
-      }
-
-      if (!uploadUrl) {
-        throw new Error("No upload URL returned from API");
-      }
-
-      // Sign-matching headers come from the labels the control plane stored,
-      // which can include build settings already on an existing sandbox.
-      let storedLabels: Record<string, unknown> | undefined = sandboxPayload.metadata?.labels;
-      try {
-        const created = (await response.json()) as Sandbox;
-        storedLabels = created.metadata?.labels ?? storedLabels;
-      } catch {
-        // Fall back to the labels we sent
+      let { uploadUrl, metadata, missing } = await this._requestUpload(sandboxPayload, buildLabels);
+      if (missing.length > 0) {
+        // Creating a sandbox can return a URL without the build settings
+        // signed; asking again updates the now existing sandbox, which does.
+        ({ uploadUrl, metadata, missing } = await this._requestUpload(sandboxPayload, buildLabels));
+        if (missing.length > 0) {
+          throw new Error(`The platform did not accept build settings ${missing.join(", ")}; retry without them`);
+        }
       }
 
       // Upload the zip
-      await this._uploadZip(uploadUrl, zipContent, buildUploadMetadata(storedLabels));
+      await this._uploadZip(uploadUrl, zipContent, metadata);
 
       // Wait for deployment to complete
       await this._waitForDeployment(name, timeout, 3000, onStatusChange);
