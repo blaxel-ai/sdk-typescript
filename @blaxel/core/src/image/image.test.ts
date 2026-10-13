@@ -741,6 +741,13 @@ describe("ImageInstance.build worker resources", () => {
     expect(upload.headers["x-amz-meta-x-blaxel-auto-generated"]).toBeUndefined();
   });
 
+  it("sends the build region", async () => {
+    const { create, upload } = await buildWith({ buildRegion: "us-was-1" });
+    expect((create.body as Sandbox).metadata?.labels?.["x-blaxel-build-region"]).toBe("us-was-1");
+    expect((create.body as Sandbox).spec?.region).toBeUndefined();
+    expect(upload.headers["x-amz-meta-x-blaxel-build-region"]).toBe("us-was-1");
+  });
+
   it("keeps an explicit zero volume", async () => {
     const { upload } = await buildWith({ buildVolumeMb: 0 });
     expect(upload.headers["x-amz-meta-x-blaxel-build-volume"]).toBe("0");
@@ -763,6 +770,8 @@ describe("ImageInstance.build worker resources", () => {
     [{ buildMemoryMb: 1.5 }, "buildMemoryMb"],
     [{ buildVolumeMb: -1 }, "buildVolumeMb"],
     [{ buildVolumeMb: 131073 }, "buildVolumeMb"],
+    [{ buildRegion: "" }, "buildRegion"],
+    [{ buildRegion: "x".repeat(65) }, "buildRegion"],
   ])("rejects out-of-range %o before any request", async (options, option) => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);

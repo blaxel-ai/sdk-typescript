@@ -53,6 +53,11 @@ export interface ImageBuildOptions {
    * `bl push --volume`; 0 uses memory-backed scratch.
    */
   buildVolumeMb?: number;
+  /**
+   * Region to run the build in, such as "us-was-1". Same as [build].region in
+   * blaxel.toml; defaults to the platform build region.
+   */
+  buildRegion?: string;
 }
 
 // Build settings travel as sandbox labels. The control plane signs the allowed
@@ -989,6 +994,14 @@ export class ImageInstance {
     const buildVolume = buildSizeLabel("buildVolumeMb", options.buildVolumeMb, 0, 131072);
     if (buildVolume !== undefined) {
       buildLabels["x-blaxel-build-volume"] = buildVolume;
+    }
+    if (options.buildRegion !== undefined) {
+      // The control plane drops longer values instead of rejecting them.
+      const region = typeof options.buildRegion === "string" ? options.buildRegion.trim() : "";
+      if (region === "" || region.length > MAX_BUILD_UPLOAD_LABEL_VALUE) {
+        throw new Error("buildRegion must be a region name such as us-was-1");
+      }
+      buildLabels["x-blaxel-build-region"] = region;
     }
 
     // Prepare image for sandbox deployment (add sandbox-api and entrypoint)

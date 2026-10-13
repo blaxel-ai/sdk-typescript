@@ -34,6 +34,7 @@ export interface ImageBuildOptions {
   sandboxVersion?: string;
   buildMemoryMb?: number;
   buildVolumeMb?: number;
+  buildRegion?: string;
 }
 
 function throwBrowserError(): never {
