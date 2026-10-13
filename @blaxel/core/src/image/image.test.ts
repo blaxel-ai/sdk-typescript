@@ -774,6 +774,19 @@ describe("ImageInstance.build worker resources", () => {
     expect(upload.headers["x-amz-meta-x-blaxel-build-memory"]).toBeUndefined();
   });
 
+  it("sends the build region as a label and signed upload header", async () => {
+    const { create, upload } = await buildWith({ buildRegion: "us-was-1", buildMemory: 2048 });
+    expect((create.body as Sandbox).metadata?.labels?.["x-blaxel-build-region"]).toBe("us-was-1");
+    expect(upload.headers["x-amz-meta-x-blaxel-build-region"]).toBe("us-was-1");
+    expect(upload.headers["x-amz-meta-x-blaxel-build-memory"]).toBe("2048");
+  });
+
+  it("asks again when creating a sandbox does not sign the region", async () => {
+    const { upload } = await buildWith({ buildRegion: "us-was-1" }, undefined, "update");
+    expect(calls.filter((call) => call.url.includes("upload=true")).map((call) => call.method)).toEqual(["PUT", "POST", "PUT"]);
+    expect(upload.headers["x-amz-meta-x-blaxel-build-region"]).toBe("us-was-1");
+  });
+
   it("still accepts the deprecated Mb spellings", async () => {
     const { create, upload } = await buildWith({ buildMemoryMb: 8192, buildVolumeMb: 0 });
     expect((create.body as Sandbox).metadata?.labels?.["x-blaxel-build-memory"]).toBe("8192");
@@ -806,6 +819,11 @@ describe("ImageInstance.build worker resources", () => {
     [{ buildVolumeMb: -1 }, "buildVolumeMb must"],
     [{ buildMemory: 2048, buildMemoryMb: 2048 }, "not both"],
     [{ buildVolume: 0, buildVolumeMb: 0 }, "not both"],
+    [{ buildRegion: "" }, "buildRegion must"],
+    [{ buildRegion: "US-WAS-1" }, "buildRegion must"],
+    [{ buildRegion: " us-was-1" }, "buildRegion must"],
+    [{ buildRegion: "-us" }, "buildRegion must"],
+    [{ buildRegion: "a".repeat(64) }, "buildRegion must"],
   ])("rejects out-of-range %o before any request", async (options, option) => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
