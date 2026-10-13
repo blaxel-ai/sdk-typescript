@@ -43,6 +43,50 @@ export interface ImageBuildOptions {
   timeout?: number;
   onStatusChange?: (status: string) => void;
   sandboxVersion?: string;
+  /**
+   * Memory for the temporary build worker in MiB (1-32768). Same as
+   * `bl push --memory`. Does not change the deployed sandbox's memory.
+   */
+  buildMemoryMb?: number;
+  /**
+   * Scratch disk for the temporary build worker in MiB (0-131072). Same as
+   * `bl push --volume`; 0 uses memory-backed scratch.
+   */
+  buildVolumeMb?: number;
+}
+
+// Build settings travel as sandbox labels. The control plane signs the allowed
+// ones into the upload URL, and the upload must send them back as matching
+// x-amz-meta-* headers or storage rejects it.
+const BUILD_UPLOAD_LABELS = [
+  "x-blaxel-builder",
+  "x-blaxel-experimental",
+  "x-blaxel-build-memory",
+  "x-blaxel-build-volume",
+  "x-blaxel-build-region",
+  "x-blaxel-build-cache",
+];
+const MAX_BUILD_UPLOAD_LABEL_VALUE = 64;
+
+function buildSizeLabel(option: string, value: number | undefined, min: number, max: number): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!Number.isInteger(value) || value < min || value > max) {
+    throw new Error(`${option} must be an integer between ${min} and ${max} MiB`);
+  }
+  return String(value);
+}
+
+function buildUploadMetadata(labels: Record<string, unknown> | undefined): Record<string, string> {
+  const metadata: Record<string, string> = {};
+  for (const name of BUILD_UPLOAD_LABELS) {
+    const value = labels?.[name];
+    if (typeof value === "string" && value !== "" && value.length <= MAX_BUILD_UPLOAD_LABEL_VALUE) {
+      metadata[name] = value;
+    }
+  }
+  return metadata;
 }
 
 export interface PipInstallOptions {
@@ -782,9 +826,10 @@ export class ImageInstance {
     });
   }
 
-  private _createSandboxPayload(name: string, memory: number = 4096): Sandbox {
+  private _createSandboxPayload(name: string, memory: number = 4096, buildLabels: MetadataLabels = {}): Sandbox {
     const labels: MetadataLabels = {
       "x-blaxel-auto-generated": "true",
+      ...buildLabels,
     };
 
     const metadata: Metadata = {
@@ -838,12 +883,16 @@ export class ImageInstance {
     return { response, uploadUrl };
   }
 
-  private async _uploadZip(uploadUrl: string, zipContent: Uint8Array): Promise<void> {
+  private async _uploadZip(uploadUrl: string, zipContent: Uint8Array, metadata: Record<string, string> = {}): Promise<void> {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/zip",
+    };
+    for (const [name, value] of Object.entries(metadata)) {
+      headers[`x-amz-meta-${name}`] = value;
+    }
     const response = await fetch(uploadUrl, {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/zip",
-      },
+      headers,
       body: zipContent,
     });
 
@@ -931,6 +980,17 @@ export class ImageInstance {
   async build(options: ImageBuildOptions): Promise<Sandbox> {
     const { name, memory = 4096, timeout = 900000, onStatusChange, sandboxVersion = "latest" } = options;
 
+    const buildLabels: MetadataLabels = {};
+    const buildMemory = buildSizeLabel("buildMemoryMb", options.buildMemoryMb, 1, 32768);
+    if (buildMemory !== undefined) {
+      buildLabels["x-blaxel-build-memory"] = buildMemory;
+    }
+    // Keep an explicit 0: it asks for memory-backed scratch instead of the default.
+    const buildVolume = buildSizeLabel("buildVolumeMb", options.buildVolumeMb, 0, 131072);
+    if (buildVolume !== undefined) {
+      buildLabels["x-blaxel-build-volume"] = buildVolume;
+    }
+
     // Prepare image for sandbox deployment (add sandbox-api and entrypoint)
     const preparedImage = this._prepareForSandbox(sandboxVersion);
 
@@ -942,7 +1002,7 @@ export class ImageInstance {
       const zipContent = await this._createZip(buildDir);
 
       // Create sandbox payload
-      const sandboxPayload = this._createSandboxPayload(name, memory);
+      const sandboxPayload = this._createSandboxPayload(name, memory, buildLabels);
 
       // Create/update sandbox and get upload URL
       const { response, uploadUrl } = await this._createSandboxWithUpload(sandboxPayload);
@@ -956,8 +1016,18 @@ export class ImageInstance {
         throw new Error("No upload URL returned from API");
       }
 
+      // Sign-matching headers come from the labels the control plane stored,
+      // which can include build settings already on an existing sandbox.
+      let storedLabels: Record<string, unknown> | undefined = sandboxPayload.metadata?.labels;
+      try {
+        const created = (await response.json()) as Sandbox;
+        storedLabels = created.metadata?.labels ?? storedLabels;
+      } catch {
+        // Fall back to the labels we sent
+      }
+
       // Upload the zip
-      await this._uploadZip(uploadUrl, zipContent);
+      await this._uploadZip(uploadUrl, zipContent, buildUploadMetadata(storedLabels));
 
       // Wait for deployment to complete
       await this._waitForDeployment(name, timeout, 3000, onStatusChange);

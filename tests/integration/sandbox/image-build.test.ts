@@ -201,4 +201,22 @@ describe.skipIf(!IMAGE_BUILD)('Image Build Integration', () => {
     console.log("   - Initial build: OK")
     console.log("   - Re-build (update): OK")
   }, 1200000) // 20 minute timeout
+
+  it('builds with worker memory and volume like bl push --memory/--volume', async () => {
+    const sandboxName = uniqueName("image-resources")
+    createdSandboxes.push(sandboxName)
+
+    const sandbox = await ImageInstance.fromRegistry("alpine:3.20").build({
+      name: sandboxName,
+      memory: 2048,
+      timeout: 900000,
+      onStatusChange: printStatus,
+      buildMemoryMb: 8192,
+      buildVolumeMb: 16384,
+    })
+
+    expect(sandbox.status).toBe("DEPLOYED")
+    expect(sandbox.metadata?.labels?.["x-blaxel-build-memory"]).toBe("8192")
+    expect(sandbox.metadata?.labels?.["x-blaxel-build-volume"]).toBe("16384")
+  }, 1200000)
 })
