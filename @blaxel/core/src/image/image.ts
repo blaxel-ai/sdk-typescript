@@ -44,14 +44,18 @@ export interface ImageBuildOptions {
   onStatusChange?: (status: string) => void;
   sandboxVersion?: string;
   /**
-   * Memory for the temporary build worker in MiB (1-32768). Same as
-   * `bl push --memory`. Does not change the deployed sandbox's memory.
+   * Memory of the environment the image is built in, in MB (1-32768). Same as
+   * `bl push --memory`. Does not change the deployed sandbox's `memory`.
    */
-  buildMemoryMb?: number;
+  buildMemory?: number;
   /**
-   * Scratch disk for the temporary build worker in MiB (0-131072). Same as
-   * `bl push --volume`; 0 uses memory-backed scratch.
+   * Disk attached to the build for its intermediate layers, in MB (0-131072).
+   * Same as `bl push --volume`; 0 builds in memory.
    */
+  buildVolume?: number;
+  /** @deprecated Use `buildMemory`. */
+  buildMemoryMb?: number;
+  /** @deprecated Use `buildVolume`. */
   buildVolumeMb?: number;
 }
 
@@ -68,14 +72,25 @@ const BUILD_UPLOAD_LABELS = [
 ];
 const MAX_BUILD_UPLOAD_LABEL_VALUE = 64;
 
-function buildSizeLabel(option: string, value: number | undefined, min: number, max: number): string | undefined {
-  if (value === undefined) {
+// Reads an option that also has a deprecated `...Mb` spelling.
+function buildSizeLabel(
+  option: string,
+  value: number | undefined,
+  deprecatedValue: number | undefined,
+  min: number,
+  max: number
+): string | undefined {
+  if (value !== undefined && deprecatedValue !== undefined) {
+    throw new Error(`Set ${option} or ${option}Mb, not both`);
+  }
+  const size = value ?? deprecatedValue;
+  if (size === undefined) {
     return undefined;
   }
-  if (!Number.isInteger(value) || value < min || value > max) {
-    throw new Error(`${option} must be an integer between ${min} and ${max} MiB`);
+  if (!Number.isInteger(size) || size < min || size > max) {
+    throw new Error(`${value !== undefined ? option : `${option}Mb`} must be an integer between ${min} and ${max} MB`);
   }
-  return String(value);
+  return String(size);
 }
 
 function buildUploadMetadata(labels: Record<string, unknown> | undefined): Record<string, string> {
@@ -1021,12 +1036,12 @@ export class ImageInstance {
     const { name, memory = 4096, timeout = 900000, onStatusChange, sandboxVersion = "latest" } = options;
 
     const buildLabels: MetadataLabels = {};
-    const buildMemory = buildSizeLabel("buildMemoryMb", options.buildMemoryMb, 1, 32768);
+    const buildMemory = buildSizeLabel("buildMemory", options.buildMemory, options.buildMemoryMb, 1, 32768);
     if (buildMemory !== undefined) {
       buildLabels["x-blaxel-build-memory"] = buildMemory;
     }
     // Keep an explicit 0: it asks for memory-backed scratch instead of the default.
-    const buildVolume = buildSizeLabel("buildVolumeMb", options.buildVolumeMb, 0, 131072);
+    const buildVolume = buildSizeLabel("buildVolume", options.buildVolume, options.buildVolumeMb, 0, 131072);
     if (buildVolume !== undefined) {
       buildLabels["x-blaxel-build-volume"] = buildVolume;
     }
