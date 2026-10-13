@@ -53,6 +53,11 @@ export interface ImageBuildOptions {
    * Same as `bl push --volume`; 0 builds in memory.
    */
   buildVolume?: number;
+  /**
+   * Region the image is built in, such as "us-was-1". Same as `[build].region`
+   * in blaxel.toml; defaults to the platform's build region.
+   */
+  buildRegion?: string;
   /** @deprecated Use `buildMemory`. */
   buildMemoryMb?: number;
   /** @deprecated Use `buildVolume`. */
@@ -71,6 +76,8 @@ const BUILD_UPLOAD_LABELS = [
   "x-blaxel-build-cache",
 ];
 const MAX_BUILD_UPLOAD_LABEL_VALUE = 64;
+// The builder ignores a region that is not a resource name, so reject it here.
+const BUILD_REGION_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
 
 // Reads an option that also has a deprecated `...Mb` spelling.
 function buildSizeLabel(
@@ -1044,6 +1051,12 @@ export class ImageInstance {
     const buildVolume = buildSizeLabel("buildVolume", options.buildVolume, options.buildVolumeMb, 0, 131072);
     if (buildVolume !== undefined) {
       buildLabels["x-blaxel-build-volume"] = buildVolume;
+    }
+    if (options.buildRegion !== undefined) {
+      if (typeof options.buildRegion !== "string" || !BUILD_REGION_PATTERN.test(options.buildRegion)) {
+        throw new Error("buildRegion must be a region name such as us-was-1");
+      }
+      buildLabels["x-blaxel-build-region"] = options.buildRegion;
     }
 
     // Prepare image for sandbox deployment (add sandbox-api and entrypoint)

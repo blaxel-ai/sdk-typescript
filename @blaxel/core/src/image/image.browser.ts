@@ -34,6 +34,7 @@ export interface ImageBuildOptions {
   sandboxVersion?: string;
   buildMemory?: number;
   buildVolume?: number;
+  buildRegion?: string;
   /** @deprecated Use `buildMemory`. */
   buildMemoryMb?: number;
   /** @deprecated Use `buildVolume`. */
