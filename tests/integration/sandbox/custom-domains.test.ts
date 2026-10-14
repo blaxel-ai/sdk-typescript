@@ -140,18 +140,19 @@ describe.runIf(isSlowTestEnabled("RUN_CUSTOM_DOMAIN_TESTS"))('Custom domain vali
     expect(errorMessage(error)).toMatch(/validationMethod/)
   })
 
-  it('does not let PUT change the validation method', async () => {
+  it('keeps the existing validation method when PUT requests another one', async () => {
     const existing = await getCustomDomain({ path: { domainName: dnsDomain }, throwOnError: true })
     expect(existing.data.spec.validationMethod).toBe("dns")
 
-    const { error, response } = await updateCustomDomain({
+    const { data, error, response } = await updateCustomDomain({
       path: { domainName: dnsDomain },
       body: {
         metadata: { name: dnsDomain, labels: defaultLabels },
         spec: { domainType: "applications", region: existing.data.spec.region, validationMethod: "http" },
       },
     })
-    expect(response.status, errorMessage(error)).toBe(400)
+    expect(response.status, errorMessage(error)).toBe(200)
+    expect(data?.spec.validationMethod).toBe("dns")
 
     const got = await getCustomDomain({ path: { domainName: dnsDomain }, throwOnError: true })
     expect(got.data.spec.validationMethod).toBe("dns")
