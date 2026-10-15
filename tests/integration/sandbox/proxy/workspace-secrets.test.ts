@@ -3,8 +3,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { defaultImage, defaultLabels, defaultRegion, uniqueName } from '../helpers.js'
 import { createEchoServerSandbox, lowercaseKeys, parseJsonOutput, proxyCleanup, proxyHelperScript } from './helpers.js'
 
-// Workspace secrets ship with controlplane#5736; skip until the target environment serves them.
-const secretsApiDeployed = (await listSecrets()).response.status !== 404
+// Workspace secrets are behind the "workspace-secrets" feature flag (403 when off,
+// 404 on environments that predate controlplane#5736): skip unless the workspace has them.
+const secretsApiDeployed = ![403, 404].includes((await listSecrets()).response.status)
 
 type Sandbox = Awaited<ReturnType<typeof SandboxInstance.create>>
 

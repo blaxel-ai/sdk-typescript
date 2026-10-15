@@ -5,7 +5,7 @@ import { uniqueName } from "./helpers.js";
 const secretName = (prefix: string) => uniqueName(prefix).replace(/[^A-Za-z0-9_-]/g, "-");
 
 // /secrets ships with controlplane#5736; skip until the target environment serves it.
-const secretsApiDeployed = (await listSecrets()).response.status !== 404;
+const secretsApiDeployed = ![403, 404].includes((await listSecrets()).response.status);
 
 describe.skipIf(!secretsApiDeployed)("Workspace secrets", () => {
   const created: string[] = [];
