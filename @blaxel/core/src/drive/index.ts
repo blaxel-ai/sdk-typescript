@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { createDrive, deleteDrive, getDrive, listDrives, updateDrive, type Drive, type DrivePermission, type ListDrivesData } from "../client/index.js";
+import { createDrive, deleteDrive, getDrive, getDriveByExternalId, listDrives, updateDrive, type Drive, type DrivePermission, type ListDrivesData } from "../client/index.js";
 import { createPaginatedList } from "../common/pagination.js";
 import { settings } from "../common/settings.js";
 
@@ -8,6 +8,7 @@ export type DriveListQuery = NonNullable<ListDrivesData["query"]>;
 export type DriveCreateConfiguration = {
   name?: string;
   displayName?: string;
+  externalId?: string;
   labels?: Record<string, string>;
   /** @deprecated Drives have no size limit: the control plane ignores this. */
   size?: number; // Size in GB
@@ -69,6 +70,7 @@ export class DriveInstance {
         metadata: {
           name: config.name || defaultName,
           displayName: config.displayName || config.name || defaultName,
+          externalId: config.externalId,
           labels: config.labels
         },
         spec: {
@@ -110,6 +112,16 @@ export class DriveInstance {
     const { data } = await getDrive({
       path: {
         driveName,
+      },
+      throwOnError: true,
+    });
+    return new DriveInstance(data);
+  }
+
+  static async getByExternalId(externalId: string) {
+    const { data } = await getDriveByExternalId({
+      path: {
+        externalId,
       },
       throwOnError: true,
     });
@@ -180,6 +192,7 @@ export class DriveInstance {
       // It's a Drive object - only include defined fields
       if (updates.metadata) {
         if (updates.metadata.displayName !== undefined) metadataUpdates.displayName = updates.metadata.displayName;
+        if (updates.metadata.externalId !== undefined) metadataUpdates.externalId = updates.metadata.externalId;
         if (updates.metadata.labels !== undefined) metadataUpdates.labels = updates.metadata.labels;
       }
       if (updates.spec) {
@@ -189,6 +202,7 @@ export class DriveInstance {
     } else {
       // It's a DriveCreateConfiguration - only include defined fields
       if (updates.displayName !== undefined) metadataUpdates.displayName = updates.displayName;
+      if (updates.externalId !== undefined) metadataUpdates.externalId = updates.externalId;
       if (updates.labels !== undefined) metadataUpdates.labels = updates.labels;
       if (updates.region !== undefined) specUpdates.region = updates.region;
       if (updates.permissions !== undefined) specUpdates.permissions = updates.permissions;
