@@ -45,6 +45,27 @@ export type FaultCommand = {
   /** Send GOAWAY to the session after this many streams have been opened. */
   goawayAfterStreams?: number;
   /**
+   * REFUSE these stream ordinals (1-based, counted across the server's
+   * lifetime): GOAWAY with `lastStreamID` pinned BELOW the current stream, so
+   * RFC 9113 §6.8 guarantees the peer did not and will not process it. Node
+   * surfaces this to the client as RST_STREAM/REFUSED_STREAM on that stream.
+   *
+   * The refused ordinal must not be the first stream of its session: Node's
+   * `session.goaway()` replaces a `lastStreamID` of `<= 0` with the last
+   * processed stream id, so "refuse stream 1" is not expressible. Send one
+   * normal request first (as a real drain does) and refuse the next.
+   *
+   * Unlike `goawayAfterStreams` later streams are unaffected, which is what lets
+   * a test observe a transparent re-send SUCCEEDING.
+   */
+  goawayRefusingStreams?: number[];
+  /**
+   * GOAWAY these stream ordinals with `lastStreamID` INCLUDING the current
+   * stream: the peer claims it may already have processed the request, so a
+   * client must NOT re-send it. The ambiguous half of the drain contract.
+   */
+  goawayIncludingStreams?: number[];
+  /**
    * RST_STREAM the request stream instead of responding.
    * `{ code }` is an nghttp2 error code (e.g. NGHTTP2_ENHANCE_YOUR_CALM = 11).
    * If `forPaths` is given, ONLY requests whose `:path` is in that list are
@@ -131,6 +152,10 @@ let cachedTlsCert: { cert: Buffer; key: Buffer } | null = null;
  * protection / secret scanners and is needless key material). Requires
  * `openssl` on PATH, present on macOS and the CI runners.
  */
+export function getTestTlsCert(): { cert: Buffer; key: Buffer } {
+  return loadFixtures();
+}
+
 function loadFixtures(): { cert: Buffer; key: Buffer } {
   if (cachedTlsCert) return cachedTlsCert;
   const dir = mkdtempSync(join(tmpdir(), "h2-fault-cert-"));
@@ -194,8 +219,14 @@ export async function startH2FaultServer(
   // Do not crash the test process on the faults we deliberately inject.
   server.on("error", () => {});
   server.on("sessionError", () => {});
+  // Track server-side sessions so close() can tear them down. A session that
+  // sent GOAWAY (or holds a stream the harness never answered) is not "idle",
+  // so server.close() would otherwise wait on it forever.
+  const serverSessions = new Set<http2.ServerHttp2Session>();
   server.on("session", (session) => {
     session.on("error", () => {});
+    serverSessions.add(session);
+    session.once("close", () => serverSessions.delete(session));
   });
 
   server.on("stream", (stream, headers) => {
@@ -237,11 +268,20 @@ export async function startH2FaultServer(
 
       // GOAWAY-before-response: once enough streams have opened, tear the
       // session down without answering this stream.
+      const streamId = stream.id ?? 0;
+      if (cmd.goawayRefusingStreams?.includes(myStreamOrdinal)) {
+        // Client stream ids on one session are 1, 3, 5, ...; pinning
+        // lastStreamID to the previous one refuses exactly this stream.
+        stream.session?.goaway(NGHTTP2_NO_ERROR, streamId - 2);
+        return;
+      }
+
       if (
-        cmd.goawayAfterStreams !== undefined &&
-        myStreamOrdinal >= cmd.goawayAfterStreams
+        cmd.goawayIncludingStreams?.includes(myStreamOrdinal) ||
+        (cmd.goawayAfterStreams !== undefined &&
+          myStreamOrdinal >= cmd.goawayAfterStreams)
       ) {
-        stream.session?.goaway(NGHTTP2_NO_ERROR);
+        stream.session?.goaway(NGHTTP2_NO_ERROR, streamId);
         return;
       }
 
@@ -375,9 +415,16 @@ export async function startH2FaultServer(
     pendingTimers.clear();
     releaseHeldStreams();
     for (const session of clientSessions) {
-      if (!session.closed && !session.destroyed) session.destroy();
+      // Destroy even when `closed` is already set: a graceful close() waits for
+      // pending streams, and a stream the harness deliberately never answered
+      // would otherwise keep the server connection (and this close()) hanging.
+      if (!session.destroyed) session.destroy();
     }
     clientSessions.clear();
+    for (const session of serverSessions) {
+      if (!session.destroyed) session.destroy();
+    }
+    serverSessions.clear();
     await new Promise<void>((resolve) => {
       // close() waits for open connections; destroy any stragglers so the
       // listening handle is released promptly and the test process exits.

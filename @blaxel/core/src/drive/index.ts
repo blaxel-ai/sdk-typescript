@@ -10,6 +10,7 @@ export type DriveCreateConfiguration = {
   displayName?: string;
   externalId?: string;
   labels?: Record<string, string>;
+  /** @deprecated Drives have no size limit: the control plane ignores this. */
   size?: number; // Size in GB
   region?: string;
   permissions?: Array<DrivePermission>;
@@ -42,8 +43,9 @@ export class DriveInstance {
     return this.drive.metadata.displayName;
   }
 
+  /** @deprecated Only legacy drives created with a size still report one. */
   get size() {
-    return this.drive.spec.size;
+    return (this.drive.spec as { size?: number }).size;
   }
 
   get region() {
@@ -72,7 +74,6 @@ export class DriveInstance {
           labels: config.labels
         },
         spec: {
-          size: config.size,
           region: config.region || settings.region,
           permissions: config.permissions,
         }
@@ -195,7 +196,6 @@ export class DriveInstance {
         if (updates.metadata.labels !== undefined) metadataUpdates.labels = updates.metadata.labels;
       }
       if (updates.spec) {
-        if (updates.spec.size !== undefined) specUpdates.size = updates.spec.size;
         if (updates.spec.region !== undefined) specUpdates.region = updates.spec.region;
         if (updates.spec.permissions !== undefined) specUpdates.permissions = updates.spec.permissions;
       }
@@ -204,7 +204,6 @@ export class DriveInstance {
       if (updates.displayName !== undefined) metadataUpdates.displayName = updates.displayName;
       if (updates.externalId !== undefined) metadataUpdates.externalId = updates.externalId;
       if (updates.labels !== undefined) metadataUpdates.labels = updates.labels;
-      if (updates.size !== undefined) specUpdates.size = updates.size;
       if (updates.region !== undefined) specUpdates.region = updates.region;
       if (updates.permissions !== undefined) specUpdates.permissions = updates.permissions;
     }

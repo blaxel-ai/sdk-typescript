@@ -201,7 +201,12 @@ describe('Drive ACL Permissions', () => {
         waitForCompletion: true,
       })
 
-      expect(result.logs).toContain("acl-write-ok")
+      expect(result.exitCode, result.logs).toBe(0)
+      // Inline output may be truncated; fetch the original process logs only then.
+      const logs = result.logs?.includes("[... truncated, see the process log file")
+        ? await sandbox.process.logs(result.pid)
+        : result.logs
+      expect(logs).toContain("acl-write-ok")
     })
 
     it('denies non-matching sandbox from mounting', async () => {

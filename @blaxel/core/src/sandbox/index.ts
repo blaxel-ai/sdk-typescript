@@ -6,15 +6,17 @@ export {
   putCodegenFastapplyByPath, ApplyEditResponse, ApplyEditRequest, getCodegenRerankingByPath, RerankingResponse,
   getProcess, getProcessByIdentifier, getProcessByIdentifierLogs, getProcessByIdentifierLogsStream, PortMonitorRequest, postNetworkProcessByPidMonitor, postProcess, ProcessRequest, ProcessResponse, putFilesystemByPath, SuccessResponse
 } from "./client/index.js";
+export { ResponseError, SandboxGatewayError, isGatewayError, isGatewayTimeout } from "./action.js";
+export * from "../common/error-types.js";
 export * from "./filesystem/index.js";
 export * from "./codegen/index.js";
 export { SandboxDrive, type DriveMountRequest, type DriveMountResponse, type DriveMountInfo, type DriveUnmountResponse } from "./drive/index.js";
 export * from "./preview.js";
 export * from "./schedule.js";
+export * from "./snapshot.js";
 export * from "./session.js";
 export * from "./sandbox.js";
 export * from "./system.js";
 export * from "./types.js";
 export * from "./interpreter.js";
 // Re-export everything from client except ClientOptions to avoid conflict
-

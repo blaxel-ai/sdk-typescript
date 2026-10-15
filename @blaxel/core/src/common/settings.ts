@@ -5,6 +5,8 @@ import { Credentials, MissingCredentials } from "../authentication/credentials.j
 import { authentication } from "../authentication/index.js";
 import { env } from "../common/env.js";
 import { CredentialsError } from "../common/errors.js";
+import { isBrokenBunH2Runtime } from "../common/h2-runtime.js";
+import { logger } from "../common/logger.js";
 import { fs, os, path } from "../common/node.js";
 
 /**
@@ -36,6 +38,21 @@ export type Config = {
   proxy?: string;
   apikey?: string;
   workspace?: string;
+  /**
+   * Product token identifying the integration built on this SDK, appended to
+   * the `User-Agent` so Blaxel can attribute traffic to it. Format
+   * `<name>/<semver>` with a lowercase name, e.g.
+   * `"deepseek-harness-blaxel-sandbox/0.1.2"`. Also settable through
+   * `BL_INTEGRATION` or `settings.integration`. An invalid value is ignored
+   * with a warning.
+   */
+  integration?: string;
+  /**
+   * Disables the SDK-managed HTTP/2 transport. Defaults to `false` (H2 on);
+   * set this to `true` (or `BL_DISABLE_H2=1`) to opt out of H2. Note that H2 is
+   * always force-disabled on Bun < 1.3.11, which has a broken H2 flow-control
+   * implementation, regardless of this setting.
+   */
   disableH2?: boolean;
   /**
    * Disables only the control-plane HTTP/2 wrapper, leaving data-plane (edge)
@@ -111,7 +128,18 @@ export type Config = {
 const BUILD_VERSION = "__BUILD_VERSION__";
 const BUILD_COMMIT = "__BUILD_COMMIT__";
 const BUILD_SENTRY_DSN = "__BUILD_SENTRY_DSN__";
-const BLAXEL_API_VERSION = "2026-04-28";
+const BLAXEL_API_VERSION = "2026-09-22";
+
+// Bun < 1.3.11 never sends connection-level WINDOW_UPDATE: the pooled h2
+// session freezes after exactly 65535 cumulative body bytes and every request
+// on it hangs until the edge resets the streams (~330s).
+// Fixed in Bun 1.3.11: https://bun.com/blog/bun-v1.3.11
+// The version gate lives in ./h2-runtime.ts so settings, unit tests, and the
+// cross-runtime environment tests share ONE definition.
+const isBrokenBunH2 = isBrokenBunH2Runtime;
+
+// Warn at most once when H2 is force-disabled on a broken Bun runtime.
+let brokenBunH2Warned = false;
 
 // Cache for config.yaml tracking value
 let configTrackingValue: boolean | null = null;
@@ -182,13 +210,15 @@ function getOsArch(): string {
   return "browser/unknown";
 }
 
-function isDenoRuntime(): boolean {
-  const runtime = globalThis as typeof globalThis & { Deno?: unknown };
-  return typeof runtime.Deno !== "undefined";
-}
+/**
+ * An integration built on this SDK identifies itself with one User-Agent
+ * product token: `<name>/<semver>`, lowercase name.
+ */
+const INTEGRATION_TOKEN_PATTERN = /^[a-z0-9][a-z0-9._-]*\/\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 
 class Settings {
   private _credentials: Credentials | null;
+  private _warnedIntegration: string | null = null;
   config: Config;
 
   constructor() {
@@ -297,14 +327,42 @@ class Settings {
     return env.BL_API_VERSION || BLAXEL_API_VERSION;
   }
 
+  /**
+   * Product token identifying the integration built on this SDK, or `""`.
+   * Resolved from `config.integration`, then `BL_INTEGRATION`. See `Config.integration`.
+   */
+  get integration(): string {
+    const value = this.config.integration ?? env.BL_INTEGRATION ?? "";
+    if (!value) {
+      return "";
+    }
+    if (!INTEGRATION_TOKEN_PATTERN.test(value)) {
+      // Resolved on every request, so warn once per invalid value rather than per request.
+      if (this._warnedIntegration !== value) {
+        this._warnedIntegration = value;
+        logger.warn(
+          `Ignoring invalid Blaxel integration token ${JSON.stringify(value)}: expected <name>/<semver> with a lowercase name`
+        );
+      }
+      return "";
+    }
+    return value;
+  }
+
+  set integration(value: string | undefined) {
+    this.config.integration = value;
+  }
+
   get headers(): Record<string, string> {
     this.assertCredentials();
     const osArch = getOsArch();
+    const sdkUserAgent = `blaxel/sdk/typescript/${this.version} (${osArch}) blaxel/${this.commit}`;
+    const integration = this.integration;
     return {
       "x-blaxel-authorization": this.authorization,
       "x-blaxel-workspace": this.workspace || "",
       "Blaxel-Version": this.apiVersion,
-      "User-Agent": `blaxel/sdk/typescript/${this.version} (${osArch}) blaxel/${this.commit}`,
+      "User-Agent": integration ? `${sdkUserAgent} ${integration}` : sdkUserAgent,
     };
   }
 
@@ -359,6 +417,21 @@ class Settings {
   }
 
   get disableH2(): boolean {
+    // Broken Bun versions hang on the pooled H2 session; force H2 off there
+    // regardless of config/env and warn once so the choice is visible.
+    if (isBrokenBunH2()) {
+      if (!brokenBunH2Warned) {
+        brokenBunH2Warned = true;
+        logger.warn(
+          `Detected Bun ${globalThis.process?.versions?.bun} which never sends ` +
+          `connection-level HTTP/2 WINDOW_UPDATE: the pooled H2 session freezes ` +
+          `after 65535 cumulative body bytes and requests hang until the edge ` +
+          `resets the streams (~330s). Disabling H2 (fixed in Bun 1.3.11: ` +
+          `https://bun.com/blog/bun-v1.3.11).`
+        );
+      }
+      return true;
+    }
     if (typeof this.config.disableH2 === "boolean") {
       return this.config.disableH2;
     }
@@ -366,7 +439,7 @@ class Settings {
     if (value) {
       return ["1", "true", "yes", "on"].includes(value.toLowerCase());
     }
-    return isDenoRuntime();
+    return false;
   }
 
   // Control-plane-only escape hatch: disables the control-plane H2 wrapper

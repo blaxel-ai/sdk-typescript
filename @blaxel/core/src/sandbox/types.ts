@@ -24,6 +24,8 @@ export interface VolumeBinding {
   name: string; // Name of the volume to attach
   mountPath: string; // Path where the volume should be mounted
   readOnly?: boolean; // Whether the volume is mounted as read-only
+  type?: "persistent" | "ephemeral"; // Volume type, defaults to "persistent"
+  sizeMb?: number; // Storage capacity in MB, required for ephemeral volumes
 }
 
 export type SandboxConfiguration = {
@@ -43,6 +45,14 @@ export type SandboxUpdateMetadata = {
 export type SandboxUpdateNetwork = {
   network?: SandboxNetwork;
 }
+
+export type SandboxPreviewCreateConfiguration = {
+  port: number;
+  /** Defaults to preview-<port> within this sandbox. */
+  name?: string;
+  /** Defaults to false on creation; existing previews are not changed. */
+  public?: boolean;
+};
 
 export type SandboxCreateConfiguration = {
   name?: string;
@@ -138,6 +148,19 @@ export function normalizeVolumes(volumes?: (VolumeBinding | VolumeAttachment)[])
         mountPath: volume.mountPath,
         readOnly: 'readOnly' in volume ? volume.readOnly : false
       };
+
+      // Ephemeral volumes carry a type and a required size (in MB)
+      if ('type' in volume && volume.type) {
+        volumeAttachment.type = volume.type;
+      }
+      if (volumeAttachment.type === 'ephemeral') {
+        if (typeof volume.sizeMb !== 'number' || !(volume.sizeMb > 0)) {
+          throw new Error(`Ephemeral volume '${volume.name}' must have a positive 'sizeMb': ${JSON.stringify(volume)}`);
+        }
+        volumeAttachment.sizeMb = volume.sizeMb;
+      } else if ('sizeMb' in volume && typeof volume.sizeMb === 'number') {
+        volumeAttachment.sizeMb = volume.sizeMb;
+      }
 
       volumeObjects.push(volumeAttachment);
     } else {
