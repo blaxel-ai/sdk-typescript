@@ -317,6 +317,23 @@ const handle = sandbox.fs.watch("/app", (event) => {
 handle.close();
 ```
 
+`readTree` reads every file under a directory in one request and returns `{ relative path: text }`:
+
+```typescript
+const schemas = await sandbox.fs.readTree("/app/schemas", {
+  patterns: ["*.json"],
+  excludeDirs: ["node_modules"],
+  maxFiles: 20,
+});
+// { "Blog.json": "...", "nested/About.json": "..." }
+```
+
+`patterns` are globs on file names, `excludeDirs` skips directories by name and
+`excludeHidden` skips dot-entries; nothing is excluded by default. If more than `maxFiles` (default
+10000) files match or they hold more than `maxBytes` (default 32 MiB), the request fails with a 422
+and nothing partial is returned. Only regular files (and symlinks to them) are read, as UTF-8 text.
+It needs a sandbox image whose API supports recursive tree reads and throws on older ones.
+
 #### Volumes
 
 Persist data by attaching and using volumes:

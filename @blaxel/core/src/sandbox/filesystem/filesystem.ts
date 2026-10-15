@@ -9,6 +9,13 @@ import type { GetFilesystemSearchByPathData } from "../client/index.js";
 import { ContentSearchResponse, deleteFilesystemByPath, deleteFilesystemMultipartByUploadIdAbort, Directory, FindResponse, FuzzySearchResponse, getFilesystemByPath, getFilesystemContentSearchByPath, getFilesystemFindByPath, getFilesystemSearchByPath, getWatchFilesystemByPath, MultipartInitiateResponse, MultipartPartInfo, MultipartUploadPartResponse, postFilesystemMultipartByUploadIdComplete, postFilesystemMultipartInitiateByPath, putFilesystemByPath, PutFilesystemByPathError, putFilesystemMultipartByUploadIdPart, SuccessResponse } from "../client/index.js";
 import { SandboxProcess } from "../process/index.js";
 import { CopyResponse, FilesystemFindOptions, FilesystemGrepOptions, FilesystemSearchOptions, SandboxFilesystemFile, WatchEvent } from "./types.js";
+import type { FilesystemReadTreeOptions } from "./types.js";
+
+// Tree read response with the fields that recursive and content tree reads add.
+type TreeWithContent = Omit<Directory, "files"> & {
+  recursive?: boolean;
+  files: (Directory["files"][number] & { content?: string })[];
+};
 
 // Multipart upload constants
 const MULTIPART_THRESHOLD = 5 * 1024 * 1024; // 5MB
@@ -217,6 +224,48 @@ export class SandboxFileSystem extends SandboxAction {
         return data.content;
       }
       throw new Error("Unsupported file type");
+    });
+  }
+
+  /**
+   * Reads every file under `path` in one request and returns `{ relative path: UTF-8 text }`.
+   * The sandbox API walks the tree and applies `patterns`, `excludeDirs` and `excludeHidden`.
+   * Rejects, returning nothing partial, when more than `maxFiles` files match or they hold more
+   * than `maxBytes` bytes. Entries other than regular files (or symlinks to one) are skipped.
+   */
+  async readTree(path: string, options: FilesystemReadTreeOptions = {}): Promise<Record<string, string>> {
+    const { patterns, excludeDirs, excludeHidden, maxFiles, maxBytes } = options;
+    const query: Record<string, string | number | boolean> = { recursive: true, content: true };
+    if (patterns && patterns.length > 0) query.patterns = patterns.join(",");
+    if (excludeDirs && excludeDirs.length > 0) query.excludeDirs = excludeDirs.join(",");
+    if (excludeHidden !== undefined) query.excludeHidden = excludeHidden;
+    if (maxFiles !== undefined) query.maxFiles = maxFiles;
+    if (maxBytes !== undefined) query.maxBytes = maxBytes;
+
+    // Idempotent GET: self-heal a transient connection reset.
+    return retryOnTransientReset(async () => {
+      const { response, data, error } = await this.client.get<TreeWithContent, unknown>({
+        url: "/filesystem/tree/{path}",
+        path: { path: this.formatPath(path) },
+        query,
+        baseUrl: this.url,
+      });
+      this.handleResponseError(response, data, error);
+      const tree = data as TreeWithContent;
+      // An older sandbox API ignores the query and lists only direct children,
+      // without `recursive`. Fail instead of returning that as the whole tree.
+      if (tree.recursive !== true) {
+        throw new Error("readTree needs a newer sandbox API: this sandbox does not support recursive tree reads; update its image");
+      }
+      const prefix = tree.path.endsWith("/") ? tree.path : `${tree.path}/`;
+      const entries: [string, string][] = [];
+      for (const file of tree.files) {
+        if (typeof file.content === "string" && file.path.startsWith(prefix)) {
+          entries.push([file.path.slice(prefix.length), file.content]);
+        }
+      }
+      entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+      return Object.fromEntries(entries);
     });
   }
 
