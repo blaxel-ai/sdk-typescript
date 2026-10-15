@@ -705,6 +705,10 @@ export type CustomDomainSpec = {
         [key: string]: string;
     };
     /**
+     * How the TLS certificate is validated. "dns" (default) requires the certificate validation CNAME records to be published; "http" validates over HTTP once the domain points to Blaxel and requires no validation record. HTTP validation is not available for wildcard domains (previews or "*." names) and cannot be changed after creation.
+     */
+    validationMethod?: 'dns' | 'http';
+    /**
      * Error message if verification failed
      */
     readonly verificationError?: string;
@@ -746,6 +750,10 @@ export type CustomDomainSpecWritable = {
     txtRecords?: {
         [key: string]: string;
     };
+    /**
+     * How the TLS certificate is validated. "dns" (default) requires the certificate validation CNAME records to be published; "http" validates over HTTP once the domain points to Blaxel and requires no validation record. HTTP validation is not available for wildcard domains (previews or "*." names) and cannot be changed after creation.
+     */
+    validationMethod?: 'dns' | 'http';
 };
 
 /**
@@ -1108,7 +1116,7 @@ export type ExpirationPolicy = {
      */
     type?: 'ttl-idle' | 'ttl-max-age' | 'date';
     /**
-     * Duration value for TTL policies (e.g., '30m', '24h', '7d', minimum '5m') or ISO 8601 date for date policies
+     * Duration value for TTL policies (e.g., '30m', '24h', '7d'; minimum '60s' for ttl-idle, '5m' for ttl-max-age) or ISO 8601 date for date policies
      */
     value?: string;
 };
@@ -4135,7 +4143,7 @@ export type SandboxRuntime = {
      */
     expires?: string;
     /**
-     * Extra arguments for kernel selection. Supported keys: 'iptables', 'nfs' (mk3.0), 'tun', 'android' and 'landlock' (mk3.1). The android variant includes tun and iptables and cannot be combined with nfs. The landlock variant enables the Landlock LSM, includes tun and iptables, and cannot be combined with android or nfs. Android and landlock requests are rejected if routing selects mk3.0. Values: 'enabled' or 'disabled'. Determines which kernel variant the workload runs on. Immutable after creation.
+     * Extra arguments for kernel selection. Supported keys: 'iptables', 'nfs' (mk3.0), 'tun', 'android' and 'landlock' (mk3.1). The android variant includes tun and iptables and cannot be combined with nfs. The landlock variant enables the Landlock LSM, includes tun and iptables, and cannot be combined with android or nfs. Android and landlock requests are rejected if routing selects mk3.0. 'kernelExtensions' (mk3.1, android only for now) switches on the selected kernel's loadable modules and kernel tracing (eBPF, kprobes, perf); without it they are disabled, even for root. Values: 'enabled' or 'disabled'. Determines which kernel variant the workload runs on. Immutable after creation.
      */
     extraArgs?: {
         [key: string]: string;
@@ -4606,6 +4614,42 @@ export type SandboxSpec = {
      * VPC name for the sandbox. Defaults to "default" when absent.
      */
     vpc?: string;
+};
+
+/**
+ * Workspace secret, referenced from proxy routing as {{SECRET:name}}. Values are write-only and can never be read back. Every upsert stores a new immutable version and the latest one is resolved at runtime.
+ */
+export type Secret = {
+    /**
+     * The date and time when the secret was first created
+     */
+    readonly createdAt?: string;
+    /**
+     * Case-sensitive secret name
+     */
+    name: string;
+    /**
+     * The date and time of the latest version
+     */
+    readonly updatedAt?: string;
+    /**
+     * Secret value. Write-only, never returned by the API
+     */
+    value?: string;
+};
+
+/**
+ * Workspace secret, referenced from proxy routing as {{SECRET:name}}. Values are write-only and can never be read back. Every upsert stores a new immutable version and the latest one is resolved at runtime.
+ */
+export type SecretWritable = {
+    /**
+     * Case-sensitive secret name
+     */
+    name: string;
+    /**
+     * Secret value. Write-only, never returned by the API
+     */
+    value?: string;
 };
 
 /**
@@ -6349,6 +6393,60 @@ export type CreateDriveAccessTokenResponses = {
 };
 
 export type CreateDriveAccessTokenResponse = CreateDriveAccessTokenResponses[keyof CreateDriveAccessTokenResponses];
+
+export type DeleteDriveFolderData = {
+    body?: never;
+    path: {
+        driveName: string;
+    };
+    query: {
+        /**
+         * Relative folder path ending in a slash, for example documents/reports/.
+         */
+        path: string;
+    };
+    url: '/drives/{driveName}/folders';
+};
+
+export type DeleteDriveFolderErrors = {
+    /**
+     * Invalid folder path
+     */
+    400: unknown;
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Insufficient permissions, protected path, or drives feature disabled
+     */
+    403: unknown;
+    /**
+     * Drive not found
+     */
+    404: unknown;
+    /**
+     * Drive unavailable or requested path is not a folder
+     */
+    409: unknown;
+    /**
+     * Storage unavailable or deletion incomplete; retry to finish cleanup
+     */
+    502: unknown;
+    /**
+     * Deletion timed out and may be partially complete; retry to finish cleanup
+     */
+    504: unknown;
+};
+
+export type DeleteDriveFolderResponses = {
+    /**
+     * Folder and its contents deleted, or folder already absent
+     */
+    204: void;
+};
+
+export type DeleteDriveFolderResponse = DeleteDriveFolderResponses[keyof DeleteDriveFolderResponses];
 
 export type GetDriveByExternalIdData = {
     body?: never;
@@ -9501,6 +9599,80 @@ export type GetSandboxScheduleMetricsResponses = {
 };
 
 export type GetSandboxScheduleMetricsResponse = GetSandboxScheduleMetricsResponses[keyof GetSandboxScheduleMetricsResponses];
+
+export type DeleteSecretByQueryData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Name of the secret
+         */
+        name: string;
+    };
+    url: '/secrets';
+};
+
+export type DeleteSecretByQueryResponses = {
+    /**
+     * successful operation
+     */
+    200: Secret;
+};
+
+export type DeleteSecretByQueryResponse = DeleteSecretByQueryResponses[keyof DeleteSecretByQueryResponses];
+
+export type ListSecretsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/secrets';
+};
+
+export type ListSecretsResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<Secret>;
+};
+
+export type ListSecretsResponse = ListSecretsResponses[keyof ListSecretsResponses];
+
+export type UpsertSecretData = {
+    body: SecretWritable;
+    path?: never;
+    query?: never;
+    url: '/secrets';
+};
+
+export type UpsertSecretResponses = {
+    /**
+     * successful operation
+     */
+    200: Secret;
+};
+
+export type UpsertSecretResponse = UpsertSecretResponses[keyof UpsertSecretResponses];
+
+export type DeleteSecretData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the secret
+         */
+        secretName: string;
+    };
+    query?: never;
+    url: '/secrets/{secretName}';
+};
+
+export type DeleteSecretResponses = {
+    /**
+     * successful operation
+     */
+    200: Secret;
+};
+
+export type DeleteSecretResponse = DeleteSecretResponses[keyof DeleteSecretResponses];
 
 export type GetWorkspaceServiceAccountsData = {
     body?: never;

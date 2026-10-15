@@ -70,6 +70,10 @@ export default defineConfig({
       // image.test.ts > "with custom Docker images": needs prebuilt custom
       // Docker images to be available/pullable in the target workspace.
       ENABLE_CUSTOM_DOCKER_TESTS: process.env.ENABLE_CUSTOM_DOCKER_TESTS ?? "false",
+      // custom-domains.test.ts > "Custom domain validation method": creates and
+      // deletes real custom domains (dns/http certificate validation) in the
+      // workspace, kept out of the default run.
+      RUN_CUSTOM_DOMAIN_TESTS: process.env.RUN_CUSTOM_DOMAIN_TESTS ?? "false",
 
       // Credential gates (default "", i.e. skipped until provided) ---------
       // codegen.test.ts > "fastapply with Relace": third-party Relace API key.
