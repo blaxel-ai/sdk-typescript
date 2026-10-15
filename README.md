@@ -317,6 +317,29 @@ const handle = sandbox.fs.watch("/app", (event) => {
 handle.close();
 ```
 
+#### Drives
+
+Pass `mountDrives` to mount drives on the sandbox. Drives are looked up or created while the sandbox is being created (up to 5 at a time), and each is mounted once both it and the sandbox are ready. Give `driveName` for a drive that already exists, or `create` for a new one (a named drive is reused if it already exists). New drives are created in the region the sandbox request sends (`region`, or `BL_REGION`); without one, they are created once the sandbox exists, in its region. An existing drive must be in the sandbox's region too.
+
+```typescript
+import { SandboxInstance } from "@blaxel/core";
+
+const config = { image: "blaxel/base-image:latest", region: "us-was-1" };
+
+const sandbox = await SandboxInstance.create(config, {
+  mountDrives: [{ create: { name: "app-data" }, mountPath: "/mnt/data" }],
+});
+await sandbox.fs.write("/mnt/data/hello.txt", "hello");
+
+// A second sandbox can mount the same drive by name.
+const reader = await SandboxInstance.create(config, {
+  mountDrives: [{ driveName: "app-data", mountPath: "/mnt/data", readOnly: true }],
+});
+console.log(await reader.fs.read("/mnt/data/hello.txt")); // hello
+```
+
+Each entry also takes `drivePath` (a sub-folder of the drive). With `createIfNotExists`, a new drive needs a `name`. If anything fails, the drives this call created under a generated name (no `name` given) and did not mount are deleted; a drive created under a name you chose is never deleted, since a concurrent call may be using it, and is listed in `createdDrives` instead. If a drive can't be set up or mounted, `create` throws `SandboxDriveSetupError` with the `sandbox`, the `driveNames` left in place, the `createdDrives` among them that this call created (or may have created, if a response was lost) and the original `cause`; the sandbox and the mounts made so far are kept. If the sandbox itself can't be created, its error is thrown, wrapped in a `SandboxDriveSetupError` without a `sandbox` only if a drive created for it is left in place.
+
 #### Volumes
 
 Persist data by attaching and using volumes:
