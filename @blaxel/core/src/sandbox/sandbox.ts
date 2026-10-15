@@ -391,7 +391,9 @@ export class SandboxInstance {
       'network' in sandbox ||
       'snapshotEnabled' in sandbox ||
       'labels' in sandbox ||
-      'extraArgs' in sandbox
+      'extraArgs' in sandbox ||
+      'terminationGracePeriodSeconds' in sandbox ||
+      'standbyGracePeriodSeconds' in sandbox
     ) {
       if (!sandbox) sandbox = {} as SandboxCreateConfiguration
       if (!sandbox.image) sandbox.image = defaultImage
