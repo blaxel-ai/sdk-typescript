@@ -24,14 +24,14 @@ describe('Sandbox lifecycle grace periods', () => {
       image: defaultImage,
       region: defaultRegion,
       terminationGracePeriodSeconds: 30,
-      standbyGracePeriodSeconds: 10,
+      standbyGracePeriodSeconds: 30,
       labels: defaultLabels,
     })
     createdSandboxes.push(name)
 
     const retrieved = await SandboxInstance.get(name)
     expect(retrieved.spec.runtime?.terminationGracePeriodSeconds).toBe(30)
-    expect(retrieved.spec.runtime?.standbyGracePeriodSeconds).toBe(10)
+    expect(retrieved.spec.runtime?.standbyGracePeriodSeconds).toBe(30)
   })
 
   it('rejects a standby grace period above the limit', async () => {
@@ -40,7 +40,7 @@ describe('Sandbox lifecycle grace periods', () => {
       name,
       image: defaultImage,
       region: defaultRegion,
-      standbyGracePeriodSeconds: 11,
+      standbyGracePeriodSeconds: 31,
       labels: defaultLabels,
     })).rejects.toThrow(/standbyGracePeriodSeconds/)
   })
