@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 /**
@@ -10,6 +11,10 @@ import { defineConfig } from "vitest/config";
  * isolation.
  */
 export default defineConfig({
+  // This suite runs before building SDK exports; mocks must resolve to source too.
+  resolve: {
+    alias: { "@blaxel/core": fileURLToPath(new URL("../../../@blaxel/core/src/index.ts", import.meta.url)) },
+  },
   test: {
     include: [
       "tests/integration/fault-injection/**/*.test.ts",

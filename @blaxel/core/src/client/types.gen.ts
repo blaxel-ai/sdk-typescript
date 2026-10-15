@@ -129,7 +129,7 @@ export type ApiKey = TimeFields & OwnerFields & {
      */
     readonly apiKey?: string;
     /**
-     * Duration until expiration. Supports formats like '30d' (30 days), '24h' (24 hours), '1w' (1 week). If not set, the API key never expires.
+     * Duration until expiration. Supports formats like '30d' (30 days), '24h' (24 hours), '1w' (1 week). Must be positive and at most 10 years. If not set, the API key never expires.
      */
     expires_in?: string;
     /**
@@ -155,7 +155,7 @@ export type ApiKey = TimeFields & OwnerFields & {
  */
 export type ApiKeyWritable = TimeFields & OwnerFields & {
     /**
-     * Duration until expiration. Supports formats like '30d' (30 days), '24h' (24 hours), '1w' (1 week). If not set, the API key never expires.
+     * Duration until expiration. Supports formats like '30d' (30 days), '24h' (24 hours), '1w' (1 week). Must be positive and at most 10 years. If not set, the API key never expires.
      */
     expires_in?: string;
     /**
@@ -200,6 +200,10 @@ export type AppRevision = {
      * Port the application listens on for this revision (default uses spec-level port or 8080)
      */
     port?: number;
+    /**
+     * Snapshot ID this revision was forked from (optional, only set when created via fork)
+     */
+    snapshot?: string;
 };
 
 /**
@@ -255,6 +259,10 @@ export type AppUrls = Array<AppUrl>;
 export type Application = {
     events?: CoreEvents;
     metadata: Metadata;
+    /**
+     * Infrastructure generation this application is deployed on (mk3.0 or mk3.1).
+     */
+    readonly nodeGeneration?: string;
     spec: ApplicationSpec;
     /**
      * Application status computed from events
@@ -269,6 +277,23 @@ export type ApplicationWritable = {
     events?: CoreEventsWritable;
     metadata: MetadataWritable;
     spec: ApplicationSpec;
+};
+
+/**
+ * Configuration for a single application extension. The fields used depend on the extension key; for ai.blaxel.experimental/bind-to-sandbox only "sandbox" is used.
+ */
+export type ApplicationExtension = {
+    /**
+     * Name of the sandbox this application binds to (used by the ai.blaxel.experimental/bind-to-sandbox extension).
+     */
+    sandbox?: string;
+};
+
+/**
+ * Map of experimental, opt-in application extensions keyed by fully-qualified extension name (e.g. "ai.blaxel.experimental/bind-to-sandbox").
+ */
+export type ApplicationExtensions = {
+    [key: string]: ApplicationExtension;
 };
 
 /**
@@ -302,9 +327,26 @@ export type ApplicationSpec = {
      */
     enabled?: boolean;
     /**
+     * Environment variables for the application
+     */
+    envs?: Array<Env>;
+    extensions?: ApplicationExtensions;
+    /**
+     * Container image for the application. The backend generates a revision from the spec-level compute (image, memory, envs, port) on every create/update — clients set the compute here, exactly like agents and functions, and never craft revisions by hand.
+     */
+    image?: string;
+    /**
+     * Memory allocation in megabytes for the application (default 2048). Determines CPU allocation (CPU = memory / 2048).
+     */
+    memory?: number;
+    /**
      * Port the application listens on (default 8080)
      */
     port?: number;
+    /**
+     * When true, the application proxies to an existing sandbox (the active revision image is the sandbox name) instead of building and deploying its own compute. Proxy applications have no deployment pipeline and are always reported as deployed. Deprecated — prefer the ai.blaxel.experimental/bind-to-sandbox extension.
+     */
+    proxy?: boolean;
     /**
      * Region where the application is deployed (e.g. us-pdx-1, eu-lon-1)
      */
@@ -317,6 +359,34 @@ export type ApplicationSpec = {
 export type Applications = Array<Application>;
 
 export type ApplicationsWritable = Array<ApplicationWritable>;
+
+/**
+ * Changelog entry shown in the controlplane UI.
+ */
+export type ChangelogEntry = {
+    /**
+     * Markdown body for the changelog entry.
+     */
+    content?: string;
+    /**
+     * Release date for the changelog entry in YYYY-MM-DD format.
+     */
+    date?: string;
+    /**
+     * Changelog entry title.
+     */
+    title?: string;
+};
+
+/**
+ * Latest changelog entries shown in the controlplane UI.
+ */
+export type ChangelogResponse = {
+    /**
+     * Latest changelog entries, newest first.
+     */
+    entries?: Array<ChangelogEntry>;
+};
 
 /**
  * Configuration
@@ -475,6 +545,10 @@ export type CreateJobExecutionOutput = {
  */
 export type CreateJobExecutionRequest = {
     /**
+     * When false, capacity is checked synchronously and the request is rejected immediately with a 429 error if the execution cannot start right now, instead of being queued and retried in the background. No execution is created on rejection. Defaults to true (queue and retry).
+     */
+    allowQueue?: boolean;
+    /**
      * Environment variable overrides (optional, will merge with job's environment variables)
      */
     env?: {
@@ -544,6 +618,10 @@ export type CustomDomainMetadata = TimeFields & OwnerFields & {
      */
     name?: string;
     /**
+     * If this custom domain is shared from another workspace of the same account, this field contains the name of the source (owning) workspace. Empty for owned domains.
+     */
+    readonly sharedFromWorkspace?: string;
+    /**
      * Workspace name
      */
     workspace?: string;
@@ -569,6 +647,24 @@ export type CustomDomainMetadataWritable = TimeFields & OwnerFields & {
 };
 
 /**
+ * A workspace (or the whole account) a custom domain is shared with
+ */
+export type CustomDomainShareTarget = {
+    /**
+     * Share status; always "active" for same-account custom domain shares.
+     */
+    status: string;
+    /**
+     * The workspace the domain is shared with, or "account" for an account-wide share.
+     */
+    workspace: string;
+    /**
+     * Display name of the target workspace (empty for an account-wide share).
+     */
+    workspaceDisplayName?: string;
+};
+
+/**
  * Custom domain specification
  */
 export type CustomDomainSpec = {
@@ -576,6 +672,10 @@ export type CustomDomainSpec = {
      * CNAME target for the domain
      */
     cnameRecords?: string;
+    /**
+     * Type of custom domain (previews or applications)
+     */
+    domainType?: 'previews' | 'applications';
     /**
      * Preview ID to route to when a preview lookup fails on this custom domain
      */
@@ -618,6 +718,10 @@ export type CustomDomainSpecWritable = {
      * CNAME target for the domain
      */
     cnameRecords?: string;
+    /**
+     * Type of custom domain (previews or applications)
+     */
+    domainType?: 'previews' | 'applications';
     /**
      * Preview ID to route to when a preview lookup fails on this custom domain
      */
@@ -664,7 +768,7 @@ export type Drive = {
 export type DriveWritable = {
     events?: CoreEventsWritable;
     metadata: MetadataWritable;
-    spec: DriveSpecWritable;
+    spec: DriveSpec;
     state?: DriveStateWritable;
 };
 
@@ -715,10 +819,6 @@ export type DrivePermission = {
  */
 export type DriveSpec = {
     /**
-     * The internal infrastructure resource identifier for this drive (bucket name)
-     */
-    readonly infrastructureId?: string;
-    /**
      * Permissions controlling which workloads can access this drive. Empty means all workloads in the workspace can access the drive. Maximum 3 permissions.
      */
     permissions?: Array<DrivePermission>;
@@ -726,28 +826,6 @@ export type DriveSpec = {
      * Deployment region for the drive (e.g., us-pdx-1, eu-lon-1). Must match the region of resources it attaches to.
      */
     region?: string;
-    /**
-     * Optional size limit for the drive in GB. If not specified, drive has no size limit.
-     */
-    size?: number;
-};
-
-/**
- * Immutable drive configuration set at creation time
- */
-export type DriveSpecWritable = {
-    /**
-     * Permissions controlling which workloads can access this drive. Empty means all workloads in the workspace can access the drive. Maximum 3 permissions.
-     */
-    permissions?: Array<DrivePermission>;
-    /**
-     * Deployment region for the drive (e.g., us-pdx-1, eu-lon-1). Must match the region of resources it attaches to.
-     */
-    region?: string;
-    /**
-     * Optional size limit for the drive in GB. If not specified, drive has no size limit.
-     */
-    size?: number;
 };
 
 /**
@@ -1030,7 +1108,7 @@ export type ExpirationPolicy = {
      */
     type?: 'ttl-idle' | 'ttl-max-age' | 'date';
     /**
-     * Duration value for TTL policies (e.g., '30m', '24h', '7d') or ISO 8601 date for date policies
+     * Duration value for TTL policies (e.g., '30m', '24h', '7d', minimum '5m') or ISO 8601 date for date policies
      */
     value?: string;
 };
@@ -1225,9 +1303,9 @@ export type GroupWorkspaceMapping = {
      */
     groupName?: string;
     /**
-     * Role to assign in this workspace (admin or member)
+     * Role to assign in this workspace (admin, member or viewer)
      */
-    role?: 'admin' | 'member';
+    role?: 'admin' | 'member' | 'viewer';
 };
 
 export type Image = {
@@ -1337,6 +1415,21 @@ export type ImageSpecWritable = {
      * List of tags available for this image.
      */
     tags?: Array<ImageTagWritable>;
+};
+
+export type ImageSummary = {
+    metadata: ImageMetadata;
+    spec: ImageSummarySpec;
+};
+
+export type ImageSummaryWritable = {
+    metadata: ImageMetadataWritable;
+    spec: ImageSummarySpecWritable;
+};
+
+export type ImageSummarySpec = {
+    readonly size?: number;
+    readonly tagCount?: number;
 };
 
 export type ImageTag = {
@@ -1736,9 +1829,17 @@ export type JobExecutionSpec = {
      */
     parallelism?: number;
     /**
+     * Number of tasks of this execution
+     */
+    taskCount?: number;
+    /**
      * List of execution tasks
      */
     tasks?: Array<JobExecutionTask>;
+    /**
+     * Where this execution's task list is stored (server-managed)
+     */
+    readonly tasksRef?: string;
     /**
      * Job timeout in seconds (captured at execution creation time)
      */
@@ -1763,6 +1864,10 @@ export type JobExecutionSpecWritable = {
      * Number of parallel tasks
      */
     parallelism?: number;
+    /**
+     * Number of tasks of this execution
+     */
+    taskCount?: number;
     /**
      * List of execution tasks
      */
@@ -2010,7 +2115,7 @@ export type JobRuntime = {
      */
     envs?: Array<Env>;
     /**
-     * Infrastructure generation: mk2 (containers, 2-10s cold starts) or mk3 (microVMs, sub-25ms cold starts)
+     * Infrastructure generation. Jobs always run on mk3 (microVMs); any value sent on input is ignored.
      */
     generation?: 'mk2' | 'mk3';
     /**
@@ -2523,6 +2628,10 @@ export type PaginationMeta = {
      * Total number of items in the workspace, ignoring the current page's filters. Lets the UI render "page X of Y" without walking the cursor chain. Computed from the hash-only metadata.workspace GSI count, so search (`q`) does not narrow it.
      */
     total?: number;
+    /**
+     * True when `total` is a lower bound rather than a complete count. Counting a very large workspace is bounded so the listing stays fast, and this flag says the real number is higher. Clients must not derive a page count from `total` when this is set — keep paging with `nextCursor` until `hasMore` is false.
+     */
+    totalIsPartial?: boolean;
 };
 
 /**
@@ -2758,6 +2867,10 @@ export type PendingInvitationRender = {
      * The date and time when the invitation expires
      */
     expiresAt?: string;
+    /**
+     * Opaque invitation identifier
+     */
+    invitationId?: string;
     /**
      * Invitation date
      */
@@ -3382,6 +3495,10 @@ export type Region = {
      */
     location?: string;
     /**
+     * Whether this region supports mk3.1 (blaxel nodes). Required for Application and Job deployments.
+     */
+    mk31Available?: boolean;
+    /**
      * Region name
      */
     name?: string;
@@ -3613,6 +3730,11 @@ export type SsoDomainSpecWritable = {
  * Lightweight virtual machine for secure AI code execution. Sandboxes resume from standby in under 25ms and automatically scale to zero after inactivity, preserving memory state including running processes and filesystem.
  */
 export type Sandbox = {
+    archive?: SandboxArchive;
+    /**
+     * Infrastructure failures recorded on the sandbox, oldest first (read-only, managed by the system)
+     */
+    readonly errors?: Array<SandboxInfrastructureError>;
     events?: CoreEvents;
     /**
      * Time in seconds until the sandbox is automatically deleted based on TTL and lifecycle policies. Only present for sandboxes with lifecycle configured.
@@ -3623,6 +3745,10 @@ export type Sandbox = {
      */
     readonly lastUsedAt?: string;
     metadata: Metadata;
+    /**
+     * Infrastructure generation this sandbox is deployed on (mk3.0 or mk3.1).
+     */
+    readonly nodeGeneration?: string;
     spec: SandboxSpec;
     /**
      * Current state of the sandbox (read-only, managed by the system)
@@ -3635,6 +3761,7 @@ export type Sandbox = {
  * Lightweight virtual machine for secure AI code execution. Sandboxes resume from standby in under 25ms and automatically scale to zero after inactivity, preserving memory state including running processes and filesystem.
  */
 export type SandboxWritable = {
+    archive?: SandboxArchiveWritable;
     events?: CoreEventsWritable;
     metadata: MetadataWritable;
     spec: SandboxSpec;
@@ -3643,6 +3770,92 @@ export type SandboxWritable = {
      */
     state?: 'RUNNING' | 'STANDBY';
     status?: Status;
+};
+
+/**
+ * State of the filesystem archive of a sandbox. An archive holds the writable filesystem changes and the process configurations of the sandbox, not its memory, so restoring it produces a sandbox with the same disk state and freshly started processes.
+ */
+export type SandboxArchive = {
+    /**
+     * When the archive was created (read-only)
+     */
+    readonly createdAt?: string;
+    /**
+     * Infrastructure generation the archive was taken from (read-only)
+     */
+    readonly generation?: string;
+    /**
+     * Storage key of the archive (read-only)
+     */
+    readonly key?: string;
+    restore?: SandboxArchiveRestore;
+    /**
+     * When the restore of the archive started, while the sandbox is being unarchived (read-only)
+     */
+    readonly restoreStartedAt?: string;
+    /**
+     * Size of the archive in bytes (read-only)
+     */
+    readonly size?: number;
+    /**
+     * When the archive was started, while the filesystem of the sandbox is still being uploaded (read-only)
+     */
+    readonly startedAt?: string;
+};
+
+/**
+ * State of the filesystem archive of a sandbox. An archive holds the writable filesystem changes and the process configurations of the sandbox, not its memory, so restoring it produces a sandbox with the same disk state and freshly started processes.
+ */
+export type SandboxArchiveWritable = {
+    restore?: SandboxArchiveRestoreWritable;
+};
+
+/**
+ * Progress of the restore of a sandbox archive. A restore writes the archived filesystem over the image the sandbox booted from, which takes as long as the archive is big; the sandbox answers and its terminal is reachable throughout, but nothing may write to its filesystem until the restore is done.
+ */
+export type SandboxArchiveRestore = {
+    /**
+     * Number of files restored so far (read-only)
+     */
+    readonly files?: number;
+    /**
+     * Bytes of the archive restored so far (read-only)
+     */
+    readonly restoredBytes?: number;
+    /**
+     * Phase of the restore (read-only)
+     */
+    state?: 'downloading' | 'extracting' | 'relaunching' | 'succeeded' | 'failed';
+    /**
+     * Total size of the archive being restored in bytes, absent when the store did not announce it (read-only)
+     */
+    readonly totalBytes?: number;
+};
+
+/**
+ * Progress of the restore of a sandbox archive. A restore writes the archived filesystem over the image the sandbox booted from, which takes as long as the archive is big; the sandbox answers and its terminal is reachable throughout, but nothing may write to its filesystem until the restore is done.
+ */
+export type SandboxArchiveRestoreWritable = {
+    /**
+     * Phase of the restore (read-only)
+     */
+    state?: 'downloading' | 'extracting' | 'relaunching' | 'succeeded' | 'failed';
+};
+
+/**
+ * Optional Hub template settings applied by the console without additional sandbox creation lookups.
+ */
+export type SandboxCreationOptions = {
+    /**
+     * Kernel selection arguments copied into runtime.extraArgs. At most 8 entries.
+     */
+    extraArgs?: {
+        [key: string]: string;
+    };
+    /**
+     * Volume attachments included in the creation request. At most 5 attachments per template.
+     */
+    volumes?: Array<VolumeAttachment>;
 };
 
 /**
@@ -3659,6 +3872,7 @@ export type SandboxDefinition = {
      * If the definition is coming soon
      */
     coming_soon?: boolean;
+    creationOptions?: SandboxCreationOptions;
     /**
      * Description of the definition
      */
@@ -3679,6 +3893,14 @@ export type SandboxDefinition = {
      * Icon of the definition
      */
     icon?: string;
+    /**
+     * Nonempty dark-mode icon URL in responses. Blank inputs use the resolved light-mode icon.
+     */
+    iconDark?: string;
+    /**
+     * Nonempty light-mode icon URL in responses. Blank inputs use icon, iconDark, then the default Hub icon.
+     */
+    iconLight?: string;
     /**
      * Image of the Sandbox definition
      */
@@ -3747,6 +3969,89 @@ export type SandboxError = {
 };
 
 /**
+ * Request body for forking a sandbox into an application. Creates a new application or adds a canary revision to an existing one.
+ */
+export type SandboxForkRequest = {
+    /**
+     * Custom domain for the application
+     */
+    customDomain?: string;
+    /**
+     * Environment variables the fork runs with, on top of the ones the source has. A variable the source already carries takes this value in the fork, one it does not is added, and every other variable of the source is kept.
+     */
+    envs?: Array<Env>;
+    lifecycle?: SandboxLifecycle;
+    /**
+     * Port to expose from the sandbox
+     */
+    port?: number;
+    /**
+     * URL prefix for the application
+     */
+    prefix?: string;
+    /**
+     * Snapshot ID to fork from. When set, the fork is created from that existing snapshot (and an application revision references it). When omitted, a fork to a sandbox copies the source sandbox's live state directly and no snapshot is persisted; a fork to an application still takes a snapshot, since its revision references one.
+     */
+    snapshotId?: string;
+    /**
+     * Name of the target application to create or update
+     */
+    targetName: string;
+    /**
+     * Target resource type to fork into
+     */
+    targetType: string;
+    /**
+     * Traffic percentage for canary deployment (0-100). When set on an existing target, creates a new revision with this traffic percentage.
+     */
+    traffic?: number;
+};
+
+/**
+ * Response returned after forking a sandbox. Contains either the new sandbox or application depending on the fork type.
+ */
+export type SandboxForkResponse = {
+    /**
+     * Name of the created or updated resource
+     */
+    name?: string;
+    /**
+     * The snapshot ID the fork was created from. Set only when the fork went through a snapshot, meaning an explicit snapshotId was supplied or the fork target is an application. Empty when the fork copied the source sandbox's live state directly.
+     */
+    snapshotId?: string;
+    /**
+     * Type of resource that was created (sandbox or application)
+     */
+    type?: 'sandbox' | 'application';
+};
+
+/**
+ * Infrastructure failure the compute plane reported for a sandbox
+ */
+export type SandboxInfrastructureError = {
+    /**
+     * Stable code of the failure pattern
+     */
+    code?: string;
+    /**
+     * Whether the failure was terminal, putting the sandbox in FAILED, as opposed to being cleared by a restart
+     */
+    fatal?: boolean;
+    /**
+     * Instance the failure was reported for
+     */
+    instance?: string;
+    /**
+     * Reason reported with the failure
+     */
+    message?: string;
+    /**
+     * Time at which the failure was recorded
+     */
+    time?: string;
+};
+
+/**
  * Lifecycle configuration controlling automatic sandbox deletion based on idle time, max age, or specific dates
  */
 export type SandboxLifecycle = {
@@ -3804,6 +4109,20 @@ export type SandboxNetwork = {
 };
 
 /**
+ * Result of restoring a sandbox to one of its snapshots. The sandbox keeps its name and URLs; everything it held since the snapshot was taken is gone.
+ */
+export type SandboxRestoreResponse = {
+    /**
+     * Name of the restored sandbox
+     */
+    name: string;
+    /**
+     * Snapshot the sandbox was restored from
+     */
+    snapshotId: string;
+};
+
+/**
  * Runtime configuration defining how the sandbox VM is provisioned and its resource limits
  */
 export type SandboxRuntime = {
@@ -3816,7 +4135,7 @@ export type SandboxRuntime = {
      */
     expires?: string;
     /**
-     * Extra arguments for sandbox kernel selection. Supported keys: 'iptables', 'nvme', 'nfs'. Values: 'enabled' or 'disabled'. Determines which kernel variant the sandbox runs on. Immutable after creation.
+     * Extra arguments for kernel selection. Supported keys: 'iptables', 'nfs' (mk3.0), 'tun', 'android' and 'landlock' (mk3.1). The android variant includes tun and iptables and cannot be combined with nfs. The landlock variant enables the Landlock LSM, includes tun and iptables, and cannot be combined with android or nfs. Android and landlock requests are rejected if routing selects mk3.0. Values: 'enabled' or 'disabled'. Determines which kernel variant the workload runs on. Immutable after creation.
      */
     extraArgs?: {
         [key: string]: string;
@@ -3835,7 +4154,7 @@ export type SandboxRuntime = {
      */
     terminationGracePeriodSeconds?: number;
     /**
-     * Max-age from creation: the sandbox is deleted this long after it is created, regardless of activity (not an idle timeout). Units s, m, h, d, w (e.g., '30m', '24h', '7d', '2w'). For idle-based cleanup, use a lifecycle expiration policy of type ttl-idle.
+     * Max-age from creation: the sandbox is deleted this long after it is created, regardless of activity (not an idle timeout). Units s, m, h, d, w (e.g., '30m', '24h', '7d', '2w'), minimum '5m'. For idle-based cleanup, use a lifecycle expiration policy of type ttl-idle.
      */
     ttl?: string;
 };
@@ -3857,6 +4176,10 @@ export type SandboxScheduleEntry = {
      * Maximum number of execution records kept for this schedule. Once reached, recording a new execution deletes the oldest. Defaults to 100.
      */
     maxExecutions?: number;
+    /**
+     * Name of the sandbox this schedule belongs to.
+     */
+    readonly sandbox?: string;
     /**
      * Type of schedule timing. 'cron' for recurring (5-field expression), 'at' for a specific RFC 3339 datetime, 'sleep' for a duration from now (resolved to 'at' on creation).
      */
@@ -3913,13 +4236,17 @@ export type SandboxScheduleEntryListWritable = {
 };
 
 /**
- * One recorded execution of a sandbox schedule. statusCode is the HTTP status from submitting the command to the sandbox (the scheduler does not wait for the command to finish). Stored in the dedicated scheduleexecutions table.
+ * One recorded execution of a sandbox schedule. status and statusCode describe whether the scheduler's process submission was accepted; the scheduler does not wait for the process to finish. Stored in the dedicated scheduleexecutions table.
  */
 export type SandboxScheduleExecution = {
     /**
      * Creation timestamp (read-only).
      */
     readonly createdAt?: string;
+    /**
+     * Reason the execution failed, naming the resource that could not be reached. Empty when the command was accepted by the sandbox.
+     */
+    error?: string;
     /**
      * RFC 3339 time at which the command was submitted.
      */
@@ -3933,9 +4260,17 @@ export type SandboxScheduleExecution = {
      */
     processName?: string;
     /**
+     * Name of the sandbox this execution belongs to.
+     */
+    readonly sandbox?: string;
+    /**
      * Id of the schedule this execution belongs to.
      */
     scheduleId?: string;
+    /**
+     * Whether submitting the process request was accepted. This is not the process completion status.
+     */
+    status?: 'succeeded' | 'failed';
     /**
      * HTTP status code returned when the scheduled command was submitted to the sandbox (0 if the sandbox could not be reached). 2xx/3xx means the command was accepted.
      */
@@ -3947,9 +4282,13 @@ export type SandboxScheduleExecution = {
 };
 
 /**
- * One recorded execution of a sandbox schedule. statusCode is the HTTP status from submitting the command to the sandbox (the scheduler does not wait for the command to finish). Stored in the dedicated scheduleexecutions table.
+ * One recorded execution of a sandbox schedule. status and statusCode describe whether the scheduler's process submission was accepted; the scheduler does not wait for the process to finish. Stored in the dedicated scheduleexecutions table.
  */
 export type SandboxScheduleExecutionWritable = {
+    /**
+     * Reason the execution failed, naming the resource that could not be reached. Empty when the command was accepted by the sandbox.
+     */
+    error?: string;
     /**
      * RFC 3339 time at which the command was submitted.
      */
@@ -3966,6 +4305,10 @@ export type SandboxScheduleExecutionWritable = {
      * Id of the schedule this execution belongs to.
      */
     scheduleId?: string;
+    /**
+     * Whether submitting the process request was accepted. This is not the process completion status.
+     */
+    status?: 'succeeded' | 'failed';
     /**
      * HTTP status code returned when the scheduled command was submitted to the sandbox (0 if the sandbox could not be reached). 2xx/3xx means the command was accepted.
      */
@@ -3996,6 +4339,20 @@ export type SandboxScheduleExecutionListWritable = {
      */
     data?: Array<SandboxScheduleExecutionWritable>;
     meta?: PaginationMeta;
+};
+
+/**
+ * Schedule execution counts grouped by submission acceptance status.
+ */
+export type SandboxScheduleExecutionStatusMetrics = {
+    /**
+     * Number of process submissions that were not accepted.
+     */
+    failed?: number;
+    /**
+     * Number of process submissions accepted by the sandbox.
+     */
+    succeeded?: number;
 };
 
 /**
@@ -4031,6 +4388,205 @@ export type SandboxScheduleInput = {
 };
 
 /**
+ * Workspace sandbox scheduling metrics for a UTC minute window. since is inclusive and until is exclusive.
+ */
+export type SandboxScheduleMetrics = {
+    /**
+     * Number of schedule execution submissions in the selected window.
+     */
+    executions?: number;
+    executionsByStatus?: SandboxScheduleExecutionStatusMetrics;
+    /**
+     * Number of active sandboxes in the workspace.
+     */
+    sandboxes?: number;
+    /**
+     * Number of schedules in the workspace.
+     */
+    schedules?: number;
+    /**
+     * Inclusive beginning of the metrics window, normalized to a UTC minute.
+     */
+    since?: string;
+    /**
+     * Exclusive end of the metrics window, normalized to a UTC minute.
+     */
+    until?: string;
+};
+
+/**
+ * A point-in-time snapshot of a sandbox. It is a workspace-level object: it outlives the sandbox it was captured from, and can be restored onto a sandbox or forked into a new sandbox or application on its own.
+ */
+export type SandboxSnapshot = {
+    /**
+     * When the snapshot was created
+     */
+    createdAt: string;
+    /**
+     * Who created the snapshot
+     */
+    createdBy?: string;
+    /**
+     * Identifier of the snapshot, unique in the workspace. Workspace-level routes address the snapshot by it.
+     */
+    readonly id: string;
+    /**
+     * Display name of the snapshot, unique among the snapshots of the sandbox it was captured from. Defaults to the identifier.
+     */
+    name: string;
+    /**
+     * Name of the source sandbox. Kept for compatibility, read source.name instead.
+     */
+    sandboxName?: string;
+    source?: SandboxSnapshotSource;
+    spec?: SandboxSnapshotSpec;
+    /**
+     * Status of the snapshot (pending, ready, failed)
+     */
+    status: string;
+    /**
+     * Workspace owning the snapshot
+     */
+    workspace: string;
+};
+
+/**
+ * A point-in-time snapshot of a sandbox. It is a workspace-level object: it outlives the sandbox it was captured from, and can be restored onto a sandbox or forked into a new sandbox or application on its own.
+ */
+export type SandboxSnapshotWritable = {
+    /**
+     * When the snapshot was created
+     */
+    createdAt: string;
+    /**
+     * Who created the snapshot
+     */
+    createdBy?: string;
+    /**
+     * Display name of the snapshot, unique among the snapshots of the sandbox it was captured from. Defaults to the identifier.
+     */
+    name: string;
+    /**
+     * Name of the source sandbox. Kept for compatibility, read source.name instead.
+     */
+    sandboxName?: string;
+    source?: SandboxSnapshotSourceWritable;
+    spec?: SandboxSnapshotSpec;
+    /**
+     * Status of the snapshot (pending, ready, failed)
+     */
+    status: string;
+    /**
+     * Workspace owning the snapshot
+     */
+    workspace: string;
+};
+
+/**
+ * Cursor-paginated list of snapshots. Returned starting with API version 2026-04-28; older API versions return a bare array.
+ */
+export type SandboxSnapshotList = {
+    /**
+     * Page of snapshots.
+     */
+    data?: Array<SandboxSnapshot>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * Cursor-paginated list of snapshots. Returned starting with API version 2026-04-28; older API versions return a bare array.
+ */
+export type SandboxSnapshotListWritable = {
+    /**
+     * Page of snapshots.
+     */
+    data?: Array<SandboxSnapshotWritable>;
+    meta?: PaginationMeta;
+};
+
+/**
+ * Request body for creating a snapshot. The source object is required at the root endpoint and implied by the path on the nested one.
+ */
+export type SandboxSnapshotRequest = {
+    /**
+     * Display name of the snapshot, unique among the snapshots of the sandbox it is captured from; the same name may be reused on another sandbox. Defaults to the snapshot identifier when absent.
+     */
+    name?: string;
+    source?: SandboxSnapshotSource;
+};
+
+/**
+ * Request body for creating a snapshot. The source object is required at the root endpoint and implied by the path on the nested one.
+ */
+export type SandboxSnapshotRequestWritable = {
+    /**
+     * Display name of the snapshot, unique among the snapshots of the sandbox it is captured from; the same name may be reused on another sandbox. Defaults to the snapshot identifier when absent.
+     */
+    name?: string;
+    source?: SandboxSnapshotSourceWritable;
+};
+
+/**
+ * The object a snapshot was captured from.
+ */
+export type SandboxSnapshotSource = {
+    /**
+     * Whether the source object has since been deleted. The snapshot stays usable, the link is only kept for context.
+     */
+    readonly deleted?: boolean;
+    /**
+     * Kind of the object the snapshot was captured from. Defaults to sandbox, the only kind that can be captured today.
+     */
+    kind?: 'sandbox';
+    /**
+     * Name of the object the snapshot was captured from
+     */
+    name: string;
+};
+
+/**
+ * The object a snapshot was captured from.
+ */
+export type SandboxSnapshotSourceWritable = {
+    /**
+     * Kind of the object the snapshot was captured from. Defaults to sandbox, the only kind that can be captured today.
+     */
+    kind?: 'sandbox';
+    /**
+     * Name of the object the snapshot was captured from
+     */
+    name: string;
+};
+
+/**
+ * The configuration a snapshot carries, so a sandbox or an application can be created from it once its source object is gone.
+ */
+export type SandboxSnapshotSpec = {
+    /**
+     * Infrastructure generation the snapshot was captured on. A snapshot only restores on the generation it came from.
+     */
+    generation?: 'mk2' | 'mk3';
+    /**
+     * Image the source object ran
+     */
+    image?: string;
+    /**
+     * Memory in MB the source object ran with
+     */
+    memory?: number;
+    ports?: Ports;
+    /**
+     * Region holding the snapshot. Restores and forks land in it.
+     */
+    region?: string;
+    volumes?: VolumeAttachments;
+};
+
+export type SandboxSnapshots = Array<SandboxSnapshot>;
+
+export type SandboxSnapshotsWritable = Array<SandboxSnapshotWritable>;
+
+/**
  * Configuration for a sandbox including its image, memory, ports, region, and lifecycle policies
  */
 export type SandboxSpec = {
@@ -4055,7 +4611,7 @@ export type SandboxSpec = {
 /**
  * Deployment status of a resource deployed on Blaxel
  */
-export type Status = 'DELETING' | 'TERMINATED' | 'FAILED' | 'DEACTIVATED' | 'DEACTIVATING' | 'UPLOADING' | 'BUILDING' | 'DEPLOYING' | 'DEPLOYED' | 'BUILT';
+export type Status = 'DELETING' | 'TERMINATED' | 'FAILED' | 'DEACTIVATED' | 'DEACTIVATING' | 'UPLOADING' | 'BUILDING' | 'DEPLOYING' | 'DEPLOYED' | 'BUILT' | 'ARCHIVING' | 'ARCHIVED' | 'UNARCHIVING';
 
 /**
  * Blaxel template
@@ -4222,6 +4778,10 @@ export type TriggerConfiguration = {
      */
     tasks?: Array<TriggerConfigurationTask>;
     /**
+     * Where this trigger's task list is stored (server-managed)
+     */
+    readonly tasksRef?: string;
+    /**
      * The timeout in seconds for async triggers (max 900s, MK3 only)
      */
     timeout?: number;
@@ -4329,12 +4889,12 @@ export type Volume = {
 export type VolumeWritable = {
     events?: CoreEventsWritable;
     metadata: MetadataWritable;
-    spec: VolumeSpecWritable;
+    spec: VolumeSpec;
     state?: VolumeStateWritable;
 };
 
 /**
- * Configuration for attaching a persistent volume to a sandbox at a specific filesystem path
+ * Configuration for attaching a volume to a sandbox at a specific filesystem path. Defaults to a persistent volume; set type to "ephemeral" for disk-backed scratch space created with the sandbox and destroyed when it stops.
  */
 export type VolumeAttachment = {
     /**
@@ -4342,13 +4902,21 @@ export type VolumeAttachment = {
      */
     mountPath?: string;
     /**
-     * Name of the volume resource to attach (must exist in the same workspace and region)
+     * For persistent volumes, the name of the volume resource to attach (must exist in the same workspace and region). For ephemeral volumes, an identifier used to reference the volume internally.
      */
     name?: string;
     /**
      * If true, the volume is mounted read-only and cannot be modified by the sandbox
      */
     readOnly?: boolean;
+    /**
+     * Storage capacity in megabytes. Required for ephemeral volumes, ignored for persistent volumes.
+     */
+    sizeMb?: number;
+    /**
+     * Type of volume. Defaults to "persistent" (an existing volume resource). Use "ephemeral" for temporary disk-backed storage created with the sandbox.
+     */
+    type?: 'persistent' | 'ephemeral';
 };
 
 export type VolumeAttachments = Array<VolumeAttachment>;
@@ -4379,28 +4947,6 @@ export type VolumeListWritable = {
  * Immutable volume configuration set at creation time (size and region cannot be changed after creation)
  */
 export type VolumeSpec = {
-    /**
-     * The internal infrastructure resource identifier for this volume
-     */
-    readonly infrastructureId?: string;
-    /**
-     * Deployment region for the volume (e.g., us-pdx-1, eu-lon-1). Must match the region of sandboxes it attaches to.
-     */
-    region?: string;
-    /**
-     * Storage capacity in megabytes. Can be increased after creation but not decreased.
-     */
-    size?: number;
-    /**
-     * Volume template to initialize from, with optional revision (e.g., "mytemplate:1" or "mytemplate:latest")
-     */
-    template?: string;
-};
-
-/**
- * Immutable volume configuration set at creation time (size and region cannot be changed after creation)
- */
-export type VolumeSpecWritable = {
     /**
      * Deployment region for the volume (e.g., us-pdx-1, eu-lon-1). Must match the region of sandboxes it attaches to.
      */
@@ -4571,6 +5117,10 @@ export type Workspace = TimeFields & OwnerFields & {
      * Workspace account id
      */
     accountId?: string;
+    /**
+     * Baseten team this workspace was provisioned for; absent on native workspaces
+     */
+    readonly basetenTeamId?: string;
     /**
      * Workspace display name
      */
@@ -4761,6 +5311,10 @@ export type WorkspaceUser = {
      */
     given_name?: string;
     /**
+     * Whether the user has at least one verified MFA factor. Omitted when the caller is not entitled to see it (only workspace admins and owners see other members' MFA status) and for pending invitations, which have no account yet.
+     */
+    mfa_enabled?: boolean;
+    /**
      * Workspace user role
      */
     role?: string;
@@ -4778,6 +5332,16 @@ export type WorkspaceUser = {
  * API version (e.g., 2026-04-16). Defaults to the earliest stable version if omitted. See https://docs.blaxel.ai/api-reference/introduction#api-versioning.
  */
 export type BlaxelVersion = string;
+
+/**
+ * Filter resources by metadata.externalId. When set, only resources matching this caller-owned external ID are returned.
+ */
+export type ExternalIdFilter = string;
+
+/**
+ * Comma-separated list of statuses to filter on (e.g. `DEPLOYED,FAILED`). Values are case-insensitive; unknown values are rejected with a 400. Selecting every status is equivalent to omitting the parameter. Bound into the cursor fingerprint so a cursor opened with one selection cannot be reused with another. Filtering itself requires the 2026-04-28 Blaxel-Version (the paginated listing); on earlier versions the value is still validated but the listing is unfiltered, except for sandboxes where it is applied on every version.
+ */
+export type ListingStatus = string;
 
 /**
  * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
@@ -4828,6 +5392,14 @@ export type ListAgentsData = {
          * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
+        /**
+         * Filter resources by metadata.externalId. When set, only resources matching this caller-owned external ID are returned.
+         */
+        externalId?: string;
+        /**
+         * Comma-separated list of statuses to filter on (e.g. `DEPLOYED,FAILED`). Values are case-insensitive; unknown values are rejected with a 400. Selecting every status is equivalent to omitting the parameter. Bound into the cursor fingerprint so a cursor opened with one selection cannot be reused with another. Filtering itself requires the 2026-04-28 Blaxel-Version (the paginated listing); on earlier versions the value is still validated but the listing is unfiltered, except for sandboxes where it is applied on every version.
+         */
+        status?: string;
     };
     url: '/agents';
 };
@@ -5079,6 +5651,10 @@ export type ListApplicationsData = {
          * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
+        /**
+         * Comma-separated list of statuses to filter on (e.g. `DEPLOYED,FAILED`). Values are case-insensitive; unknown values are rejected with a 400. Selecting every status is equivalent to omitting the parameter. Bound into the cursor fingerprint so a cursor opened with one selection cannot be reused with another. Filtering itself requires the 2026-04-28 Blaxel-Version (the paginated listing); on earlier versions the value is still validated but the listing is unfiltered, except for sandboxes where it is applied on every version.
+         */
+        status?: string;
     };
     url: '/applications';
 };
@@ -5317,10 +5893,26 @@ export type ListApplicationRevisionsResponses = {
     /**
      * successful operation
      */
-    200: Array<RevisionMetadata>;
+    200: Array<AppRevision>;
 };
 
 export type ListApplicationRevisionsResponse = ListApplicationRevisionsResponses[keyof ListApplicationRevisionsResponses];
+
+export type GetChangelogData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/changelog';
+};
+
+export type GetChangelogResponses = {
+    /**
+     * Latest changelog entries
+     */
+    200: ChangelogResponse;
+};
+
+export type GetChangelogResponse = GetChangelogResponses[keyof GetChangelogResponses];
 
 export type GetConfigurationData = {
     body?: never;
@@ -5433,6 +6025,107 @@ export type UpdateCustomDomainResponses = {
 
 export type UpdateCustomDomainResponse = UpdateCustomDomainResponses[keyof UpdateCustomDomainResponses];
 
+export type ListCustomDomainSharesData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the custom domain
+         */
+        domainName: string;
+    };
+    query?: never;
+    url: '/customdomains/{domainName}/share';
+};
+
+export type ListCustomDomainSharesErrors = {
+    /**
+     * custom domain not found
+     */
+    404: unknown;
+};
+
+export type ListCustomDomainSharesResponses = {
+    /**
+     * successful operation
+     */
+    200: Array<CustomDomainShareTarget>;
+};
+
+export type ListCustomDomainSharesResponse = ListCustomDomainSharesResponses[keyof ListCustomDomainSharesResponses];
+
+export type ShareCustomDomainData = {
+    body: {
+        /**
+         * Name of the workspace to share the domain with, or "account" to share with every workspace of the account.
+         */
+        targetWorkspace: string;
+    };
+    path: {
+        /**
+         * Name of the custom domain
+         */
+        domainName: string;
+    };
+    query?: never;
+    url: '/customdomains/{domainName}/share';
+};
+
+export type ShareCustomDomainErrors = {
+    /**
+     * invalid request
+     */
+    400: unknown;
+    /**
+     * custom domain not found
+     */
+    404: unknown;
+    /**
+     * custom domain conflict in target workspace
+     */
+    409: unknown;
+};
+
+export type ShareCustomDomainResponses = {
+    /**
+     * successful operation
+     */
+    200: CustomDomain;
+};
+
+export type ShareCustomDomainResponse = ShareCustomDomainResponses[keyof ShareCustomDomainResponses];
+
+export type UnshareCustomDomainData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the custom domain
+         */
+        domainName: string;
+        /**
+         * Name of the target workspace, or "account" for an account-wide share.
+         */
+        targetWorkspace: string;
+    };
+    query?: never;
+    url: '/customdomains/{domainName}/share/{targetWorkspace}';
+};
+
+export type UnshareCustomDomainErrors = {
+    /**
+     * custom domain or share not found
+     */
+    404: unknown;
+};
+
+export type UnshareCustomDomainResponses = {
+    /**
+     * successful operation
+     */
+    200: CustomDomain;
+};
+
+export type UnshareCustomDomainResponse = UnshareCustomDomainResponses[keyof UnshareCustomDomainResponses];
+
 export type VerifyCustomDomainData = {
     body?: never;
     path: {
@@ -5482,6 +6175,10 @@ export type ListDrivesData = {
          * Filter drives by external ID. When set, only drives matching this caller-owned identifier are returned.
          */
         externalId?: string;
+        /**
+         * Comma-separated list of statuses to filter on (e.g. `DEPLOYED,FAILED`). Values are case-insensitive; unknown values are rejected with a 400. Selecting every status is equivalent to omitting the parameter. Bound into the cursor fingerprint so a cursor opened with one selection cannot be reused with another. Filtering itself requires the 2026-04-28 Blaxel-Version (the paginated listing); on earlier versions the value is still validated but the listing is unfiltered, except for sandboxes where it is applied on every version.
+         */
+        status?: string;
     };
     url: '/drives';
 };
@@ -5552,6 +6249,7 @@ export type DeleteDriveResponses = {
     200: {
         message?: string;
         name?: string;
+        status?: string;
     };
 };
 
@@ -5875,6 +6573,14 @@ export type ListFunctionsData = {
          * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
+        /**
+         * Filter resources by metadata.externalId. When set, only resources matching this caller-owned external ID are returned.
+         */
+        externalId?: string;
+        /**
+         * Comma-separated list of statuses to filter on (e.g. `DEPLOYED,FAILED`). Values are case-insensitive; unknown values are rejected with a 400. Selecting every status is equivalent to omitting the parameter. Bound into the cursor fingerprint so a cursor opened with one selection cannot be reused with another. Filtering itself requires the 2026-04-28 Blaxel-Version (the paginated listing); on earlier versions the value is still validated but the listing is unfiltered, except for sandboxes where it is applied on every version.
+         */
+        status?: string;
     };
     url: '/functions';
 };
@@ -6130,7 +6836,15 @@ export type CleanupImagesResponse = CleanupImagesResponses[keyof CleanupImagesRe
 export type ListImagesData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        cursor?: string;
+        limit?: number;
+        sort?: string;
+        /**
+         * Case-sensitive name prefix. Selects name order.
+         */
+        q?: string;
+    };
     url: '/images';
 };
 
@@ -6138,7 +6852,10 @@ export type ListImagesResponses = {
     /**
      * successful operation
      */
-    200: Array<Image>;
+    200: {
+        data: Array<ImageSummary>;
+        meta: PaginationMeta;
+    };
 };
 
 export type ListImagesResponse = ListImagesResponses[keyof ListImagesResponses];
@@ -6146,13 +6863,21 @@ export type ListImagesResponse = ListImagesResponses[keyof ListImagesResponses];
 export type CreateImageData = {
     body: {
         /**
+         * Docker configuration JSON containing credentials for the source registry.
+         */
+        dockerConfig?: string;
+        /**
          * Runtime generation (e.g., mk3). Defaults to mk3 if not specified.
          */
         generation?: string;
         /**
-         * A pre-built Docker image reference (e.g., docker.io/myorg/myimage:latest). When provided, the build step is skipped and the image is used directly as the source for the resource runtime.
+         * A pre-built Docker image reference (e.g., docker.io/myorg/myimage:latest). References with a registry hostname start an asynchronous import that downloads and converts the image for the resource runtime.
          */
         image?: string;
+        /**
+         * Memory for the registry import worker in MiB. Only supported when image is a registry reference. When omitted, the platform default is used.
+         */
+        memoryMb?: number;
         /**
          * Name of the image to build
          */
@@ -6161,6 +6886,14 @@ export type CreateImageData = {
          * Resource type (agent, function, sandbox, job)
          */
         resourceType: string;
+        /**
+         * Tag for the imported image. Only supported when image is a registry reference. When omitted, a tag is derived from the build inputs. Tags are immutable, so a tag that already exists is rejected. latest, pending and failed are reserved.
+         */
+        tag?: string;
+        /**
+         * Temporary scratch disk for the registry import worker in MiB. Only supported when image is a registry reference. When omitted, the platform default is used. Set to 0 to use memory-backed scratch. Positive values are not supported for HIPAA workspaces.
+         */
+        volumeMb?: number;
     };
     path?: never;
     query?: never;
@@ -6172,6 +6905,10 @@ export type CreateImageErrors = {
      * invalid request
      */
     400: unknown;
+    /**
+     * the requested tag already exists
+     */
+    409: unknown;
 };
 
 export type CreateImageResponses = {
@@ -6248,7 +6985,12 @@ export type GetImageData = {
          */
         imageName: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Owner workspace for an account-shared image.
+         */
+        sourceWorkspace?: string;
+    };
     url: '/images/{resourceType}/{imageName}';
 };
 
@@ -6256,7 +6998,7 @@ export type GetImageResponses = {
     /**
      * successful operation
      */
-    200: Image;
+    200: ImageSummary;
 };
 
 export type GetImageResponse = GetImageResponses[keyof GetImageResponses];
@@ -6382,6 +7124,47 @@ export type UnshareImageResponses = {
 
 export type UnshareImageResponse = UnshareImageResponses[keyof UnshareImageResponses];
 
+export type ListImageTagsData = {
+    body?: never;
+    path: {
+        resourceType: string;
+        imageName: string;
+    };
+    query?: {
+        cursor?: string;
+        limit?: number;
+        /**
+         * Order by tag name. Creation-time sorting is not supported.
+         */
+        sort?: 'name:asc' | 'name:desc';
+        /**
+         * Case-sensitive name prefix. Selects name order.
+         */
+        q?: string;
+        /**
+         * Exact tag name, mutually exclusive with q.
+         */
+        name?: string;
+        /**
+         * Owner workspace for an account-shared image.
+         */
+        sourceWorkspace?: string;
+    };
+    url: '/images/{resourceType}/{imageName}/tags';
+};
+
+export type ListImageTagsResponses = {
+    /**
+     * A page of tags
+     */
+    200: {
+        data: Array<ImageTag>;
+        meta: PaginationMeta;
+    };
+};
+
+export type ListImageTagsResponse = ListImageTagsResponses[keyof ListImageTagsResponses];
+
 export type DeleteImageTagData = {
     body?: never;
     path: {
@@ -6418,6 +7201,10 @@ export type DeleteImageTagResponses = {
      * successful operation
      */
     200: Image;
+    /**
+     * Tag deleted (API version 2026-09-22 and later).
+     */
+    204: void;
 };
 
 export type DeleteImageTagResponse = DeleteImageTagResponses[keyof DeleteImageTagResponses];
@@ -6446,7 +7233,12 @@ export type GetIntegrationResponse = GetIntegrationResponses[keyof GetIntegratio
 export type ListIntegrationConnectionsData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Filter resources by metadata.externalId. When set, only resources matching this caller-owned external ID are returned.
+         */
+        externalId?: string;
+    };
     url: '/integrations/connections';
 };
 
@@ -6736,6 +7528,14 @@ export type ListJobsData = {
          * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
+        /**
+         * Filter resources by metadata.externalId. When set, only resources matching this caller-owned external ID are returned.
+         */
+        externalId?: string;
+        /**
+         * Comma-separated list of statuses to filter on (e.g. `DEPLOYED,FAILED`). Values are case-insensitive; unknown values are rejected with a 400. Selecting every status is equivalent to omitting the parameter. Bound into the cursor fingerprint so a cursor opened with one selection cannot be reused with another. Filtering itself requires the 2026-04-28 Blaxel-Version (the paginated listing); on earlier versions the value is still validated but the listing is unfiltered, except for sandboxes where it is applied on every version.
+         */
+        status?: string;
     };
     url: '/jobs';
 };
@@ -7132,6 +7932,14 @@ export type ListModelsData = {
          * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
+        /**
+         * Filter resources by metadata.externalId. When set, only resources matching this caller-owned external ID are returned.
+         */
+        externalId?: string;
+        /**
+         * Comma-separated list of statuses to filter on (e.g. `DEPLOYED,FAILED`). Values are case-insensitive; unknown values are rejected with a 400. Selecting every status is equivalent to omitting the parameter. Bound into the cursor fingerprint so a cursor opened with one selection cannot be reused with another. Filtering itself requires the 2026-04-28 Blaxel-Version (the paginated listing); on earlier versions the value is still validated but the listing is unfiltered, except for sandboxes where it is applied on every version.
+         */
+        status?: string;
     };
     url: '/models';
 };
@@ -7476,6 +8284,10 @@ export type ListPoliciesData = {
          * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
          */
         anchor?: 'end';
+        /**
+         * Filter resources by metadata.externalId. When set, only resources matching this caller-owned external ID are returned.
+         */
+        externalId?: string;
     };
     url: '/policies';
 };
@@ -7655,6 +8467,10 @@ export type ListSandboxesData = {
          */
         anchor?: 'end';
         /**
+         * Comma-separated list of statuses to filter on (e.g. `DEPLOYED,FAILED`). When set it takes precedence over `showTerminated`. Unknown values are rejected with a 400. Bound into the cursor fingerprint.
+         */
+        status?: string;
+        /**
          * Filter sandboxes by external ID. When set, only sandboxes matching this caller-owned identifier are returned.
          */
         externalId?: string;
@@ -7693,7 +8509,7 @@ export type CreateSandboxData = {
     path?: never;
     query?: {
         /**
-         * If true, return existing sandbox instead of 409 error when sandbox exists and is not in FAILED/TERMINATED/TERMINATING state
+         * If true, return the existing sandbox instead of a 409 when one with this name is alive. A name held by a FAILED or TERMINATED sandbox is reused, and a deletion or a concurrent creation still in flight is waited for (with backoff) so the response is the sandbox, not a conflict to retry.
          */
         createIfNotExist?: boolean;
     };
@@ -7868,6 +8684,94 @@ export type UpdateSandboxResponses = {
 };
 
 export type UpdateSandboxResponse = UpdateSandboxResponses[keyof UpdateSandboxResponses];
+
+export type ArchiveSandboxData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the sandbox to archive
+         */
+        sandboxName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/archive';
+};
+
+export type ArchiveSandboxErrors = {
+    /**
+     * Unauthorized - Invalid or missing authentication credentials
+     */
+    401: _Error;
+    /**
+     * Forbidden - Insufficient permissions to archive this sandbox
+     */
+    403: _Error;
+    /**
+     * Not found - Sandbox does not exist
+     */
+    404: _Error;
+    /**
+     * Conflict - The sandbox is already archived or is not running
+     */
+    409: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type ArchiveSandboxError = ArchiveSandboxErrors[keyof ArchiveSandboxErrors];
+
+export type ArchiveSandboxResponses = {
+    /**
+     * Sandbox archived successfully
+     */
+    200: Sandbox;
+};
+
+export type ArchiveSandboxResponse = ArchiveSandboxResponses[keyof ArchiveSandboxResponses];
+
+export type ForkSandboxData = {
+    body: SandboxForkRequest;
+    path: {
+        /**
+         * Name of the sandbox to fork
+         */
+        sandboxName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/fork';
+};
+
+export type ForkSandboxErrors = {
+    /**
+     * Bad request - Invalid fork parameters
+     */
+    400: _Error;
+    /**
+     * Not found - Source sandbox does not exist
+     */
+    404: _Error;
+    /**
+     * Conflict - Target sandbox already exists (only for type sandbox)
+     */
+    409: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type ForkSandboxError = ForkSandboxErrors[keyof ForkSandboxErrors];
+
+export type ForkSandboxResponses = {
+    /**
+     * Fork created successfully
+     */
+    200: SandboxForkResponse;
+};
+
+export type ForkSandboxResponse = ForkSandboxResponses[keyof ForkSandboxResponses];
 
 export type ListSandboxPreviewsData = {
     body?: never;
@@ -8093,9 +8997,9 @@ export type ListSandboxScheduleExecutionsData = {
          */
         cursor?: string;
         /**
-         * Sort spec, formatted as `<key>:<direction>`. Allowed values are `createdAt:desc` (default), `createdAt:asc`, `name:asc`, `name:desc`. The cursor fingerprint is bound to the sort, so a cursor opened with one value cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         * Sort by creation time. Defaults to newest first.
          */
-        sort?: 'createdAt:desc' | 'createdAt:asc' | 'name:asc' | 'name:desc';
+        sort?: 'createdAt:desc' | 'createdAt:asc';
         /**
          * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
          */
@@ -8131,9 +9035,9 @@ export type ListSandboxSchedulesData = {
          */
         cursor?: string;
         /**
-         * Sort spec, formatted as `<key>:<direction>`. Allowed values are `createdAt:desc` (default), `createdAt:asc`, `name:asc`, `name:desc`. The cursor fingerprint is bound to the sort, so a cursor opened with one value cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         * Sort by creation time. Defaults to newest first.
          */
-        sort?: 'createdAt:desc' | 'createdAt:asc' | 'name:asc' | 'name:desc';
+        sort?: 'createdAt:desc' | 'createdAt:asc';
         /**
          * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
          */
@@ -8251,6 +9155,192 @@ export type UpdateSandboxScheduleResponses = {
 
 export type UpdateSandboxScheduleResponse = UpdateSandboxScheduleResponses[keyof UpdateSandboxScheduleResponses];
 
+export type ListSandboxSnapshotsData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the sandbox
+         */
+        sandboxName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/snapshots';
+};
+
+export type ListSandboxSnapshotsErrors = {
+    /**
+     * Not found - Sandbox does not exist
+     */
+    404: _Error;
+};
+
+export type ListSandboxSnapshotsError = ListSandboxSnapshotsErrors[keyof ListSandboxSnapshotsErrors];
+
+export type ListSandboxSnapshotsResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxSnapshots;
+};
+
+export type ListSandboxSnapshotsResponse = ListSandboxSnapshotsResponses[keyof ListSandboxSnapshotsResponses];
+
+export type CreateSandboxSnapshotData = {
+    body: SandboxSnapshotRequestWritable;
+    path: {
+        /**
+         * Name of the sandbox to snapshot
+         */
+        sandboxName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/snapshots';
+};
+
+export type CreateSandboxSnapshotErrors = {
+    /**
+     * Not found - Sandbox does not exist
+     */
+    404: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type CreateSandboxSnapshotError = CreateSandboxSnapshotErrors[keyof CreateSandboxSnapshotErrors];
+
+export type CreateSandboxSnapshotResponses = {
+    /**
+     * Snapshot created successfully
+     */
+    200: SandboxSnapshot;
+};
+
+export type CreateSandboxSnapshotResponse = CreateSandboxSnapshotResponses[keyof CreateSandboxSnapshotResponses];
+
+export type DeleteSandboxSnapshotData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the sandbox
+         */
+        sandboxName: string;
+        /**
+         * Name of the snapshot among the sandbox's snapshots. A snapshot ID is also accepted and resolves within the whole workspace, so it reaches a snapshot whose source sandbox is another one or was deleted.
+         */
+        snapshotId: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/snapshots/{snapshotId}';
+};
+
+export type DeleteSandboxSnapshotErrors = {
+    /**
+     * Not found - Snapshot does not exist
+     */
+    404: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type DeleteSandboxSnapshotError = DeleteSandboxSnapshotErrors[keyof DeleteSandboxSnapshotErrors];
+
+export type DeleteSandboxSnapshotResponses = {
+    /**
+     * Snapshot deleted successfully
+     */
+    204: void;
+};
+
+export type DeleteSandboxSnapshotResponse = DeleteSandboxSnapshotResponses[keyof DeleteSandboxSnapshotResponses];
+
+export type RestoreSandboxSnapshotData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the sandbox to restore
+         */
+        sandboxName: string;
+        /**
+         * Name of the snapshot among the sandbox's snapshots. A snapshot ID is also accepted and resolves within the whole workspace, so it reaches a snapshot whose source sandbox is another one or was deleted.
+         */
+        snapshotId: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/snapshots/{snapshotId}/restore';
+};
+
+export type RestoreSandboxSnapshotErrors = {
+    /**
+     * Not found - Sandbox or snapshot does not exist
+     */
+    404: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type RestoreSandboxSnapshotError = RestoreSandboxSnapshotErrors[keyof RestoreSandboxSnapshotErrors];
+
+export type RestoreSandboxSnapshotResponses = {
+    /**
+     * Sandbox restored successfully
+     */
+    200: SandboxRestoreResponse;
+};
+
+export type RestoreSandboxSnapshotResponse = RestoreSandboxSnapshotResponses[keyof RestoreSandboxSnapshotResponses];
+
+export type UnarchiveSandboxData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the sandbox to unarchive
+         */
+        sandboxName: string;
+    };
+    query?: never;
+    url: '/sandboxes/{sandboxName}/unarchive';
+};
+
+export type UnarchiveSandboxErrors = {
+    /**
+     * Unauthorized - Invalid or missing authentication credentials
+     */
+    401: _Error;
+    /**
+     * Forbidden - Insufficient permissions to unarchive this sandbox
+     */
+    403: _Error;
+    /**
+     * Not found - Sandbox does not exist
+     */
+    404: _Error;
+    /**
+     * Conflict - The sandbox is not archived
+     */
+    409: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type UnarchiveSandboxError = UnarchiveSandboxErrors[keyof UnarchiveSandboxErrors];
+
+export type UnarchiveSandboxResponses = {
+    /**
+     * Sandbox recreated successfully
+     */
+    200: Sandbox;
+};
+
+export type UnarchiveSandboxResponse = UnarchiveSandboxResponses[keyof UnarchiveSandboxResponses];
+
 export type GetSandboxByExternalIdData = {
     body?: never;
     path: {
@@ -8293,6 +9383,125 @@ export type GetSandboxByExternalIdResponses = {
 
 export type GetSandboxByExternalIdResponse = GetSandboxByExternalIdResponses[keyof GetSandboxByExternalIdResponses];
 
+export type ListScheduleExecutionsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Number of items per page
+         */
+        limit?: number;
+        /**
+         * Opaque cursor returned by a previous response's meta.nextCursor. Only valid for the same query (workspace + filters); the server rejects cursors bound to a different query or older than 24h. Omit on the first page.
+         */
+        cursor?: string;
+        /**
+         * Sort by creation time. Defaults to newest first.
+         */
+        sort?: 'createdAt:desc' | 'createdAt:asc';
+        /**
+         * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        q?: string;
+        /**
+         * Filter by process submission acceptance status. Historical rows without status do not match this filter.
+         */
+        status?: 'succeeded' | 'failed';
+        /**
+         * Filter by sandbox name.
+         */
+        sandbox?: string;
+        /**
+         * Filter by schedule id.
+         */
+        schedule?: string;
+        /**
+         * Inclusive beginning of the createdAt window, as RFC 3339.
+         */
+        since?: string;
+        /**
+         * Inclusive end of the createdAt window, as RFC 3339.
+         */
+        until?: string;
+    };
+    url: '/schedule-executions';
+};
+
+export type ListScheduleExecutionsResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxScheduleExecutionList;
+};
+
+export type ListScheduleExecutionsResponse = ListScheduleExecutionsResponses[keyof ListScheduleExecutionsResponses];
+
+export type ListSchedulesData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Number of items per page
+         */
+        limit?: number;
+        /**
+         * Opaque cursor returned by a previous response's meta.nextCursor. Only valid for the same query (workspace + filters); the server rejects cursors bound to a different query or older than 24h. Omit on the first page.
+         */
+        cursor?: string;
+        /**
+         * Sort by creation time. Defaults to newest first.
+         */
+        sort?: 'createdAt:desc' | 'createdAt:asc';
+        /**
+         * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        q?: string;
+        /**
+         * Filter by sandbox name.
+         */
+        sandbox?: string;
+        /**
+         * Filter schedules by stored timing type. sleep resolves to at before persistence.
+         */
+        type?: 'cron' | 'at';
+    };
+    url: '/schedules';
+};
+
+export type ListSchedulesResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxScheduleEntryList;
+};
+
+export type ListSchedulesResponse = ListSchedulesResponses[keyof ListSchedulesResponses];
+
+export type GetSandboxScheduleMetricsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Inclusive beginning of the metrics window, as RFC 3339. Normalized down to a UTC minute, must be within the last 7 days, and defaults to 24 hours before until.
+         */
+        since?: string;
+        /**
+         * Exclusive end of the metrics window, as RFC 3339. Normalized down to a UTC minute and defaults to the current minute.
+         */
+        until?: string;
+    };
+    url: '/schedules/metrics';
+};
+
+export type GetSandboxScheduleMetricsResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxScheduleMetrics;
+};
+
+export type GetSandboxScheduleMetricsResponse = GetSandboxScheduleMetricsResponses[keyof GetSandboxScheduleMetricsResponses];
+
 export type GetWorkspaceServiceAccountsData = {
     body?: never;
     path?: never;
@@ -8322,6 +9531,10 @@ export type GetWorkspaceServiceAccountsResponses = {
          */
         name?: string;
         /**
+         * Role of the service account in the workspace
+         */
+        role?: string;
+        /**
          * Last update timestamp
          */
         updated_at?: string;
@@ -8340,6 +9553,10 @@ export type CreateWorkspaceServiceAccountData = {
          * Service account name
          */
         name: string;
+        /**
+         * Role of the service account in the workspace. Defaults to admin on creation; unchanged on update when omitted.
+         */
+        role?: 'viewer' | 'member' | 'admin';
     };
     path?: never;
     query?: never;
@@ -8371,6 +9588,10 @@ export type CreateWorkspaceServiceAccountResponses = {
          * Service account name
          */
         name?: string;
+        /**
+         * Role of the service account in the workspace
+         */
+        role?: string;
         /**
          * Last update timestamp
          */
@@ -8432,6 +9653,10 @@ export type UpdateWorkspaceServiceAccountData = {
          * Service account name
          */
         name?: string;
+        /**
+         * Role of the service account in the workspace. Defaults to admin on creation; unchanged on update when omitted.
+         */
+        role?: 'viewer' | 'member' | 'admin';
     };
     path: {
         /**
@@ -8464,6 +9689,10 @@ export type UpdateWorkspaceServiceAccountResponses = {
          * Service account name
          */
         name?: string;
+        /**
+         * Role of the service account in the workspace
+         */
+        role?: string;
         /**
          * Last update timestamp
          */
@@ -8546,6 +9775,179 @@ export type DeleteApiKeyForServiceAccountResponses = {
      */
     200: unknown;
 };
+
+export type ListSnapshotsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Opaque cursor returned by a previous response's meta.nextCursor. Only valid for the same query (workspace + filters); the server rejects cursors bound to a different query or older than 24h. Omit on the first page.
+         */
+        cursor?: string;
+        /**
+         * Maximum number of items to return per page. Defaults to 50, clamped to 200.
+         */
+        limit?: number;
+        /**
+         * Sort spec, formatted as `<key>:<direction>`. Allowed values are `createdAt:desc` (default), `createdAt:asc`, `name:asc`, `name:desc`. The cursor fingerprint is bound to the sort, so a cursor opened with one value cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        sort?: 'createdAt:desc' | 'createdAt:asc' | 'name:asc' | 'name:desc';
+        /**
+         * Substring search across `metadata.name`, `metadata.displayName` and labels (keys + values). Trimmed and lowercased server-side; queries shorter than 2 characters fall back to the unfiltered listing. Bound into the cursor fingerprint so a cursor opened with one query cannot be reused with another. Only honoured starting on Blaxel-Version 2026-04-28.
+         */
+        q?: string;
+        /**
+         * Start from a known pagination boundary. `end` is only supported for `createdAt` listings (asc or desc) and returns the tail page directly without walking every cursor from the first page.
+         */
+        anchor?: 'end';
+    };
+    url: '/snapshots';
+};
+
+export type ListSnapshotsErrors = {
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type ListSnapshotsError = ListSnapshotsErrors[keyof ListSnapshotsErrors];
+
+export type ListSnapshotsResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxSnapshotList;
+};
+
+export type ListSnapshotsResponse = ListSnapshotsResponses[keyof ListSnapshotsResponses];
+
+export type CreateSnapshotData = {
+    body: SandboxSnapshotRequestWritable;
+    path?: never;
+    query?: never;
+    url: '/snapshots';
+};
+
+export type CreateSnapshotErrors = {
+    /**
+     * Not found - Source object does not exist
+     */
+    404: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type CreateSnapshotError = CreateSnapshotErrors[keyof CreateSnapshotErrors];
+
+export type CreateSnapshotResponses = {
+    /**
+     * Snapshot created successfully
+     */
+    200: SandboxSnapshot;
+};
+
+export type CreateSnapshotResponse = CreateSnapshotResponses[keyof CreateSnapshotResponses];
+
+export type DeleteSnapshotData = {
+    body?: never;
+    path: {
+        /**
+         * ID of the snapshot
+         */
+        snapshotName: string;
+    };
+    query?: never;
+    url: '/snapshots/{snapshotName}';
+};
+
+export type DeleteSnapshotErrors = {
+    /**
+     * Not found - Snapshot does not exist
+     */
+    404: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type DeleteSnapshotError = DeleteSnapshotErrors[keyof DeleteSnapshotErrors];
+
+export type DeleteSnapshotResponses = {
+    /**
+     * Snapshot deleted successfully
+     */
+    204: void;
+};
+
+export type DeleteSnapshotResponse = DeleteSnapshotResponses[keyof DeleteSnapshotResponses];
+
+export type GetSnapshotData = {
+    body?: never;
+    path: {
+        /**
+         * ID of the snapshot
+         */
+        snapshotName: string;
+    };
+    query?: never;
+    url: '/snapshots/{snapshotName}';
+};
+
+export type GetSnapshotErrors = {
+    /**
+     * Not found - Snapshot does not exist
+     */
+    404: _Error;
+};
+
+export type GetSnapshotError = GetSnapshotErrors[keyof GetSnapshotErrors];
+
+export type GetSnapshotResponses = {
+    /**
+     * successful operation
+     */
+    200: SandboxSnapshot;
+};
+
+export type GetSnapshotResponse = GetSnapshotResponses[keyof GetSnapshotResponses];
+
+export type ForkSnapshotData = {
+    body: SandboxForkRequest;
+    path: {
+        /**
+         * ID of the snapshot to create the resource from
+         */
+        snapshotName: string;
+    };
+    query?: never;
+    url: '/snapshots/{snapshotName}/fork';
+};
+
+export type ForkSnapshotErrors = {
+    /**
+     * Not found - Snapshot does not exist
+     */
+    404: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type ForkSnapshotError = ForkSnapshotErrors[keyof ForkSnapshotErrors];
+
+export type ForkSnapshotResponses = {
+    /**
+     * Resource created successfully
+     */
+    200: SandboxForkResponse;
+};
+
+export type ForkSnapshotResponse = ForkSnapshotResponses[keyof ForkSnapshotResponses];
 
 export type ListTemplatesData = {
     body?: never;
@@ -8875,6 +10277,10 @@ export type ListVolumesData = {
          * Filter volumes by external ID. When set, only volumes matching this caller-owned identifier are returned.
          */
         externalId?: string;
+        /**
+         * Comma-separated list of statuses to filter on (e.g. `DEPLOYED,FAILED`). Values are case-insensitive; unknown values are rejected with a 400. Selecting every status is equivalent to omitting the parameter. Bound into the cursor fingerprint so a cursor opened with one selection cannot be reused with another. Filtering itself requires the 2026-04-28 Blaxel-Version (the paginated listing); on earlier versions the value is still validated but the listing is unfiltered, except for sandboxes where it is applied on every version.
+         */
+        status?: string;
     };
     url: '/volumes';
 };
@@ -9522,55 +10928,6 @@ export type UpdateWorkspaceResponses = {
 
 export type UpdateWorkspaceResponse = UpdateWorkspaceResponses[keyof UpdateWorkspaceResponses];
 
-export type DeclineWorkspaceInvitationData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the workspace
-         */
-        workspaceName: string;
-    };
-    query?: never;
-    url: '/workspaces/{workspaceName}/decline';
-};
-
-export type DeclineWorkspaceInvitationResponses = {
-    /**
-     * Invitation successfully declined
-     */
-    200: PendingInvitation;
-};
-
-export type DeclineWorkspaceInvitationResponse = DeclineWorkspaceInvitationResponses[keyof DeclineWorkspaceInvitationResponses];
-
-export type AcceptWorkspaceInvitationData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the workspace
-         */
-        workspaceName: string;
-    };
-    query?: never;
-    url: '/workspaces/{workspaceName}/join';
-};
-
-export type AcceptWorkspaceInvitationErrors = {
-    /**
-     * Workspace or invitation not found
-     */
-    404: unknown;
-};
-
-export type AcceptWorkspaceInvitationResponses = {
-    /**
-     * Invitation successfully accepted
-     */
-    200: PendingInvitationAccept;
-};
-
-export type AcceptWorkspaceInvitationResponse = AcceptWorkspaceInvitationResponses[keyof AcceptWorkspaceInvitationResponses];
-
 export type LeaveWorkspaceData = {
     body?: never;
     path: {
@@ -9626,3 +10983,4 @@ export type ClientOptions = {
     baseUrl: 'https://api.blaxel.ai/v0' | 'https://run.blaxel.ai' | (string & {});
 };
 export type DriveStateWritable = DriveState;
+export type ImageSummarySpecWritable = Record<string, never>;

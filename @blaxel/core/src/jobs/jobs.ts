@@ -26,6 +26,7 @@ class BlJob {
       env?: Record<string, string>;
       memory?: number;
       executionId?: string;
+      allowQueue?: boolean;
     },
   ): Promise<string> {
     logger.debug(`Job Calling: ${this.jobName}`);
@@ -44,6 +45,9 @@ class BlJob {
         ...(options?.env && { env: options.env }),
         ...(options?.memory && { memory: options.memory }),
         ...(options?.executionId && { executionId: options.executionId }),
+        ...(options?.allowQueue !== undefined && {
+          allowQueue: options.allowQueue,
+        }),
       };
 
       const executionId = await this.createExecution(request);

@@ -23,8 +23,10 @@ describe('Sandbox CRUD Operations', () => {
       const sandbox = await SandboxInstance.create({ region: defaultRegion, labels: defaultLabels })
       if (sandbox.metadata.name) createdSandboxes.push(sandbox.metadata.name)
 
+      // Unnamed creations no longer generate a client-side name; the server
+      // assigns one (ENG-3931), so we only assert a name came back.
       expect(sandbox.metadata.name).toBeDefined()
-      expect(sandbox.metadata.name).toMatch(/^sandbox-/)
+      expect(sandbox.metadata.name).toBeTruthy()
     })
 
     it('creates a sandbox with custom name', async () => {

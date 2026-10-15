@@ -15,6 +15,10 @@ describe('CodeInterpreter Operations', () => {
   }, 180000) // 3 minute timeout for interpreter creation
 
   afterAll(async () => {
+    if (process.env.SKIP_CLEANUP === '1') {
+      console.log('SKIP_CLEANUP=1: skipping teardown. Interpreter left alive:', interpreter?.metadata.name)
+      return
+    }
     if (interpreter?.metadata.name) {
       try {
         await CodeInterpreter.delete(interpreter.metadata.name)
@@ -150,6 +154,10 @@ describe('CodeInterpreter Operations', () => {
     const cineNames: string[] = []
 
     afterAll(async () => {
+      if (process.env.SKIP_CLEANUP === '1') {
+        console.log('SKIP_CLEANUP=1: skipping teardown. Interpreters left alive:', cineNames)
+        return
+      }
       await Promise.all(
         cineNames.map(async (name) => {
           try {

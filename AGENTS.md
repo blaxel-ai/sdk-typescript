@@ -1,6 +1,6 @@
 # Blaxel TypeScript SDK
 
-Monorepo for the Blaxel TypeScript SDK. The main package is `@blaxel/core`, with framework integrations in `@blaxel/langgraph`, `@blaxel/llamaindex`, `@blaxel/mastra`, `@blaxel/vercel`, and `@blaxel/telemetry`.
+Monorepo for the Blaxel TypeScript SDK. The main package is `@blaxel/core`, with framework integrations in `@blaxel/eve-sandbox`, `@blaxel/langgraph`, `@blaxel/llamaindex`, `@blaxel/mastra`, `@blaxel/vercel`, and `@blaxel/telemetry`.
 
 ## Repository structure
 

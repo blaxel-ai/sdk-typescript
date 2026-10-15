@@ -133,6 +133,107 @@ else {
 }
 `.trim()
 
+/**
+ * Like {@link proxyHelperScript}, but instead of writing only the upstream
+ * response body it emits a single JSON object combining the response status,
+ * the *response headers* the proxy returned (so tests can assert the
+ * `X-Blaxel-Func-*` echo headers), and the parsed upstream echo body:
+ *
+ *   { "status": 200, "responseHeaders": {..}, "upstream": {..} }
+ *
+ * Response header keys are already lowercased by Node's HTTP client.
+ */
+export const funcProxyHelperScript = `
+const https = require("https");
+const tls = require("tls");
+const method = process.argv[2] || "GET";
+const targetUrl = process.argv[3] || "https://httpbin.org/headers";
+const extraHeaders = process.argv[4] ? JSON.parse(process.argv[4]) : {};
+const bodyData = process.argv[5] || null;
+const proxyUrl = process.env.HTTPS_PROXY || process.env.https_proxy ||
+                 process.env.HTTP_PROXY || process.env.http_proxy;
+
+function fire(socket) {
+  const t = new URL(targetUrl);
+  const opts = {
+    hostname: t.hostname, port: t.port || 443,
+    path: t.pathname + t.search, method,
+    headers: { ...extraHeaders }, servername: t.hostname,
+  };
+  if (socket) { opts.socket = socket; opts.agent = false; }
+  if (bodyData) {
+    opts.headers["Content-Type"] = "application/json";
+    opts.headers["Content-Length"] = Buffer.byteLength(bodyData);
+  }
+  const req = https.request(opts, (r) => {
+    let d = ""; r.on("data", c => d += c);
+    r.on("end", () => {
+      let upstream = null; try { upstream = JSON.parse(d); } catch (e) { upstream = d; }
+      process.stdout.write(JSON.stringify({ status: r.statusCode, responseHeaders: r.headers, upstream }));
+      process.exit(0);
+    });
+  });
+  req.on("error", (e) => { process.stderr.write("REQ ERR: " + e.message + "\\n"); process.exit(1); });
+  if (bodyData) req.write(bodyData);
+  req.end();
+}
+
+if (!proxyUrl) { fire(null); }
+else {
+  const p = new URL(proxyUrl);
+  const t = new URL(targetUrl);
+  const port = parseInt(p.port) || (p.protocol === "https:" ? 443 : 3128);
+  const auth = (p.username || p.password)
+    ? "Proxy-Authorization: Basic " +
+      Buffer.from(decodeURIComponent(p.username||"") + ":" + decodeURIComponent(p.password||"")).toString("base64") + "\\r\\n"
+    : "";
+  const connectMsg = "CONNECT " + t.hostname + ":443 HTTP/1.1\\r\\n" +
+    "Host: " + t.hostname + ":443\\r\\n" + auth + "\\r\\n";
+
+  function onSocket(sock) {
+    let buf = "";
+    sock.on("data", function h(chunk) {
+      buf += chunk.toString();
+      if (buf.indexOf("\\r\\n\\r\\n") < 0) return;
+      sock.removeListener("data", h);
+      const code = parseInt(buf.split(" ")[1]);
+      if (code !== 200) {
+        process.stderr.write("CONNECT " + code + "\\n");
+        process.exit(1);
+      }
+      fire(sock);
+    });
+    sock.write(connectMsg);
+  }
+
+  const timeout = setTimeout(() => { process.stderr.write("PROXY TIMEOUT\\n"); process.exit(1); }, 15000);
+  if (p.protocol === "https:") {
+    const s = tls.connect({ host: p.hostname, port }, () => { clearTimeout(timeout); onSocket(s); });
+    s.on("error", (e) => { clearTimeout(timeout); process.stderr.write("PROXY TLS: " + e.message + "\\n"); process.exit(1); });
+  } else {
+    const s = require("net").connect({ host: p.hostname, port }, () => { clearTimeout(timeout); onSocket(s); });
+    s.on("error", (e) => { clearTimeout(timeout); process.stderr.write("PROXY TCP: " + e.message + "\\n"); process.exit(1); });
+  }
+}
+`.trim()
+
+/**
+ * Extracts a JSON object from command output by taking everything between the
+ * first `{` and the last `}`. Unlike {@link parseJsonOutput}, this is safe even
+ * when nested string values contain unbalanced braces (e.g. a header left
+ * literal as `{{FUNC:uuid}}`).
+ */
+export function parseFullJsonOutput<T = any>(logs: string | undefined): T {
+  if (!logs) throw new Error("No output from command")
+  const trimmed = logs.trim()
+  const start = trimmed.indexOf('{')
+  const end = trimmed.lastIndexOf('}')
+  if (start === -1 || end === -1 || end < start) {
+    throw new Error(`No JSON object found in output: ${trimmed.slice(0, 300)}`)
+  }
+  return JSON.parse(trimmed.slice(start, end + 1)) as T
+}
+
 export function parseJsonOutput(logs: string | undefined): any {
   if (!logs) throw new Error("No output from command")
   const trimmed = logs.trim()

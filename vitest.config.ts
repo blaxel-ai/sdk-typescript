@@ -1,7 +1,12 @@
+import { randomUUID } from 'node:crypto'
 import dotenv from 'dotenv'
 import { defineConfig } from 'vitest/config'
 
 dotenv.config()
+
+// Resolve once in the coordinator; every worker and teardown shares this identity.
+const testRunId = process.env.BL_TEST_RUN_ID ?? randomUUID()
+process.env.BL_TEST_RUN_ID = testRunId
 
 export default defineConfig({
   test: {
@@ -14,13 +19,15 @@ export default defineConfig({
       'tests/runtime-environments/**',
       '**/node_modules/**',
       'tests/**/node_modules/**',
+      // Egress proxy tests have been flaky for a while (proxy readiness, TLS,
+      // preview 401 on non-routed egress); opt back in with RUN_PROXY_TESTS=true.
+      ...(process.env.RUN_PROXY_TESTS === 'true' ? [] : ['tests/integration/sandbox/proxy/**']),
     ],
     testTimeout: 300000, // 5 minutes - API operations can be slow
     hookTimeout: 120000, // 2 minutes for setup/teardown
     globals: true,
     reporters: ['verbose'],
     fileParallelism: true,
-    minWorkers: 1,
     maxWorkers: 10,
     sequence: {
       concurrent: false,
@@ -38,10 +45,25 @@ export default defineConfig({
     //     secret is supplied (in CI or locally). The pass-through keeps any
     //     value already present in the environment.
     env: {
+      BL_TEST_RUN_ID: testRunId,
       // Feature toggles (default off) -------------------------------------
       // schedules.test.ts > "firing": waits on the scheduler tick + a backend
       // cleanup pass (~45-65s), which can blow the 1-minute per-test budget.
       RUN_SLOW_SCHEDULES: process.env.RUN_SLOW_SCHEDULES ?? "false",
+      // archive.test.ts > "Sandbox archive/unarchive": exports the filesystem
+      // to the archive store and restores it, minutes each way.
+      RUN_SLOW_ARCHIVE: process.env.RUN_SLOW_ARCHIVE ?? "false",
+      // snapshots.test.ts > "Sandbox snapshot restore": takes a snapshot, then
+      // rebuilds the instance from it -- a full sandbox start each way.
+      RUN_SLOW_RESTORE: process.env.RUN_SLOW_RESTORE ?? "false",
+      // workspace-snapshots.test.ts > "creates a sandbox from a snapshot whose
+      // source is gone": a fork is a full sandbox start on top of the snapshot
+      // the rest of the file already takes.
+      RUN_SLOW_SNAPSHOT_FORK: process.env.RUN_SLOW_SNAPSHOT_FORK ?? "false",
+      // lifecycle.test.ts > TTL / ttl-max-age expiry and "clearing a short TTL
+      // keeps the sandbox alive": the API's minimum TTL is 5m, so each test
+      // waits 5-8 minutes for (or past) an expiration.
+      RUN_SLOW_TTL: process.env.RUN_SLOW_TTL ?? "false",
       // image-build.test.ts > "Image Build Integration": builds AND deploys a
       // custom image -- heavy and slow, needs the image-build pipeline.
       IMAGE_BUILD: process.env.IMAGE_BUILD ?? "false",

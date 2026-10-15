@@ -1,7 +1,7 @@
-import { v4 as uuidv4 } from "uuid";
 import type http2 from "http2";
-import { createSandbox, deleteSandbox, getSandbox, getSandboxByExternalId, listSandboxes, type ListSandboxesData, type SandboxLifecycle, type Sandbox as SandboxModel, updateSandbox } from "../client/index.js";
+import { archiveSandbox, createSandbox, createSandboxSnapshot, deleteSandbox, deleteSandboxSnapshot, type Env, forkSandbox, getSandbox, getSandboxByExternalId, listSandboxes, listSandboxSnapshots, type ListSandboxesData, restoreSandboxSnapshot, type SandboxForkResponse, type SandboxLifecycle, type Sandbox as SandboxModel, type SandboxRestoreResponse, type SandboxSnapshot, unarchiveSandbox, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
+import { backoffDelayMs } from "../common/transient-retry.js";
 import { createPaginatedList } from "../common/pagination.js";
 import { settings } from "../common/settings.js";
 import { SandboxCodegen } from "./codegen/index.js";
@@ -11,31 +11,154 @@ import { SandboxNetwork } from "./network/index.js";
 import { SandboxPreviews } from "./preview.js";
 import { SandboxProcess } from "./process/index.js";
 import { SandboxSchedules } from "./schedule.js";
+import { SandboxSnapshotsResource } from "./snapshot.js";
 import { SandboxSessions } from "./session.js";
 import { SandboxSystem } from "./system.js";
 import { normalizeEnvs, normalizePorts, normalizeVolumes, SandboxConfiguration, SandboxCreateConfiguration, SandboxUpdateMetadata, SandboxUpdateNetwork, SessionWithToken } from "./types.js";
 
-const NON_REUSABLE_SANDBOX_STATUSES = new Set([
-  "FAILED",
-  "TERMINATED",
-  "TERMINATING",
-  "DELETING",
-  "DEACTIVATING",
-]);
-
 export type SandboxListQuery = NonNullable<ListSandboxesData["query"]>;
 
-// Statuses that resolve on their own (a delete or deactivation in flight). The control
-// plane keeps answering 409 to creates while the record is in one of these, so retrying
-// instantly burns the whole attempt budget inside the window. Terminal statuses
-// (FAILED, TERMINATED) accept a create immediately and are not listed here.
-const TRANSIENT_SANDBOX_STATUSES = new Set([
-  "TERMINATING",
-  "DELETING",
-  "DEACTIVATING",
-]);
-const TRANSIENT_STATUS_MAX_WAIT_MS = 30_000;
-const TRANSIENT_STATUS_POLL_MS = 500;
+export type SandboxForkOptions = {
+  /** Resource type to fork into. Defaults to "sandbox". */
+  targetType?: "sandbox" | "application";
+  /** Port to expose from the fork. */
+  port?: number;
+  /** Canary traffic percentage (0-100) when forking into an application. */
+  traffic?: number;
+  /** Custom domain for the application fork. */
+  customDomain?: string;
+  /** URL prefix for the application fork. */
+  prefix?: string;
+  /**
+   * Snapshot ID to fork from. When set, the fork is created from this existing
+   * snapshot — this is how you create a sandbox from a snapshot. When omitted,
+   * a sandbox fork copies the source sandbox's live state directly, without
+   * persisting a snapshot in between.
+   */
+  snapshotId?: string;
+  /**
+   * Environment variables the fork runs with, on top of the ones the source
+   * has: a variable the source already carries takes this value in the fork,
+   * one it does not is added, and every other variable of the source is kept.
+   */
+  envs?: Env[];
+  /**
+   * Lifecycle the fork runs with, replacing the source's. When omitted, a
+   * sandbox fork keeps the source's lifecycle and its runtime ttl and expires.
+   * Only valid when targetType is "sandbox".
+   */
+  lifecycle?: SandboxLifecycle;
+};
+
+// Archiving a filesystem, and restoring it, take as long as that filesystem is
+// big — minutes for a few gigabytes.
+const ARCHIVE_MAX_WAIT_MS = 1_800_000;
+const ARCHIVE_WAIT_POLL_MS = 2_000;
+// An archive is done when the sandbox is ARCHIVED; it is still under way while
+// the record holds one of these.
+const ARCHIVING_STATUSES = new Set(["ARCHIVING"]);
+// A restore is done when the sandbox is DEPLOYED again; the instance is recreated
+// before the archived filesystem is written back over its image.
+const UNARCHIVING_STATUSES = new Set(["UNARCHIVING", "DEPLOYING", "BUILDING", "UPLOADING"]);
+// The status the sandbox holds before the operation moves it, tolerated only
+// while the operation is starting: an archive that fails hands the sandbox back
+// as DEPLOYED and a restore that fails leaves it ARCHIVED, so reading the entry
+// status once the operation has begun means it is over, not still running.
+const ARCHIVE_ENTRY_STATUS = "DEPLOYED";
+const UNARCHIVE_ENTRY_STATUS = "ARCHIVED";
+const ARCHIVE_ENTRY_MAX_WAIT_MS = 30_000;
+
+/** How long to wait for an archive, or its restore, to finish. */
+export type SandboxArchiveOptions = {
+  /** Wait for the archive/restore to finish. Defaults to true. */
+  wait?: boolean;
+  /** Give up after this many milliseconds. Defaults to 30 minutes. */
+  maxWait?: number;
+  /** Milliseconds between two reads of the sandbox. Defaults to 2 seconds. */
+  interval?: number;
+};
+
+// A create that outlives the edge's 60s origin-read timeout gets a 504 from
+// CloudFront while the control plane keeps deploying the sandbox for up to
+// 300s (ENG-3662 timeout ladder inversion). The 504 body is edge HTML with no
+// usable payload, so the record is polled instead until it settles.
+// Polling backs off exponentially (1s, 2s, 4s, then 5s + jitter) so a fleet of
+// clients stuck in this window does not hammer the control plane every second.
+const CREATE_GATEWAY_TIMEOUT_MAX_WAIT_MS = 120_000;
+const CREATE_GATEWAY_TIMEOUT_BASE_POLL_MS = 1_000;
+const CREATE_GATEWAY_TIMEOUT_MAX_POLL_MS = 5_000;
+
+// A creation deadline the caller sets per request through an undocumented
+// header; it can only shorten the control plane's default. Capped below the
+// edge's 60s origin-read timeout so the control plane's 408 always reaches the
+// client instead of being masked by an edge 504.
+const CREATION_TIMEOUT_HEADER = "X-Blaxel-Creation-Timeout";
+export const MAX_CREATION_TIMEOUT_SECONDS = 50;
+
+/** Options of SandboxInstance.create / createIfNotExists. */
+export type SandboxCreateOptions = {
+  /** Check the sandbox answers (fs.ls) and delete it if it does not. Defaults to false. */
+  safe?: boolean;
+  /** Return the existing sandbox instead of failing when the name is taken. */
+  createIfNotExist?: boolean;
+  /**
+   * Give up on the creation after this many seconds (whole number, 1 to
+   * MAX_CREATION_TIMEOUT_SECONDS). The control plane releases the sandbox
+   * and the call rejects with a SandboxCreationTimeoutError. Unset, the
+   * control plane's default deadline applies.
+   */
+  timeout?: number;
+};
+
+/**
+ * Thrown by SandboxInstance.create / createIfNotExists when the sandbox was
+ * not ready within the creation deadline. The control plane has released the
+ * sandbox, so the name is free again and the creation can simply be started
+ * over. Catch it with `err instanceof SandboxCreationTimeoutError` or
+ * `isCreationTimeoutError(err)`.
+ */
+export class SandboxCreationTimeoutError extends Error {
+  readonly code = "CREATION_TIMEOUT";
+  readonly status = 408;
+  /** Raw error body returned by the control plane. */
+  readonly data: unknown;
+
+  constructor(
+    /** Name of the sandbox that was being created, if one was requested. */
+    readonly sandboxName: string | undefined,
+    /** The `timeout` option of the call, in seconds; undefined when the control plane's default applied. */
+    readonly timeout: number | undefined,
+    data: unknown,
+  ) {
+    const detail = typeof data === "object" && data !== null && typeof (data as { message?: unknown }).message === "string"
+      ? (data as { message: string }).message
+      : undefined;
+    const target = sandboxName ? `Sandbox ${sandboxName}` : "Sandbox";
+    const deadline = timeout !== undefined ? ` within ${timeout}s` : " within the creation deadline";
+    super(`${target} was not ready${deadline}; the creation was cancelled.${detail ? ` ${detail}` : ""}`);
+    this.name = "SandboxCreationTimeoutError";
+    this.data = data;
+  }
+}
+
+/** True when `err` is a sandbox creation timeout (408 CREATION_TIMEOUT). */
+export function isCreationTimeoutError(err: unknown): err is SandboxCreationTimeoutError {
+  return err instanceof SandboxCreationTimeoutError;
+}
+
+const isCreationTimeoutResponse = (status: number | undefined, e: unknown): boolean => {
+  if (status === 408) return true;
+  if (typeof e !== "object" || e === null) return false;
+  return (e as { code?: unknown }).code === "CREATION_TIMEOUT";
+};
+
+function validateCreateOptions({ timeout }: SandboxCreateOptions): { timeout?: number } {
+  if (timeout === undefined) return {};
+  if (!Number.isInteger(timeout) || timeout < 1 || timeout > MAX_CREATION_TIMEOUT_SECONDS) {
+    throw new Error(`SandboxInstance.create: 'timeout' must be a whole number of seconds between 1 and ${MAX_CREATION_TIMEOUT_SECONDS}, got ${timeout}.`);
+  }
+  return { timeout };
+}
 
 const isSandboxNotFound = (e: unknown): boolean => {
   if (typeof e !== "object" || e === null) return false;
@@ -53,6 +176,7 @@ export class SandboxInstance {
   codegen: SandboxCodegen;
   system: SandboxSystem;
   drives: SandboxDrive;
+  snapshots: SandboxSnapshotsResource;
   h2Session: http2.ClientHttp2Session | null;
 
   constructor(private sandbox: SandboxConfiguration) {
@@ -65,6 +189,7 @@ export class SandboxInstance {
     this.codegen = new SandboxCodegen(sandbox);
     this.system = new SandboxSystem(sandbox);
     this.drives = new SandboxDrive(sandbox);
+    this.snapshots = new SandboxSnapshotsResource(sandbox);
     this.h2Session = null;
   }
 
@@ -86,6 +211,16 @@ export class SandboxInstance {
 
   get lastUsedAt() {
     return this.sandbox.lastUsedAt;
+  }
+
+  /**
+   * Infrastructure failures the compute plane recorded for this sandbox, oldest
+   * first. Entries with `fatal: true` are the ones that moved it to FAILED; the
+   * others (e.g. a microVM that exited and restarted) are informational. Only
+   * returned when a single sandbox is read, never in listings.
+   */
+  get errors() {
+    return this.sandbox.errors ?? [];
   }
 
   get h2Domain() {
@@ -132,14 +267,114 @@ export class SandboxInstance {
     return this.network.fetch(port, path, init);
   }
 
+  /**
+   * Create a point-in-time snapshot of this sandbox. Snapshots capture the
+   * sandbox state and can be forked into new sandboxes or applications.
+   *
+   * @param name - Optional human-readable name for the snapshot.
+   * @deprecated Use `sandbox.snapshots.create(name)`.
+   */
+  async snapshot(name?: string): Promise<SandboxSnapshot> {
+    const { data } = await createSandboxSnapshot({
+      path: { sandboxName: this.metadata.name },
+      body: name ? { name } : {},
+      throwOnError: true,
+    });
+    return data;
+  }
+
+  /**
+   * List the snapshots of this sandbox.
+   *
+   * @deprecated Use `sandbox.snapshots.list()`.
+   */
+  async listSnapshots(): Promise<SandboxSnapshot[]> {
+    const { data } = await listSandboxSnapshots({
+      path: { sandboxName: this.metadata.name },
+      throwOnError: true,
+    });
+    return data;
+  }
+
+  /**
+   * Delete a snapshot of this sandbox by its ID.
+   *
+   * @deprecated Use `sandbox.snapshots.delete(name)`.
+   */
+  async deleteSnapshot(snapshotId: string): Promise<void> {
+    await deleteSandboxSnapshot({
+      path: { sandboxName: this.metadata.name, snapshotId },
+      throwOnError: true,
+    });
+  }
+
+  /**
+   * Restore this sandbox to one of its own snapshots. The sandbox keeps its
+   * name, its URLs and its previews: the running instance is torn down and
+   * rebuilt from the snapshot, so everything written since it was taken is
+   * lost unless it was snapshotted too.
+   *
+   * The restore is asked for without waiting on the guest, the same way a fork
+   * is: connections to a sandbox still resuming are retried by the gateway.
+   *
+   * @param snapshotId - ID of the snapshot to restore this sandbox to.
+   * @deprecated Use `sandbox.snapshots.restore(name)`.
+   */
+  async restore(snapshotId: string): Promise<SandboxRestoreResponse> {
+    const { data } = await restoreSandboxSnapshot({
+      path: { sandboxName: this.metadata.name, snapshotId },
+      throwOnError: true,
+    });
+    return data;
+  }
+
+  /**
+   * Fork this sandbox into a new sandbox or application.
+   *
+   * Forking into a sandbox copies the source sandbox's live state straight into
+   * the fork: no snapshot is taken, persisted, or left behind, and the returned
+   * `snapshotId` is empty.
+   *
+   * Pass `snapshotId` to fork from an existing snapshot instead of the source's
+   * live state (create a sandbox from a snapshot). Forking into an application
+   * (`targetType: "application"`) still goes through a snapshot, which is
+   * recorded because the application revision references it. In both of those
+   * cases the response carries the snapshot the fork came from.
+   *
+   * @param targetName - Name of the sandbox/application to create.
+   * @param options - Fork options (target type, port, traffic, snapshot, ...).
+   */
+  async fork(targetName: string, options: SandboxForkOptions = {}): Promise<SandboxForkResponse> {
+    const { data } = await forkSandbox({
+      path: { sandboxName: this.metadata.name },
+      body: {
+        targetName,
+        targetType: options.targetType ?? "sandbox",
+        ...(options.port !== undefined ? { port: options.port } : {}),
+        ...(options.traffic !== undefined ? { traffic: options.traffic } : {}),
+        ...(options.customDomain !== undefined ? { customDomain: options.customDomain } : {}),
+        ...(options.prefix !== undefined ? { prefix: options.prefix } : {}),
+        ...(options.snapshotId !== undefined ? { snapshotId: options.snapshotId } : {}),
+        ...(options.envs !== undefined ? { envs: options.envs } : {}),
+        ...(options.lifecycle !== undefined ? { lifecycle: options.lifecycle } : {}),
+      },
+      throwOnError: true,
+    });
+    return data;
+  }
+
   /* eslint-disable */
   async wait({ maxWait = 60000, interval = 1000 }: { maxWait?: number, interval?: number } = {}) {
     logger.warn("⚠️  Warning: sandbox.wait() is deprecated. You don't need to wait for the sandbox to be deployed anymore.");
     return this;
   }
 
-  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, { safe = false, createIfNotExist = false }: { safe?: boolean, createIfNotExist?: boolean } = {}) {
-    const defaultName = `sandbox-${uuidv4().replace(/-/g, '').substring(0, 8)}`
+  static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, options: SandboxCreateOptions = {}) {
+    const { safe = false, createIfNotExist = false } = options;
+    const { timeout } = validateCreateOptions(options);
+    // No client-side default name: when the caller omits a name we send the
+    // creation without metadata.name so the server can assign one and unnamed
+    // creations become eligible for warm sandbox pools (ENG-3931).
     const defaultImage = `blaxel/base-image:latest`
     const defaultMemory = 4096
 
@@ -159,7 +394,6 @@ export class SandboxInstance {
       'extraArgs' in sandbox
     ) {
       if (!sandbox) sandbox = {} as SandboxCreateConfiguration
-      if (!sandbox.name) sandbox.name = defaultName
       if (!sandbox.image) sandbox.image = defaultImage
       if (!sandbox.memory) sandbox.memory = defaultMemory
 
@@ -208,7 +442,8 @@ export class SandboxInstance {
 
     sandbox = sandbox as SandboxModel
     if (!sandbox.metadata) {
-      sandbox.metadata = { name: defaultName };
+      // Leave name unset so the server assigns one (ENG-3931).
+      sandbox.metadata = {} as SandboxModel["metadata"];
     }
     if (!sandbox.spec) {
       sandbox.spec = { runtime: { image: defaultImage, memory: defaultMemory } };
@@ -227,14 +462,29 @@ export class SandboxInstance {
       import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.warm(edgeDomain)).catch(() => { });
     }
 
-    const [{ data }, h2Session] = await Promise.all([
+    const headers = timeout !== undefined ? { [CREATION_TIMEOUT_HEADER]: String(timeout) } : undefined;
+    const [createResult, h2Session] = await Promise.all([
       createSandbox({
         body: sandbox,
         query: createIfNotExist ? { createIfNotExist } : undefined,
-        throwOnError: true,
+        headers,
       }),
       edgeDomain && !settings.disableH2 ? import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.get(edgeDomain)).catch(() => null) : Promise.resolve(null),
     ]);
+    let data = createResult.data;
+    if (createResult.error !== undefined) {
+      const name = sandbox.metadata.name;
+      if (isCreationTimeoutResponse(createResult.response.status, createResult.error)) {
+        throw new SandboxCreationTimeoutError(name, timeout, createResult.error);
+      }
+      if (createResult.response.status === 504 && name) {
+        // The edge gave up on the connection but the creation is still running
+        // server-side; wait for the record instead of failing (ENG-3662).
+        data = await SandboxInstance.waitAfterCreateGatewayTimeout(name, createResult.error);
+      } else {
+        throw createResult.error;
+      }
+    }
     // Inject the H2 session into the config so subsystems can use it
     const config = { ...data, h2Session, h2Domain: settings.disableH2 ? null : edgeDomain } as SandboxConfiguration;
     const instance = new SandboxInstance(config);
@@ -250,6 +500,108 @@ export class SandboxInstance {
       }
     }
     return instance;
+  }
+
+  /**
+   * Archive a sandbox: keep its filesystem, stop the sandbox.
+   *
+   * The filesystem changes made over the image are exported to the archive store
+   * and the sandbox is shut down; memory and running processes are lost, and the
+   * saved processes start again from their configuration when the sandbox is
+   * unarchived. The export runs in the background: this waits until the sandbox
+   * is ARCHIVED, pass `{ wait: false }` to return as soon as it is launched.
+   */
+  static async archive(sandboxName: string, options: SandboxArchiveOptions = {}) {
+    const { data } = await archiveSandbox({
+      path: { sandboxName },
+      throwOnError: true,
+    });
+    return SandboxInstance.waitForArchiveStatus(sandboxName, data, "ARCHIVED", ARCHIVING_STATUSES, ARCHIVE_ENTRY_STATUS, "archive", options);
+  }
+
+  /**
+   * Archive this sandbox: keep its filesystem, stop the sandbox.
+   *
+   * @see SandboxInstance.archive
+   */
+  async archive(options: SandboxArchiveOptions = {}) {
+    const instance = await SandboxInstance.archive(this.metadata.name!, options);
+    this.refreshFrom(instance);
+    return this;
+  }
+
+  /**
+   * Recreate an archived sandbox from its archive.
+   *
+   * The sandbox is started again from its image, and the archived filesystem is
+   * written back over it. The sandbox answers, and its terminal is reachable, while the archived
+   * filesystem is written back over its image. This waits until the restore is
+   * done and the saved processes are running again; pass `{ wait: false }` to
+   * return while the sandbox is still UNARCHIVING.
+   */
+  static async unarchive(sandboxName: string, options: SandboxArchiveOptions = {}) {
+    const { data } = await unarchiveSandbox({
+      path: { sandboxName },
+      throwOnError: true,
+    });
+    return SandboxInstance.waitForArchiveStatus(sandboxName, data, "DEPLOYED", UNARCHIVING_STATUSES, UNARCHIVE_ENTRY_STATUS, "unarchive", options);
+  }
+
+  /**
+   * Recreate this sandbox from its archive.
+   *
+   * @see SandboxInstance.unarchive
+   */
+  async unarchive(options: SandboxArchiveOptions = {}) {
+    const instance = await SandboxInstance.unarchive(this.metadata.name!, options);
+    this.refreshFrom(instance);
+    return this;
+  }
+
+  // The subsystems (fs, process, previews, ...) hold the configuration object
+  // this instance was built with, so a refresh writes into it rather than
+  // replacing it. Anything the read did not carry, the forced URL of a session
+  // above all, is kept.
+  private refreshFrom(instance: SandboxInstance) {
+    Object.assign(this.sandbox, instance.sandbox);
+  }
+
+  private static async waitForArchiveStatus(
+    sandboxName: string,
+    launched: SandboxModel,
+    target: string,
+    pending: Set<string>,
+    entry: string,
+    action: string,
+    { wait = true, maxWait = ARCHIVE_MAX_WAIT_MS, interval = ARCHIVE_WAIT_POLL_MS }: SandboxArchiveOptions,
+  ): Promise<SandboxInstance> {
+    if (!wait || launched.status === target) {
+      return SandboxInstance.attachH2Session(new SandboxInstance(launched));
+    }
+    const deadline = Date.now() + maxWait;
+    // The status the sandbox is given back at is tolerated while the operation
+    // turns into a status change, but never past the wait the caller asked for.
+    const entryDeadline = Date.now() + Math.min(ARCHIVE_ENTRY_MAX_WAIT_MS, maxWait);
+    let started = false;
+    for (;;) {
+      await new Promise((resolve) => setTimeout(resolve, interval));
+      const instance = await SandboxInstance.get(sandboxName);
+      const status = instance.status;
+      if (status === target) {
+        return instance;
+      }
+      if (pending.has(status ?? "")) {
+        started = true;
+      } else if (status === entry && !started && Date.now() < entryDeadline) {
+        continue;
+      }
+      if (!pending.has(status ?? "")) {
+        throw new Error(`Sandbox ${sandboxName} is ${status} while it should ${action}`);
+      }
+      if (Date.now() >= deadline) {
+        throw new Error(`Sandbox ${sandboxName} is still ${status} after waiting ${Math.round(maxWait / 1000)}s for it to ${action}`);
+      }
+    }
   }
 
   static async get(sandboxName: string) {
@@ -381,76 +733,46 @@ export class SandboxInstance {
     return SandboxInstance.attachH2Session(instance);
   }
 
-  static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration) {
-    const ATTEMPTS = 3;
-    let lastStatus = "unknown";
-    for (let i = 0; i < ATTEMPTS; ++i) {
-      const finalAttempt = i === ATTEMPTS - 1;
-      try {
-        return await this.create(sandbox, { createIfNotExist: true });
-      } catch (e) {
-        if (typeof e === "object" && e !== null && "code" in e && (e.code === 409 || e.code === 'SANDBOX_ALREADY_EXISTS')) {
-          const name = 'name' in sandbox ? sandbox.name : (sandbox as SandboxModel).metadata.name
-          if (!name) {
-            throw new Error("Sandbox name is required");
-          }
-
-          // Get the existing sandbox to check its status
-          let sandboxInstance: SandboxInstance;
-          try {
-            sandboxInstance = await this.get(name);
-          } catch (getError) {
-            if (isSandboxNotFound(getError)) {
-              // The record vanished between the create conflict and this status check
-              // (its deletion just finished); give the control plane a beat and retry.
-              lastStatus = "vanished";
-              if (!finalAttempt) {
-                await new Promise((resolve) => setTimeout(resolve, TRANSIENT_STATUS_POLL_MS));
-              }
-              continue;
-            }
-            throw getError;
-          }
-
-          // Recreate instead of returning sandbox records that cannot be reused.
-          if (!NON_REUSABLE_SANDBOX_STATUSES.has(sandboxInstance.status ?? "")) {
-            return sandboxInstance;
-          }
-
-          // A delete or deactivation in flight rejects creates until it finishes;
-          // wait it out instead of burning the remaining attempts inside the window.
-          // No point waiting after the last attempt: nothing will use the result.
-          lastStatus = sandboxInstance.status ?? "unknown";
-          if (TRANSIENT_SANDBOX_STATUSES.has(lastStatus) && !finalAttempt) {
-            await this.waitWhileSandboxDying(name);
-          }
-
-          // Retry creation. We want the same error handling on the retry as creates can race.
-          continue;
-        }
-        throw e;
-      }
-    }
-    throw new Error(`Unable to create sandbox after ${ATTEMPTS} attempts. Last conflicting status: ${lastStatus}.`);
+  /**
+   * Create the sandbox, or return the one already holding this name.
+   *
+   * The control plane owns the reconciliation: an alive sandbox is returned as
+   * is, a FAILED/TERMINATED one is replaced, and a deletion or concurrent
+   * creation still in flight is waited for server-side. A 409 therefore only
+   * surfaces when the name really cannot be used, and is thrown as is.
+   * `options` (e.g. `timeout`) are forwarded to `create`.
+   */
+  static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration, options: Omit<SandboxCreateOptions, "createIfNotExist"> = {}) {
+    return this.create(sandbox, { ...options, createIfNotExist: true });
   }
 
-  // Poll the record until an in-flight delete/deactivation settles (or the record
-  // disappears), bounded by TRANSIENT_STATUS_MAX_WAIT_MS. Errors from get (e.g. 404
-  // once the record is gone) end the wait: the caller's create retry decides next.
-  private static async waitWhileSandboxDying(name: string): Promise<void> {
-    const deadline = Date.now() + TRANSIENT_STATUS_MAX_WAIT_MS;
+  // Poll the record after a create was cut by the edge with a 504 while the
+  // control plane is still deploying it. Resolves with the sandbox once it
+  // reaches DEPLOYED; throws on FAILED or once the wait budget is spent.
+  private static async waitAfterCreateGatewayTimeout(name: string, createError: unknown): Promise<SandboxModel> {
+    logger.debug(`Sandbox ${name} creation timed out at the edge (504); polling the record while it finishes deploying`);
+    const deadline = Date.now() + CREATE_GATEWAY_TIMEOUT_MAX_WAIT_MS;
+    let attempt = 0;
     while (Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, TRANSIENT_STATUS_POLL_MS));
+      attempt++;
+      await new Promise((resolve) =>
+        setTimeout(resolve, backoffDelayMs(attempt, CREATE_GATEWAY_TIMEOUT_BASE_POLL_MS, CREATE_GATEWAY_TIMEOUT_MAX_POLL_MS)),
+      );
+      let current: SandboxModel;
       try {
-        const current = await this.get(name);
-        if (!TRANSIENT_SANDBOX_STATUSES.has(current.status ?? "")) {
-          return;
-        }
-        logger.debug(`Sandbox ${name} still ${current.status}; waiting for the record to settle before recreating`);
-      } catch {
-        return;
+        const { data } = await getSandbox({ path: { sandboxName: name }, throwOnError: true });
+        current = data;
+      } catch (e) {
+        // The record can lag behind the accepted create; keep waiting on 404.
+        if (isSandboxNotFound(e)) continue;
+        throw e;
+      }
+      if (current.status === "DEPLOYED") return current;
+      if (current.status === "FAILED") {
+        throw new Error(`Sandbox ${name} failed to deploy after the create timed out at the edge (504).`);
       }
     }
+    throw createError;
   }
 
   /* eslint-disable */
