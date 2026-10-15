@@ -43,6 +43,72 @@ export interface ImageBuildOptions {
   timeout?: number;
   onStatusChange?: (status: string) => void;
   sandboxVersion?: string;
+  /**
+   * Memory of the environment the image is built in, in MB (1-32768). Same as
+   * `bl push --memory`. Does not change the deployed sandbox's `memory`.
+   */
+  buildMemory?: number;
+  /**
+   * Disk attached to the build for its intermediate layers, in MB (0-131072).
+   * Same as `bl push --volume`; 0 builds in memory.
+   */
+  buildVolume?: number;
+  /**
+   * Region the image is built in, such as "us-was-1". Same as `[build].region`
+   * in blaxel.toml; defaults to the platform's build region.
+   */
+  buildRegion?: string;
+  /** @deprecated Use `buildMemory`. */
+  buildMemoryMb?: number;
+  /** @deprecated Use `buildVolume`. */
+  buildVolumeMb?: number;
+}
+
+// Build settings travel as sandbox labels. The control plane signs the allowed
+// ones into the upload URL, and the upload must send them back as matching
+// x-amz-meta-* headers or storage rejects it.
+const BUILD_UPLOAD_LABELS = [
+  "x-blaxel-builder",
+  "x-blaxel-experimental",
+  "x-blaxel-build-memory",
+  "x-blaxel-build-volume",
+  "x-blaxel-build-region",
+  "x-blaxel-build-cache",
+];
+const MAX_BUILD_UPLOAD_LABEL_VALUE = 64;
+// The builder ignores a region that is not a resource name, so reject it here.
+const BUILD_REGION_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
+
+// Reads an option that also has a deprecated `...Mb` spelling.
+function buildSizeLabel(
+  option: string,
+  value: number | undefined,
+  deprecatedValue: number | undefined,
+  min: number,
+  max: number
+): string | undefined {
+  if (value !== undefined && deprecatedValue !== undefined) {
+    throw new Error(`Set ${option} or ${option}Mb, not both`);
+  }
+  const size = value ?? deprecatedValue;
+  if (size === undefined) {
+    return undefined;
+  }
+  if (!Number.isInteger(size) || size < min || size > max) {
+    throw new Error(`${value !== undefined ? option : `${option}Mb`} must be an integer between ${min} and ${max} MB`);
+  }
+  return String(size);
+}
+
+function buildUploadMetadata(labels: Record<string, unknown> | undefined): Record<string, string> {
+  const metadata: Record<string, string> = {};
+  for (const name of BUILD_UPLOAD_LABELS) {
+    const value = labels?.[name];
+    if (typeof value === "string" && value !== "" && value.length <= MAX_BUILD_UPLOAD_LABEL_VALUE) {
+      metadata[name] = value;
+    }
+  }
+  return metadata;
 }
 
 export interface PipInstallOptions {
@@ -782,9 +848,10 @@ export class ImageInstance {
     });
   }
 
-  private _createSandboxPayload(name: string, memory: number = 4096): Sandbox {
+  private _createSandboxPayload(name: string, memory: number = 4096, buildLabels: MetadataLabels = {}): Sandbox {
     const labels: MetadataLabels = {
       "x-blaxel-auto-generated": "true",
+      ...buildLabels,
     };
 
     const metadata: Metadata = {
@@ -838,12 +905,56 @@ export class ImageInstance {
     return { response, uploadUrl };
   }
 
-  private async _uploadZip(uploadUrl: string, zipContent: Uint8Array): Promise<void> {
+  /**
+   * Creates or updates the sandbox and returns its upload URL with the build
+   * metadata that URL was signed for, plus requested settings it was not.
+   */
+  private async _requestUpload(
+    sandbox: Sandbox,
+    requested: MetadataLabels
+  ): Promise<{ uploadUrl: string; metadata: Record<string, string>; missing: string[] }> {
+    const { response, uploadUrl } = await this._createSandboxWithUpload(sandbox);
+
+    if (response.status >= 400) {
+      const text = await response.text();
+      throw new Error(`Failed to create sandbox: ${response.status} - ${text}`);
+    }
+
+    if (!uploadUrl) {
+      throw new Error("No upload URL returned from API");
+    }
+
+    // Sign-matching headers come from the labels the control plane stored,
+    // which can include build settings already on an existing sandbox.
+    let storedLabels: Record<string, unknown> | undefined = sandbox.metadata?.labels;
+    try {
+      const stored = (await response.json()) as Sandbox;
+      storedLabels = stored.metadata?.labels ?? storedLabels;
+    } catch {
+      // Fall back to the labels we sent
+    }
+
+    // Storage rejects headers the URL was not signed for, so drop those.
+    let metadata = buildUploadMetadata(storedLabels);
+    const query = new URL(uploadUrl).searchParams;
+    const signedHeaders = query.get("X-Amz-SignedHeaders") ?? query.get("X-Goog-SignedHeaders");
+    if (signedHeaders) {
+      const signed = new Set(signedHeaders.split(";").map((header) => header.trim().toLowerCase()));
+      metadata = Object.fromEntries(Object.entries(metadata).filter(([name]) => signed.has(`x-amz-meta-${name}`)));
+    }
+    return { uploadUrl, metadata, missing: Object.keys(requested).filter((name) => !(name in metadata)) };
+  }
+
+  private async _uploadZip(uploadUrl: string, zipContent: Uint8Array, metadata: Record<string, string> = {}): Promise<void> {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/zip",
+    };
+    for (const [name, value] of Object.entries(metadata)) {
+      headers[`x-amz-meta-${name}`] = value;
+    }
     const response = await fetch(uploadUrl, {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/zip",
-      },
+      headers,
       body: zipContent,
     });
 
@@ -931,6 +1042,23 @@ export class ImageInstance {
   async build(options: ImageBuildOptions): Promise<Sandbox> {
     const { name, memory = 4096, timeout = 900000, onStatusChange, sandboxVersion = "latest" } = options;
 
+    const buildLabels: MetadataLabels = {};
+    const buildMemory = buildSizeLabel("buildMemory", options.buildMemory, options.buildMemoryMb, 1, 32768);
+    if (buildMemory !== undefined) {
+      buildLabels["x-blaxel-build-memory"] = buildMemory;
+    }
+    // Keep an explicit 0: it asks for memory-backed scratch instead of the default.
+    const buildVolume = buildSizeLabel("buildVolume", options.buildVolume, options.buildVolumeMb, 0, 131072);
+    if (buildVolume !== undefined) {
+      buildLabels["x-blaxel-build-volume"] = buildVolume;
+    }
+    if (options.buildRegion !== undefined) {
+      if (typeof options.buildRegion !== "string" || !BUILD_REGION_PATTERN.test(options.buildRegion)) {
+        throw new Error("buildRegion must be a region name such as us-was-1");
+      }
+      buildLabels["x-blaxel-build-region"] = options.buildRegion;
+    }
+
     // Prepare image for sandbox deployment (add sandbox-api and entrypoint)
     const preparedImage = this._prepareForSandbox(sandboxVersion);
 
@@ -942,22 +1070,21 @@ export class ImageInstance {
       const zipContent = await this._createZip(buildDir);
 
       // Create sandbox payload
-      const sandboxPayload = this._createSandboxPayload(name, memory);
+      const sandboxPayload = this._createSandboxPayload(name, memory, buildLabels);
 
       // Create/update sandbox and get upload URL
-      const { response, uploadUrl } = await this._createSandboxWithUpload(sandboxPayload);
-
-      if (response.status >= 400) {
-        const text = await response.text();
-        throw new Error(`Failed to create sandbox: ${response.status} - ${text}`);
-      }
-
-      if (!uploadUrl) {
-        throw new Error("No upload URL returned from API");
+      let { uploadUrl, metadata, missing } = await this._requestUpload(sandboxPayload, buildLabels);
+      if (missing.length > 0) {
+        // Creating a sandbox can return a URL without the build settings
+        // signed; asking again updates the now existing sandbox, which does.
+        ({ uploadUrl, metadata, missing } = await this._requestUpload(sandboxPayload, buildLabels));
+        if (missing.length > 0) {
+          throw new Error(`The platform did not accept build settings ${missing.join(", ")}; retry without them`);
+        }
       }
 
       // Upload the zip
-      await this._uploadZip(uploadUrl, zipContent);
+      await this._uploadZip(uploadUrl, zipContent, metadata);
 
       // Wait for deployment to complete
       await this._waitForDeployment(name, timeout, 3000, onStatusChange);

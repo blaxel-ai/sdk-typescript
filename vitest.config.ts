@@ -60,12 +60,20 @@ export default defineConfig({
       // source is gone": a fork is a full sandbox start on top of the snapshot
       // the rest of the file already takes.
       RUN_SLOW_SNAPSHOT_FORK: process.env.RUN_SLOW_SNAPSHOT_FORK ?? "false",
+      // lifecycle.test.ts > TTL / ttl-max-age expiry and "clearing a short TTL
+      // keeps the sandbox alive": the API's minimum TTL is 5m, so each test
+      // waits 5-8 minutes for (or past) an expiration.
+      RUN_SLOW_TTL: process.env.RUN_SLOW_TTL ?? "false",
       // image-build.test.ts > "Image Build Integration": builds AND deploys a
       // custom image -- heavy and slow, needs the image-build pipeline.
       IMAGE_BUILD: process.env.IMAGE_BUILD ?? "false",
       // image.test.ts > "with custom Docker images": needs prebuilt custom
       // Docker images to be available/pullable in the target workspace.
       ENABLE_CUSTOM_DOCKER_TESTS: process.env.ENABLE_CUSTOM_DOCKER_TESTS ?? "false",
+      // custom-domains.test.ts > "Custom domain validation method": creates and
+      // deletes real custom domains (dns/http certificate validation) in the
+      // workspace, kept out of the default run.
+      RUN_CUSTOM_DOMAIN_TESTS: process.env.RUN_CUSTOM_DOMAIN_TESTS ?? "false",
 
       // Credential gates (default "", i.e. skipped until provided) ---------
       // codegen.test.ts > "fastapply with Relace": third-party Relace API key.
