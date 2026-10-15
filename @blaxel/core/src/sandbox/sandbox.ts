@@ -413,6 +413,7 @@ export class SandboxInstance {
       const network = sandbox.network;
       const snapshotEnabled = sandbox.snapshotEnabled;
       const extraArgs = sandbox.extraArgs;
+      const { terminationGracePeriodSeconds, standbyGracePeriodSeconds } = sandbox;
 
       sandbox = {
         metadata: { name: sandbox.name, labels: sandbox.labels, externalId: sandbox.externalId },
@@ -426,6 +427,8 @@ export class SandboxInstance {
             generation: "mk3",
             snapshotEnabled,
             extraArgs,
+            terminationGracePeriodSeconds,
+            standbyGracePeriodSeconds,
           },
           volumes: volumes,
           lifecycle: lifecycle,
