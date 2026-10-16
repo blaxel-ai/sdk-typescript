@@ -40,7 +40,7 @@ describe('Sandbox lifecycle grace periods', () => {
       name,
       image: defaultImage,
       region: defaultRegion,
-      standbyGracePeriodSeconds: 31,
+      standbyGracePeriodSeconds: 301,
       labels: defaultLabels,
     })).rejects.toThrow(/standbyGracePeriodSeconds/)
   })
