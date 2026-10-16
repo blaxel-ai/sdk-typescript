@@ -8,13 +8,21 @@
  */
 
 import { afterAll, describe, expect, it } from 'vitest'
-import { SecretInstance, settings, upsertSecret } from "@blaxel/core"
+import { SecretInstance, deleteSecret, upsertSecret } from "@blaxel/core"
 import { uniqueName } from './helpers.js'
 
-// Workspace secrets are behind the "workspace-secrets" feature flag (403 when off,
-// 404 on environments that predate controlplane#5736): skip unless the workspace has them.
-const probe = await fetch(`${settings.baseUrl}/secrets`, { headers: settings.headers })
-const secretsEnabled = probe.status !== 403 && probe.status !== 404
+// Workspace secrets are behind the "workspace-secrets" feature flag (403 when off, 404 on
+// environments that predate controlplane#5736), and environments that predate controlplane#5802
+// accept but silently drop `destinations`. Probe with a throwaway secret and skip unless the
+// API echoes the destinations back.
+async function destinationsSupported(): Promise<boolean> {
+  const name = uniqueName('sdk-test-secret-probe')
+  const { response, data } = await upsertSecret({ body: { name, value: 'probe', destinations: ['api.stripe.com'] } })
+  if (!response.ok) return false
+  await deleteSecret({ path: { secretName: name } }).catch(() => undefined)
+  return Array.isArray(data?.destinations)
+}
+const secretsEnabled = await destinationsSupported()
 
 function byName(secrets: SecretInstance[], name: string): SecretInstance[] {
   return secrets.filter((s) => s.name === name)
