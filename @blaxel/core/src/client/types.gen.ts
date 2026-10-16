@@ -4617,13 +4617,17 @@ export type SandboxSpec = {
 };
 
 /**
- * Workspace secret, referenced from proxy routing as {{SECRET:name}}. Values are write-only and can never be read back. Every upsert stores a new immutable version and the latest one is resolved at runtime.
+ * Workspace secret, referenced from proxy routing as {{SECRET:name}}. Values are write-only and can never be read back. Every upsert stores a new immutable version and the latest one is resolved at runtime, only for requests to its destinations.
  */
 export type Secret = {
     /**
      * The date and time when the secret was first created
      */
     readonly createdAt?: string;
+    /**
+     * Destinations the secret resolves for, same syntax as routing destinations: a host, optionally followed by a path glob. The secret is never substituted toward any other destination.
+     */
+    destinations: Array<string>;
     /**
      * Case-sensitive secret name
      */
@@ -4639,9 +4643,13 @@ export type Secret = {
 };
 
 /**
- * Workspace secret, referenced from proxy routing as {{SECRET:name}}. Values are write-only and can never be read back. Every upsert stores a new immutable version and the latest one is resolved at runtime.
+ * Workspace secret, referenced from proxy routing as {{SECRET:name}}. Values are write-only and can never be read back. Every upsert stores a new immutable version and the latest one is resolved at runtime, only for requests to its destinations.
  */
 export type SecretWritable = {
+    /**
+     * Destinations the secret resolves for, same syntax as routing destinations: a host, optionally followed by a path glob. The secret is never substituted toward any other destination.
+     */
+    destinations: Array<string>;
     /**
      * Case-sensitive secret name
      */
