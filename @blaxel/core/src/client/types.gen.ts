@@ -4158,6 +4158,10 @@ export type SandboxRuntime = {
     memory?: number;
     ports?: Ports;
     /**
+     * Seconds the sandbox gets after a SIGUSR2 to prepare before it goes to standby (scale to zero). The workload can say it is done earlier by writing to $BLAXEL_STANDBY_READY_FILE. Defaults to 0: no signal, immediate standby.
+     */
+    standbyGracePeriodSeconds?: number;
+    /**
      * Duration in seconds the pod needs to terminate gracefully. Defaults to 0 for immediate termination.
      */
     terminationGracePeriodSeconds?: number;
