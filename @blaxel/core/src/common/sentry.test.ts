@@ -489,4 +489,38 @@ describe("SDK Sentry boundary", () => {
       extra: { count: 1 },
     });
   });
+
+  it("reports an on-demand establish failure but not a speculative warm one", async () => {
+    const fetchMock = createFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { flushSentry, initSentry } = await import("./sentry.js");
+    initSentry();
+    const { H2Pool } = await import("./h2pool.js");
+    const pool = new H2Pool();
+    (pool as unknown as { _establish: () => Promise<never> })._establish = () =>
+      Promise.reject(new Error("connect refused"));
+    const domain = "any.us-pdx-1.bl.run";
+
+    // Fire-and-forget warm: establish fails, but no request is degraded, so no
+    // Sentry degradation warning is emitted.
+    pool.warm(domain);
+    await (
+      pool as unknown as { inflight: Map<string, Promise<unknown>> }
+    ).inflight.get(domain);
+    await flushSentry();
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    // On-demand get: establish fails while serving a real request, which is a
+    // true transport degradation and is reported.
+    await pool.get(domain);
+    await flushSentry();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(eventFromFetch(fetchMock)).toMatchObject({
+      level: "warning",
+      message: "h2 transport degradation: establish-failure",
+      fingerprint: ["h2-degradation", "establish-failure", "blaxel-edge:prod:us-pdx-1"],
+    });
+  });
 });
