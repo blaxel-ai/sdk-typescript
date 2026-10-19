@@ -34,8 +34,8 @@ async function injectedKey(sandbox: SandboxInstance): Promise<string | undefined
     command: `curl -s https://${ECHO_HOST}/headers`,
     waitForCompletion: true,
   })
-  const headers = JSON.parse(logs ?? "{}").headers ?? {}
-  return headers["X-Api-Key"]
+  const body = JSON.parse(logs ?? "{}") as { headers?: Record<string, string> }
+  return body.headers?.["X-Api-Key"]
 }
 
 async function expectKey(sandbox: SandboxInstance, expected: string) {
