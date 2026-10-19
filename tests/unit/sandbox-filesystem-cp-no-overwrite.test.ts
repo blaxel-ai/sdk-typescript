@@ -37,8 +37,43 @@ describe("SandboxFileSystem.cp noOverwrite", () => {
       body: { source, destination, noOverwrite: true },
       headers: { "Content-Type": "application/json" },
       baseUrl: "http://sandbox.local",
+      signal: expect.any(AbortSignal) as AbortSignal,
     });
     expect(exec).not.toHaveBeenCalled();
+  });
+
+  it("aborts the request once maxWait elapses", async () => {
+    vi.useFakeTimers();
+    try {
+      const { filesystem, post } = harness();
+      post.mockImplementationOnce(({ signal }: { signal: AbortSignal }) => new Promise((_, reject) => {
+        signal.addEventListener("abort", () => reject(new DOMException("The operation was aborted.", "AbortError")));
+      }));
+      const copy = filesystem.cp("src", "dst", { noOverwrite: true, maxWait: 50 });
+      const assertion = expect(copy).rejects.toThrow("Could not copy src to dst within 50 ms");
+      await vi.advanceTimersByTimeAsync(50);
+      await assertion;
+      expect(post).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("sets no timer when maxWait is -1", async () => {
+    const { filesystem } = harness();
+    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    try {
+      await filesystem.cp("src", "dst", { noOverwrite: true, maxWait: -1 });
+      expect(setTimeoutSpy).not.toHaveBeenCalled();
+    } finally {
+      setTimeoutSpy.mockRestore();
+    }
+  });
+
+  it.each([-2, Infinity, NaN])("rejects an invalid maxWait before any request: %s", async maxWait => {
+    const { filesystem, post } = harness();
+    await expect(filesystem.cp("src", "dst", { noOverwrite: true, maxWait })).rejects.toThrow(RangeError);
+    expect(post).not.toHaveBeenCalled();
   });
 
   it("throws SandboxFileExistsError on 409 FILE_ALREADY_EXISTS", async () => {
