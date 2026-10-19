@@ -6,6 +6,7 @@ import { backoffDelayMs, GATEWAY_ERROR_STATUSES, isTransientResetError } from ".
 import { createPaginatedList } from "../common/pagination.js";
 import { settings } from "../common/settings.js";
 import { getHealth } from "./client/index.js";
+import { v4 as uuidv4 } from "uuid";
 import { SandboxCodegen } from "./codegen/index.js";
 import { SandboxDrive } from "./drive/index.js";
 import { SandboxFileSystem } from "./filesystem/index.js";
@@ -711,12 +712,16 @@ export class SandboxInstance {
       interval,
       seconds: Math.round(maxWait / 1000),
     };
-    const reset = await SandboxInstance.resetOnControlPlane(sandboxName, wait);
+    // The sandbox the reset is for, read alongside the reset call so that it
+    // adds no wait: every later step checks it still has that createdAt.
+    const entry = SandboxInstance.readForReset(sandboxName, wait);
+    entry.catch(() => undefined);
+    const reset = await SandboxInstance.resetOnControlPlane(sandboxName, entry, uuidv4(), wait);
     if (reset) {
       const instance = await SandboxInstance.attachH2Session(new SandboxInstance(reset));
       return SandboxInstance.waitUntilAnswering(sandboxName, instance, wait);
     }
-    return SandboxInstance.resetBySwitching(sandboxName, wait);
+    return SandboxInstance.resetBySwitching(sandboxName, await entry, wait);
   }
 
   /**
@@ -732,24 +737,31 @@ export class SandboxInstance {
 
   // Ask the control plane to replace the sandbox's instance. Answers the
   // sandbox once its new instance runs, or nothing when the control plane has
-  // no such call, for the reset to switch the sandbox off and on instead. A
-  // reset asked for twice resets twice, so an answer lost at the edge or on
-  // the way is asked for again while there is time.
-  private static async resetOnControlPlane(sandboxName: string, wait: ResetWait): Promise<SandboxModel | undefined> {
+  // no such call, for the reset to switch the sandbox off and on instead. An
+  // answer lost at the edge or on the way is asked for again while there is
+  // time, with the same Idempotency-Key: a control plane that already ran the
+  // reset, or is still running it, answers with the sandbox instead of
+  // replacing its instance a second time. The call goes by name, so it is
+  // asked for again only while the name still holds the sandbox the reset is
+  // for.
+  private static async resetOnControlPlane(sandboxName: string, entry: Promise<SandboxModel>, idempotencyKey: string, wait: ResetWait): Promise<SandboxModel | undefined> {
     for (let attempt = 1; ; attempt++) {
       let status: number | undefined;
       let failure: unknown;
+      if (attempt > 1) await SandboxInstance.checkStillThere(sandboxName, await entry, wait);
+      let reset: SandboxModel | undefined;
       try {
         const { data, error, response } = await withDeadline(remainingMs(wait), (signal) =>
           controlPlaneClient.post<SandboxModel, unknown, false>({
             security: [{ scheme: "bearer", type: "http" }],
             url: "/sandboxes/{sandboxName}/reset",
             path: { sandboxName },
+            headers: { "Idempotency-Key": idempotencyKey },
             signal,
           }),
         );
-        if (response.ok && data) return data;
         if (isUnknownRoute(response.status, error)) return undefined;
+        if (response.ok && data) reset = data;
         status = response.status;
         failure = error ?? { code: response.status, error: response.statusText };
       } catch (e) {
@@ -762,6 +774,13 @@ export class SandboxInstance {
         if (!isTransientResetError(e)) throw e;
         failure = e;
       }
+      if (reset) {
+        const started = await entry.catch(() => undefined);
+        if (started && reset.metadata.createdAt !== started.metadata.createdAt) {
+          throw new ResetGenerationError(`Sandbox ${sandboxName} was deleted and created again as its reset started; the new sandbox was reset`);
+        }
+        return reset;
+      }
       const retryable = status === undefined || GATEWAY_ERROR_STATUSES.has(status);
       if (!retryable) throw failure;
       const delay = backoffDelayMs(attempt, 200, 2000);
@@ -769,6 +788,21 @@ export class SandboxInstance {
         throw new Error(`Sandbox ${sandboxName} could not be reset within ${wait.seconds}s: ${describeApiError(failure)}`, { cause: failure });
       }
       await sleep(delay);
+    }
+  }
+
+  // Before a reset call is sent again: the sandbox must still be the one the
+  // reset is for. The call whose answer was lost may have reached a sandbox
+  // created again under the name, which is not reset a second time.
+  private static async checkStillThere(sandboxName: string, entry: SandboxModel, wait: ResetWait) {
+    const record = await SandboxInstance.readForReset(sandboxName, wait).catch((e: unknown) => {
+      if (isSandboxNotFound(e)) throw new ResetGenerationError(`Sandbox ${sandboxName} was deleted during its reset`, e);
+      throw e;
+    });
+    if (record.metadata.createdAt !== entry.metadata.createdAt) {
+      throw new ResetGenerationError(
+        `Sandbox ${sandboxName} was deleted and created again during its reset; the reset call whose answer was lost may have reached the new sandbox, which is not reset again`,
+      );
     }
   }
 
@@ -812,8 +846,7 @@ export class SandboxInstance {
   // wait until it is deployed again and answers. Every write is preceded by a
   // fresh read of the record, and refused unless the sandbox is still the one
   // being reset and still in a state the write is meant for.
-  private static async resetBySwitching(sandboxName: string, wait: ResetWait): Promise<SandboxInstance> {
-    const current = await SandboxInstance.readForReset(sandboxName, wait);
+  private static async resetBySwitching(sandboxName: string, current: SandboxModel, wait: ResetWait): Promise<SandboxInstance> {
     const status = current.status ?? "";
     if (!RESETTABLE_STATUSES.has(status)) {
       throw new Error(`Sandbox ${sandboxName} is ${status || "in an unknown state"} and cannot be reset`);

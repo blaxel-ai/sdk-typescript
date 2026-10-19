@@ -41,6 +41,9 @@ const record = (status: string, enabled = true, events: Event[] = [], createdAt 
 });
 const off = (...events: Event[]) => record("DEACTIVATED", false, events);
 
+// The Idempotency-Key a reset call carried.
+const keyOf = (call: number) => (post.mock.calls[call][0] as { headers?: Record<string, string> }).headers?.["Idempotency-Key"];
+
 const bodyOf = (call: number) =>
   (mockedUpdate.mock.calls[call][0] as unknown as { body: ReturnType<typeof record> }).body;
 
@@ -75,6 +78,10 @@ describe("SandboxInstance.reset", () => {
   });
 
   describe("on a control plane with the reset call", () => {
+    beforeEach(() => {
+      mockedGet.mockResolvedValue({ data: record("DEPLOYED") } as never);
+    });
+
     it("resets the sandbox in one call and waits until it answers", async () => {
       post.mockResolvedValueOnce(resetDone() as never);
 
@@ -85,9 +92,10 @@ describe("SandboxInstance.reset", () => {
       const call = post.mock.calls[0][0] as { url: string; path: { sandboxName: string } };
       expect(call.url).toBe("/sandboxes/{sandboxName}/reset");
       expect(call.path.sandboxName).toBe("my-sandbox");
+      expect(keyOf(0)).toMatch(/^[0-9a-f-]{36}$/);
       expect(mockedHealth).toHaveBeenCalledTimes(1);
-      // Nothing is switched off and on.
-      expect(mockedGet).not.toHaveBeenCalled();
+      // The record is read once, alongside the call, and nothing is switched off and on.
+      expect(mockedGet).toHaveBeenCalledTimes(1);
       expect(mockedUpdate).not.toHaveBeenCalled();
     });
 
@@ -114,7 +122,7 @@ describe("SandboxInstance.reset", () => {
       post.mockResolvedValueOnce(refused(409, "This sandbox is archived, unarchive it before resetting it") as never);
 
       await expect(SandboxInstance.reset("my-sandbox", { interval: 0 })).rejects.toMatchObject({ code: 409 });
-      expect(mockedGet).not.toHaveBeenCalled();
+      expect(post).toHaveBeenCalledTimes(1);
       expect(mockedUpdate).not.toHaveBeenCalled();
     });
 
@@ -135,6 +143,53 @@ describe("SandboxInstance.reset", () => {
 
       expect(instance.status).toBe("DEPLOYED");
       expect(post).toHaveBeenCalledTimes(3);
+      // Each call sent again follows a read showing the same sandbox, and
+      // carries the key of the first: a control plane that already ran the
+      // reset does not run it again.
+      expect(mockedGet).toHaveBeenCalledTimes(3);
+      expect(keyOf(1)).toBe(keyOf(0));
+      expect(keyOf(2)).toBe(keyOf(0));
+    });
+
+    it("gives every reset its own key", async () => {
+      post.mockResolvedValueOnce(resetDone() as never).mockResolvedValueOnce(resetDone() as never);
+
+      await SandboxInstance.reset("my-sandbox", { interval: 0 });
+      await SandboxInstance.reset("my-sandbox", { interval: 0 });
+
+      expect(keyOf(0)).toBeTruthy();
+      expect(keyOf(1)).not.toBe(keyOf(0));
+    });
+
+    it("does not ask again once the sandbox is deleted and created again under the same name", async () => {
+      post.mockResolvedValueOnce(refused(502, "Bad Gateway") as never);
+      mockedGet
+        .mockResolvedValueOnce({ data: record("DEPLOYED") } as never)
+        .mockResolvedValueOnce({ data: record("DEPLOYED", true, [], "2026-10-19T12:05:00Z") } as never);
+
+      await expect(SandboxInstance.reset("my-sandbox", { interval: 0 })).rejects.toThrow(
+        /deleted and created again during its reset; the reset call whose answer was lost may have reached the new sandbox, which is not reset again/,
+      );
+      expect(post).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not ask again once the sandbox is deleted", async () => {
+      post.mockResolvedValueOnce(refused(504, "Gateway Timeout") as never);
+      mockedGet
+        .mockResolvedValueOnce({ data: record("DEPLOYED") } as never)
+        .mockRejectedValueOnce({ code: 404, error: "Sandbox not found" });
+
+      await expect(SandboxInstance.reset("my-sandbox", { interval: 0 })).rejects.toThrow(/was deleted during its reset/);
+      expect(post).toHaveBeenCalledTimes(1);
+    });
+
+    it("says so when the sandbox it reset is not the one under the name as the reset started", async () => {
+      post.mockResolvedValueOnce({ ...resetDone(), data: record("DEPLOYED", true, [], "2026-10-19T12:05:00Z") } as never);
+
+      await expect(SandboxInstance.reset("my-sandbox", { interval: 0 })).rejects.toThrow(
+        /deleted and created again as its reset started; the new sandbox was reset/,
+      );
+      expect(mockedHealth).not.toHaveBeenCalled();
     });
 
     it("gives up waiting on the control plane at maxWait", async () => {
