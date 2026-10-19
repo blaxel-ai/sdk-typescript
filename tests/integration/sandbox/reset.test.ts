@@ -156,9 +156,10 @@ describe("Sandbox reset", () => {
     await waitForSandboxDeletion(name)
 
     await expect(SandboxInstance.reset(name)).rejects.toSatisfy((e: unknown) => {
-      // Either the record is gone (404) or it is still there as TERMINATED/DELETING.
+      // Either the record is gone (404) or it is still there as TERMINATED/DELETING
+      // and the reset is refused (409 from the control plane, or by the SDK).
       const err = e as { code?: number; message?: string }
-      return err.code === 404 || /cannot be reset/.test(err.message ?? "")
+      return err.code === 404 || err.code === 409 || /cannot be reset/.test(err.message ?? "")
     })
 
     // Still not running after the refused call.

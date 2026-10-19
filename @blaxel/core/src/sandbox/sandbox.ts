@@ -1,10 +1,11 @@
 import type http2 from "http2";
 import { archiveSandbox, createSandbox, createSandboxSnapshot, deleteSandbox, deleteSandboxSnapshot, type Env, forkSandbox, getSandbox, getSandboxByExternalId, listSandboxes, listSandboxSnapshots, type ListSandboxesData, restoreSandboxSnapshot, type SandboxForkResponse, type SandboxLifecycle, type Sandbox as SandboxModel, type SandboxRestoreResponse, type SandboxSnapshot, unarchiveSandbox, updateSandbox } from "../client/index.js";
+import { client as controlPlaneClient } from "../client/client.gen.js";
 import { logger } from "../common/logger.js";
-import { backoffDelayMs, GATEWAY_ERROR_STATUSES, isTransientResetError, retryOnTransientReset } from "../common/transient-retry.js";
+import { backoffDelayMs, GATEWAY_ERROR_STATUSES, isTransientResetError } from "../common/transient-retry.js";
 import { createPaginatedList } from "../common/pagination.js";
 import { settings } from "../common/settings.js";
-import { ResponseError } from "./action.js";
+import { getHealth } from "./client/index.js";
 import { SandboxCodegen } from "./codegen/index.js";
 import { SandboxDrive } from "./drive/index.js";
 import { SandboxFileSystem } from "./filesystem/index.js";
@@ -69,28 +70,38 @@ const ARCHIVE_ENTRY_STATUS = "DEPLOYED";
 const UNARCHIVE_ENTRY_STATUS = "ARCHIVED";
 const ARCHIVE_ENTRY_MAX_WAIT_MS = 30_000;
 
-// A reset switches the sandbox off and on again: the instance is torn down and
-// deployed again from its image, which takes a few seconds (2-7s measured).
+// A reset gives the sandbox a fresh instance booted from its image. The control
+// plane does it in one call, which replaces the instance and answers once the
+// new one runs. A control plane without that call is reset by switching
+// spec.enabled off and on, which runs the deployment pipeline twice.
 const RESET_MAX_WAIT_MS = 120_000;
-const RESET_POLL_MS = 500;
-// The statuses a reset can start from. Any other status (TERMINATED and
-// DELETING above all: updating a record that is being, or has been, deleted
-// brings the sandbox back to life) is refused before anything is written.
+const RESET_POLL_MS = 200;
+// The longest single call made while waiting on the sandbox, so that one slow
+// answer cannot hold the reset much past its own deadline.
+const RESET_PROBE_TIMEOUT_MS = 5_000;
+// The statuses a switch-off/switch-on reset can start from. Any other status
+// (TERMINATED and DELETING above all: updating a record that is being, or has
+// been, deleted brings the sandbox back to life) is refused before anything is
+// written.
 const RESETTABLE_STATUSES = new Set(["DEPLOYED", "DEPLOYING", "DEACTIVATING", "DEACTIVATED", "FAILED"]);
 const RESET_ENTRY_OFF_STATUSES = new Set(["DEACTIVATING", "DEACTIVATED"]);
 // Right after the switch-on write the record can still read as off while the
 // control plane starts the redeploy. That is tolerated only until the redeploy
 // has been seen, and never past the wait the caller asked for.
 const RESET_ENTRY_MAX_WAIT_MS = 30_000;
+// What the deployment pipeline writes on a sandbox once it has applied, or
+// failed to apply, a change to it.
+const DEPLOYMENT_SUCCEEDED_EVENT = "ai.blaxel.controlplane.deployment.succeeded";
+const DEPLOYMENT_FAILED_EVENT = "ai.blaxel.controlplane.deployment.failed";
 
-// One reset's wait: maxWait covers the teardown and the redeploy together.
+// One reset's wait: maxWait covers every call and every wait of the reset.
 type ResetWait = { deadline: number; interval: number; seconds: number };
 
 /** How long to wait for a reset to finish. */
 export type SandboxResetOptions = {
   /** Give up waiting for the reset after this many milliseconds; -1 waits indefinitely. Defaults to 2 minutes. */
   maxWait?: number;
-  /** Milliseconds between two reads of the sandbox. Defaults to 500 milliseconds. */
+  /** Milliseconds between two reads of the sandbox while waiting on it. Defaults to 200 milliseconds. */
   interval?: number;
 };
 
@@ -192,14 +203,58 @@ const isSandboxNotFound = (e: unknown): boolean => {
   return candidate.code === 404 || candidate.code === "404" || candidate.status === 404;
 };
 
-// A call that reached no sandbox yet: the route is not up (404 WORKLOAD_UNAVAILABLE),
-// the edge could not reach it, or the connection dropped. Safe to try again.
-const isNotYetRoutable = (e: unknown): boolean => {
-  if (e instanceof ResponseError) {
-    return e.status === 404 || (e.status !== undefined && GATEWAY_ERROR_STATUSES.has(e.status));
+// How long is left of a reset's wait, in milliseconds (Infinity without one).
+const remainingMs = (wait: ResetWait): number => wait.deadline - Date.now();
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Run a call with a signal that aborts it after `ms`, so a call that hangs
+// cannot hold a reset past its deadline. No signal without a finite limit.
+async function withDeadline<T>(ms: number, call: (signal?: AbortSignal) => Promise<T>): Promise<T> {
+  if (!Number.isFinite(ms)) return call(undefined);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), Math.max(1, ms));
+  try {
+    return await call(controller.signal);
+  } finally {
+    clearTimeout(timer);
   }
-  return !(typeof e === "object" && e !== null && "status" in e) || isTransientResetError(e);
+}
+
+const isAbort = (e: unknown): boolean =>
+  typeof e === "object" && e !== null && ((e as { name?: unknown }).name === "AbortError" || (e as { name?: unknown }).name === "TimeoutError");
+
+// A control plane that has no reset call answers its route as unknown.
+const isUnknownRoute = (status: number, error: unknown): boolean => {
+  if (status === 405) return true;
+  const text = typeof error === "object" && error !== null ? (error as { error?: unknown }).error : error;
+  return status === 404 && typeof text === "string" && /route not found/i.test(text);
 };
+
+// The control plane's error bodies carry the status as `code`; an edge error
+// in front of it (502/503/504) is worth reading or writing again.
+const isGatewayBody = (e: unknown): boolean => {
+  if (typeof e !== "object" || e === null) return false;
+  const code = Number((e as { code?: unknown }).code);
+  return GATEWAY_ERROR_STATUSES.has(code);
+};
+
+// Where the deployment pipeline is with taking a switched-off sandbox's
+// instance down, read from the newest event it or the API wrote: an API write
+// it has not applied yet, or a deployment it is still running, is pending.
+const teardownState = (record: SandboxModel): "done" | "failed" | "pending" => {
+  const events = record.events ?? [];
+  for (let i = events.length - 1; i >= 0; i--) {
+    const { type, status } = events[i];
+    if (type === DEPLOYMENT_SUCCEEDED_EVENT) return status === "DEACTIVATED" ? "done" : "pending";
+    if (type === DEPLOYMENT_FAILED_EVENT) return "failed";
+    if (type?.startsWith("ai.blaxel.controlplane.")) return "pending";
+  }
+  return "pending";
+};
+
+const leftOff = (sandboxName: string) =>
+  `it is left DEACTIVATED; call SandboxInstance.reset("${sandboxName}") again to finish the reset`;
 
 // The control plane's error bodies are plain objects ({ code, error }), not Errors.
 const describeApiError = (e: unknown): string => {
@@ -607,23 +662,29 @@ export class SandboxInstance {
   /**
    * Reset a sandbox to a fresh copy of its image.
    *
-   * The sandbox is taken down and deployed again from its image: everything
-   * written to its filesystem since it started and every running process are
-   * gone, as after a delete and a create. Unlike a delete and a create, the
-   * sandbox is never absent: it keeps its name and URL, its spec, its
-   * environment variables (secret values included), its volumes and the data
-   * on them, its previews, preview tokens and sessions. Running processes, and
-   * anything mounted from inside the sandbox such as a drive, belong to the old
-   * instance and have to be started or mounted again.
+   * The sandbox gets a new instance booted from its image: everything written
+   * to its filesystem since it started and every running process are gone, as
+   * after a delete and a create. Unlike a delete and a create, the sandbox is
+   * never absent: it keeps its name and URL, its spec, its environment
+   * variables (secret values included), its volumes and the data on them, its
+   * previews, preview tokens and sessions. Running processes, and anything
+   * mounted from inside the sandbox such as a drive, belong to the old instance
+   * and have to be started or mounted again.
    *
-   * This waits until the old instance is gone and the sandbox is DEPLOYED
-   * again and answers, a few seconds. A sandbox that is disabled is switched
-   * back on. Sandboxes that are archived or being deleted cannot be reset.
+   * The control plane replaces the instance in one call: the platform deletes
+   * the old instance and boots the new one, whatever ran in the old one. This
+   * then waits until the sandbox answers, about as long as a create takes.
+   * Only a running (DEPLOYED) sandbox can be reset that way.
    *
-   * It works by switching the sandbox off and on again (`spec.enabled`). If
-   * the old instance is still running when `maxWait` runs out, or the second
-   * write fails, the sandbox is left DEACTIVATED and the error says so:
-   * calling `reset` again finishes the reset.
+   * On a control plane without that call, the sandbox is switched off and on
+   * again (`spec.enabled`): the reset waits for the platform to report the old
+   * instance gone, then for the redeploy. A sandbox that is disabled is
+   * switched back on. If `maxWait` runs out before the old instance is gone,
+   * or the second write fails, the sandbox is left DEACTIVATED and the error
+   * says so: calling `reset` again finishes the reset.
+   *
+   * Sandboxes that are archived or being deleted cannot be reset. `maxWait`
+   * bounds the whole reset, every call included.
    */
   static async reset(sandboxName: string, options: SandboxResetOptions = {}): Promise<SandboxInstance> {
     const { maxWait = RESET_MAX_WAIT_MS, interval = RESET_POLL_MS } = options;
@@ -632,36 +693,12 @@ export class SandboxInstance {
       interval,
       seconds: Math.round(maxWait / 1000),
     };
-    const current = await SandboxInstance.get(sandboxName);
-    const status = current.status ?? "";
-    if (!RESETTABLE_STATUSES.has(status)) {
-      throw new Error(`Sandbox ${sandboxName} is ${status || "in an unknown state"} and cannot be reset`);
+    const reset = await SandboxInstance.resetOnControlPlane(sandboxName, wait);
+    if (reset) {
+      const instance = await SandboxInstance.attachH2Session(new SandboxInstance(reset));
+      return SandboxInstance.waitUntilAnswering(sandboxName, instance, wait);
     }
-
-    // The body is the sandbox as the control plane returns it: the values of
-    // secret environment variables come back masked and are kept as stored.
-    let record: SandboxModel = { metadata: current.metadata, spec: current.spec };
-    if (current.spec.enabled !== false && !RESET_ENTRY_OFF_STATUSES.has(status)) {
-      try {
-        record = await SandboxInstance.writeEnabled(sandboxName, record, false);
-      } catch (e) {
-        throw new Error(`Sandbox ${sandboxName} could not be reset, it was left as it was: ${describeApiError(e)}`, { cause: e });
-      }
-      // Writing it back on only redeploys a sandbox that was really taken down.
-      if (record.spec.enabled !== false || !RESET_ENTRY_OFF_STATUSES.has(record.status ?? "")) {
-        throw new Error(`Sandbox ${sandboxName} could not be reset: the control plane did not take it down (it is ${record.status})`);
-      }
-    }
-    await SandboxInstance.waitForTeardown(sandboxName, current, wait);
-    try {
-      await SandboxInstance.writeEnabled(sandboxName, record, true);
-    } catch (e) {
-      throw new Error(
-        `Sandbox ${sandboxName} was taken down for the reset but could not be switched back on, it is left DEACTIVATED; call SandboxInstance.reset("${sandboxName}") again to bring it back: ${describeApiError(e)}`,
-        { cause: e },
-      );
-    }
-    return SandboxInstance.waitForReset(sandboxName, wait);
+    return SandboxInstance.resetBySwitching(sandboxName, wait);
   }
 
   /**
@@ -675,82 +712,221 @@ export class SandboxInstance {
     return this;
   }
 
-  // Write the sandbox back with spec.enabled set. Writing the same bytes twice
-  // is harmless, so a transient failure is retried.
-  private static async writeEnabled(sandboxName: string, record: SandboxModel, enabled: boolean): Promise<SandboxModel> {
-    const { data } = await retryOnTransientReset(() => updateSandbox({
-      path: { sandboxName },
-      body: { metadata: record.metadata, spec: { ...record.spec, enabled } } as SandboxModel,
-      throwOnError: true,
-    }));
-    return data;
+  // Ask the control plane to replace the sandbox's instance. Answers the
+  // sandbox once its new instance runs, or nothing when the control plane has
+  // no such call, for the reset to switch the sandbox off and on instead. A
+  // reset asked for twice resets twice, so an answer lost at the edge or on
+  // the way is asked for again while there is time.
+  private static async resetOnControlPlane(sandboxName: string, wait: ResetWait): Promise<SandboxModel | undefined> {
+    for (let attempt = 1; ; attempt++) {
+      let status: number | undefined;
+      let failure: unknown;
+      try {
+        const { data, error, response } = await withDeadline(remainingMs(wait), (signal) =>
+          controlPlaneClient.post<SandboxModel, unknown, false>({
+            security: [{ scheme: "bearer", type: "http" }],
+            url: "/sandboxes/{sandboxName}/reset",
+            path: { sandboxName },
+            signal,
+          }),
+        );
+        if (response.ok && data) return data;
+        if (isUnknownRoute(response.status, error)) return undefined;
+        status = response.status;
+        failure = error ?? { code: response.status, error: response.statusText };
+      } catch (e) {
+        if (isAbort(e)) {
+          throw new Error(
+            `Sandbox ${sandboxName} was not reset within ${wait.seconds}s; a reset the control plane started still finishes, so the sandbox may yet get its fresh instance`,
+            { cause: e },
+          );
+        }
+        if (!isTransientResetError(e)) throw e;
+        failure = e;
+      }
+      const retryable = status === undefined || GATEWAY_ERROR_STATUSES.has(status);
+      if (!retryable) throw failure;
+      const delay = backoffDelayMs(attempt, 200, 2000);
+      if (Date.now() + delay >= wait.deadline) {
+        throw new Error(`Sandbox ${sandboxName} could not be reset within ${wait.seconds}s: ${describeApiError(failure)}`, { cause: failure });
+      }
+      await sleep(delay);
+    }
   }
 
-  // Wait until the instance that was switched off is gone. Switched back on
-  // while it is still there, the sandbox keeps it, and its filesystem: the
-  // compute plane finds the instance it would create already running and
-  // leaves it in place. The record cannot tell: the control plane stamps
-  // DEACTIVATED as soon as the switch-off is written and tears the instance
-  // down afterwards. The sandbox's URL can: the gateway routes only to a
-  // running instance and answers 404 (WORKLOAD_UNAVAILABLE) once there is none.
-  private static async waitForTeardown(sandboxName: string, old: SandboxInstance, wait: ResetWait): Promise<void> {
-    const leftOff = `it is left DEACTIVATED; call SandboxInstance.reset("${sandboxName}") again to finish the reset`;
+  // Wait until the sandbox answers on its new instance. The control plane
+  // answers once the instance runs; the gateway can take a moment more to
+  // route to it.
+  private static async waitUntilAnswering(sandboxName: string, instance: SandboxInstance, wait: ResetWait): Promise<SandboxInstance> {
     for (;;) {
+      const answer = await SandboxInstance.probe(sandboxName, instance, wait);
+      if (answer === true) return instance;
+      if (Date.now() + wait.interval >= wait.deadline) {
+        throw new Error(`Sandbox ${sandboxName} has a fresh instance but it did not answer within ${wait.seconds}s after the reset: ${answer}`);
+      }
+      await sleep(wait.interval);
+    }
+  }
+
+  // One call to the sandbox's health route, cut at the reset's deadline: true
+  // when it answers, or why not yet. The gateway answers 404
+  // (WORKLOAD_UNAVAILABLE) while no instance is routable, and an edge error, a
+  // dropped connection or a call that ran out of time say nothing yet.
+  // Anything else is an answer the reset cannot read, and is thrown.
+  private static async probe(sandboxName: string, instance: SandboxInstance, wait: ResetWait): Promise<true | string> {
+    try {
+      const { response, error } = await withDeadline(Math.min(remainingMs(wait), RESET_PROBE_TIMEOUT_MS), (signal) =>
+        getHealth({ baseUrl: instance.system.url, client: instance.system.client, signal }),
+      );
+      if (response.ok) return true;
+      if (response.status === 404 || GATEWAY_ERROR_STATUSES.has(response.status)) {
+        return `${response.status} ${describeApiError(error ?? response.statusText)}`;
+      }
+      throw new Error(`Sandbox ${sandboxName} answered ${response.status} after the reset: ${describeApiError(error ?? response.statusText)}`);
+    } catch (e) {
+      if (isAbort(e) || isTransientResetError(e)) return describeApiError(e);
+      throw e;
+    }
+  }
+
+  // Reset a sandbox on a control plane without the reset call: switch it off,
+  // wait until the platform reports its instance gone, switch it back on and
+  // wait until it is deployed again and answers. Every write is preceded by a
+  // fresh read of the record, and refused unless the sandbox is still the one
+  // being reset and still in a state the write is meant for.
+  private static async resetBySwitching(sandboxName: string, wait: ResetWait): Promise<SandboxInstance> {
+    const current = await SandboxInstance.readForReset(sandboxName, wait);
+    const status = current.status ?? "";
+    if (!RESETTABLE_STATUSES.has(status)) {
+      throw new Error(`Sandbox ${sandboxName} is ${status || "in an unknown state"} and cannot be reset`);
+    }
+    if (current.spec.enabled !== false && !RESET_ENTRY_OFF_STATUSES.has(status)) {
+      let off: SandboxModel;
       try {
-        await old.fs.ls("/");
+        off = await SandboxInstance.writeEnabled(sandboxName, current, false, wait);
       } catch (e) {
-        if (e instanceof ResponseError && e.status === 404) return;
-        if (!isNotYetRoutable(e)) {
-          throw new Error(`Sandbox ${sandboxName} is switched off for the reset, but whether its old instance is gone could not be checked, ${leftOff}: ${describeApiError(e)}`, { cause: e });
-        }
+        throw new Error(`Sandbox ${sandboxName} could not be reset, it was left as it was: ${describeApiError(e)}`, { cause: e });
       }
-      if (Date.now() >= wait.deadline) {
-        throw new Error(`Sandbox ${sandboxName} is switched off for the reset, but its old instance was still running after ${wait.seconds}s, ${leftOff}`);
+      // Writing it back on only redeploys a sandbox that was really taken down.
+      if (off.spec.enabled !== false || !RESET_ENTRY_OFF_STATUSES.has(off.status ?? "")) {
+        throw new Error(`Sandbox ${sandboxName} could not be reset: the control plane did not take it down (it is ${off.status})`);
       }
-      await new Promise((resolve) => setTimeout(resolve, wait.interval));
+    }
+    const stopped = await SandboxInstance.waitForTeardown(sandboxName, current, wait);
+    try {
+      await SandboxInstance.writeEnabled(sandboxName, stopped, true, wait);
+    } catch (e) {
+      throw new Error(
+        `Sandbox ${sandboxName} was taken down for the reset but could not be switched back on, ${leftOff(sandboxName)}: ${describeApiError(e)}`,
+        { cause: e },
+      );
+    }
+    return SandboxInstance.waitForRedeploy(sandboxName, wait);
+  }
+
+  // Read the sandbox's record within the reset's deadline. A read is
+  // idempotent, so a dropped connection or an edge error is read again while
+  // there is time; anything else, a missing sandbox above all, is thrown as
+  // the control plane answered it.
+  private static async readForReset(sandboxName: string, wait: ResetWait): Promise<SandboxModel> {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const { data } = await withDeadline(remainingMs(wait), (signal) =>
+          getSandbox({ path: { sandboxName }, throwOnError: true, signal }),
+        );
+        return data;
+      } catch (e) {
+        if (isAbort(e)) throw new Error(`Sandbox ${sandboxName} could not be read within the ${wait.seconds}s of its reset`, { cause: e });
+        const delay = backoffDelayMs(attempt, 200, 2000);
+        if (!isTransientResetError(e) && !isGatewayBody(e)) throw e;
+        if (Date.now() + delay >= wait.deadline) throw e;
+        await sleep(delay);
+      }
+    }
+  }
+
+  // Write the sandbox back with spec.enabled set, from the record as the
+  // control plane last returned it: the values of secret environment
+  // variables come back masked and are kept as stored. Writing the same bytes
+  // twice is harmless, so a transient failure is retried within the deadline.
+  private static async writeEnabled(sandboxName: string, record: SandboxModel, enabled: boolean, wait: ResetWait): Promise<SandboxModel> {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const { data } = await withDeadline(remainingMs(wait), (signal) =>
+          updateSandbox({
+            path: { sandboxName },
+            body: { metadata: record.metadata, spec: { ...record.spec, enabled } } as SandboxModel,
+            throwOnError: true,
+            signal,
+          }),
+        );
+        return data;
+      } catch (e) {
+        if (isAbort(e)) throw new Error(`no answer within the ${wait.seconds}s of the reset`, { cause: e });
+        const delay = backoffDelayMs(attempt, 200, 2000);
+        if (!isTransientResetError(e) && !isGatewayBody(e)) throw e;
+        if (Date.now() + delay >= wait.deadline) throw e;
+        await sleep(delay);
+      }
+    }
+  }
+
+  // Wait until the platform reports the switched-off instance gone, and answer
+  // the record read last, the one the switch-on is written from. Switched back
+  // on while the old instance still runs, the sandbox could keep it. The
+  // record says when it is gone: the deployment pipeline writes a succeeded
+  // deployment once it has taken the instance down. Nothing the old guest
+  // answers is taken as a sign of it.
+  private static async waitForTeardown(sandboxName: string, entry: SandboxModel, wait: ResetWait): Promise<SandboxModel> {
+    for (;;) {
+      let record: SandboxModel;
+      try {
+        record = await SandboxInstance.readForReset(sandboxName, wait);
+      } catch (e) {
+        if (isSandboxNotFound(e)) throw new Error(`Sandbox ${sandboxName} was deleted during its reset`, { cause: e });
+        throw new Error(`Sandbox ${sandboxName} is switched off for the reset, but it could not be read again, ${leftOff(sandboxName)}: ${describeApiError(e)}`, { cause: e });
+      }
+      if (record.metadata.createdAt !== entry.metadata.createdAt) {
+        throw new Error(`Sandbox ${sandboxName} was deleted and created again during its reset; the new sandbox is left as it is`);
+      }
+      if (!RESET_ENTRY_OFF_STATUSES.has(record.status ?? "") || record.spec.enabled !== false) {
+        throw new Error(`Sandbox ${sandboxName} is ${record.status} while it should be switched off for the reset; it is left as it is`);
+      }
+      const teardown = teardownState(record);
+      if (teardown === "done") return record;
+      if (teardown === "failed") {
+        throw new Error(`Sandbox ${sandboxName} could not be taken down for the reset, ${leftOff(sandboxName)}`);
+      }
+      if (Date.now() + wait.interval >= wait.deadline) {
+        throw new Error(`Sandbox ${sandboxName} is switched off for the reset, but its old instance was not reported gone within ${wait.seconds}s, ${leftOff(sandboxName)}`);
+      }
+      await sleep(wait.interval);
     }
   }
 
   // Wait until the sandbox is DEPLOYED again and answers. The record turns
-  // DEPLOYED a couple of seconds before the sandbox is routable, during which
-  // calls get a 404 WORKLOAD_UNAVAILABLE (retryable), so DEPLOYED alone is not
+  // DEPLOYED a moment before the sandbox is routable, so DEPLOYED alone is not
   // ready.
-  private static async waitForReset(sandboxName: string, { deadline, interval, seconds }: ResetWait): Promise<SandboxInstance> {
-    const entryDeadline = Math.min(Date.now() + RESET_ENTRY_MAX_WAIT_MS, deadline);
-    let instance: SandboxInstance | undefined;
+  private static async waitForRedeploy(sandboxName: string, wait: ResetWait): Promise<SandboxInstance> {
+    const entryDeadline = Math.min(Date.now() + RESET_ENTRY_MAX_WAIT_MS, wait.deadline);
     let redeploying = false;
     for (;;) {
-      await new Promise((resolve) => setTimeout(resolve, interval));
-      if (!instance) {
-        const { data } = await retryOnTransientReset(() => getSandbox({ path: { sandboxName }, throwOnError: true }));
-        if (data.status === "FAILED") {
-          throw new Error(`Sandbox ${sandboxName} failed to deploy again after the reset`);
-        }
-        if (data.status === "DEPLOYED") {
-          instance = await SandboxInstance.attachH2Session(new SandboxInstance(data));
-        } else if (data.status === "DEPLOYING") {
-          redeploying = true;
-          if (Date.now() >= deadline) {
-            throw new Error(`Sandbox ${sandboxName} is still ${data.status} after waiting ${seconds}s for it to deploy again after the reset`);
-          }
-        } else if (!redeploying && RESET_ENTRY_OFF_STATUSES.has(data.status ?? "") && Date.now() < entryDeadline) {
-          continue;
-        } else {
-          throw new Error(`Sandbox ${sandboxName} is ${data.status} while it should be deployed again after the reset`);
-        }
+      await sleep(wait.interval);
+      const record = await SandboxInstance.readForReset(sandboxName, wait);
+      if (record.status === "DEPLOYED") {
+        const instance = await SandboxInstance.attachH2Session(new SandboxInstance(record));
+        return SandboxInstance.waitUntilAnswering(sandboxName, instance, wait);
       }
-      if (instance) {
-        try {
-          await instance.fs.ls("/");
-          return instance;
-        } catch (e) {
-          if (!isNotYetRoutable(e)) {
-            throw new Error(`Sandbox ${sandboxName} was deployed again but does not answer after the reset: ${describeApiError(e)}`, { cause: e });
-          }
-          if (Date.now() >= deadline) {
-            throw new Error(`Sandbox ${sandboxName} was deployed again but did not answer within ${seconds}s after the reset: ${describeApiError(e)}`, { cause: e });
-          }
-        }
+      if (record.status === "FAILED") {
+        throw new Error(`Sandbox ${sandboxName} failed to deploy again after the reset`);
+      }
+      if (record.status === "DEPLOYING") {
+        redeploying = true;
+      } else if (redeploying || !RESET_ENTRY_OFF_STATUSES.has(record.status ?? "") || Date.now() >= entryDeadline) {
+        throw new Error(`Sandbox ${sandboxName} is ${record.status} while it should be deployed again after the reset`);
+      }
+      if (Date.now() + wait.interval >= wait.deadline) {
+        throw new Error(`Sandbox ${sandboxName} is still ${record.status} after waiting ${wait.seconds}s for it to deploy again after the reset`);
       }
     }
   }
