@@ -334,16 +334,69 @@ describe("SandboxInstance.reset", () => {
       expect(mockedUpdate).toHaveBeenCalledTimes(1);
     });
 
-    it("leaves the sandbox DEACTIVATED, and says how to finish, when the teardown fails", async () => {
+    it("says what to do, without promising that a reset finishes it, when the teardown fails", async () => {
       mockedGet
         .mockResolvedValueOnce({ data: record("DEPLOYED") } as never)
         .mockResolvedValueOnce({ data: off(deactivated, { type: "ai.blaxel.controlplane.deployment.failed", status: "FAILED" }) } as never);
       mockedUpdate.mockResolvedValueOnce({ data: off(deactivated) } as never);
 
+      const failure = SandboxInstance.reset("my-sandbox", { interval: 0 });
+
+      await expect(failure).rejects.toThrow(/the platform reported the teardown failed\. It is left switched off; delete it and create it again/);
+      await expect(failure).rejects.not.toThrow(/call SandboxInstance\.reset/);
+      expect(mockedUpdate).toHaveBeenCalledTimes(1);
+    });
+
+    it("reports a switch-off that landed on a sandbox created again under the same name", async () => {
+      mockedGet.mockResolvedValueOnce({ data: record("DEPLOYED") } as never);
+      mockedUpdate.mockResolvedValueOnce({ data: record("DEACTIVATED", false, [deactivated], "2026-10-19T12:05:00Z") } as never);
+
       await expect(SandboxInstance.reset("my-sandbox", { interval: 0 })).rejects.toThrow(
-        /could not be taken down for the reset, it is left DEACTIVATED; call SandboxInstance\.reset\("my-sandbox"\) again/,
+        /was deleted and created again while it was being switched off for its reset; the new sandbox was written to and is left switched off/,
       );
       expect(mockedUpdate).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not write the switch-on again to a sandbox created again under the same name", async () => {
+      mockedGet
+        .mockResolvedValueOnce({ data: record("DEPLOYED") } as never)
+        .mockResolvedValueOnce({ data: off(tornDown) } as never)
+        .mockResolvedValueOnce({ data: record("DEACTIVATED", false, [tornDown], "2026-10-19T12:05:00Z") } as never);
+      mockedUpdate
+        .mockResolvedValueOnce({ data: off(deactivated) } as never)
+        .mockRejectedValueOnce(Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }));
+
+      await expect(SandboxInstance.reset("my-sandbox", { interval: 0 })).rejects.toThrow(/was deleted and created again during its reset/);
+      expect(mockedUpdate).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not write the switch-on twice when the first one landed before its answer was lost", async () => {
+      mockedGet
+        .mockResolvedValueOnce({ data: record("DEPLOYED") } as never)
+        .mockResolvedValueOnce({ data: off(tornDown) } as never)
+        .mockResolvedValueOnce({ data: record("DEPLOYING") } as never)
+        .mockResolvedValue({ data: record("DEPLOYED") } as never);
+      mockedUpdate
+        .mockResolvedValueOnce({ data: off(deactivated) } as never)
+        .mockRejectedValueOnce(Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }));
+
+      const instance = await SandboxInstance.reset("my-sandbox", { interval: 0 });
+
+      expect(instance.status).toBe("DEPLOYED");
+      expect(mockedUpdate).toHaveBeenCalledTimes(2);
+    });
+
+    it("stops waiting for the redeploy of a sandbox created again under the same name", async () => {
+      mockedGet
+        .mockResolvedValueOnce({ data: record("DEPLOYED") } as never)
+        .mockResolvedValueOnce({ data: off(tornDown) } as never)
+        .mockResolvedValueOnce({ data: record("DEPLOYED", true, [], "2026-10-19T12:05:00Z") } as never);
+      mockedUpdate
+        .mockResolvedValueOnce({ data: off(deactivated) } as never)
+        .mockResolvedValueOnce({ data: record("DEPLOYING") } as never);
+
+      await expect(SandboxInstance.reset("my-sandbox", { interval: 0 })).rejects.toThrow(/was deleted and created again during its reset/);
+      expect(mockedHealth).not.toHaveBeenCalled();
     });
 
     it("leaves the sandbox DEACTIVATED, and says how to finish, when the teardown outlives maxWait", async () => {
@@ -399,10 +452,11 @@ describe("SandboxInstance.reset", () => {
       await expect(failure).rejects.toMatchObject({ cause: { code: 500 } });
     });
 
-    it("writes the switch-on again after a dropped connection", async () => {
+    it("writes the switch-on again, from a fresh read, after a dropped connection", async () => {
       mockedGet
         .mockResolvedValueOnce({ data: record("DEPLOYED") } as never)
         .mockResolvedValueOnce({ data: off(tornDown) } as never)
+        .mockResolvedValueOnce({ data: off(tornDown) } as never) // read again before writing again
         .mockResolvedValue({ data: record("DEPLOYED") } as never);
       mockedUpdate
         .mockResolvedValueOnce({ data: off(deactivated) } as never)

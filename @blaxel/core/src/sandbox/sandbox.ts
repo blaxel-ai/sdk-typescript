@@ -253,6 +253,24 @@ const teardownState = (record: SandboxModel): "done" | "failed" | "pending" => {
   return "pending";
 };
 
+// A reset refused because the sandbox is no longer the one it started on:
+// deleted, created again under the same name, or moved to another state by
+// someone else. Thrown as is, whatever step it interrupts.
+class ResetGenerationError extends Error {
+  constructor(message: string, cause?: unknown) {
+    super(message, cause === undefined ? undefined : { cause });
+    this.name = "ResetGenerationError";
+  }
+}
+
+// The record read during a reset must be the sandbox the reset started on:
+// one deleted and created again under the same name has another createdAt.
+const checkSameSandbox = (sandboxName: string, entry: SandboxModel, record: SandboxModel) => {
+  if (record.metadata.createdAt !== entry.metadata.createdAt) {
+    throw new ResetGenerationError(`Sandbox ${sandboxName} was deleted and created again during its reset; the new sandbox is left as it is`);
+  }
+};
+
 const leftOff = (sandboxName: string) =>
   `it is left DEACTIVATED; call SandboxInstance.reset("${sandboxName}") again to finish the reset`;
 
@@ -803,8 +821,9 @@ export class SandboxInstance {
     if (current.spec.enabled !== false && !RESET_ENTRY_OFF_STATUSES.has(status)) {
       let off: SandboxModel;
       try {
-        off = await SandboxInstance.writeEnabled(sandboxName, current, false, wait);
+        off = await SandboxInstance.writeEnabled(sandboxName, current, current, false, wait);
       } catch (e) {
+        if (e instanceof ResetGenerationError) throw e;
         throw new Error(`Sandbox ${sandboxName} could not be reset, it was left as it was: ${describeApiError(e)}`, { cause: e });
       }
       // Writing it back on only redeploys a sandbox that was really taken down.
@@ -814,14 +833,15 @@ export class SandboxInstance {
     }
     const stopped = await SandboxInstance.waitForTeardown(sandboxName, current, wait);
     try {
-      await SandboxInstance.writeEnabled(sandboxName, stopped, true, wait);
+      await SandboxInstance.writeEnabled(sandboxName, current, stopped, true, wait);
     } catch (e) {
+      if (e instanceof ResetGenerationError) throw e;
       throw new Error(
         `Sandbox ${sandboxName} was taken down for the reset but could not be switched back on, ${leftOff(sandboxName)}: ${describeApiError(e)}`,
         { cause: e },
       );
     }
-    return SandboxInstance.waitForRedeploy(sandboxName, wait);
+    return SandboxInstance.waitForRedeploy(sandboxName, current, wait);
   }
 
   // Read the sandbox's record within the reset's deadline. A read is
@@ -847,27 +867,51 @@ export class SandboxInstance {
 
   // Write the sandbox back with spec.enabled set, from the record as the
   // control plane last returned it: the values of secret environment
-  // variables come back masked and are kept as stored. Writing the same bytes
-  // twice is harmless, so a transient failure is retried within the deadline.
-  private static async writeEnabled(sandboxName: string, record: SandboxModel, enabled: boolean, wait: ResetWait): Promise<SandboxModel> {
+  // variables come back masked and are kept as stored. A write that failed
+  // on the way is written again within the deadline, from a fresh read and
+  // only if that read is still the sandbox being reset, in the state the
+  // write is meant for; one that landed before its answer was lost is not
+  // written twice. A write that landed on a sandbox created again under the
+  // same name is reported, since it cannot be taken back.
+  private static async writeEnabled(sandboxName: string, entry: SandboxModel, record: SandboxModel, enabled: boolean, wait: ResetWait): Promise<SandboxModel> {
+    let body = record;
     for (let attempt = 1; ; attempt++) {
+      if (attempt > 1) {
+        body = await SandboxInstance.readForReset(sandboxName, wait).catch((e: unknown) => {
+          if (isSandboxNotFound(e)) throw new ResetGenerationError(`Sandbox ${sandboxName} was deleted during its reset`, e);
+          throw e;
+        });
+        checkSameSandbox(sandboxName, entry, body);
+        if ((body.spec.enabled !== false) === enabled) return body;
+        const expected = enabled ? RESET_ENTRY_OFF_STATUSES : RESETTABLE_STATUSES;
+        if (!expected.has(body.status ?? "")) {
+          throw new ResetGenerationError(`Sandbox ${sandboxName} is ${body.status} while it should be ${enabled ? "switched off" : "running"} for the reset; it is left as it is`);
+        }
+      }
+      let data: SandboxModel;
       try {
-        const { data } = await withDeadline(remainingMs(wait), (signal) =>
+        ({ data } = await withDeadline(remainingMs(wait), (signal) =>
           updateSandbox({
             path: { sandboxName },
-            body: { metadata: record.metadata, spec: { ...record.spec, enabled } } as SandboxModel,
+            body: { metadata: body.metadata, spec: { ...body.spec, enabled } } as SandboxModel,
             throwOnError: true,
             signal,
           }),
-        );
-        return data;
+        ));
       } catch (e) {
         if (isAbort(e)) throw new Error(`no answer within the ${wait.seconds}s of the reset`, { cause: e });
         const delay = backoffDelayMs(attempt, 200, 2000);
         if (!isTransientResetError(e) && !isGatewayBody(e)) throw e;
         if (Date.now() + delay >= wait.deadline) throw e;
         await sleep(delay);
+        continue;
       }
+      if (data.metadata.createdAt !== entry.metadata.createdAt) {
+        throw new ResetGenerationError(
+          `Sandbox ${sandboxName} was deleted and created again while it was being switched ${enabled ? "back on" : "off"} for its reset; the new sandbox was written to and is left switched ${enabled ? "on" : "off"}`,
+        );
+      }
+      return data;
     }
   }
 
@@ -886,16 +930,16 @@ export class SandboxInstance {
         if (isSandboxNotFound(e)) throw new Error(`Sandbox ${sandboxName} was deleted during its reset`, { cause: e });
         throw new Error(`Sandbox ${sandboxName} is switched off for the reset, but it could not be read again, ${leftOff(sandboxName)}: ${describeApiError(e)}`, { cause: e });
       }
-      if (record.metadata.createdAt !== entry.metadata.createdAt) {
-        throw new Error(`Sandbox ${sandboxName} was deleted and created again during its reset; the new sandbox is left as it is`);
-      }
+      checkSameSandbox(sandboxName, entry, record);
       if (!RESET_ENTRY_OFF_STATUSES.has(record.status ?? "") || record.spec.enabled !== false) {
         throw new Error(`Sandbox ${sandboxName} is ${record.status} while it should be switched off for the reset; it is left as it is`);
       }
       const teardown = teardownState(record);
       if (teardown === "done") return record;
       if (teardown === "failed") {
-        throw new Error(`Sandbox ${sandboxName} could not be taken down for the reset, ${leftOff(sandboxName)}`);
+        throw new Error(
+          `Sandbox ${sandboxName} could not be taken down for the reset: the platform reported the teardown failed. It is left switched off; delete it and create it again to get a fresh instance`,
+        );
       }
       if (Date.now() + wait.interval >= wait.deadline) {
         throw new Error(`Sandbox ${sandboxName} is switched off for the reset, but its old instance was not reported gone within ${wait.seconds}s, ${leftOff(sandboxName)}`);
@@ -907,12 +951,13 @@ export class SandboxInstance {
   // Wait until the sandbox is DEPLOYED again and answers. The record turns
   // DEPLOYED a moment before the sandbox is routable, so DEPLOYED alone is not
   // ready.
-  private static async waitForRedeploy(sandboxName: string, wait: ResetWait): Promise<SandboxInstance> {
+  private static async waitForRedeploy(sandboxName: string, entry: SandboxModel, wait: ResetWait): Promise<SandboxInstance> {
     const entryDeadline = Math.min(Date.now() + RESET_ENTRY_MAX_WAIT_MS, wait.deadline);
     let redeploying = false;
     for (;;) {
       await sleep(wait.interval);
       const record = await SandboxInstance.readForReset(sandboxName, wait);
+      checkSameSandbox(sandboxName, entry, record);
       if (record.status === "DEPLOYED") {
         const instance = await SandboxInstance.attachH2Session(new SandboxInstance(record));
         return SandboxInstance.waitUntilAnswering(sandboxName, instance, wait);
