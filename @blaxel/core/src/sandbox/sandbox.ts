@@ -881,7 +881,13 @@ export class SandboxInstance {
           if (isSandboxNotFound(e)) throw new ResetGenerationError(`Sandbox ${sandboxName} was deleted during its reset`, e);
           throw e;
         });
-        checkSameSandbox(sandboxName, entry, body);
+        // The write goes by name: one whose answer was lost may have reached
+        // a sandbox created again under it.
+        if (body.metadata.createdAt !== entry.metadata.createdAt) {
+          throw new ResetGenerationError(
+            `Sandbox ${sandboxName} was deleted and created again during its reset; the reset's ${enabled ? "switch-on" : "switch-off"} write whose answer was lost may have reached the new sandbox, which is left as it is now`,
+          );
+        }
         if ((body.spec.enabled !== false) === enabled) return body;
         const expected = enabled ? RESET_ENTRY_OFF_STATUSES : RESETTABLE_STATUSES;
         if (!expected.has(body.status ?? "")) {

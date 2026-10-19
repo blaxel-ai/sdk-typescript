@@ -366,7 +366,9 @@ describe("SandboxInstance.reset", () => {
         .mockResolvedValueOnce({ data: off(deactivated) } as never)
         .mockRejectedValueOnce(Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }));
 
-      await expect(SandboxInstance.reset("my-sandbox", { interval: 0 })).rejects.toThrow(/was deleted and created again during its reset/);
+      await expect(SandboxInstance.reset("my-sandbox", { interval: 0 })).rejects.toThrow(
+        /was deleted and created again during its reset; the reset's switch-on write whose answer was lost may have reached the new sandbox/,
+      );
       expect(mockedUpdate).toHaveBeenCalledTimes(2);
     });
 
