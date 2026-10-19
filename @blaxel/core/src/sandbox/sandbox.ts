@@ -80,10 +80,10 @@ const RESET_POLL_MS = 200;
 // answer cannot hold the reset much past its own deadline.
 const RESET_PROBE_TIMEOUT_MS = 5_000;
 // The statuses a switch-off/switch-on reset can start from. Any other status
-// (TERMINATED and DELETING above all: updating a record that is being, or has
-// been, deleted brings the sandbox back to life) is refused before anything is
-// written.
-const RESETTABLE_STATUSES = new Set(["DEPLOYED", "DEPLOYING", "DEACTIVATING", "DEACTIVATED", "FAILED"]);
+// is refused before anything is written: updating a record that is being, or
+// has been, deleted (TERMINATED, DELETING) brings the sandbox back to life,
+// and updating a FAILED one makes the control plane release and recreate it.
+const RESETTABLE_STATUSES = new Set(["DEPLOYED", "DEPLOYING", "DEACTIVATING", "DEACTIVATED"]);
 const RESET_ENTRY_OFF_STATUSES = new Set(["DEACTIVATING", "DEACTIVATED"]);
 // Right after the switch-on write the record can still read as off while the
 // control plane starts the redeploy. That is tolerated only until the redeploy

@@ -246,10 +246,11 @@ describe("SandboxInstance.reset", () => {
       }
     });
 
-    it.each(["TERMINATED", "DELETING", "ARCHIVED", "ARCHIVING", "UNARCHIVING"])(
+    it.each(["TERMINATED", "DELETING", "FAILED", "ARCHIVED", "ARCHIVING", "UNARCHIVING"])(
       "refuses a %s sandbox before writing anything",
       async (status) => {
-        // A write to a deleted record would bring the sandbox back to life.
+        // A write to a deleted record would bring the sandbox back to life, and
+        // one to a FAILED record has it released and created again.
         mockedGet.mockResolvedValueOnce({ data: record(status) } as never);
 
         await expect(SandboxInstance.reset("my-sandbox", { interval: 0 })).rejects.toThrow(
