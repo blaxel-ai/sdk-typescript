@@ -6,15 +6,17 @@ import { createPaginatedList } from "../common/pagination.js";
 import { settings } from "../common/settings.js";
 import { SandboxCodegen } from "./codegen/index.js";
 import { SandboxDrive } from "./drive/index.js";
+import { describeDrift, driftWarning, type RequestedSandbox } from "./drift.js";
 import { SandboxFileSystem } from "./filesystem/index.js";
 import { SandboxNetwork } from "./network/index.js";
 import { SandboxPreviews } from "./preview.js";
 import { SandboxProcess } from "./process/index.js";
+import { SandboxDriveSetup, validateMountDrives } from "./mount-drives.js";
 import { SandboxSchedules } from "./schedule.js";
 import { SandboxSnapshotsResource } from "./snapshot.js";
 import { SandboxSessions } from "./session.js";
 import { SandboxSystem } from "./system.js";
-import { normalizeEnvs, normalizePorts, normalizeVolumes, SandboxConfiguration, SandboxCreateConfiguration, SandboxUpdateMetadata, SandboxUpdateNetwork, SessionWithToken } from "./types.js";
+import { normalizeEnvs, normalizePorts, normalizeVolumes, SandboxConfiguration, SandboxCreateConfiguration, SandboxDriveMountConfiguration, SandboxUpdateMetadata, SandboxUpdateNetwork, SessionWithToken } from "./types.js";
 
 export type SandboxListQuery = NonNullable<ListSandboxesData["query"]>;
 
@@ -108,7 +110,21 @@ export type SandboxCreateOptions = {
    * control plane's default deadline applies.
    */
   timeout?: number;
+  /**
+   * Drives to mount on the sandbox. Drives are looked up or created while the
+   * sandbox is being created (a few at a time), in the region the request sends
+   * (or, without one, in the region the sandbox gets), and each is mounted as
+   * soon as the sandbox and that drive are ready. On failure, unnamed drives
+   * this call created and did not mount are deleted; named ones are kept (a
+   * concurrent call may be using them) and listed in the error. If drive setup
+   * fails the sandbox is kept and a SandboxDriveSetupError is thrown; if the
+   * sandbox cannot be created, its error is thrown (wrapped in a
+   * SandboxDriveSetupError only if a drive created for it is left in place).
+   */
+  mountDrives?: SandboxDriveMountConfiguration[];
 };
+
+export { SandboxDriveSetupError } from "./mount-drives.js";
 
 /**
  * Thrown by SandboxInstance.create / createIfNotExists when the sandbox was
@@ -370,13 +386,36 @@ export class SandboxInstance {
   }
 
   static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, options: SandboxCreateOptions = {}) {
-    const { safe = false, createIfNotExist = false } = options;
-    const { timeout } = validateCreateOptions(options);
+    const { mountDrives = [], createIfNotExist = false } = options;
+    validateCreateOptions(options);
+    validateMountDrives(mountDrives, createIfNotExist);
+    const model = SandboxInstance.toSandboxModel(sandbox);
+    if (!mountDrives.length) return SandboxInstance.createSandboxInstance(model, options);
+    // Drives are set up alongside the sandbox, in the region this request sends (if it
+    // sends none, the control plane picks one and new drives wait for the sandbox).
+    const drives = new SandboxDriveSetup(mountDrives, model.spec?.region);
+    drives.start();
+    let instance: SandboxInstance;
+    try {
+      instance = await SandboxInstance.createSandboxInstance(model, options);
+    } catch (err) {
+      throw await drives.discard(err);
+    }
+    await drives.mount(instance);
+    return instance;
+  }
+
+  /** The creation request body, with the SDK's defaults (image, memory, region from BL_REGION) applied. */
+  private static toSandboxModel(sandbox?: SandboxModel | SandboxCreateConfiguration): SandboxModel {
     // No client-side default name: when the caller omits a name we send the
     // creation without metadata.name so the server can assign one and unnamed
     // creations become eligible for warm sandbox pools (ENG-3931).
     const defaultImage = `blaxel/base-image:latest`
     const defaultMemory = 4096
+
+    // What the caller asked for, read before the defaults below fill the gaps:
+    // createIfNotExists compares only these with the sandbox it gets back.
+    let requested: RequestedSandbox = {}
 
     // Handle SandboxCreateConfiguration or simple dict with name/image/memory/ports/envs/volumes keys
     if (
@@ -396,6 +435,7 @@ export class SandboxInstance {
       'standbyGracePeriodSeconds' in sandbox
     ) {
       if (!sandbox) sandbox = {} as SandboxCreateConfiguration
+      requested = { image: sandbox.image, memory: sandbox.memory, region: sandbox.region, envs: normalizeEnvs(sandbox.envs) }
       if (!sandbox.image) sandbox.image = defaultImage
       if (!sandbox.memory) sandbox.memory = defaultMemory
 
@@ -443,6 +483,9 @@ export class SandboxInstance {
       if (expires) {
         sandbox.spec!.runtime!.expires = expires.toISOString();
       }
+    } else {
+      const { region, runtime } = (sandbox as SandboxModel).spec ?? {}
+      requested = { image: runtime?.image, memory: runtime?.memory, region, envs: runtime?.envs }
     }
 
     sandbox = sandbox as SandboxModel
@@ -459,7 +502,12 @@ export class SandboxInstance {
 
     sandbox.spec.runtime.image = sandbox.spec.runtime.image || defaultImage;
     sandbox.spec.runtime.memory = sandbox.spec.runtime.memory || defaultMemory;
+    return sandbox;
+  }
 
+  private static async createSandboxInstance(sandbox: SandboxModel, options: SandboxCreateOptions) {
+    const { safe = false, createIfNotExist = false } = options;
+    const { timeout } = validateCreateOptions(options);
     const edgeDomain = SandboxInstance.edgeDomainForRegion(sandbox.spec?.region);
 
     // Kick off warming so h2Pool.get() can join it during the API call
@@ -490,6 +538,7 @@ export class SandboxInstance {
         throw createResult.error;
       }
     }
+    if (createIfNotExist) SandboxInstance.warnOnDrift(requested, data)
     // Inject the H2 session into the config so subsystems can use it
     const config = { ...data, h2Session, h2Domain: settings.disableH2 ? null : edgeDomain } as SandboxConfiguration;
     const instance = new SandboxInstance(config);
@@ -749,6 +798,19 @@ export class SandboxInstance {
    */
   static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration, options: Omit<SandboxCreateOptions, "createIfNotExist"> = {}) {
     return this.create(sandbox, { ...options, createIfNotExist: true });
+  }
+
+  // createIfNotExists hands back the sandbox already holding the name, whatever
+  // it was created with. Say so when it is not what was asked for; this only
+  // logs and never throws or changes what is returned.
+  private static warnOnDrift(requested: RequestedSandbox, existing: SandboxModel | undefined) {
+    if (!existing) return;
+    try {
+      const drift = describeDrift(requested, existing);
+      if (drift.length) console.warn(driftWarning(existing.metadata?.name, drift));
+    } catch {
+      // Best-effort diagnostics: a failed comparison must not fail the create.
+    }
   }
 
   // Poll the record after a create was cut by the edge with a 504 while the
