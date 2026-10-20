@@ -131,6 +131,22 @@ describe("SandboxInstance.reset", () => {
       expect(mockedUpdate).not.toHaveBeenCalled();
     });
 
+    it("switches a sandbox that is switched off back on, which the reset call refuses", async () => {
+      post.mockResolvedValueOnce(refused(409, "This sandbox is stopped, start it to run a fresh copy of its image") as never);
+      mockedGet
+        .mockResolvedValueOnce({ data: off(deactivated, tornDown) } as never) // entry read
+        .mockResolvedValueOnce({ data: off(deactivated, tornDown) } as never)
+        .mockResolvedValue({ data: record("DEPLOYED") } as never);
+      mockedUpdate.mockResolvedValueOnce({ data: record("DEPLOYING") } as never);
+
+      const instance = await SandboxInstance.reset("my-sandbox", { interval: 0 });
+
+      expect(instance.status).toBe("DEPLOYED");
+      expect(post).toHaveBeenCalledTimes(1);
+      expect(mockedUpdate).toHaveBeenCalledTimes(1);
+      expect(bodyOf(0).spec.enabled).toBe(true);
+    });
+
     it("propagates the error of a sandbox that does not exist", async () => {
       post.mockResolvedValueOnce(refused(404, "Sandbox not found") as never);
 

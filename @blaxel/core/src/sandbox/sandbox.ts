@@ -234,6 +234,12 @@ const resetsBySwitching = (status: number, error: unknown): boolean => {
   return status === 404 && typeof text === "string" && /route not found/i.test(text);
 };
 
+// The reset call only replaces a running instance, and refuses a sandbox that
+// is switched off. Switching that one back on is its reset: a stopped sandbox,
+// or one a reset left DEACTIVATED, is reset by switching.
+const isSwitchedOff = (record: SandboxModel | undefined): boolean =>
+  record?.spec?.enabled === false && RESET_ENTRY_OFF_STATUSES.has(record.status ?? "");
+
 // The control plane's error bodies carry the status as `code`; an edge error
 // in front of it (502/503/504) is worth reading or writing again.
 const isGatewayBody = (e: unknown): boolean => {
@@ -695,7 +701,8 @@ export class SandboxInstance {
    * The control plane replaces the instance in one call: the platform deletes
    * the old instance and boots the new one, whatever ran in the old one. This
    * then waits until the sandbox answers, about as long as a create takes.
-   * Only a running (DEPLOYED) sandbox can be reset that way.
+   * Only a running (DEPLOYED) sandbox can be reset that way; one that is
+   * switched off is switched back on instead.
    *
    * On a control plane without that call, the sandbox is switched off and on
    * again (`spec.enabled`): the reset waits for the platform to report the old
@@ -763,6 +770,7 @@ export class SandboxInstance {
           }),
         );
         if (resetsBySwitching(response.status, error)) return undefined;
+        if (response.status === 409 && isSwitchedOff(await entry.catch(() => undefined))) return undefined;
         if (response.ok && data) reset = data;
         status = response.status;
         failure = error ?? { code: response.status, error: response.statusText };
