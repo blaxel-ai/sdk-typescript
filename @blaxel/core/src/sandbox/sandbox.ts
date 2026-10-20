@@ -225,9 +225,11 @@ async function withDeadline<T>(ms: number, call: (signal?: AbortSignal) => Promi
 const isAbort = (e: unknown): boolean =>
   typeof e === "object" && e !== null && ((e as { name?: unknown }).name === "AbortError" || (e as { name?: unknown }).name === "TimeoutError");
 
-// A control plane that has no reset call answers its route as unknown.
-const isUnknownRoute = (status: number, error: unknown): boolean => {
-  if (status === 405) return true;
+// A control plane that has no reset call answers its route as unknown, and
+// one that cannot reset this sandbox in one call answers 501: either way the
+// sandbox is reset by switching it off and on.
+const resetsBySwitching = (status: number, error: unknown): boolean => {
+  if (status === 405 || status === 501) return true;
   const text = typeof error === "object" && error !== null ? (error as { error?: unknown }).error : error;
   return status === 404 && typeof text === "string" && /route not found/i.test(text);
 };
@@ -760,7 +762,7 @@ export class SandboxInstance {
             signal,
           }),
         );
-        if (isUnknownRoute(response.status, error)) return undefined;
+        if (resetsBySwitching(response.status, error)) return undefined;
         if (response.ok && data) reset = data;
         status = response.status;
         failure = error ?? { code: response.status, error: response.statusText };

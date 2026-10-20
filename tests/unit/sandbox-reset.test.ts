@@ -50,6 +50,11 @@ const bodyOf = (call: number) =>
 // What the control plane answers when it has the reset call, and when it has not.
 const resetDone = (status = "DEPLOYED") => ({ data: record(status), error: undefined, response: response(200) });
 const unknownRoute = () => ({ data: undefined, error: { code: 404, error: "Route not found" }, response: response(404) });
+const notInOneCall = () => ({
+  data: undefined,
+  error: { code: 501, error: "This sandbox cannot be reset in one call yet: stop it and start it again to run a fresh copy of its image" },
+  response: response(501),
+});
 const refused = (code: number, error: string) => ({ data: undefined, error: { code, error }, response: response(code) });
 
 // What the sandbox's health route answers: the instance serves it, or the
@@ -263,6 +268,23 @@ describe("SandboxInstance.reset", () => {
       expect(mockedGet).toHaveBeenCalledTimes(6);
       // The guest is only asked whether it answers once the new instance runs.
       expect(mockedHealth).toHaveBeenCalledTimes(1);
+    });
+
+    it("switches it off and on as well when the control plane cannot reset it in one call", async () => {
+      post.mockResolvedValue(notInOneCall() as never);
+      mockedGet
+        .mockResolvedValueOnce({ data: record("DEPLOYED") } as never)
+        .mockResolvedValueOnce({ data: off(deactivated, tearingDown, tornDown) } as never)
+        .mockResolvedValueOnce({ data: record("DEPLOYED") } as never);
+      mockedUpdate
+        .mockResolvedValueOnce({ data: off(deactivated) } as never)
+        .mockResolvedValueOnce({ data: record("DEPLOYING") } as never);
+
+      const instance = await SandboxInstance.reset("my-sandbox", { interval: 0 });
+
+      expect(instance.status).toBe("DEPLOYED");
+      expect(post).toHaveBeenCalledTimes(1);
+      expect([bodyOf(0).spec.enabled, bodyOf(1).spec.enabled]).toEqual([false, true]);
     });
 
     it("does not switch it back on before the platform reports the old instance gone", async () => {
