@@ -730,7 +730,13 @@ export class SandboxInstance {
       const instance = await SandboxInstance.attachH2Session(new SandboxInstance(reset));
       return SandboxInstance.waitUntilAnswering(sandboxName, instance, wait);
     }
-    return SandboxInstance.resetBySwitching(sandboxName, await entry, wait);
+    // The switch starts from a read made once the control plane has answered:
+    // the one made alongside the call can be older than that answer, and a
+    // sandbox deleted, stopped or created again meanwhile is not written to.
+    const started = await entry;
+    const current = await SandboxInstance.readForReset(sandboxName, wait);
+    checkSameSandbox(sandboxName, started, current);
+    return SandboxInstance.resetBySwitching(sandboxName, current, wait);
   }
 
   /**
