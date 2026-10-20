@@ -70,6 +70,10 @@ export type SandboxCreateConfiguration = {
   labels?: Record<string, string>;
   extraArgs?: Record<string, string>;
   externalId?: string;
+  /** Seconds the sandbox gets after SIGTERM to exit before it is deleted. Defaults to 0. */
+  terminationGracePeriodSeconds?: number;
+  /** Seconds the sandbox gets after SIGUSR2 to prepare before standby. Defaults to 0. */
+  standbyGracePeriodSeconds?: number;
 }
 
 export function normalizePorts(ports?: (Port | Record<string, any>)[]): Port[] | undefined {

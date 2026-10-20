@@ -391,7 +391,9 @@ export class SandboxInstance {
       'network' in sandbox ||
       'snapshotEnabled' in sandbox ||
       'labels' in sandbox ||
-      'extraArgs' in sandbox
+      'extraArgs' in sandbox ||
+      'terminationGracePeriodSeconds' in sandbox ||
+      'standbyGracePeriodSeconds' in sandbox
     ) {
       if (!sandbox) sandbox = {} as SandboxCreateConfiguration
       if (!sandbox.image) sandbox.image = defaultImage
@@ -413,6 +415,7 @@ export class SandboxInstance {
       const network = sandbox.network;
       const snapshotEnabled = sandbox.snapshotEnabled;
       const extraArgs = sandbox.extraArgs;
+      const { terminationGracePeriodSeconds, standbyGracePeriodSeconds } = sandbox;
 
       sandbox = {
         metadata: { name: sandbox.name, labels: sandbox.labels, externalId: sandbox.externalId },
@@ -426,6 +429,8 @@ export class SandboxInstance {
             generation: "mk3",
             snapshotEnabled,
             extraArgs,
+            terminationGracePeriodSeconds,
+            standbyGracePeriodSeconds,
           },
           volumes: volumes,
           lifecycle: lifecycle,
