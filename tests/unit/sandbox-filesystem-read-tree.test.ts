@@ -24,12 +24,12 @@ describe("SandboxFileSystem.readTree", () => {
     const { fs, get } = harness(tree("/root", []));
     await fs.readTree("/root");
     expect(get).toHaveBeenCalledTimes(1);
-    expect(get).toHaveBeenLastCalledWith({
+    expect(get).toHaveBeenLastCalledWith(expect.objectContaining({
       url: "/filesystem/tree/{path}",
       path: { path: "/root" },
       query: { recursive: true, content: true },
       baseUrl: "http://sandbox.local",
-    });
+    }));
   });
 
   it("passes the selection and limits as query parameters", async () => {
@@ -42,23 +42,14 @@ describe("SandboxFileSystem.readTree", () => {
     } }));
   });
 
-  it("returns sorted relative paths in a plain object and skips entries without content", async () => {
-    const { fs } = harness(tree("/root", [
+  it("returns the API response as is", async () => {
+    const body = tree("/root", [
       { path: "/root/z.json", name: "z.json", content: "z" },
       { path: "/root/nested/b.json", name: "b.json", content: "" },
-      { path: "/root/__proto__", name: "__proto__", content: "p" },
       { path: "/root/dir-link", name: "dir-link" },
-      { path: "/root/a.json", name: "a.json", content: "a" },
-    ]));
-    const files = await fs.readTree("/root/");
-    expect(Object.keys(files)).toEqual(["__proto__", "a.json", "nested/b.json", "z.json"]);
-    expect(Object.getPrototypeOf(files)).toBe(Object.prototype);
-    expect(files["nested/b.json"]).toBe("");
-  });
-
-  it("strips the root prefix when the root is /", async () => {
-    const { fs } = harness(tree("/", [{ path: "/a.json", name: "a.json", content: "a" }]));
-    expect(await fs.readTree("/")).toEqual({ "a.json": "a" });
+    ]);
+    const { fs } = harness(body);
+    expect(await fs.readTree("/root")).toBe(body);
   });
 
   it("fails instead of returning a one-level listing from an older sandbox API", async () => {

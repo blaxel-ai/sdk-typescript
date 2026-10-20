@@ -25,16 +25,23 @@ describe("Sandbox filesystem readTree", () => {
     expect(await waitForSandboxDeletion(name)).toBe(true);
   });
 
-  it("reads the selected files by relative path in one request", async () => {
-    expect(await sandbox.fs.readTree(root, { patterns: ["*.json"], excludeDirs: ["node_modules"] })).toEqual({
-      "a.json": "{\"a\":\"café 🚀\"}\n",
-      "nested/b.json": "{\"b\":2}\n",
-    });
-    expect(await sandbox.fs.readTree("/tmp/read-tree-empty")).toEqual({});
+  it("reads the selected files with their content in one request", async () => {
+    const tree = await sandbox.fs.readTree(root, { patterns: ["*.json"], excludeDirs: ["node_modules"] });
+    expect(tree.recursive).toBe(true);
+    expect(tree.path).toBe(root);
+    expect(tree.files.map((file) => [file.path, file.content]).sort()).toEqual([
+      [`${root}/a.json`, "{\"a\":\"café 🚀\"}\n"],
+      [`${root}/nested/b.json`, "{\"b\":2}\n"],
+    ]);
+    expect(tree.subdirectories.map((dir) => dir.path)).toEqual([`${root}/nested`]);
+    expect((await sandbox.fs.readTree("/tmp/read-tree-empty")).files).toEqual([]);
   });
 
   it("excludes nothing by default", async () => {
-    expect(Object.keys(await sandbox.fs.readTree(root))).toEqual(["a.json", "nested/b.json", "node_modules/skipped.json", "notes.txt"]);
+    const tree = await sandbox.fs.readTree(root);
+    expect(tree.files.map((file) => file.path).sort()).toEqual(
+      ["a.json", "nested/b.json", "node_modules/skipped.json", "notes.txt"].map((path) => `${root}/${path}`),
+    );
   });
 
   it("rejects instead of truncating when more than maxFiles match", async () => {
