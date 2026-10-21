@@ -37,37 +37,64 @@ function httpStatus(error: unknown): number | undefined {
   return undefined;
 }
 
+/** An access token for a private preview. */
 export class SandboxPreviewToken {
   constructor(private previewToken: PreviewToken) {}
 
+  /** Token name (`token-<timestamp>` when created by the SDK); pass it to `tokens.delete()`. */
   get name(): string {
     return this.previewToken.metadata?.name ?? "";
   }
 
+  /**
+   * The token. Send it in the `X-Blaxel-Preview-Token` header, or once as the
+   * `bl_preview_token` query parameter in a browser, which then keeps it in a cookie.
+   */
   get value() {
     return this.previewToken.spec.token ?? "";
   }
 
+  /** When the token expires, as returned by the API (an ISO 8601 string). */
   get expiresAt() {
     return this.previewToken.spec.expiresAt ?? new Date();
   }
 
+  /** Whether the token has expired. */
   get expired() {
     return this.previewToken.spec.expired ?? false;
   }
 }
 
+/**
+ * Access tokens of a private preview. Reach it through `preview.tokens`.
+ * Public previews need no token.
+ *
+ * @example
+ * ```typescript
+ * const preview = await sandbox.previews.create({ port: 3000 });
+ * const token = await preview.tokens.create(new Date(Date.now() + 60 * 60 * 1000));
+ * const res = await fetch(preview.url, { headers: { "X-Blaxel-Preview-Token": token.value } });
+ * ```
+ */
 export class SandboxPreviewTokens {
   constructor(private preview: Preview) {}
 
+  /** Name of the preview the tokens open. */
   get previewName() {
     return this.preview.metadata.name;
   }
 
+  /** Name of the sandbox the preview belongs to. */
   get resourceName() {
     return this.preview.metadata.resourceName ?? "";
   }
 
+  /**
+   * Create a token for the preview.
+   *
+   * @param expiresAt - When the token stops working.
+   * @returns The new token; read it from `value`.
+   */
   async create(expiresAt: Date) {
     const { data } = await createSandboxPreviewToken({
       path: {
@@ -90,6 +117,11 @@ export class SandboxPreviewTokens {
   /**
    * Reuse the latest token within the requested expiry ceiling, or mint one.
    * minValidity is in milliseconds. Concurrent callers may create separate tokens.
+   *
+   * @param expiresAt - Latest acceptable expiry, also used for a new token. Defaults to 24 hours from now.
+   * @param minValidity - Milliseconds a reused token must still be valid for. Defaults to 3600000 (1 hour).
+   * @returns A token valid for at least `minValidity`.
+   * @throws RangeError when `expiresAt` is not at least `minValidity` in the future, and an Error for a public preview.
    */
   async createIfExpired(expiresAt?: Date, minValidity: number = 3_600_000): Promise<SandboxPreviewToken> {
     const now = Date.now();
@@ -129,6 +161,11 @@ export class SandboxPreviewTokens {
     return selected ? new SandboxPreviewToken(selected) : this.create(requestedExpiry);
   }
 
+  /**
+   * List the tokens of the preview.
+   *
+   * @returns The tokens.
+   */
   async list() {
     const { data } = await listSandboxPreviewTokens({
       path: {
@@ -140,6 +177,12 @@ export class SandboxPreviewTokens {
     return data.map((token) => new SandboxPreviewToken(token));
   }
 
+  /**
+   * Delete a token so it no longer opens the preview.
+   *
+   * @param tokenName - The token's `name` (not its `value`).
+   * @returns The deleted token.
+   */
   async delete(tokenName: string) {
     const { data } = await deleteSandboxPreviewToken({
       path: {
@@ -153,37 +196,62 @@ export class SandboxPreviewTokens {
   }
 }
 
+/** A preview: a URL that serves one port of a sandbox. */
 export class SandboxPreview {
+  /** Access tokens of the preview, needed when it is private. */
   tokens: SandboxPreviewTokens;
 
   constructor(private preview: Preview) {
     this.tokens = new SandboxPreviewTokens(this);
   }
 
+  /** Preview name, unique within the sandbox. */
   get name() {
     return this.preview.metadata.name;
   }
 
+  /** URL of the preview. A private preview answers HTTP 401 without a token. */
   get url(): string {
     return this.preview.spec?.url ?? "";
   }
 
+  /** Preview metadata (name, sandbox name, timestamps). */
   get metadata() {
     return this.preview.metadata;
   }
 
+  /** Preview settings: `port`, `public`, `url`, custom domain and prefix, request and response headers, `ttl` and `expires`. */
   get spec() {
     return this.preview.spec;
   }
 }
 
+/**
+ * Previews of a sandbox: URLs that serve a port of the sandbox over HTTPS,
+ * for example a dev server. Reach it through `sandbox.previews`. A public
+ * preview is open to anyone; a private one needs a token from
+ * `preview.tokens`.
+ *
+ * @example
+ * ```typescript
+ * await sandbox.process.exec({ command: "npm run dev", name: "dev", waitForPorts: [3000] });
+ * const preview = await sandbox.previews.createIfNotExists({ port: 3000, public: true });
+ * console.log(preview.url);
+ * ```
+ */
 export class SandboxPreviews {
   constructor(private sandbox: Sandbox) {}
 
+  /** Name of the sandbox the previews belong to. */
   get sandboxName() {
     return this.sandbox.metadata.name;
   }
 
+  /**
+   * List the previews of the sandbox.
+   *
+   * @returns The previews.
+   */
   async list() {
     const { data } = await listSandboxPreviews({
       path: {
@@ -194,6 +262,22 @@ export class SandboxPreviews {
     return data.map((preview) => new SandboxPreview(preview));
   }
 
+  /**
+   * Create a preview for a port of the sandbox.
+   *
+   * @param preview - Either the shorthand `{ port, name?, public? }`, where
+   * `name` defaults to `preview-<port>` and `public` to false, or a full
+   * preview (`{ metadata: { name }, spec: { port, public, customDomain,
+   * prefixUrl, requestHeaders, responseHeaders, ttl } }`).
+   * @param force - Replace previews that conflict on the same custom domain prefix URL.
+   * @returns The preview, with its `url`.
+   * @throws When a preview with the same name exists (HTTP 409); use `createIfNotExists()` to reuse it.
+   *
+   * @example
+   * ```typescript
+   * const preview = await sandbox.previews.create({ port: 3000, public: true });
+   * ```
+   */
   async create(preview: Preview | SandboxPreviewCreateConfiguration, force?: boolean): Promise<SandboxPreview> {
     const normalized = normalizePreview(preview);
     const query: Record<string, string> = {}
@@ -212,7 +296,19 @@ export class SandboxPreviews {
   }
 
 
-  /** Existing previews are returned as-is; shorthand's private default applies only on creation. */
+  /**
+   * Return the preview with this name, or create it. Existing previews are
+   * returned as-is; shorthand's private default applies only on creation.
+   *
+   * @param preview - Shorthand `{ port, name?, public? }` (name defaults to `preview-<port>`) or a full preview, as for `create()`.
+   * @param force - Passed to `create()` when the preview is created.
+   * @returns The existing or new preview.
+   *
+   * @example
+   * ```typescript
+   * const preview = await sandbox.previews.createIfNotExists({ port: 3000 });
+   * ```
+   */
   async createIfNotExists(preview: Preview | SandboxPreviewCreateConfiguration, force?: boolean): Promise<SandboxPreview> {
     if (isShorthand(preview)) {
       const normalized = normalizePreview(preview);
@@ -239,6 +335,13 @@ export class SandboxPreviews {
     }
   }
 
+  /**
+   * Get a preview by name.
+   *
+   * @param previewName - The preview name, such as `preview-3000`.
+   * @returns The preview.
+   * @throws When no preview has this name (HTTP 404).
+   */
   async get(previewName: string) {
     const { data } = await getSandboxPreview({
       path: {
@@ -250,6 +353,13 @@ export class SandboxPreviews {
     return new SandboxPreview(data);
   }
 
+  /**
+   * Delete a preview. Waits up to 10 seconds for the deletion to finish.
+   *
+   * @param previewName - The preview name.
+   * @returns The deleted preview.
+   * @throws When the preview is still being deleted after 10 seconds.
+   */
   async delete(previewName: string) {
     const { data } = await deleteSandboxPreview({
       path: {
