@@ -74,16 +74,14 @@ describe('Sandbox Filesystem Operations', () => {
   })
 
   describe('writeBinary and readBinary', () => {
-    it('writes and reads binary file from local path', async () => {
+    it('writes and reads binary file from local path', async ({ skip }) => {
       const localPath = join(assetsDir, 'archive.zip')
       const remotePath = "/tmp/uploaded.zip"
 
-      // Skip if asset doesn't exist
       try {
         await stat(localPath)
       } catch {
-        console.log('Skipping binary test - archive.zip not found')
-        return
+        skip('archive.zip not found')
       }
 
       await sandbox.fs.writeBinary(remotePath, localPath)

@@ -71,7 +71,7 @@ describe('proxy vs no-proxy comparison', () => {
     expect(proxyHeaders["x-api-key"]).toBe("comparison-secret-123")
     expect(noProxyHeaders["x-proxy-compare"]).toBeUndefined()
     expect(noProxyHeaders["x-api-key"]).toBeUndefined()
-    console.log(`[compare GET headers] proxy: ${proxyResult.durationMs}ms, no-proxy: ${noProxyResult.durationMs}ms, overhead: ${proxyResult.durationMs - noProxyResult.durationMs}ms`)
+    // console.log(`[compare GET headers] proxy: ${proxyResult.durationMs}ms, no-proxy: ${noProxyResult.durationMs}ms, overhead: ${proxyResult.durationMs - noProxyResult.durationMs}ms`)
   }, 60_000)
 
   it('proxy sandbox injects body fields, no-proxy sandbox does not', async () => {
@@ -84,7 +84,7 @@ describe('proxy vs no-proxy comparison', () => {
     expect(parseJsonOutput(proxyResult.logs).json.injected_field).toBe("proxy-injected")
     expect(parseJsonOutput(noProxyResult.logs).json.user_data).toBe("original")
     expect(parseJsonOutput(noProxyResult.logs).json.injected_field).toBeUndefined()
-    console.log(`[compare POST body] proxy: ${proxyResult.durationMs}ms, no-proxy: ${noProxyResult.durationMs}ms, overhead: ${proxyResult.durationMs - noProxyResult.durationMs}ms`)
+    // console.log(`[compare POST body] proxy: ${proxyResult.durationMs}ms, no-proxy: ${noProxyResult.durationMs}ms, overhead: ${proxyResult.durationMs - noProxyResult.durationMs}ms`)
   }, 60_000)
 
   it('proxy sandbox has proxy env vars, no-proxy sandbox does not', async () => {
@@ -112,7 +112,7 @@ describe('proxy vs no-proxy comparison', () => {
     expect(noProxyResult.exitCode).toBe(0)
     expect(parseJsonOutput(proxyResult.logs).path).toBe("/get")
     expect(parseJsonOutput(noProxyResult.logs).path).toBe("/get")
-    console.log(`[compare GET /get] proxy: ${proxyResult.durationMs}ms, no-proxy: ${noProxyResult.durationMs}ms, overhead: ${proxyResult.durationMs - noProxyResult.durationMs}ms`)
+    // console.log(`[compare GET /get] proxy: ${proxyResult.durationMs}ms, no-proxy: ${noProxyResult.durationMs}ms, overhead: ${proxyResult.durationMs - noProxyResult.durationMs}ms`)
   }, 60_000)
 
   it('latency overhead is within acceptable bounds', async () => {
@@ -134,9 +134,9 @@ describe('proxy vs no-proxy comparison', () => {
     const noProxyAvg = avg(noProxyTimes)
     const overheadMs = proxyAvg - noProxyAvg
     const overheadPct = noProxyAvg > 0 ? (overheadMs / noProxyAvg) * 100 : 0
-    console.log(`[latency benchmark] proxy avg: ${proxyAvg.toFixed(0)}ms, no-proxy avg: ${noProxyAvg.toFixed(0)}ms`)
-    console.log(`[latency benchmark] overhead: ${overheadMs.toFixed(0)}ms (${overheadPct.toFixed(1)}%)`)
-    console.log(`[latency benchmark] proxy samples: [${proxyTimes.join(', ')}], no-proxy samples: [${noProxyTimes.join(', ')}]`)
+    // console.log(`[latency benchmark] proxy avg: ${proxyAvg.toFixed(0)}ms, no-proxy avg: ${noProxyAvg.toFixed(0)}ms`)
+    // console.log(`[latency benchmark] overhead: ${overheadMs.toFixed(0)}ms (${overheadPct.toFixed(1)}%)`)
+    // console.log(`[latency benchmark] proxy samples: [${proxyTimes.join(', ')}], no-proxy samples: [${noProxyTimes.join(', ')}]`)
     expect(overheadMs).toBeLessThan(5000)
   }, 180_000)
 })

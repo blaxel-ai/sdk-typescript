@@ -1,10 +1,10 @@
 import { DriveInstance, SandboxInstance } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
-import { defaultImage, defaultLabels, uniqueName, waitForSandboxDeletion } from './helpers.js'
+import { defaultImage, defaultLabels, isSlowTestEnabled, uniqueName, waitForSandboxDeletion } from './helpers.js'
 
 const defaultRegion = process.env.BL_DRIVE_REGION || (process.env.BL_ENV !== 'dev' ? 'us-was-1' : 'eu-dub-1') // Only region for drives right now
 
-describe('Drive Operations', () => {
+describe.runIf(isSlowTestEnabled("RUN_DRIVE_TESTS"))('Drive Operations', () => {
   const createdSandboxes: string[] = []
   const createdDrives: string[] = []
 
