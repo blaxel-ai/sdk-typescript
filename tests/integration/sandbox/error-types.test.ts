@@ -27,7 +27,7 @@ describe("API error types over current thrown values", () => {
       if (getBlaxelErrorStatus(err) !== 404) throw err;
     });
     expect(await waitForSandboxDeletion(name, 10)).toBe(true);
-    console.log(`Deleted test sandbox ${name}`);
+    // console.log(`Deleted test sandbox ${name}`);
   }, 15_000);
 
   it("reads the raw control-plane body for a missing sandbox", async () => {

@@ -1,12 +1,12 @@
 import { DriveInstance, SandboxInstance } from "@blaxel/core"
 import type { DrivePermission } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
-import { defaultImage, defaultLabels, sleep, uniqueName, waitForSandboxDeletion } from './helpers.js'
+import { defaultImage, defaultLabels, isSlowTestEnabled, sleep, uniqueName, waitForSandboxDeletion } from './helpers.js'
 
 const defaultRegion = process.env.BL_DRIVE_REGION || (process.env.BL_ENV !== 'dev' ? 'us-was-1' : 'eu-dub-1')
 const MOUNT_SETTLE_MS = 3_000
 
-describe('Drive ACL Permissions', () => {
+describe.runIf(isSlowTestEnabled("RUN_DRIVE_TESTS"))('Drive ACL Permissions', () => {
   const createdSandboxes: string[] = []
   const createdDrives: string[] = []
 

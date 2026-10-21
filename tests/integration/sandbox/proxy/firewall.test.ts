@@ -1,6 +1,6 @@
 import { SandboxInstance } from "@blaxel/core"
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { defaultImage, defaultLabels, defaultRegion, uniqueName } from '../helpers.js'
+import { defaultImage, defaultLabels, defaultRegion, isSlowTestEnabled, uniqueName } from '../helpers.js'
 import { createEchoServerSandbox, createReadyProxySandbox, execProxyCommandWithRetry, lowercaseKeys, parseJsonObjectOutput, proxyCleanup } from './helpers.js'
 
 type HttpBinResponse = {
@@ -53,7 +53,7 @@ describe('firewall e2e (allowedDomains / forbiddenDomains)', () => {
     }, 60_000)
   })
 
-  describe('no proxy bypass (firewall ruleset: proxy)', () => {
+  describe.runIf(isSlowTestEnabled("RUN_FIREWALL_RULESET_TESTS"))('no proxy bypass (firewall ruleset: proxy)', () => {
     let bypassSandbox: Awaited<ReturnType<typeof SandboxInstance.create>>
 
     beforeAll(async () => {
@@ -61,7 +61,7 @@ describe('firewall e2e (allowedDomains / forbiddenDomains)', () => {
       bypassSandbox = await createReadyProxySandbox(
         async () => {
           const name = uniqueName("fw-bypass")
-          console.log(`[fw-bypass] creating sandbox ${name}...`)
+          // console.log(`[fw-bypass] creating sandbox ${name}...`)
           const createStart = Date.now()
           const sandbox = await SandboxInstance.create({
             name, image: defaultImage, region: defaultRegion, labels: defaultLabels,
@@ -71,13 +71,13 @@ describe('firewall e2e (allowedDomains / forbiddenDomains)', () => {
               proxy: { routing: [] },
             },
           })
-          console.log(`[fw-bypass] SandboxInstance.create took ${Date.now() - createStart}ms`)
+          // console.log(`[fw-bypass] SandboxInstance.create took ${Date.now() - createStart}ms`)
           return { name, sandbox }
         },
         createdSandboxes,
         `node /tmp/proxy-test.js GET ${echoUrl}/get`,
       )
-      console.log(`[fw-bypass] sandbox ready (create + proxy warmup) took ${Date.now() - readyStart}ms`)
+      // console.log(`[fw-bypass] sandbox ready (create + proxy warmup) took ${Date.now() - readyStart}ms`)
 
       // // Give the "proxy" firewall ruleset a moment to be fully enforced at the
       // // network level before we assert that a direct (no-proxy) call is blocked.

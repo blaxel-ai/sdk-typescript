@@ -1,6 +1,6 @@
 import { SandboxInstance, VolumeInstance, CodeInterpreter } from "@blaxel/core"
-import { afterAll, beforeEach, describe, expect, it } from 'vitest'
-import { defaultImage, defaultLabels, defaultRegion, env, uniqueName, waitForSandboxDeletion, waitForVolumeDeletion } from './helpers.js'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { defaultImage, defaultLabels, defaultRegion, env, isSlowTestEnabled, uniqueName, waitForSandboxDeletion, waitForVolumeDeletion } from './helpers.js'
 
 const backendDefaultRegion = env === "dev" ? "eu-dub-1" : "us-pdx-1"
 const alternateRegion = env === "dev" ? "eu-dub-2" : "eu-lon-1"
@@ -18,6 +18,17 @@ describeWhenRegionUnset('BL_REGION Environment Variable Auto-Fill', () => {
     } else {
       delete process.env.BL_REGION
     }
+    // These tests create resources without a region on purpose; silence the
+    // SDK's "'region' is not set" deprecation warning, keep any other warning.
+    const warn = console.warn
+    vi.spyOn(console, "warn").mockImplementation((...args: unknown[]) => {
+      if (typeof args[0] === "string" && args[0].includes("'region' is not set")) return
+      warn(...args)
+    })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   afterAll(async () => {
@@ -166,7 +177,7 @@ describeWhenRegionUnset('BL_REGION Environment Variable Auto-Fill', () => {
     })
   })
 
-  describe('Volume creation with BL_REGION', () => {
+  describe.runIf(isSlowTestEnabled("RUN_VOLUME_TESTS"))('Volume creation with BL_REGION', () => {
     it('creates volume with backend default region when BL_REGION is not set', async () => {
       delete process.env.BL_REGION
 
@@ -234,7 +245,7 @@ describeWhenRegionUnset('BL_REGION Environment Variable Auto-Fill', () => {
     })
   })
 
-  describe('Multiple resource creation with BL_REGION', () => {
+  describe.runIf(isSlowTestEnabled("RUN_VOLUME_TESTS"))('Multiple resource creation with BL_REGION', () => {
     it('creates sandbox and volume in same region from BL_REGION', async () => {
       const testRegion = process.env.BL_ENV === "dev" ? "eu-dub-1" : "us-was-1"
       process.env.BL_REGION = testRegion

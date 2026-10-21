@@ -1,8 +1,8 @@
 import { SandboxInstance, VolumeInstance } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
-import { defaultImage, defaultLabels, defaultRegion, sleep, uniqueName, waitForSandboxDeletion, waitForVolumeDeletion } from './helpers.js'
+import { defaultImage, defaultLabels, defaultRegion, isSlowTestEnabled, sleep, uniqueName, waitForSandboxDeletion, waitForVolumeDeletion } from './helpers.js'
 
-describe('Sandbox Volume Operations', () => {
+describe.runIf(isSlowTestEnabled("RUN_VOLUME_TESTS"))('Sandbox Volume Operations', () => {
   const createdSandboxes: string[] = []
   const createdVolumes: string[] = []
 
