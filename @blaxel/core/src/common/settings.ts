@@ -3,6 +3,7 @@ import { ApiKey } from "../authentication/apikey.js";
 import { ClientCredentials } from "../authentication/clientcredentials.js";
 import { Credentials, MissingCredentials } from "../authentication/credentials.js";
 import { authentication } from "../authentication/index.js";
+import { detectCodingAgent } from "../common/coding-agent.js";
 import { env } from "../common/env.js";
 import { CredentialsError } from "../common/errors.js";
 import { isBrokenBunH2Runtime } from "../common/h2-runtime.js";
@@ -173,6 +174,19 @@ function getConfigTracking(): boolean | null {
     // If any error, return null
   }
   return null;
+}
+
+/**
+ * Whether `DO_NOT_TRACK` (`1` or `true`) opts out of the coding agent token.
+ * The process environment is checked on its own as well, so a project `.env`
+ * or `blaxel.toml` can't undo an opt-out set for the process. The saved
+ * `tracking` setting is not read: it is an opt-in for error reports, and
+ * `bl login` saves it as false until the user turns it on.
+ */
+function trackingOptedOut(): boolean {
+  const optsOut = (value: string | undefined) => value === "true" || value === "1";
+  const processValue = typeof process !== "undefined" ? process.env?.DO_NOT_TRACK : undefined;
+  return optsOut(processValue) || optsOut(env.DO_NOT_TRACK);
 }
 
 // Function to get OS and architecture
@@ -353,16 +367,33 @@ class Settings {
     this.config.integration = value;
   }
 
+  /**
+   * Id of the coding agent (Claude Code, Codex, Cursor, ...) whose environment
+   * runs the SDK, `"other"` for an agent without a known name, or `""` for none
+   * or when telemetry is opted out. Sent as an `agent/<id>` User-Agent token.
+   */
+  get codingAgent(): string {
+    const agent = detectCodingAgent((name) => env[name]);
+    return agent && !trackingOptedOut() ? agent : "";
+  }
+
   get headers(): Record<string, string> {
     this.assertCredentials();
     const osArch = getOsArch();
-    const sdkUserAgent = `blaxel/sdk/typescript/${this.version} (${osArch}) blaxel/${this.commit}`;
+    let userAgent = `blaxel/sdk/typescript/${this.version} (${osArch}) blaxel/${this.commit}`;
     const integration = this.integration;
+    if (integration) {
+      userAgent += ` ${integration}`;
+    }
+    const codingAgent = this.codingAgent;
+    if (codingAgent) {
+      userAgent += ` agent/${codingAgent}`;
+    }
     return {
       "x-blaxel-authorization": this.authorization,
       "x-blaxel-workspace": this.workspace || "",
       "Blaxel-Version": this.apiVersion,
-      "User-Agent": integration ? `${sdkUserAgent} ${integration}` : sdkUserAgent,
+      "User-Agent": userAgent,
     };
   }
 

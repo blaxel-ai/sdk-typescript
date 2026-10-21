@@ -241,9 +241,26 @@ function generateEventId(): string {
   });
 }
 
+const SAFE_WORKSPACE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+
 /**
- * Build an allowlisted event. Raw messages, response bodies, workspace/resource
- * context, and absolute host paths are deliberately excluded.
+ * The workspace name is the only user identifier, so an issue shows how many
+ * workspaces it affects. Omitted when unknown or not a workspace name.
+ */
+function sentryUser(): { id: string } | undefined {
+  try {
+    const workspace = settings.workspace;
+    return typeof workspace === "string" && SAFE_WORKSPACE_NAME.test(workspace)
+      ? { id: workspace }
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Build an allowlisted event. Raw messages, response bodies, resource context,
+ * and absolute host paths are deliberately excluded.
  */
 function errorToSentryEvent(error: Error, ownedFrames: ParsedFrame[]): SentryEvent {
   return {
@@ -253,6 +270,7 @@ function errorToSentryEvent(error: Error, ownedFrames: ParsedFrame[]): SentryEve
     level: "error",
     environment: settings.env,
     release: `sdk-typescript@${settings.version}`,
+    user: sentryUser(),
     tags: {
       "blaxel.version": settings.version,
       "blaxel.commit": settings.commit,
@@ -356,6 +374,7 @@ function h2DegradationToSentryEvent(
     release: `sdk-typescript@${settings.version}`,
     message: `h2 transport degradation: ${reason}`,
     fingerprint: ["h2-degradation", reason, domainTag],
+    user: sentryUser(),
     tags: {
       "blaxel.version": settings.version,
       "blaxel.commit": settings.commit,
