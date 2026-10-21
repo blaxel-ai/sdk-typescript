@@ -1,4 +1,3 @@
-import dns from "dns/promises";
 import http2 from "http2";
 import tls from "tls";
 import { markH2SessionIdleUnref } from "./h2ref.js";
@@ -26,14 +25,26 @@ export async function establishH2(sniHostname: string): Promise<http2.ClientHttp
 }
 
 async function _establishH2(sniHostname: string): Promise<http2.ClientHttp2Session> {
-  const { address } = await dns.lookup(sniHostname);
-
-  const tlsSocket = tls.connect({
-    host: address,
+  // Connect by hostname with Happy Eyeballs (RFC 8305) rather than resolving a
+  // single address up front. A manual dns.lookup() returns ONE address and, with
+  // Node's verbatim ordering, can hand back an AAAA (IPv6) record first; pinning
+  // the TLS socket to that address fails outright in an IPv4-only runtime whose
+  // network has no IPv6 route. That surfaced as h2 "establish-failure" telemetry
+  // even though the plain-fetch fallback — which uses autoSelectFamily — connects
+  // fine, so warm-up was strictly less robust than the path it falls back to.
+  // Racing both families here (autoSelectFamily is already the default on
+  // Node >= 18.18/20, set explicitly so older runtimes behave the same) aligns
+  // establishment with the fallback's connectivity. `autoSelectFamily` is a
+  // net.connect option forwarded verbatim by tls.connect but not yet in its typed
+  // options, hence the intersection.
+  const connectOptions: tls.ConnectionOptions & { autoSelectFamily?: boolean } = {
+    host: sniHostname,
     port: 443,
     servername: sniHostname,
     ALPNProtocols: ["h2"],
-  });
+    autoSelectFamily: true,
+  };
+  const tlsSocket = tls.connect(connectOptions);
 
   // Raise the per-stream receive window (SETTINGS_INITIAL_WINDOW_SIZE) well above
   // Node's 64KB default. With the default, the server can only send one 64KB

@@ -19,10 +19,29 @@ type SentryEvent = Record<string, unknown> & { event_id: string };
 
 export type H2DegradationReason = "establish-failure" | H2FallbackReason;
 
+/**
+ * Coarse, allowlisted cause of an `establish-failure`. Derived solely from a
+ * Node error `code` (and the SDK's own timeout sentinel) so no host address,
+ * raw error message, or other sensitive data ever reaches the event. Reported
+ * as a breakdown tag — never folded into the fingerprint — so every
+ * establish-failure stays one Sentry issue while the tag distribution shows
+ * whether failures are DNS, TLS, unreachable networks, timeouts, etc.
+ */
+export type H2EstablishFailureCategory =
+  | "timeout"
+  | "dns"
+  | "connection-refused"
+  | "unreachable"
+  | "reset"
+  | "tls"
+  | "http2"
+  | "other";
+
 type H2DegradationRollup = {
   count: number;
   domainTag: string;
   reason: H2DegradationReason;
+  category?: H2EstablishFailureCategory;
   timer: ReturnType<typeof setTimeout>;
 };
 
@@ -342,11 +361,44 @@ function domainToTag(domain: string): string | null {
   return domainTag;
 }
 
+/**
+ * Map an H2 session-establishment error to a coarse, allowlisted category.
+ * Reads only the Node error `code` against a fixed set (and the SDK's own
+ * timeout sentinel message), so no raw error text or host data escapes.
+ */
+export function classifyEstablishError(error: unknown): H2EstablishFailureCategory {
+  const details = error as { code?: unknown; message?: unknown } | null | undefined;
+  const code = typeof details?.code === "string" ? details.code : "";
+  const message = typeof details?.message === "string" ? details.message : "";
+
+  if (message === "H2 warm-up timed out" || code === "ETIMEDOUT") return "timeout";
+  if (code === "ENOTFOUND" || code === "EAI_AGAIN" || code === "EAI_FAIL") return "dns";
+  if (code === "ECONNREFUSED") return "connection-refused";
+  if (code === "ENETUNREACH" || code === "EHOSTUNREACH" || code === "EADDRNOTAVAIL") {
+    return "unreachable";
+  }
+  if (code === "ECONNRESET" || code === "EPIPE") return "reset";
+  if (code.startsWith("ERR_TLS") || code.startsWith("ERR_SSL")) return "tls";
+  if (code.startsWith("ERR_HTTP2")) return "http2";
+  return "other";
+}
+
 function h2DegradationToSentryEvent(
   reason: H2DegradationReason,
   domainTag: string,
   count: number,
+  category?: H2EstablishFailureCategory,
 ): SentryEvent {
+  const tags: Record<string, string> = {
+    "blaxel.version": settings.version,
+    "blaxel.commit": settings.commit,
+    "blaxel.error_source": "h2-transport-degradation",
+    "blaxel.runtime": runtimeTag(),
+    reason,
+    domainTag,
+  };
+  if (category) tags.establishFailureCategory = category;
+
   return {
     event_id: generateEventId(),
     timestamp: Date.now() / 1000,
@@ -356,14 +408,7 @@ function h2DegradationToSentryEvent(
     release: `sdk-typescript@${settings.version}`,
     message: `h2 transport degradation: ${reason}`,
     fingerprint: ["h2-degradation", reason, domainTag],
-    tags: {
-      "blaxel.version": settings.version,
-      "blaxel.commit": settings.commit,
-      "blaxel.error_source": "h2-transport-degradation",
-      "blaxel.runtime": runtimeTag(),
-      reason,
-      domainTag,
-    },
+    tags,
     extra: { count },
   };
 }
@@ -427,7 +472,12 @@ function emitH2DegradationRollup(key: string): void {
 
   if (
     scheduleDelivery(
-      h2DegradationToSentryEvent(rollup.reason, rollup.domainTag, rollup.count),
+      h2DegradationToSentryEvent(
+        rollup.reason,
+        rollup.domainTag,
+        rollup.count,
+        rollup.category,
+      ),
     )
   ) {
     h2EventsEmitted++;
@@ -444,6 +494,7 @@ function flushH2DegradationRollups(): void {
 export function reportH2TransportDegradation(
   domain: string,
   reason: H2DegradationReason,
+  category?: H2EstablishFailureCategory,
 ): void {
   if (!sentryInitialized || !sentryConfig) return;
 
@@ -456,7 +507,9 @@ export function reportH2TransportDegradation(
     const domainTag = domainToTag(normalizedDomain);
     if (!domainTag) return;
 
-    const key = `${reason}\0${domainTag}`;
+    // The category joins the rollup key (so each cause keeps an accurate count)
+    // but never the fingerprint, which stays `reason + domainTag`.
+    const key = `${reason}\0${category ?? ""}\0${domainTag}`;
     const existing = h2DegradationRollups.get(key);
     if (existing) {
       existing.count++;
@@ -478,6 +531,7 @@ export function reportH2TransportDegradation(
       count: 1,
       domainTag,
       reason,
+      category,
       timer,
     });
   } catch {

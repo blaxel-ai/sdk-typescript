@@ -489,4 +489,90 @@ describe("SDK Sentry boundary", () => {
       extra: { count: 1 },
     });
   });
+
+  it("classifies establish-failure causes from the error code only", async () => {
+    const { classifyEstablishError } = await import("./sentry.js");
+
+    expect(classifyEstablishError(new Error("H2 warm-up timed out"))).toBe("timeout");
+    expect(classifyEstablishError({ code: "ETIMEDOUT" })).toBe("timeout");
+    expect(classifyEstablishError({ code: "ENOTFOUND" })).toBe("dns");
+    expect(classifyEstablishError({ code: "EAI_AGAIN" })).toBe("dns");
+    expect(classifyEstablishError({ code: "ECONNREFUSED" })).toBe("connection-refused");
+    expect(classifyEstablishError({ code: "ENETUNREACH" })).toBe("unreachable");
+    expect(classifyEstablishError({ code: "EHOSTUNREACH" })).toBe("unreachable");
+    expect(classifyEstablishError({ code: "ECONNRESET" })).toBe("reset");
+    expect(classifyEstablishError({ code: "ERR_TLS_CERT_ALTNAME_INVALID" })).toBe("tls");
+    expect(classifyEstablishError({ code: "ERR_HTTP2_ERROR" })).toBe("http2");
+    expect(classifyEstablishError(new Error("anything else"))).toBe("other");
+    expect(classifyEstablishError(null)).toBe("other");
+  });
+
+  it("tags establish-failures with a cause category without splitting the fingerprint", async () => {
+    const fetchMock = createFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { flushSentry, initSentry, reportH2TransportDegradation } = await import(
+      "./sentry.js"
+    );
+    initSentry();
+    const domain = "sbx-test-workspace.us-pdx-1.bl.run";
+    const domainTag = "blaxel-edge:prod:us-pdx-1";
+
+    reportH2TransportDegradation(domain, "establish-failure", "unreachable");
+    reportH2TransportDegradation(domain, "establish-failure", "unreachable");
+    reportH2TransportDegradation(domain, "establish-failure", "dns");
+    await flushSentry();
+
+    // Distinct categories roll up independently (own counts) but every event
+    // keeps the same reason+domain fingerprint, so Sentry still shows one issue.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const events = eventsFromFetch(fetchMock);
+    const unreachable = events.find(
+      (event) => event.tags.establishFailureCategory === "unreachable",
+    );
+    const dns = events.find(
+      (event) => event.tags.establishFailureCategory === "dns",
+    );
+
+    expect(unreachable).toMatchObject({
+      message: "h2 transport degradation: establish-failure",
+      fingerprint: ["h2-degradation", "establish-failure", domainTag],
+      tags: {
+        reason: "establish-failure",
+        domainTag,
+        establishFailureCategory: "unreachable",
+      },
+      extra: { count: 2 },
+    });
+    expect(dns).toMatchObject({
+      fingerprint: ["h2-degradation", "establish-failure", domainTag],
+      tags: { establishFailureCategory: "dns" },
+      extra: { count: 1 },
+    });
+  });
+
+  it("reports establish failures with a category through the H2 statistics hooks", async () => {
+    const fetchMock = createFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { flushSentry, initSentry } = await import("./sentry.js");
+    initSentry();
+    const { recordH2EstablishFailure } = await import("./h2stats.js");
+
+    const error = Object.assign(new Error("connect ECONNREFUSED"), {
+      code: "ECONNREFUSED",
+    });
+    recordH2EstablishFailure("sbx-test-workspace.us-pdx-1.bl.run", error);
+    await flushSentry();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(eventFromFetch(fetchMock)).toMatchObject({
+      message: "h2 transport degradation: establish-failure",
+      tags: {
+        reason: "establish-failure",
+        establishFailureCategory: "connection-refused",
+      },
+      extra: { count: 1 },
+    });
+  });
 });

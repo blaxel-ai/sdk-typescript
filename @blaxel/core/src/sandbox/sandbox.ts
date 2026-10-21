@@ -389,15 +389,15 @@ export class SandboxInstance {
     const { mountDrives = [], createIfNotExist = false } = options;
     validateCreateOptions(options);
     validateMountDrives(mountDrives, createIfNotExist);
-    const model = SandboxInstance.toSandboxModel(sandbox);
-    if (!mountDrives.length) return SandboxInstance.createSandboxInstance(model, options);
+    const { model, requested } = SandboxInstance.toSandboxModel(sandbox);
+    if (!mountDrives.length) return SandboxInstance.createSandboxInstance(model, options, requested);
     // Drives are set up alongside the sandbox, in the region this request sends (if it
     // sends none, the control plane picks one and new drives wait for the sandbox).
     const drives = new SandboxDriveSetup(mountDrives, model.spec?.region);
     drives.start();
     let instance: SandboxInstance;
     try {
-      instance = await SandboxInstance.createSandboxInstance(model, options);
+      instance = await SandboxInstance.createSandboxInstance(model, options, requested);
     } catch (err) {
       throw await drives.discard(err);
     }
@@ -405,8 +405,15 @@ export class SandboxInstance {
     return instance;
   }
 
-  /** The creation request body, with the SDK's defaults (image, memory, region from BL_REGION) applied. */
-  private static toSandboxModel(sandbox?: SandboxModel | SandboxCreateConfiguration): SandboxModel {
+  /**
+   * The creation request body, with the SDK's defaults (image, memory, region
+   * from BL_REGION) applied, alongside the `requested` snapshot of exactly what
+   * the caller asked for (read before defaults fill the gaps) that
+   * `createIfNotExists` drift-checks against the returned sandbox.
+   */
+  private static toSandboxModel(
+    sandbox?: SandboxModel | SandboxCreateConfiguration,
+  ): { model: SandboxModel; requested: RequestedSandbox } {
     // No client-side default name: when the caller omits a name we send the
     // creation without metadata.name so the server can assign one and unnamed
     // creations become eligible for warm sandbox pools (ENG-3931).
@@ -502,10 +509,10 @@ export class SandboxInstance {
 
     sandbox.spec.runtime.image = sandbox.spec.runtime.image || defaultImage;
     sandbox.spec.runtime.memory = sandbox.spec.runtime.memory || defaultMemory;
-    return sandbox;
+    return { model: sandbox, requested };
   }
 
-  private static async createSandboxInstance(sandbox: SandboxModel, options: SandboxCreateOptions) {
+  private static async createSandboxInstance(sandbox: SandboxModel, options: SandboxCreateOptions, requested: RequestedSandbox) {
     const { safe = false, createIfNotExist = false } = options;
     const { timeout } = validateCreateOptions(options);
     const edgeDomain = SandboxInstance.edgeDomainForRegion(sandbox.spec?.region);
