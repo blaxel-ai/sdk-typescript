@@ -377,6 +377,29 @@ await VolumeInstance.delete("my-volume");
 await volume.delete();
 ```
 
+#### Proxy secrets
+
+Workspace secrets are write-only values the egress proxy substitutes for `{{SECRET:name}}` references in a sandbox's routing. Each secret only resolves toward its `destinations` (a host, optionally followed by a path glob); the value is never returned by the API:
+
+```typescript
+import { SecretInstance } from "@blaxel/core";
+
+// Create the secret, or store a new version if it already exists
+const secret = await SecretInstance.set("stripe-key", "sk_live_...", [
+  "api.stripe.com",
+  "api.example.com/v1/*",
+]);
+console.log(secret.name, secret.destinations);
+
+// List secrets (names, destinations and timestamps only)
+for (const listed of await SecretInstance.list()) {
+  console.log(listed.name, listed.destinations, listed.updatedAt);
+}
+
+// Delete the secret and all of its versions
+await SecretInstance.delete("stripe-key");
+```
+
 ### Batch jobs
 
 Blaxel lets you support agentic workflows by offloading asynchronous batch processing tasks to its scalable infrastructure, where they can run in parallel. Jobs can run multiple times within a single execution and accept optional input parameters.
