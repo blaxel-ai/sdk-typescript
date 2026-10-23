@@ -416,6 +416,10 @@ export class SandboxFileSystem extends SandboxAction {
     callback: (fileEvent: WatchEvent) => void | Promise<void>,
     options?: {
       onError?: (error: Error) => void,
+      /** Called on each server keepalive (every ~30s). Use it to detect a silent, dead stream. */
+      onKeepalive?: () => void,
+      /** Called when the server ends the stream without close() having been called. */
+      onClose?: () => void,
       withContent: boolean,
       ignore?: string[]
     }
@@ -445,15 +449,15 @@ export class SandboxFileSystem extends SandboxAction {
       try {
         while (!closed) {
           const { value, done } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
+          // On end of stream, flush the decoder and terminate a trailing line so it is not dropped.
+          buffer += done ? decoder.decode() + '\n' : decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
           buffer = lines.pop()!;
           for (const line of lines) {
             const trimmed = line.trim();
             if (!trimmed) continue;
-            // Skip keepalive messages
-            if (line.startsWith("[keepalive]")) {
+            if (trimmed.startsWith("[keepalive]")) {
+              options?.onKeepalive?.();
               continue;
             }
             const fileEvent = JSON.parse(trimmed) as WatchEvent;
@@ -475,12 +479,18 @@ export class SandboxFileSystem extends SandboxAction {
               await callback(fileEvent);
             }
           }
+          if (done) break;
         }
       } finally {
         reader.releaseLock();
       }
     };
-    start().catch((err: unknown) => {
+    start().then(() => {
+      if (!closed) {
+        closed = true;
+        options?.onClose?.();
+      }
+    }).catch((err: unknown) => {
       // Suppress AbortError when closing
       if (!(err && typeof err === 'object' && 'name' in err && (err as { name: unknown }).name === 'AbortError')) {
         if (options?.onError) {
