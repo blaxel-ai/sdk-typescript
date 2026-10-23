@@ -449,8 +449,8 @@ export class SandboxFileSystem extends SandboxAction {
       try {
         while (!closed) {
           const { value, done } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
+          // On end of stream, flush the decoder and terminate a trailing line so it is not dropped.
+          buffer += done ? decoder.decode() + '\n' : decoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
           buffer = lines.pop()!;
           for (const line of lines) {
@@ -479,6 +479,7 @@ export class SandboxFileSystem extends SandboxAction {
               await callback(fileEvent);
             }
           }
+          if (done) break;
         }
       } finally {
         reader.releaseLock();
