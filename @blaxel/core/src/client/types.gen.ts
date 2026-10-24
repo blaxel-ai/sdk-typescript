@@ -4135,6 +4135,10 @@ export type SandboxRestoreResponse = {
  */
 export type SandboxRuntime = {
     /**
+     * Maximum share of the sandbox memory its filesystem can use, in percent (10-95). The filesystem is held in memory, so files written count against the sandbox memory. Defaults to 50. mk3.1 only. Immutable after creation.
+     */
+    diskPercent?: number;
+    /**
      * Environment variables injected into the sandbox. Supports Kubernetes EnvVar format with valueFrom references.
      */
     envs?: Array<Env>;
@@ -4158,7 +4162,7 @@ export type SandboxRuntime = {
     memory?: number;
     ports?: Ports;
     /**
-     * Seconds the sandbox gets after a SIGUSR2 to prepare before it goes to standby (scale to zero). The workload can say it is ready earlier by writing +1 to $BLAXEL_SCALE_FILE when it starts preparing and -1 when it is done. Defaults to 0: no signal, immediate standby.
+     * Seconds the sandbox gets after a SIGUSR2 to prepare before it goes to standby (scale to zero). The workload can say it is done earlier by writing to $BLAXEL_STANDBY_READY_FILE. Defaults to 0: no signal, immediate standby.
      */
     standbyGracePeriodSeconds?: number;
     /**

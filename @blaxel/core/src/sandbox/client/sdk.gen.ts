@@ -480,7 +480,11 @@ export const deleteFilesystemTreeByPath = <ThrowOnError extends boolean = false>
 
 /**
  * Get directory tree
- * Get a recursive directory tree structure starting from the specified path
+ * List a directory. Without query parameters, `files` and `subdirectories` hold its direct children.
+ *
+ * With `recursive=true`, they hold every file and directory below the path (flat, with full paths). With `content=true`, each regular file (or symlink to one) also carries its `content` as UTF-8 text, like a JSON file read; other entries have no `content`. `patterns`, `excludeDirs` and `excludeHidden` select entries the same way as find, but nothing is excluded by default.
+ *
+ * The response is all or nothing: when more than `maxFiles` files match, or `content=true` and they hold more than `maxBytes` bytes, the request fails with 422 before any content is read.
  */
 export const getFilesystemTreeByPath = <ThrowOnError extends boolean = false>(options: Options<GetFilesystemTreeByPathData, ThrowOnError>) => {
     return (options.client ?? _heyApiClient).get<GetFilesystemTreeByPathResponse, GetFilesystemTreeByPathError, ThrowOnError>({
@@ -824,7 +828,7 @@ export const postUpgrade = <ThrowOnError extends boolean = false>(options?: Opti
  * Stream file modification events in a directory
  * Streams change events for a directory until the client disconnects.
  *
- * The body is JSON lines (sent with `Content-Type: text/plain`): one event object per line, e.g. `{"op":"WRITE","name":"main.go","path":"/app/src","error":null}`. `op` is the fsnotify operation (CREATE, WRITE, REMOVE, RENAME or CHMOD, several can be joined with `|`), `name` the base name of the changed entry, `path` the directory containing it, and `error` is always null. A `[keepalive]` line (not JSON) is sent every 30 seconds.
+ * The body is JSON lines (sent with `Content-Type: text/plain`): one event object per line, e.g. `{"op":"WRITE","name":"main.go","path":"/app/src","error":null}`. `op` is the fsnotify operation (CREATE, WRITE, REMOVE, RENAME or CHMOD, several can be joined with `|`), `name` the base name of the changed entry, `path` the directory containing it, and `error` is always null. A `[keepalive]` line (not JSON) is sent every 30 seconds. The response starts once the watch is registered, and the stream ends when the watched directory is removed or renamed, or when events were dropped because the kernel queue overflowed (reopen and resync).
  * Only the directory's direct entries are watched. To also watch every subdirectory, including ones created later, end the path with `**`. The stream reports subsequent changes without an initial snapshot. When a new directory is detected, synthetic CREATE events are emitted for entries already present inside it to cover changes before its watch was registered.
  */
 export const getWatchFilesystemByPath = <ThrowOnError extends boolean = false>(options: Options<GetWatchFilesystemByPathData, ThrowOnError>) => {
