@@ -1,3 +1,4 @@
+import { deleteTestSandbox } from "../cleanup.js"
 import { SandboxInstance } from "@blaxel/core"
 import { defaultImage, defaultLabels, defaultRegion, fetchWithRetry, uniqueName } from '../helpers.js'
 
@@ -341,7 +342,7 @@ export async function createReadyProxySandbox(
     lastResult = await execProxyCommandWithRetry(sandbox, readyCommand, { retries, delayMs })
     if (isReady(lastResult)) return sandbox
 
-    try { await SandboxInstance.delete(name) } catch {
+    try { await deleteTestSandbox(name) } catch {
       // Best-effort cleanup for a sandbox that never became proxy-ready.
     }
     if (i < attempts - 1) await new Promise(resolve => setTimeout(resolve, delayMs))
@@ -359,7 +360,7 @@ export function proxyCleanup(createdSandboxes: string[]) {
     }
     await Promise.all(
       createdSandboxes.map(async (name) => {
-        try { await SandboxInstance.delete(name) } catch {
+        try { await deleteTestSandbox(name) } catch {
           // Best-effort cleanup: another test cleanup path may already have removed it.
         }
       })
