@@ -104,12 +104,15 @@ async function inspect(result: Result) {
       result.probe = `guest not answering: ${(err as Error).message}`
     }
   } else if (result.status === "ARCHIVED") {
-    // An archived sandbox has no instance: a guest still answering is the VM
-    // the archive should have torn down.
+    // An archived sandbox has no instance: any answer that does not come from
+    // the gateway itself (`X-Blaxel-Source: platform`) is the VM the archive
+    // should have torn down, a frozen one answering 503 included.
     const url = data.metadata?.url ?? `${settings.runUrl}/${settings.workspace}/sandboxes/${result.name}`
     try {
       const res = await withTimeout(globalThis.fetch(`${url}/process`, { headers: settings.headers }), 20_000)
-      result.probe = `guest answered ${res.status}`
+      result.probe = res.headers.get("x-blaxel-source") === "platform"
+        ? `no guest (gateway ${res.status})`
+        : `guest answered ${res.status}`
     } catch (err) {
       result.probe = `no guest (${(err as Error).message})`
     }
@@ -117,7 +120,7 @@ async function inspect(result: Result) {
 
   const broken =
     (result.status === "DEPLOYED" && result.probe !== "guest writable") ||
-    (result.status === "ARCHIVED" && result.probe === "guest answered 503")
+    (result.status === "ARCHIVED" && result.probe?.startsWith("guest answered") === true)
   if (bothAccepted) result.verdict = broken ? "RACE: both accepted, sandbox broken" : "RACE: both accepted"
   else if (broken) result.verdict = "BROKEN"
   else if (oneAccepted) result.verdict = "ok"
@@ -126,7 +129,7 @@ async function inspect(result: Result) {
 
 async function main() {
   console.log(`Workspace ${settings.workspace}, offsets ${OFFSETS.join(", ")} ms, ${MEMORY} -> ${NEW_MEMORY} MB`)
-  const results: Result[] = OFFSETS.map((offset) => ({ offset, name: `arch-race-${run}-${OFFSETS.indexOf(offset)}` }))
+  const results: Result[] = OFFSETS.map((offset, i) => ({ offset, name: `arch-race-${run}-${i}` }))
 
   await Promise.all(results.map((r) => race(r).catch((err) => { r.error = (err as Error).message })))
   for (const r of results) console.log(`[${r.name}] update ${r.offset} ms: archive ${r.archive}, update ${r.update}`)
