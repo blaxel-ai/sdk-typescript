@@ -76,6 +76,12 @@ export type Directory = {
     name: string;
     path: string;
     /**
+     * Recursive is true when files and subdirectories hold every level below
+     * path (tree read with recursive=true). Older APIs ignore that parameter
+     * and omit this field, so clients can tell a one-level listing apart.
+     */
+    recursive?: boolean;
+    /**
      * @name Subdirectories
      */
     subdirectories: Array<Subdirectory>;
@@ -250,6 +256,10 @@ export type ExportResult = {
 };
 
 export type File = {
+    /**
+     * Content is set only by a tree read with content=true, for regular files.
+     */
+    content?: string;
     group: string;
     lastModified: string;
     name: string;
@@ -870,6 +880,10 @@ export type PostDrivesMountErrors = {
      * Internal Server Error
      */
     500: ErrorResponse;
+    /**
+     * Insufficient Storage
+     */
+    507: ErrorResponse;
 };
 
 export type PostDrivesMountError = PostDrivesMountErrors[keyof PostDrivesMountErrors];
@@ -900,6 +914,10 @@ export type DeleteDrivesMountByMountPathErrors = {
      * Bad Request
      */
     400: ErrorResponse;
+    /**
+     * Not Found
+     */
+    404: ErrorResponse;
     /**
      * Internal Server Error
      */
@@ -1551,7 +1569,36 @@ export type GetFilesystemTreeByPathData = {
          */
         path: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * List every file and directory below the path, not only its direct children (default: false)
+         */
+        recursive?: boolean;
+        /**
+         * Include the content of each regular file, as UTF-8 text (default: false)
+         */
+        content?: boolean;
+        /**
+         * Comma-separated glob patterns matched against file names (e.g., *.json,*.md). Directories are not filtered.
+         */
+        patterns?: string;
+        /**
+         * Comma-separated directory names to skip with everything below them (default: none)
+         */
+        excludeDirs?: string;
+        /**
+         * Skip files and directories whose name starts with a dot (default: false)
+         */
+        excludeHidden?: boolean;
+        /**
+         * Fail with 422 when more files match (default: 10000 with recursive or content, otherwise unlimited; at most 100000)
+         */
+        maxFiles?: number;
+        /**
+         * With content=true, fail with 422 when the matching files hold more bytes (default: 33554432, 32 MiB; at most 268435456, 256 MiB)
+         */
+        maxBytes?: number;
+    };
     url: '/filesystem/tree/{path}';
 };
 
@@ -1561,7 +1608,7 @@ export type GetFilesystemTreeByPathErrors = {
      */
     400: ErrorResponse;
     /**
-     * Unprocessable entity
+     * Unprocessable entity, including a maxFiles or maxBytes limit
      */
     422: ErrorResponse;
     /**

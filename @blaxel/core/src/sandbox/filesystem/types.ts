@@ -32,6 +32,17 @@ export interface FilesystemFindOptions {
   excludeHidden?: boolean;
 }
 
+export type FilesystemReadTreeOptions = Pick<FilesystemFindOptions, "patterns"> & {
+  /** Directory names to skip, with everything below them. Default: none. */
+  excludeDirs?: string[];
+  /** Skip files and directories whose name starts with a dot. Default: false. */
+  excludeHidden?: boolean;
+  /** Reject instead of truncating when more files match. Default 10000, at most 100000. */
+  maxFiles?: number;
+  /** Reject when the matching files hold more bytes. Default 32 MiB, at most 256 MiB. */
+  maxBytes?: number;
+};
+
 export interface FilesystemGrepOptions {
   caseSensitive?: boolean;
   contextLines?: number;
