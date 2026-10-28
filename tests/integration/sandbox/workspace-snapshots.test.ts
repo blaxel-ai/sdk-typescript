@@ -1,6 +1,6 @@
 import { SandboxInstance, Snapshot } from "@blaxel/core";
 import { afterAll, describe, expect, it } from "vitest";
-import { defaultImage, defaultLabels, defaultRegion, isSlowTestEnabled, retry, skipUnlessGenerationMk31, uniqueName, waitForSandboxDeletion } from "./helpers.js";
+import { defaultImage, defaultLabels, defaultRegion, isSandboxMk31, isSlowTestEnabled, retry, uniqueName, waitForSandboxDeletion } from "./helpers.js";
 
 describe("Workspace snapshots", { timeout: 180000 }, () => {
   const sandboxName = uniqueName("snap-src");
@@ -25,15 +25,14 @@ describe("Workspace snapshots", { timeout: 180000 }, () => {
   });
 
   it("keeps a snapshot after the sandbox it was captured from is deleted", async (ctx) => {
-    // Snapshots only exist on mk3.1 sandboxes.
-    await skipUnlessGenerationMk31(ctx, "snapshots");
-
     const sandbox = await SandboxInstance.create({
       name: sandboxName,
       image: defaultImage,
       region: defaultRegion,
       labels: defaultLabels,
     });
+    // Snapshots only exist on mk3.1 sandboxes.
+    if (!(await isSandboxMk31(sandbox))) ctx.skip("snapshots require an mk3.1 sandbox");
 
     const snapshot = await sandbox.snapshots.create(snapshotName);
     expect(snapshot.name).toBe(snapshotName);
@@ -67,7 +66,8 @@ describe("Workspace snapshots", { timeout: 180000 }, () => {
 
   // A fork is a full sandbox start on top of the snapshot the test above takes,
   // past the one-minute budget of the default run.
-  it.runIf(isSlowTestEnabled("RUN_SLOW_SNAPSHOT_FORK"))("creates a sandbox from a snapshot whose source is gone", async () => {
+  it.runIf(isSlowTestEnabled("RUN_SLOW_SNAPSHOT_FORK"))("creates a sandbox from a snapshot whose source is gone", async (ctx) => {
+    if (!snapshotId) ctx.skip("no snapshot was taken (mk3.0 sandbox or earlier failure)");
     const snapshot = await Snapshot.get(snapshotId);
 
     const fork = await snapshot.fork(forkName);

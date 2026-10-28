@@ -169,9 +169,9 @@ describe('Sandbox Preview Operations', () => {
       const undeclaredAvg = avg(undeclaredTimes)
       const diff = undeclaredAvg - declaredAvg
 
-      console.log(`[preview port bench] declared (3000) avg: ${declaredAvg.toFixed(0)}ms, samples: [${declaredTimes.join(', ')}]`)
-      console.log(`[preview port bench] undeclared (15501) avg: ${undeclaredAvg.toFixed(0)}ms, samples: [${undeclaredTimes.join(', ')}]`)
-      console.log(`[preview port bench] diff: ${diff.toFixed(0)}ms (${declaredAvg > 0 ? ((diff / declaredAvg) * 100).toFixed(1) : '?'}%)`)
+      // console.log(`[preview port bench] declared (3000) avg: ${declaredAvg.toFixed(0)}ms, samples: [${declaredTimes.join(', ')}]`)
+      // console.log(`[preview port bench] undeclared (15501) avg: ${undeclaredAvg.toFixed(0)}ms, samples: [${undeclaredTimes.join(', ')}]`)
+      // console.log(`[preview port bench] diff: ${diff.toFixed(0)}ms (${declaredAvg > 0 ? ((diff / declaredAvg) * 100).toFixed(1) : '?'}%)`)
 
       expect(Math.abs(diff)).toBeLessThan(2000)
 
@@ -360,12 +360,12 @@ describe('Sandbox Preview Operations', () => {
     })
 
     it('creates private preview with 15 tokens and tests async deletion', async () => {
-      console.log(`Sandbox name: ${sandbox.metadata.name}`);
+      // console.log(`Sandbox name: ${sandbox.metadata.name}`);
       const preview = await sandbox.previews.create({
         metadata: { name: "preview-with-many-tokens" },
         spec: { port: 3000, public: false }
       })
-      console.log(`Preview created: ${preview.metadata.name}`);
+      // console.log(`Preview created: ${preview.metadata.name}`);
 
       const expiration = new Date(Date.now() + 10 * 60 * 1000)
       const tokens = await Promise.all(

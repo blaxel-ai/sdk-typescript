@@ -129,7 +129,7 @@ describe('Sandbox Codegen Operations', () => {
 
   // Conditional skip message
   it.skipIf(hasRelaceKey || hasMorphKey)('skips codegen tests without API keys', () => {
-    console.log('Codegen tests skipped - set RELACE_API_KEY or MORPH_API_KEY to run')
+    // console.log('Codegen tests skipped - set RELACE_API_KEY or MORPH_API_KEY to run')
     expect(true).toBe(true)
   })
 })

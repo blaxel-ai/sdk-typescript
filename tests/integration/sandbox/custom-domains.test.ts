@@ -88,13 +88,12 @@ describe.runIf(isSlowTestEnabled("RUN_CUSTOM_DOMAIN_TESTS"))('Custom domain vali
       spec: { domainType: "applications", validationMethod: "http" },
     })
 
+    // 403 means the http-validation feature flag is off for this workspace
     if (response.status === 403) {
-      console.log(`http validation refused with 403 (feature flag off for this workspace): ${errorMessage(error)}`)
       expect(errorMessage(error)).toMatch(/http validation/i)
       return
     }
 
-    console.log("http validation accepted (feature flag on for this workspace)")
     expect(response.status, errorMessage(error)).toBe(200)
     expect(data?.spec.validationMethod).toBe("http")
     expect(hasAcmValidationRecord(data!)).toBe(false)

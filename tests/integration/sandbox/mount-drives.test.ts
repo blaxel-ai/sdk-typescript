@@ -1,10 +1,10 @@
 import { DriveInstance, SandboxDriveSetupError, SandboxInstance } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
-import { defaultImage, defaultLabels, uniqueName, waitForSandboxDeletion } from './helpers.js'
+import { defaultImage, defaultLabels, isSlowTestEnabled, uniqueName, waitForSandboxDeletion } from './helpers.js'
 
 const region = 'us-was-1' // Drives are only available in some regions
 
-describe('Sandbox create with mountDrives', () => {
+describe.runIf(isSlowTestEnabled("RUN_DRIVE_TESTS"))('Sandbox create with mountDrives', () => {
   const sandboxes: string[] = []
   const drives: string[] = []
   const config = () => ({ image: defaultImage, region, labels: defaultLabels })

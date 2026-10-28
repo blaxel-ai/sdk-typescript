@@ -204,7 +204,7 @@ describe('Sandbox CRUD Operations', () => {
       expect(successes.length).toBeGreaterThan(1)
       const sandbox = await SandboxInstance.get(name)
       const result = await sandbox.process.exec({ command: "echo 'test'", waitForCompletion: true })
-      console.log(`Successfully created sandbox and executed command, successes=${successes.length}`)
+      // console.log(`Successfully created sandbox and executed command, successes=${successes.length}`)
       expect(result.logs).toBe("test\n")
     })
 

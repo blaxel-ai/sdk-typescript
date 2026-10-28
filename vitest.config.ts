@@ -19,16 +19,13 @@ export default defineConfig({
       'tests/runtime-environments/**',
       '**/node_modules/**',
       'tests/**/node_modules/**',
-      // Egress proxy tests have been flaky for a while (proxy readiness, TLS,
-      // preview 401 on non-routed egress); opt back in with RUN_PROXY_TESTS=true.
-      ...(process.env.RUN_PROXY_TESTS === 'true' ? [] : ['tests/integration/sandbox/proxy/**']),
     ],
     testTimeout: 300000, // 5 minutes - API operations can be slow
     hookTimeout: 120000, // 2 minutes for setup/teardown
     globals: true,
     reporters: ['verbose'],
     fileParallelism: true,
-    maxWorkers: 10,
+    maxWorkers: 5,
     sequence: {
       concurrent: false,
     },
@@ -47,8 +44,11 @@ export default defineConfig({
     env: {
       BL_TEST_RUN_ID: testRunId,
       // Feature toggles (default off) -------------------------------------
-      // schedules.test.ts > "firing": waits on the scheduler tick + a backend
-      // cleanup pass (~45-65s), which can blow the 1-minute per-test budget.
+      // schedules.test.ts: the whole scheduler suite (CRUD + firing).
+      RUN_SCHEDULE_TESTS: process.env.RUN_SCHEDULE_TESTS ?? "false",
+      // schedules.test.ts > "firing" (also needs RUN_SCHEDULE_TESTS): waits on
+      // the scheduler tick + a backend cleanup pass (~45-65s), which can blow
+      // the 1-minute per-test budget.
       RUN_SLOW_SCHEDULES: process.env.RUN_SLOW_SCHEDULES ?? "false",
       // archive.test.ts > "Sandbox archive/unarchive": exports the filesystem
       // to the archive store and restores it, minutes each way.
@@ -74,6 +74,16 @@ export default defineConfig({
       // deletes real custom domains (dns/http certificate validation) in the
       // workspace, kept out of the default run.
       RUN_CUSTOM_DOMAIN_TESTS: process.env.RUN_CUSTOM_DOMAIN_TESTS ?? "false",
+      // drives.test.ts, drive-acl.test.ts, mount-drives.test.ts: Agent Drive
+      // tests, which need a drive-enabled region (BL_DRIVE_REGION).
+      RUN_DRIVE_TESTS: process.env.RUN_DRIVE_TESTS ?? "false",
+      // volumes.test.ts, region.test.ts > volume blocks, large-envs.test.ts >
+      // volume persistence: volumes are not enabled on mk3.1 hosts yet.
+      RUN_VOLUME_TESTS: process.env.RUN_VOLUME_TESTS ?? "false",
+      // proxy/firewall.test.ts > "no proxy bypass (firewall ruleset: proxy)":
+      // firewall rulesets are not enabled on mk3.1 hosts yet (deployment fails
+      // at the "lockdown" step).
+      RUN_FIREWALL_RULESET_TESTS: process.env.RUN_FIREWALL_RULESET_TESTS ?? "false",
 
       // Credential gates (default "", i.e. skipped until provided) ---------
       // codegen.test.ts > "fastapply with Relace": third-party Relace API key.

@@ -605,7 +605,6 @@ HTTPServer(('', 3000), H).serve_forever()
         })
 
         const response = await instance.fetch(3000)
-        console.log(response)
         expect(response.status).toBe(200)
         const body = await response.text()
         expect(body).toBe("OK")
