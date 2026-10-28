@@ -74,16 +74,14 @@ describe('Sandbox Filesystem Operations', () => {
   })
 
   describe('writeBinary and readBinary', () => {
-    it('writes and reads binary file from local path', async () => {
+    it('writes and reads binary file from local path', async ({ skip }) => {
       const localPath = join(assetsDir, 'archive.zip')
       const remotePath = "/tmp/uploaded.zip"
 
-      // Skip if asset doesn't exist
       try {
         await stat(localPath)
       } catch {
-        console.log('Skipping binary test - archive.zip not found')
-        return
+        skip('archive.zip not found')
       }
 
       await sandbox.fs.writeBinary(remotePath, localPath)
@@ -277,6 +275,41 @@ describe('Sandbox Filesystem Operations', () => {
 
       expect(receivedContent).toBe("the content")
     })
+
+    it('calls onClose when the watched directory is removed', async () => {
+      const dir = "/tmp/watch-close-" + Date.now()
+      await sandbox.fs.mkdir(dir)
+
+      let closed = false
+      const handle = sandbox.fs.watch(dir, () => {}, { withContent: false, onClose: () => { closed = true } })
+      await sleep(500)
+      await sandbox.fs.rm(dir, true)
+
+      for (let i = 0; i < 50 && !closed; i++) await sleep(100)
+      handle.close()
+      expect(closed).toBe(true)
+    })
+
+    it('calls onKeepalive while the stream is idle', async () => {
+      const dir = "/tmp/watch-keepalive-" + Date.now()
+      await sandbox.fs.mkdir(dir)
+
+      let keepalives = 0
+      let closed = false
+      // The server sends a keepalive every 30s.
+      const handle = sandbox.fs.watch(dir, () => {}, {
+        withContent: false,
+        onKeepalive: () => { keepalives++ },
+        onClose: () => { closed = true },
+      })
+      for (let i = 0; i < 400 && keepalives === 0; i++) await sleep(100)
+      handle.close()
+      await sleep(100)
+
+      expect(keepalives).toBeGreaterThan(0)
+      // close() from the caller is not reported as a server-side close.
+      expect(closed).toBe(false)
+    }, 50_000)
   })
 
   describe('multipart upload (large files)', () => {

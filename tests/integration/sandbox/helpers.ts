@@ -54,7 +54,7 @@ export async function waitForSandboxDeployed(sandboxName: string, maxAttempts: n
     attempts++
   }
 
-  console.warn(`Timeout waiting for ${sandboxName} to be deployed`)
+  // console.warn(`Timeout waiting for ${sandboxName} to be deployed`)
   return false
 }
 
@@ -82,7 +82,7 @@ export async function waitForSandboxDeletion(sandboxName: string, maxAttempts: n
     }
   }
 
-  console.warn(`Timeout waiting for ${sandboxName} deletion to complete`)
+  // console.warn(`Timeout waiting for ${sandboxName} deletion to complete`)
   return false
 }
 
@@ -107,7 +107,7 @@ export async function waitForVolumeDeletion(volumeName: string, maxAttempts: num
     }
   }
 
-  console.warn(`Timeout waiting for ${volumeName} deletion to complete`)
+  // console.warn(`Timeout waiting for ${volumeName} deletion to complete`)
   return false
 }
 
@@ -225,6 +225,19 @@ export async function skipUnlessGenerationMk31(
     throw new Error(message)
   }
   ctx.skip(message)
+}
+
+/**
+ * Whether this running sandbox is on an mk3.1 host. Unlike
+ * skipUnlessGenerationMk31 (a workspace feature flag), this asks the sandbox
+ * itself: only mk3.1 hosts provide /bl/metadata.
+ */
+export async function isSandboxMk31(sandbox: SandboxInstance): Promise<boolean> {
+  const result = await sandbox.process.exec({
+    command: "test -e /bl/metadata && echo mk31 || echo mk30",
+    waitForCompletion: true,
+  })
+  return result.logs?.trim() === "mk31"
 }
 
 /**

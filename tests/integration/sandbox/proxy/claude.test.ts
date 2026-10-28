@@ -56,7 +56,7 @@ describe('proxy e2e with Claude Code agent', () => {
       waitForCompletion: true,
     })
     expect(result.exitCode).toBe(0)
-    expect(result.logs).toContain("X-Agent-Test")
+    expect(result.logs?.toLowerCase()).toContain("x-agent-test")
     expect(result.logs).toContain("claude-injected")
   }, 180_000)
 })

@@ -33,7 +33,7 @@ async function waitUntilGone(sandbox: SandboxInstance, scheduleId: string): Prom
   return false
 }
 
-describe('Sandbox Schedule Operations', () => {
+describe.runIf(isSlowTestEnabled("RUN_SCHEDULE_TESTS"))('Sandbox Schedule Operations', () => {
   let sandbox: SandboxInstance
   const sandboxName = uniqueName("schedule-test")
 

@@ -1,4 +1,5 @@
 import type http2 from "http2";
+import type { DriveCreateConfiguration } from "../drive/index.js";
 import { Port, Sandbox, SandboxLifecycle, VolumeAttachment, SandboxNetwork } from "../client/types.gen";
 import { PostProcessResponse, ProcessRequest } from "./client";
 
@@ -46,6 +47,19 @@ export type SandboxUpdateNetwork = {
   network?: SandboxNetwork;
 }
 
+/**
+ * A drive to mount on the sandbox: `driveName` for a drive that already
+ * exists, `create` for a new one. New drives are created in the sandbox's region.
+ */
+export type SandboxDriveMountConfiguration = {
+  mountPath: string;
+  drivePath?: string;
+  readOnly?: boolean;
+} & (
+  | { driveName: string; create?: never }
+  | { create: Omit<DriveCreateConfiguration, "region">; driveName?: never }
+);
+
 export type SandboxPreviewCreateConfiguration = {
   port: number;
   /** Defaults to preview-<port> within this sandbox. */
@@ -70,6 +84,10 @@ export type SandboxCreateConfiguration = {
   labels?: Record<string, string>;
   extraArgs?: Record<string, string>;
   externalId?: string;
+  /** Seconds the sandbox gets after SIGTERM to exit before it is deleted. Defaults to 0. */
+  terminationGracePeriodSeconds?: number;
+  /** Seconds the sandbox gets after SIGUSR2 to prepare before standby. Defaults to 0. */
+  standbyGracePeriodSeconds?: number;
 }
 
 export function normalizePorts(ports?: (Port | Record<string, any>)[]): Port[] | undefined {

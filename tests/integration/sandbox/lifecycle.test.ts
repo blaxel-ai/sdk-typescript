@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll } from 'vitest'
 import { SandboxInstance, updateSandbox, Sandbox } from "@blaxel/core"
-import { uniqueName, defaultImage, defaultLabels, defaultRegion, sleep, waitForSandboxDeployed, retry, expectTtlCleared, isSlowTestEnabled } from './helpers.js'
+import { uniqueName, defaultImage, defaultLabels, defaultRegion, sleep, waitForSandboxDeployed, retry, expectTtlCleared, isSandboxMk31, isSlowTestEnabled } from './helpers.js'
 
 // The API rejects sandbox TTLs and ttl-max-age/ttl-idle policies under 5m, so
 // any test that has to wait out a TTL takes 5+ minutes: opt-in via RUN_SLOW_TTL.
@@ -524,8 +524,8 @@ describe('Sandbox Lifecycle and Expiration', () => {
     })
   })
 
-  describe('updateSandbox with envs triggers reboot and clears ephemeral state', () => {
-    it('updating environment variables reboots sandbox and clears files', async () => {
+  describe('updateSandbox with envs', () => {
+    it('applies new env values (live on mk3.1, via reboot on mk3.0)', async () => {
       const name = uniqueName("update-envs")
       const testFilePath = "/tmp/envs-test-file.txt"
       const testContent = `envs-content-${Date.now()}`
@@ -551,6 +551,8 @@ describe('Sandbox Lifecycle and Expiration', () => {
       const contentBefore = await sandbox.fs.read(testFilePath)
       expect(contentBefore).toBe(testContent)
 
+      const mk31 = await isSandboxMk31(sandbox)
+
       // Update environment variables using updateSandbox directly
       const currentSandbox = await SandboxInstance.get(name)
       const body: Sandbox = {
@@ -574,30 +576,31 @@ describe('Sandbox Lifecycle and Expiration', () => {
         throwOnError: true,
       })
 
-      // Wait for the sandbox to reboot and reach DEPLOYED state
-      // Env var updates trigger a full reboot — give it enough time to cycle
-      await new Promise(resolve => setTimeout(resolve, 5000))
-      await waitForSandboxDeployed(name)
+      if (!mk31) await sleep(5000) // let the mk3.0 reboot start before polling for DEPLOYED
+      expect(await waitForSandboxDeployed(name)).toBe(true)
       const updatedSandbox = await SandboxInstance.get(name)
-
-      // Verify sandbox still exists and has same name
       expect(updatedSandbox.metadata.name).toBe(name)
 
-      // CRITICAL: Verify the file does NOT exist anymore
-      // Updating envs triggers a reboot which clears ephemeral files
-      await expect(updatedSandbox.fs.read(testFilePath)).rejects.toThrow()
+      if (mk31) {
+        // mk3.1 applies env updates on the fly: no reboot, so the file survives
+        expect(await updatedSandbox.fs.read(testFilePath)).toBe(testContent)
+      } else {
+        // mk3.0 reboots on env updates, which clears ephemeral files
+        await retry(() => expect(updatedSandbox.fs.read(testFilePath)).rejects.toThrow())
+      }
 
       // Backend does not return env var values (masked) — verify only by key presence
       const envNames = updatedSandbox.spec.runtime?.envs?.map(e => e.name) ?? []
       expect(envNames).toContain("TEST_VAR")
       expect(envNames).toContain("NEW_VAR")
 
-      // Also verify via process exec that the new values are actually active in the sandbox
-      const result = await updatedSandbox.process.exec({
-        command: "[ -n \"$NEW_VAR\" ] && echo 'NEW_VAR_SET' || echo 'NEW_VAR_MISSING'",
-        waitForCompletion: true
+      await retry(async () => {
+        const result = await updatedSandbox.process.exec({
+          command: 'echo "$TEST_VAR:$NEW_VAR"',
+          waitForCompletion: true,
+        })
+        expect(result.logs?.trim()).toBe("updated_value:new_value")
       })
-      expect(result.logs?.trim()).toBe("NEW_VAR_SET")
     })
   })
 })

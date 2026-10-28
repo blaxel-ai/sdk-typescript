@@ -1,5 +1,6 @@
 import { createSandboxPreview, createSandboxPreviewToken, deleteSandboxPreview, deleteSandboxPreviewToken, getSandboxPreview, listSandboxPreviews, listSandboxPreviewTokens } from "../client/index.js";
 import type { Preview, PreviewToken, Sandbox } from "../client/index.js";
+import { logger } from "../common/logger.js";
 import type { SandboxPreviewCreateConfiguration } from "./types.js";
 
 function isShorthand(preview: Preview | SandboxPreviewCreateConfiguration): preview is SandboxPreviewCreateConfiguration {
@@ -266,7 +267,7 @@ export class SandboxPreviews {
   }
 
   private async waitForDeletion(previewName: string, timeoutMs: number = 10000): Promise<void> {
-    console.log(`Waiting for preview deletion: ${previewName}`);
+    logger.debug(`Waiting for preview deletion: ${previewName}`);
     const pollInterval = 500; // Poll every 500ms
     const startTime = Date.now();
 

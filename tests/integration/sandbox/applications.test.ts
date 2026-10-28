@@ -34,7 +34,7 @@ async function waitForApplicationStatus(
     }
     await sleep(2000)
   }
-  console.warn(`Timeout waiting for ${appName} to reach ${targetStatus}`)
+  // console.warn(`Timeout waiting for ${appName} to reach ${targetStatus}`)
   return false
 }
 
@@ -80,7 +80,6 @@ describe.runIf(isSlowTestEnabled("IMAGE_BUILD"))('Application Runtime', () => {
         name: sandboxName,
         memory: 2048,
         timeout: 600000,
-        onStatusChange: (status) => console.log(`  Image build status: ${status}`),
         sandboxVersion: "latest",
       })
 
@@ -89,7 +88,6 @@ describe.runIf(isSlowTestEnabled("IMAGE_BUILD"))('Application Runtime', () => {
 
       // The image name follows the pattern: sandbox/<sandboxName>:latest
       builtImageName = `sandbox/${sandboxName}:latest`
-      console.log(`  Built image: ${builtImageName}`)
     })
   })
 
