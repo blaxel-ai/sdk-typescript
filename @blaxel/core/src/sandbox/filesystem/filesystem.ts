@@ -6,10 +6,11 @@ import { isTransientResetError, retryOnTransientReset } from "../../common/trans
 import { shellQuote } from "../../common/shell.js";
 import { SandboxAction } from "../action.js";
 import type { GetFilesystemSearchByPathData } from "../client/index.js";
-import { ContentSearchResponse, deleteFilesystemByPath, deleteFilesystemMultipartByUploadIdAbort, Directory, FindResponse, FuzzySearchResponse, getFilesystemByPath, getFilesystemContentSearchByPath, getFilesystemFindByPath, getFilesystemSearchByPath, getWatchFilesystemByPath, MultipartInitiateResponse, MultipartPartInfo, MultipartUploadPartResponse, postFilesystemMultipartByUploadIdComplete, postFilesystemMultipartInitiateByPath, putFilesystemByPath, PutFilesystemByPathError, putFilesystemMultipartByUploadIdPart, SuccessResponse } from "../client/index.js";
+import { ContentSearchResponse, deleteFilesystemByPath, deleteFilesystemMultipartByUploadIdAbort, Directory, FindResponse, FuzzySearchResponse, getFilesystemByPath, getFilesystemContentSearchByPath, getFilesystemFindByPath, getFilesystemSearchByPath, getFilesystemTreeByPath, getWatchFilesystemByPath, MultipartInitiateResponse, MultipartPartInfo, MultipartUploadPartResponse, postFilesystemMultipartByUploadIdComplete, postFilesystemMultipartInitiateByPath, putFilesystemByPath, PutFilesystemByPathError, putFilesystemMultipartByUploadIdPart, SuccessResponse } from "../client/index.js";
 import { SandboxProcess } from "../process/index.js";
 import { SandboxFileExistsError } from "./copy-no-overwrite.js";
 import { CopyResponse, FilesystemFindOptions, FilesystemGrepOptions, FilesystemSearchOptions, SandboxFilesystemFile, WatchEvent } from "./types.js";
+import type { FilesystemReadTreeOptions } from "./types.js";
 
 // Multipart upload constants
 const MULTIPART_THRESHOLD = 5 * 1024 * 1024; // 5MB
@@ -214,10 +215,44 @@ export class SandboxFileSystem extends SandboxAction {
         baseUrl: this.url,
       }));
       this.handleResponseError(response, data, error);
-      if (data && 'content' in data) {
+      if (data && 'content' in data && typeof data.content === "string") {
         return data.content;
       }
       throw new Error("Unsupported file type");
+    });
+  }
+
+  /**
+   * Reads the whole tree under `path` in one request and returns the API's `Directory`: every
+   * file below `path` in `files`, each regular file (or symlink to one) with its `content` as
+   * UTF-8 text. The sandbox API applies `patterns`, `excludeDirs` and `excludeHidden`, and rejects,
+   * returning nothing partial, when more than `maxFiles` files match or they hold more than
+   * `maxBytes` bytes.
+   */
+  async readTree(path: string, options: FilesystemReadTreeOptions = {}): Promise<Directory> {
+    const { patterns, excludeDirs, excludeHidden, maxFiles, maxBytes } = options;
+    // Idempotent GET: self-heal a transient connection reset.
+    return retryOnTransientReset(async () => {
+      const { response, data, error } = await getFilesystemTreeByPath(this.withClient({
+        path: { path: this.formatPath(path) },
+        query: {
+          recursive: true,
+          content: true,
+          patterns: patterns?.join(","),
+          excludeDirs: excludeDirs?.join(","),
+          excludeHidden,
+          maxFiles,
+          maxBytes,
+        },
+        baseUrl: this.url,
+      }));
+      this.handleResponseError(response, data, error);
+      // An older sandbox API ignores the query and lists only direct children,
+      // without `recursive`. Fail instead of returning that as the whole tree.
+      if (data?.recursive !== true) {
+        throw new Error("readTree needs a newer sandbox API: this sandbox does not support recursive tree reads; update its image");
+      }
+      return data;
     });
   }
 
