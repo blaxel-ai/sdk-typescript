@@ -138,7 +138,7 @@ async function main() {
 
     // Phase 3: Fetch the full list and compare
     console.log("Fetching sandbox list...")
-    const allListed = await SandboxInstance.list()
+    const allListed = await (await SandboxInstance.list()).autoPagingToArray({ limit: 10000 })
     const listedByName = new Map<string, SandboxInstance>()
     for (const sbx of allListed) {
       if (sbx.metadata?.labels?.[LABEL_KEY] === LABEL_VALUE) {
