@@ -338,6 +338,31 @@ directory. `patterns` are globs on file names, `excludeDirs` skips directories b
 and nothing partial is returned. Only regular files (and symlinks to them) carry `content`, as UTF-8
 text. It needs a sandbox image whose API supports recursive tree reads and throws on older ones.
 
+Copying with `cp` still overwrites by default. Opt in to protecting the resolved
+final target (including dangling symlinks):
+
+```typescript
+import { SandboxFileExistsError } from "@blaxel/core";
+try {
+  await sandbox.fs.cp("/tmp/source.txt", "/tmp/target.txt", { noOverwrite: true });
+} catch (error) {
+  if (!(error instanceof SandboxFileExistsError)) throw error;
+  // Existing effective target was left unchanged.
+}
+```
+
+With `noOverwrite`, the sandbox API copies in one request (`POST /filesystem-copy`) and
+creates every entry exclusively, so there is no check-then-write race. Like `cp -r`, an
+existing destination directory (or symlink to one) is a container: the protected target is
+its child named after the source. An existing target, including an empty directory or a
+dangling symlink, is a conflict and is left unchanged; directories are never merged.
+
+The copy is not a transaction: if it fails part-way, entries it already created remain, and
+a retry conflicts with them. Source symlinks are copied as symlinks; special files are refused.
+`maxWait` bounds the request (`-1` waits indefinitely); past it `cp` throws while the sandbox
+may still be copying. It needs a sandbox image whose API has the copy endpoint and throws on
+older ones, never falling back to an overwriting copy.
+
 #### Drives
 
 Pass `mountDrives` to mount drives on the sandbox. Drives are looked up or created while the sandbox is being created (up to 5 at a time), and each is mounted once both it and the sandbox are ready. Give `driveName` for a drive that already exists, or `create` for a new one (a named drive is reused if it already exists). New drives are created in the region the sandbox request sends (`region`, or `BL_REGION`); without one, they are created once the sandbox exists, in its region. An existing drive must be in the sandbox's region too.
