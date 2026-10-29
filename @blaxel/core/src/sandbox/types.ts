@@ -88,6 +88,12 @@ export type SandboxCreateConfiguration = {
   terminationGracePeriodSeconds?: number;
   /** Seconds the sandbox gets after SIGUSR2 to prepare before standby. Defaults to 0. */
   standbyGracePeriodSeconds?: number;
+  /**
+   * Registry credentials to pull a private registry image (e.g. ghcr.io/org/image:tag),
+   * in Docker config.json format: { auths: { "ghcr.io": { auth: base64("user:token") } } }.
+   * Only used when image is a registry reference.
+   */
+  dockerConfig?: string | Record<string, unknown>;
 }
 
 export function normalizePorts(ports?: (Port | Record<string, any>)[]): Port[] | undefined {

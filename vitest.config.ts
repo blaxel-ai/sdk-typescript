@@ -64,6 +64,9 @@ export default defineConfig({
       // keeps the sandbox alive": the API's minimum TTL is 5m, so each test
       // waits 5-8 minutes for (or past) an expiration.
       RUN_SLOW_TTL: process.env.RUN_SLOW_TTL ?? "false",
+      // private-registry.test.ts: imports a private registry image (also needs
+      // PRIVATE_REGISTRY_IMAGE + PRIVATE_REGISTRY_DOCKER_CONFIG), up to minutes.
+      RUN_SLOW_PRIVATE_REGISTRY: process.env.RUN_SLOW_PRIVATE_REGISTRY ?? "false",
       // image-build.test.ts > "Image Build Integration": builds AND deploys a
       // custom image -- heavy and slow, needs the image-build pipeline.
       IMAGE_BUILD: process.env.IMAGE_BUILD ?? "false",

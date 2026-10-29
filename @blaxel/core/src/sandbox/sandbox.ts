@@ -435,7 +435,8 @@ export class SandboxInstance {
       'labels' in sandbox ||
       'extraArgs' in sandbox ||
       'terminationGracePeriodSeconds' in sandbox ||
-      'standbyGracePeriodSeconds' in sandbox
+      'standbyGracePeriodSeconds' in sandbox ||
+      'dockerConfig' in sandbox
     ) {
       if (!sandbox) sandbox = {} as SandboxCreateConfiguration
       requested = { image: sandbox.image, memory: sandbox.memory, region: sandbox.region, envs: normalizeEnvs(sandbox.envs) }
@@ -459,6 +460,8 @@ export class SandboxInstance {
       const snapshotEnabled = sandbox.snapshotEnabled;
       const extraArgs = sandbox.extraArgs;
       const { terminationGracePeriodSeconds, standbyGracePeriodSeconds } = sandbox;
+      // Not in the generated SandboxRuntime: the API reads it from the raw body, like the CLI sends it.
+      const dockerConfig = typeof sandbox.dockerConfig === "object" ? JSON.stringify(sandbox.dockerConfig) : sandbox.dockerConfig;
 
       sandbox = {
         metadata: { name: sandbox.name, labels: sandbox.labels, externalId: sandbox.externalId },
@@ -474,6 +477,7 @@ export class SandboxInstance {
             extraArgs,
             terminationGracePeriodSeconds,
             standbyGracePeriodSeconds,
+            dockerConfig,
           },
           volumes: volumes,
           lifecycle: lifecycle,
