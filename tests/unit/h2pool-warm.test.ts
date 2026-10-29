@@ -121,6 +121,29 @@ describe("H2Pool.warm", () => {
     expect(count).toBe(1);
   });
 
+  it("de-duplicates concurrent gets into a single connection attempt", async () => {
+    let count = 0;
+    const gate = deferred<http2.ClientHttp2Session>();
+    const pool = new H2Pool();
+    withEstablish(pool, () => {
+      count += 1;
+      return gate.promise;
+    });
+
+    const requests = Array.from({ length: 10 }, () => pool.get("edge.example.com"));
+    await tick();
+    const session = asSession(new MockSession());
+    gate.resolve(session);
+    try {
+      const sessions = await Promise.all(requests);
+      expect(count).toBe(1);
+      expect(sessions).toHaveLength(10);
+      for (const received of sessions) expect(received).toBe(session);
+    } finally {
+      pool.closeAll();
+    }
+  });
+
   it("lets a racing get() join the in-flight warm instead of opening a second session", async () => {
     let count = 0;
     const gate = deferred<http2.ClientHttp2Session>();
