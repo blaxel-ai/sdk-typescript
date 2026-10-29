@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { createVolume, deleteVolume, getVolume, listVolumes, updateVolume, type ListVolumesData, type Volume } from "../client/index.js";
+import { createVolume, deleteVolume, getVolume, getVolumeByExternalId, listVolumes, updateVolume, type ListVolumesData, type Volume } from "../client/index.js";
 import { createPaginatedList } from "../common/pagination.js";
 import { settings } from "../common/settings.js";
 
@@ -8,6 +8,7 @@ export type VolumeListQuery = NonNullable<ListVolumesData["query"]>;
 export type VolumeCreateConfiguration = {
   name?: string;
   displayName?: string;
+  externalId?: string;
   labels?: Record<string, string>;
   size?: number; // Size in MB
   region?: string; // AWS region
@@ -60,6 +61,7 @@ export class VolumeInstance {
         metadata: {
           name: config.name || defaultName,
           displayName: config.displayName || config.name || defaultName,
+          externalId: config.externalId,
           labels: config.labels
         },
         spec: {
@@ -105,6 +107,16 @@ export class VolumeInstance {
     const { data } = await getVolume({
       path: {
         volumeName,
+      },
+      throwOnError: true,
+    });
+    return new VolumeInstance(data);
+  }
+
+  static async getByExternalId(externalId: string) {
+    const { data } = await getVolumeByExternalId({
+      path: {
+        externalId,
       },
       throwOnError: true,
     });
@@ -177,6 +189,7 @@ export class VolumeInstance {
       // It's a Volume object - only include defined fields
       if (updates.metadata) {
         if (updates.metadata.displayName !== undefined) metadataUpdates.displayName = updates.metadata.displayName;
+        if (updates.metadata.externalId !== undefined) metadataUpdates.externalId = updates.metadata.externalId;
         if (updates.metadata.labels !== undefined) metadataUpdates.labels = updates.metadata.labels;
       }
       if (updates.spec) {
@@ -187,6 +200,7 @@ export class VolumeInstance {
     } else {
       // It's a VolumeCreateConfiguration - only include defined fields
       if (updates.displayName !== undefined) metadataUpdates.displayName = updates.displayName;
+      if (updates.externalId !== undefined) metadataUpdates.externalId = updates.externalId;
       if (updates.labels !== undefined) metadataUpdates.labels = updates.labels;
       if (updates.size !== undefined) specUpdates.size = updates.size;
       if (updates.region !== undefined) specUpdates.region = updates.region;
