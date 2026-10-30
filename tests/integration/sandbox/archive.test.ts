@@ -1,3 +1,4 @@
+import { deleteTestSandbox } from "./cleanup.js";
 import { SandboxInstance } from "@blaxel/core";
 import { afterAll, describe, expect, it } from "vitest";
 import { defaultImage, defaultLabels, defaultRegion, fetchWithRetry, isSlowTestEnabled, uniqueName, waitForSandboxDeletion } from "./helpers.js";
@@ -11,7 +12,7 @@ describe.runIf(isSlowTestEnabled("RUN_SLOW_ARCHIVE"))("Sandbox archive/unarchive
 
   afterAll(async () => {
     try {
-      await SandboxInstance.delete(name);
+      await deleteTestSandbox(name);
     } catch {
       // Ignore
     }
@@ -45,7 +46,7 @@ describe.runIf(isSlowTestEnabled("RUN_SLOW_ARCHIVE"))("Sandbox archive lifecycle
 
   afterAll(async () => {
     try {
-      await SandboxInstance.delete(name);
+      await deleteTestSandbox(name);
     } catch {
       // Ignore
     }
