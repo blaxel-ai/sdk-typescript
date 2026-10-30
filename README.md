@@ -232,6 +232,39 @@ until `maxWait`; use `maxWait: -1` to wait without a deadline, still cancellable
 an `AbortSignal`. Other errors are propagated. A timeout or cancellation stops waiting,
 not the command. `streamLogs().wait()` also rejects when the stream fails.
 
+`streamLogs()` requests newline-delimited JSON (NDJSON) to keep stdout and
+stderr separate, including partial lines. The `onStdout`, `onStderr`, and `onLog`
+callbacks receive lines without newline or CRLF delimiters, including empty
+lines. When the stream ends, the callbacks receive any remaining partial line.
+Lines from stdout and stderr complete independently, so callback order does not
+guarantee process write order.
+
+Use byte callbacks for protocols or binary output.
+
+```typescript
+const stream = sandbox.process.streamLogs("build-process", {
+  // Each chunk is a Uint8Array that retains delimiters.
+  onStdoutChunk: (bytes) => consumeStdout(bytes),
+  onStderrChunk: (bytes) => consumeStderr(bytes),
+});
+await stream.wait();
+```
+
+Chunk boundaries are arbitrary. Concatenate bytes per source, or use a streaming
+UTF-8 decoder if you need text. The SDK decodes base64 output records before
+calling these callbacks.
+
+Keepalive and restart notices are not process output. A restart notice flushes
+any partial lines before subsequent output arrives. A retention gap (`truncated`)
+or server error rejects `wait()` and calls `onError` if supplied. This prevents
+joining output across missing data. `close()` stops reading without terminating
+the process. Cancellation resolves `wait()`, but callback errors still reject it.
+
+Older servers and process histories can fall back to the legacy text format for
+line callbacks. That format cannot preserve source identity for interleaved
+partial lines. Byte callbacks require NDJSON. If NDJSON is unavailable, `wait()`
+rejects. These byte callbacks apply to `streamLogs()`, not the callbacks on `exec()`.
+
 Give the command a unique name before starting it so you can reconnect after a lost
 response without starting it twice:
 

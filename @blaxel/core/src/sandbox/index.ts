@@ -20,3 +20,4 @@ export * from "./system.js";
 export * from "./types.js";
 export * from "./interpreter.js";
 // Re-export everything from client except ClientOptions to avoid conflict
+export type { StreamLogsOptions } from "./process/index.js";

@@ -3,6 +3,7 @@ import { ResponseError, SandboxAction } from "../action.js";
 import { isRetryableGatewayError, isTransientResetError, retryOnTransientReset } from "../../common/transient-retry.js";
 import { DeleteProcessByIdentifierKillResponse, DeleteProcessByIdentifierResponse, GetProcessByIdentifierResponse, GetProcessResponse, PostProcessResponse, ProcessRequest, deleteProcessByIdentifier, deleteProcessByIdentifierKill, deleteProcessByIdentifierStdin, getProcess, getProcessByIdentifier, getProcessByIdentifierLogs, getProcessByIdentifierLogsStream, postProcess, postProcessByIdentifierStdin } from "../client/index.js";
 import { ProcessRequestWithLog, ProcessResponseWithLog } from "../types.js";
+import { createLogStreamParser, type StreamLogsOptions } from "./log-stream.js";
 
 export class SandboxProcess extends SandboxAction {
   constructor(sandbox: Sandbox) {
@@ -11,12 +12,7 @@ export class SandboxProcess extends SandboxAction {
 
   public streamLogs(
     identifier: string,
-    options: {
-      onLog?: (log: string) => void,
-      onStdout?: (stdout: string) => void,
-      onStderr?: (stderr: string) => void,
-      onError?: (error: Error) => void,
-    } = {}
+    options: StreamLogsOptions = {}
   ): { close: () => void, wait: () => Promise<void> } {
     const controller = new AbortController();
     const handleError = (err: Error) => {
@@ -26,63 +22,64 @@ export class SandboxProcess extends SandboxAction {
       throw err;
     };
 
-    const processLine = (line: string) => {
-      if (line.startsWith("[keepalive]")) {
-        return;
-      }
-      if (line.startsWith('stdout:')) {
-        options.onStdout?.(line.slice(7));
-        options.onLog?.(line.slice(7));
-      } else if (line.startsWith('stderr:')) {
-        options.onStderr?.(line.slice(7));
-        options.onLog?.(line.slice(7));
-      } else {
-        options.onLog?.(line);
-      }
-    };
-
     const done = (async () => {
-      let buffer = '';
+      let parser: ReturnType<typeof createLogStreamParser> | undefined;
+      let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+      const raw = Boolean(options.onStdoutChunk || options.onStderrChunk);
       try {
-        const { response: stream, data, error } = await getProcessByIdentifierLogsStream(this.withClient({
+        const request = (accept: string) => getProcessByIdentifierLogsStream(this.withClient({
           path: { identifier },
           baseUrl: this.url,
           signal: controller.signal,
-          parseAs: "stream",
+          headers: { Accept: accept },
+          parseAs: "stream" as const,
         }));
+        let result = await request("application/x-ndjson");
+        // Older process histories can only be replayed as legacy text. That
+        // format cannot preserve the bytes and source required by chunk callbacks.
+        if (result.response.status === 409 && !raw) {
+          // The generated client already consumes non-2xx response bodies.
+          result = await request("text/plain");
+        }
+        const { response: stream, data, error } = result;
         this.handleResponseError(stream, data, error);
+        const contentType = stream.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
+        const structured = contentType === "application/x-ndjson";
+        if (!structured && (raw || contentType !== "text/plain")) {
+          await stream.body?.cancel();
+          throw new Error(raw
+            ? "Process log stream requires application/x-ndjson for lossless chunk callbacks"
+            : `Unsupported process log content type: ${contentType ?? "missing"}`);
+        }
+        parser = createLogStreamParser(options, structured ? "ndjson" : "text");
         if (!stream.body) {
           throw new Error('No stream body');
         }
 
-        const reader = stream.body.getReader();
-        const decoder = new TextDecoder();
+        reader = stream.body.getReader();
         while (true) {
           const result = await reader.read();
           if (result.done) break;
-          if (result.value && result.value instanceof Uint8Array) {
-            buffer += decoder.decode(result.value, { stream: true });
-          }
-          const lines = buffer.split(/\r?\n/);
-          buffer = lines.pop()!;
-          for (const line of lines) {
-            processLine(line);
-          }
+          if (result.value instanceof Uint8Array) parser.push(result.value);
         }
-        // Flush the TextDecoder and process any remaining buffered data
-        buffer += decoder.decode();
-        if (buffer.trim()) {
-          processLine(buffer);
-        }
+        parser.finish();
       } catch (err: unknown) {
-        if (controller.signal.aborted) {
-          // Process remaining buffer before returning on abort
-          if (buffer.trim()) {
-            processLine(buffer);
+        if (controller.signal.aborted && (err === controller.signal.reason || (err instanceof Error && err.name === "AbortError"))) {
+          try {
+            parser?.abort();
+          } catch (flushError: unknown) {
+            handleError(flushError instanceof Error ? flushError : new Error("Unknown stream callback error"));
           }
           return;
         }
         handleError(err instanceof Error ? err : new Error('Unknown stream error'));
+      } finally {
+        // A callback or malformed record can fail before the response ends.
+        // Cancel the reader to release the HTTP stream in every terminal path.
+        if (reader) {
+          await reader.cancel().catch(() => undefined);
+          reader.releaseLock();
+        }
       }
     })();
 
