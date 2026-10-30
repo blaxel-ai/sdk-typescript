@@ -1,8 +1,18 @@
 import { SandboxInstance } from "@blaxel/core"
 
 export default function globalSetup() {
+  const runId = process.env.BL_TEST_RUN_ID
   // Return the teardown function
   return async () => {
+    if (process.env.SKIP_CLEANUP === "1") {
+      console.log("SKIP_CLEANUP=1. Skipping benchmark cleanup.")
+      return
+    }
+    if (!runId) {
+      console.log("No BL_TEST_RUN_ID. Skipping benchmark cleanup.")
+      return
+    }
+
     console.log("\n🧹 Global cleanup: looking for benchmark sandboxes...")
 
     try {
@@ -10,7 +20,9 @@ export default function globalSetup() {
       const benchSandboxes = sandboxes.filter(
         (s) =>
           s.metadata.labels?.env === "benchmark" &&
-          s.metadata.labels?.language === "typescript"
+          s.metadata.labels?.language === "typescript" &&
+          s.metadata.labels?.["created-by"] === "vitest-bench" &&
+          s.metadata.labels?.["test-run-id"] === runId
       )
 
       if (benchSandboxes.length === 0) {

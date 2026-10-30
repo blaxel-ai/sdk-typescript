@@ -10,6 +10,7 @@ export const defaultLabels = {
   env: "benchmark",
   language: "typescript",
   "created-by": "vitest-bench",
+  "test-run-id": process.env.BL_TEST_RUN_ID ?? "",
 }
 
 /**
