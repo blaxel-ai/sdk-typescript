@@ -71,6 +71,18 @@ export type ContentSearchResponse = {
     total: number;
 };
 
+export type CopyRequest = {
+    destination: string;
+    noOverwrite?: boolean;
+    source: string;
+};
+
+export type CopyResponse = {
+    destination: string;
+    message: string;
+    source: string;
+};
+
 export type Directory = {
     files: Array<File>;
     name: string;
@@ -151,6 +163,7 @@ export type DriveUnmountResponse = {
 };
 
 export type ErrorResponse = {
+    code?: string;
     error: string;
 };
 
@@ -1026,6 +1039,42 @@ export type GetFilesystemContentSearchByPathResponses = {
 };
 
 export type GetFilesystemContentSearchByPathResponse = GetFilesystemContentSearchByPathResponses[keyof GetFilesystemContentSearchByPathResponses];
+
+export type PostFilesystemCopyData = {
+    /**
+     * Source, destination, and optional noOverwrite flag
+     */
+    body: CopyRequest;
+    path?: never;
+    query?: never;
+    url: '/filesystem-copy';
+};
+
+export type PostFilesystemCopyErrors = {
+    /**
+     * Bad request
+     */
+    400: ErrorResponse;
+    /**
+     * Destination exists (FILE_ALREADY_EXISTS)
+     */
+    409: ErrorResponse;
+    /**
+     * Copy failed
+     */
+    422: ErrorResponse;
+};
+
+export type PostFilesystemCopyError = PostFilesystemCopyErrors[keyof PostFilesystemCopyErrors];
+
+export type PostFilesystemCopyResponses = {
+    /**
+     * Files copied
+     */
+    200: CopyResponse;
+};
+
+export type PostFilesystemCopyResponse = PostFilesystemCopyResponses[keyof PostFilesystemCopyResponses];
 
 export type GetFilesystemFindByPathData = {
     body?: never;
@@ -2238,7 +2287,7 @@ export type GetWatchFilesystemByPathData = {
     };
     query?: {
         /**
-         * Comma-separated substrings; events whose full path contains one are skipped
+         * Comma-separated substrings; events whose full path contains one are skipped, and matching directories are not watched at all
          */
         ignore?: string;
     };

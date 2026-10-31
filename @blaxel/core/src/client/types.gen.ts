@@ -2252,6 +2252,10 @@ export type LiteVolumeWritable = {
  */
 export type LiteVolumeMetadata = {
     createdAt?: string;
+    /**
+     * User or service account that created the volume.
+     */
+    createdBy?: string;
     displayName?: string;
     /**
      * Caller-owned identifier for external lookups.
@@ -2259,6 +2263,10 @@ export type LiteVolumeMetadata = {
     externalId?: string;
     name?: string;
     updatedAt?: string;
+    /**
+     * User or service account that last updated the volume.
+     */
+    updatedBy?: string;
 };
 
 /**
@@ -3252,13 +3260,13 @@ export type PreviewSpec = {
      */
     readonly region?: string;
     /**
-     * Those headers will be set in all requests to your preview. This is especially useful to set the Authorization header.
+     * Those headers will be set in all requests to your preview. This is especially useful to set the Authorization header. At most 20 headers and 8 KiB in total unless your quota allows more; X-Blaxel-* headers are reserved.
      */
     requestHeaders?: {
         [key: string]: string;
     };
     /**
-     * Those headers will be set in all responses of your preview. This is especially useful to set the CORS headers.
+     * Those headers will be set in all responses of your preview. This is especially useful to set the CORS headers. At most 20 headers and 8 KiB in total unless your quota allows more.
      */
     responseHeaders?: {
         [key: string]: string;
@@ -3298,13 +3306,13 @@ export type PreviewSpecWritable = {
      */
     public?: boolean;
     /**
-     * Those headers will be set in all requests to your preview. This is especially useful to set the Authorization header.
+     * Those headers will be set in all requests to your preview. This is especially useful to set the Authorization header. At most 20 headers and 8 KiB in total unless your quota allows more; X-Blaxel-* headers are reserved.
      */
     requestHeaders?: {
         [key: string]: string;
     };
     /**
-     * Those headers will be set in all responses of your preview. This is especially useful to set the CORS headers.
+     * Those headers will be set in all responses of your preview. This is especially useful to set the CORS headers. At most 20 headers and 8 KiB in total unless your quota allows more.
      */
     responseHeaders?: {
         [key: string]: string;
@@ -4135,6 +4143,10 @@ export type SandboxRestoreResponse = {
  */
 export type SandboxRuntime = {
     /**
+     * Maximum share of the sandbox memory its filesystem can use, in percent (10-95). The filesystem is held in memory, so files written count against the sandbox memory. Defaults to 50. mk3.1 only. Immutable after creation.
+     */
+    diskPercent?: number;
+    /**
      * Environment variables injected into the sandbox. Supports Kubernetes EnvVar format with valueFrom references.
      */
     envs?: Array<Env>;
@@ -4143,7 +4155,7 @@ export type SandboxRuntime = {
      */
     expires?: string;
     /**
-     * Extra arguments for kernel selection. Supported keys: 'iptables', 'nfs' (mk3.0), 'tun', 'android' and 'landlock' (mk3.1). The android variant includes tun and iptables and cannot be combined with nfs. The landlock variant enables the Landlock LSM, includes tun and iptables, and cannot be combined with android or nfs. Android and landlock requests are rejected if routing selects mk3.0. 'kernelExtensions' (mk3.1, android only for now) switches on the selected kernel's loadable modules and kernel tracing (eBPF, kprobes, perf); without it they are disabled, even for root. Values: 'enabled' or 'disabled'. Determines which kernel variant the workload runs on. Immutable after creation.
+     * Extra arguments for kernel selection. Supported keys: 'iptables', 'nfs' (mk3.0), 'tun', 'android' and 'landlock' (mk3.1). The android variant includes tun and iptables and cannot be combined with nfs. The landlock variant enables the Landlock LSM, includes tun and iptables, and cannot be combined with android or nfs. Android and landlock requests are rejected if routing selects mk3.0. 'kernelExtensions' (mk3.1, android only for now) switches on the selected kernel's loadable modules and kernel tracing (eBPF, kprobes, perf); without it they are disabled, even for root. 'kernelPreview' (mk3.1) selects the preview kernel, the next kernel version offered before it becomes the default; it has the default kernel's features (iptables included), cannot be combined with android, landlock, nfs, tun or a dedicated egress gateway, and is rejected if routing selects mk3.0. Values: 'enabled' or 'disabled'. Determines which kernel variant the workload runs on. Immutable after creation.
      */
     extraArgs?: {
         [key: string]: string;
@@ -4158,7 +4170,7 @@ export type SandboxRuntime = {
     memory?: number;
     ports?: Ports;
     /**
-     * Seconds the sandbox gets after a SIGUSR2 to prepare before it goes to standby (scale to zero). The workload can say it is ready earlier by writing +1 to $BLAXEL_SCALE_FILE when it starts preparing and -1 when it is done. Defaults to 0: no signal, immediate standby.
+     * Seconds the sandbox gets after a SIGUSR2 to prepare before it goes to standby (scale to zero). The workload can say it is done earlier by writing to $BLAXEL_STANDBY_READY_FILE. Defaults to 0: no signal, immediate standby.
      */
     standbyGracePeriodSeconds?: number;
     /**
@@ -6913,7 +6925,16 @@ export type ListFunctionRevisionsResponse = ListFunctionRevisionsResponses[keyof
 export type CleanupImagesData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Only report the image tags a cleanup would delete, without deleting anything.
+         */
+        dryRun?: boolean;
+        /**
+         * Never delete the most recently created tag of each image, so no image is removed completely.
+         */
+        keepLatest?: boolean;
+    };
     url: '/images';
 };
 
@@ -6923,13 +6944,46 @@ export type CleanupImagesResponses = {
      */
     200: {
         /**
-         * Number of images deleted
+         * Number of image tags deleted (with dryRun, to delete)
          */
         deleted?: number;
+        /**
+         * True when the cleanup stopped on its time limit before every unused image was deleted. Call it again to continue.
+         */
+        hasMore?: boolean;
+        /**
+         * Images the cleanup deleted tags from (with dryRun, would delete tags from)
+         */
+        images?: Array<{
+            /**
+             * True when no tag is left, so the image is removed completely
+             */
+            fullyRemoved?: boolean;
+            /**
+             * Number of tags the image keeps
+             */
+            keptTags?: number;
+            /**
+             * Image name
+             */
+            name?: string;
+            /**
+             * Image resource type
+             */
+            resourceType?: string;
+            /**
+             * Tags deleted (with dryRun, to delete)
+             */
+            tags?: Array<string>;
+        }>;
         /**
          * Result message
          */
         message?: string;
+        /**
+         * Number of unused images left for a next call
+         */
+        remaining?: number;
     };
 };
 

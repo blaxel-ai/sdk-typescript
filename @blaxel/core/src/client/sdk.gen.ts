@@ -796,7 +796,7 @@ export const listFunctionRevisions = <ThrowOnError extends boolean = false>(opti
 
 /**
  * Cleanup unused container images
- * Cleans up unused container images in the workspace registry. Only removes images that are not currently referenced by any active agent, function, sandbox, or job deployment.
+ * Cleans up unused container images in the workspace registry. Only removes images that are not currently referenced by any active agent, function, sandbox, or job deployment. One call runs for a limited time; when hasMore is true, only part of the unused images were deleted and the call should be repeated.
  */
 export const cleanupImages = <ThrowOnError extends boolean = false>(options?: Options<CleanupImagesData, ThrowOnError>) => {
     return (options?.client ?? _heyApiClient).delete<CleanupImagesResponse, unknown, ThrowOnError>({
