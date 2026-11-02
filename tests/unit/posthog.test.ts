@@ -95,7 +95,7 @@ describe("telemetry delivery budget", () => {
 	it("keeps a stalled send from holding the process open", () => {
 		// Node keeps the event loop alive while a fetch is outstanding, so this
 		// ceiling is what a short-lived script waits for when the endpoint accepts
-		// the connection and never answers. A capture against us.i.posthog.com
+		// the connection and never answers. A capture through events.blaxel.ai
 		// takes ~250-350ms end to end, so a second leaves ample headroom.
 		expect(POSTHOG_FLUSH_BUDGET_MS).toBeLessThanOrEqual(1000);
 	});
