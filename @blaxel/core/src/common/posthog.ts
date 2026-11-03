@@ -4,15 +4,14 @@ import { settings } from "./settings.js";
 // PostHog API key injected at build time via build:replace-imports
 const BUILD_POSTHOG_KEY = "__BUILD_POSTHOG_KEY__";
 
-// PostHog API endpoint
-const POSTHOG_HOST = "https://us.i.posthog.com";
+const POSTHOG_HOST = "https://events.blaxel.ai";
 
 /**
  * How long a capture may stay outstanding.
  *
  * Node keeps the event loop alive while a fetch is pending, so this is what a
  * short-lived script waits for before it can exit. A capture against
- * us.i.posthog.com takes ~250-350ms end to end (DNS + TLS handshake + POST), so
+ * events.blaxel.ai takes ~250-350ms end to end (DNS + TLS handshake + POST), so
  * a second covers the happy path with headroom. The ceiling matters because a
  * version is only recorded after a successful delivery: when the endpoint is
  * unreachable every later run tries again, and networks that silently drop
