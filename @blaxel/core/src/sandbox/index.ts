@@ -16,6 +16,7 @@ export * from "./schedule.js";
 export * from "./snapshot.js";
 export * from "./session.js";
 export * from "./sandbox.js";
+export { SANDBOX_NAME_MAX_LENGTH, isValidSandboxName, sanitizeSandboxName } from "./names.js";
 export * from "./system.js";
 export * from "./types.js";
 export * from "./interpreter.js";
