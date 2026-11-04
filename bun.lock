@@ -35,7 +35,7 @@
         "typescript-eslint": "^8.64.0",
         "uuid": "^11.1.0",
         "vitest": "^4.1.10",
-        "zod": "^3.25.0 || ^4.6.6",
+        "zod": "^4.6.6",
       },
     },
     "@blaxel/core": {
@@ -54,7 +54,7 @@
         "uuid": "^11.1.0",
         "ws": "^8.18.2",
         "yaml": "^2.7.1",
-        "zod": "^3.25.0 || ^4.6.6",
+        "zod": "^4.6.6",
       },
       "devDependencies": {
         "@eslint/js": "^9.26.0",
@@ -104,7 +104,7 @@
         "@traceloop/instrumentation-langchain": "^0.20.0",
         "cohere-ai": "7.19.0",
         "langchain": "^1.0.6",
-        "zod": "^3.25.0 || ^4.6.6",
+        "zod": "^4.6.6",
         "zod-to-json-schema": "^3.24.5",
       },
       "devDependencies": {
