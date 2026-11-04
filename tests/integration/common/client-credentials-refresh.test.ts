@@ -35,7 +35,7 @@ describe.skipIf(skipTest)('ClientCredentials token auto-refresh', () => {
     const creds = settings.credentials as unknown as ClientCredentialsTestable
     const authenticateSpy = vi.spyOn(settings.credentials, 'authenticate')
     const needRefreshSpy = vi.spyOn(ClientCredentials.prototype, 'needRefresh')
-    const processWithRetrySpy = vi.spyOn(ClientCredentials.prototype as never, 'processWithRetry')
+    const processWithRetrySpy = vi.spyOn(ClientCredentials.prototype, 'processWithRetry')
 
     const list1 = await SandboxInstance.list()
     expect(Array.isArray(list1.data)).toBe(true)
