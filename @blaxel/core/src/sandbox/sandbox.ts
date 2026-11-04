@@ -248,16 +248,60 @@ function notifyRegionUnset() {
   );
 }
 
+/**
+ * A Blaxel sandbox: a lightweight VM that runs commands, holds files and
+ * serves ports. It scales to zero when idle and resumes with its memory,
+ * processes and filesystem intact.
+ *
+ * Get one with the static methods (`create`, `createIfNotExists`, `get`,
+ * `list`), then work inside it through its subsystems: `fs` for files,
+ * `process` for commands, `previews` and `sessions` for URLs, `drives` for
+ * drive mounts, `snapshots`, `schedules`, `network`, `codegen` and `system`.
+ * Authentication comes from the environment (`BL_WORKSPACE` and
+ * `BL_API_KEY`) or from the Blaxel CLI login in `~/.blaxel/config.yaml`.
+ *
+ * @example
+ * ```typescript
+ * import { SandboxInstance } from "@blaxel/core";
+ *
+ * const sandbox = await SandboxInstance.createIfNotExists({
+ *   name: "my-sandbox",
+ *   image: "blaxel/base-image:latest",
+ *   memory: 4096,
+ *   region: "us-pdx-1",
+ *   lifecycle: { expirationPolicies: [{ type: "ttl-idle", value: "30m", action: "delete" }] },
+ * });
+ *
+ * await sandbox.fs.write("/app/hello.txt", "Hello, world");
+ * const result = await sandbox.process.exec({
+ *   command: "cat /app/hello.txt",
+ *   waitForCompletion: true,
+ * });
+ * console.log(result.exitCode, result.stdout);
+ *
+ * await sandbox.delete();
+ * ```
+ */
 export class SandboxInstance {
+  /** Files: read, write, list, search, watch and copy files in the sandbox. */
   fs: SandboxFileSystem;
+  /** Call a server listening on a sandbox port. */
   network: SandboxNetwork;
+  /** Commands: run, wait for, stream the logs of and stop processes in the sandbox. */
   process: SandboxProcess;
+  /** Public or token-protected URLs that expose a sandbox port. */
   previews: SandboxPreviews;
+  /** Commands the platform runs in the sandbox on a cron schedule, at a set time or after a delay. */
   schedules: SandboxSchedules;
+  /** Short-lived URLs and tokens to reach the sandbox API without an API key. */
   sessions: SandboxSessions;
+  /** AI-assisted code edits and file ranking (needs a provider key in the sandbox). */
   codegen: SandboxCodegen;
+  /** Maintenance of the sandbox API itself, such as upgrades. */
   system: SandboxSystem;
+  /** Mount and unmount drives inside the sandbox. */
   drives: SandboxDrive;
+  /** Create, list, get, restore and delete the snapshots captured from this sandbox. */
   snapshots: SandboxSnapshotsResource;
   h2Session: http2.ClientHttp2Session | null;
 
@@ -275,22 +319,31 @@ export class SandboxInstance {
     this.h2Session = null;
   }
 
+  /** Name, display name, labels, external ID and URL of the sandbox. */
   get metadata() {
     return this.sandbox.metadata;
   }
 
+  /**
+   * Deployment status when this instance was read, such as `DEPLOYING`,
+   * `DEPLOYED`, `FAILED`, `ARCHIVED` or `TERMINATED`. It is not refreshed:
+   * call `SandboxInstance.get()` for the current value.
+   */
   get status() {
     return this.sandbox.status;
   }
 
+  /** Lifecycle events recorded for the sandbox. */
   get events() {
     return this.sandbox.events;
   }
 
+  /** Configuration of the sandbox: region, runtime (image, memory, ports, envs, ttl), volumes, lifecycle and network. */
   get spec() {
     return this.sandbox.spec;
   }
 
+  /** When the sandbox was last used, as recorded by the platform when this instance was read. */
   get lastUsedAt() {
     return this.sandbox.lastUsedAt;
   }
@@ -305,6 +358,7 @@ export class SandboxInstance {
     return this.sandbox.errors ?? [];
   }
 
+  /** Edge domain the HTTP/2 connection to this sandbox goes through, or null when HTTP/2 is not used. */
   get h2Domain() {
     return this.sandbox.h2Domain ?? null;
   }
@@ -334,6 +388,10 @@ export class SandboxInstance {
     return `any.${region}.${edgeSuffix}`;
   }
 
+  /**
+   * Seconds until the sandbox is deleted by its TTL and lifecycle policies,
+   * as of when this instance was read. Undefined when none is configured.
+   */
   get expiresIn() {
     return this.sandbox.expiresIn;
   }
@@ -446,26 +504,59 @@ export class SandboxInstance {
   }
 
   /* eslint-disable */
+  /**
+   * Does nothing but log a warning and return this sandbox: `create()`
+   * resolves once the sandbox can be used.
+   *
+   * @deprecated No longer needed; remove the call.
+   */
   async wait({ maxWait = 60000, interval = 1000 }: { maxWait?: number, interval?: number } = {}) {
     logger.warn("⚠️  Warning: sandbox.wait() is deprecated. You don't need to wait for the sandbox to be deployed anymore.");
     return this;
   }
 
   /**
-   * Create a sandbox.
+   * Create a sandbox and return it once it is ready to use.
    *
-   * The name must use lowercase letters, digits and single hyphens, at most
-   * SANDBOX_NAME_MAX_LENGTH (49) characters, like `my-sandbox-1`. The API
-   * rejects any other name with a 400, and the SDK never renames it for you: to
-   * name a sandbox after an external id such as `sesn_01AbC`, pass the id
-   * through `sanitizeSandboxName` first (`isValidSandboxName` checks a name).
-   * Omit the name to let the platform assign one. Without a region (here or in
-   * BL_REGION) the platform picks one.
+   * Pass the shorthand `SandboxCreateConfiguration` (`name`, `image`,
+   * `memory`, `region`, `envs`, `ports`, `ttl`, `lifecycle`, ...) or a full
+   * `Sandbox` model. Unset fields get the SDK defaults: image
+   * `blaxel/base-image:latest`, 4096 MB of memory and the region from
+   * `BL_REGION` (without one, the platform picks the region). Without a name
+   * the platform assigns one.
+   *
+   * Names are lowercase letters, digits and single hyphens, at most
+   * SANDBOX_NAME_MAX_LENGTH (49) characters, like `my-sandbox-1`; other names,
+   * and lifecycle durations under the minimums (`ttl` and `ttl-max-age` 5m,
+   * `ttl-idle` 60s), are rejected with HTTP 400. The SDK never renames a
+   * sandbox: to name one after an external id such as `sesn_01AbC`, pass the id
+   * through `sanitizeSandboxName` first (`isValidSandboxName` checks a name). A
+   * name already held by a live sandbox is rejected with HTTP 409: use
+   * `createIfNotExists()` to get that sandbox back instead.
    *
    * A creation rejected by a transient authentication failure (403
    * `UNAUTHORIZED` or 503 `AUTHENTICATION_UNAVAILABLE`, both answered before
    * anything is created) is sent again up to CREATE_AUTH_RETRIES times with a
    * short backoff.
+   *
+   * @param sandbox - Shorthand configuration or full `Sandbox` model. Optional: all defaults apply when omitted.
+   * @param options - `timeout` (whole seconds, 1 to 50) to cancel a creation that takes too long, `safe` (default false) to check the sandbox answers and delete it if it does not, and `mountDrives` to mount drives as part of the creation.
+   * @returns The new sandbox.
+   * @throws SandboxCreationTimeoutError when `timeout` elapses before the sandbox is ready; the name is free again.
+   * @see https://docs.blaxel.ai/Sandboxes/Lifecycle-recipe for choosing between ttl, ttl-idle, ttl-max-age and date policies.
+   *
+   * @example
+   * ```typescript
+   * const sandbox = await SandboxInstance.create({
+   *   name: "build-42",
+   *   image: "blaxel/base-image:latest",
+   *   memory: 8192,
+   *   region: "us-pdx-1",
+   *   envs: [{ name: "NODE_ENV", value: "production" }],
+   *   ports: [{ name: "web", target: 3000 }],
+   *   ttl: "2h",
+   * });
+   * ```
    */
   static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, options: SandboxCreateOptions = {}) {
     const { mountDrives = [], createIfNotExist = false } = options;
@@ -738,6 +829,20 @@ export class SandboxInstance {
     }
   }
 
+  /**
+   * Get an existing sandbox by name, with its current status and configuration.
+   *
+   * @param sandboxName - Name of the sandbox.
+   * @returns The sandbox, ready for `fs`, `process` and the other subsystems.
+   * @throws When no sandbox has this name in the workspace (HTTP 404).
+   *
+   * @example
+   * ```typescript
+   * const sandbox = await SandboxInstance.get("my-sandbox");
+   * console.log(sandbox.status, sandbox.spec.runtime?.image);
+   * const files = await sandbox.fs.ls("/app");
+   * ```
+   */
   static async get(sandboxName: string) {
     const { data } = await getSandbox({
       path: {
@@ -749,6 +854,14 @@ export class SandboxInstance {
     return SandboxInstance.attachH2Session(instance);
   }
 
+  /**
+   * Get the most recent sandbox that is not terminated and carries this
+   * external ID (set with `externalId` on creation or `updateMetadata()`).
+   *
+   * @param externalId - The caller-owned identifier.
+   * @returns The matching sandbox.
+   * @throws When no active sandbox has this external ID (HTTP 404).
+   */
   static async getByExternalId(externalId: string) {
     const { data } = await getSandboxByExternalId({
       path: { externalId },
@@ -800,6 +913,13 @@ export class SandboxInstance {
     });
   }
 
+  /**
+   * Permanently delete a sandbox with its memory and filesystem. This cannot
+   * be undone; attached volumes are kept.
+   *
+   * @param sandboxName - Name of the sandbox to delete.
+   * @returns The deleted sandbox record.
+   */
   static async delete(sandboxName: string) {
     const { data } = await deleteSandbox({
       path: {
@@ -810,6 +930,13 @@ export class SandboxInstance {
     return data;
   }
 
+  /**
+   * Permanently delete this sandbox. This cannot be undone; attached volumes
+   * are kept.
+   *
+   * @returns The deleted sandbox record.
+   * @see SandboxInstance.delete
+   */
   async delete() {
     // Don't close the H2 session — it's shared via h2Pool
     this.h2Session = null;
@@ -818,6 +945,17 @@ export class SandboxInstance {
     return await SandboxInstance.delete(this.metadata.name!);
   }
 
+  /**
+   * Change the display name, labels or external ID of a sandbox. The name
+   * itself cannot change.
+   *
+   * Reads the sandbox, then writes it back with the change: two updates of
+   * the same sandbox at the same time can overwrite each other.
+   *
+   * @param sandboxName - Name of the sandbox.
+   * @param metadata - Fields to change. `labels` replaces the whole label map, so include the labels to keep.
+   * @returns The updated sandbox.
+   */
   static async updateMetadata(sandboxName: string, metadata: SandboxUpdateMetadata) {
     const sandbox = await SandboxInstance.get(sandboxName);
     const body = { ...sandbox.sandbox, metadata: { ...sandbox.metadata, ...metadata } } as SandboxModel
@@ -830,6 +968,23 @@ export class SandboxInstance {
     return SandboxInstance.attachH2Session(instance);
   }
 
+  /**
+   * Set or remove the maximum age (`spec.runtime.ttl`) of a sandbox: it is
+   * deleted this long after it was created, whether it is active or not.
+   *
+   * Reads the sandbox, then writes it back with the change: two updates of
+   * the same sandbox at the same time can overwrite each other.
+   *
+   * @param sandboxName - Name of the sandbox.
+   * @param ttl - Duration with unit s, m, h, d or w (for example `"30m"`, `"24h"`, `"7d"`), minimum `"5m"`; a shorter value is rejected with HTTP 400. `null` or `""` removes the TTL.
+   * @returns The updated sandbox.
+   * @see https://docs.blaxel.ai/Sandboxes/Lifecycle-recipe for choosing between ttl, ttl-idle, ttl-max-age and date policies.
+   *
+   * @example
+   * ```typescript
+   * await SandboxInstance.updateTtl("my-sandbox", "24h");
+   * ```
+   */
   static async updateTtl(sandboxName: string, ttl: string | null) {
     const sandbox = await SandboxInstance.get(sandboxName);
     const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, runtime: { ...sandbox.spec.runtime, ttl: ttl === '' ? null : ttl ?? null } } } as SandboxModel
@@ -842,6 +997,36 @@ export class SandboxInstance {
     return SandboxInstance.attachH2Session(instance);
   }
 
+  /**
+   * Replace the lifecycle (automatic deletion rules) of a sandbox.
+   *
+   * Each expiration policy needs `action: "delete"` and a `type`: `ttl-idle`
+   * deletes the sandbox after that long without activity (minimum `"60s"`),
+   * `ttl-max-age` that long after creation (minimum `"5m"`), and `date` at an
+   * ISO 8601 time in the future. Shorter durations are rejected with HTTP
+   * 400. Each type may appear once; the first condition met triggers the
+   * deletion. `terminatedRetention` (default `"5m"`) keeps the record of a
+   * terminated sandbox, for its logs, that long. A lifecycle needs at least
+   * one policy or a `terminatedRetention`.
+   *
+   * Reads the sandbox, then writes it back with the change: two updates of
+   * the same sandbox at the same time can overwrite each other.
+   *
+   * @param sandboxName - Name of the sandbox.
+   * @param lifecycle - The new lifecycle, or `null` to remove it.
+   * @returns The updated sandbox.
+   * @see https://docs.blaxel.ai/Sandboxes/Lifecycle-recipe for choosing between ttl, ttl-idle, ttl-max-age and date policies.
+   *
+   * @example
+   * ```typescript
+   * await SandboxInstance.updateLifecycle("my-sandbox", {
+   *   expirationPolicies: [
+   *     { type: "ttl-idle", value: "30m", action: "delete" },
+   *     { type: "ttl-max-age", value: "7d", action: "delete" },
+   *   ],
+   * });
+   * ```
+   */
   static async updateLifecycle(sandboxName: string, lifecycle: SandboxLifecycle | null) {
     const sandbox = await SandboxInstance.get(sandboxName);
     const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, lifecycle: lifecycle ?? null } } as SandboxModel
@@ -855,6 +1040,17 @@ export class SandboxInstance {
   }
 
 
+  /**
+   * Replace the network configuration of a sandbox (egress gateway, firewall
+   * rulesets, proxy and allowed or forbidden domains).
+   *
+   * Reads the sandbox, then writes it back with the change: two updates of
+   * the same sandbox at the same time can overwrite each other.
+   *
+   * @param sandboxName - Name of the sandbox.
+   * @param network - `{ network }`, the configuration that replaces the current one.
+   * @returns The updated sandbox.
+   */
   static async updateNetwork(sandboxName: string, network: SandboxUpdateNetwork) {
     const sandbox = await SandboxInstance.get(sandboxName);
     const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, network: network.network } } as SandboxModel
@@ -875,6 +1071,27 @@ export class SandboxInstance {
    * creation still in flight is waited for server-side. A 409 therefore only
    * surfaces when the name really cannot be used, and is thrown as is.
    * `options` (e.g. `timeout`) are forwarded to `create`.
+   *
+   * A sandbox in standby counts as alive: it is returned and resumes with its
+   * memory, processes and files. The existing sandbox keeps its own
+   * configuration; the image, memory, region and envs of this request are
+   * not applied, and a warning is logged when they differ. Without a `name`,
+   * this always creates a new sandbox.
+   *
+   * @param sandbox - Shorthand configuration or full `Sandbox` model; set a `name` to make the call reuse a sandbox.
+   * @param options - Same as `create()` options, except `createIfNotExist`.
+   * @returns The existing or newly created sandbox.
+   * @see https://docs.blaxel.ai/Sandboxes/Lifecycle-recipe for choosing between ttl, ttl-idle, ttl-max-age and date policies.
+   *
+   * @example
+   * ```typescript
+   * // Safe to call on every run: the first call creates, later calls reuse.
+   * const sandbox = await SandboxInstance.createIfNotExists({
+   *   name: "agent-workspace",
+   *   region: "us-pdx-1",
+   *   lifecycle: { expirationPolicies: [{ type: "ttl-idle", value: "1h", action: "delete" }] },
+   * });
+   * ```
    */
   static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration, options: Omit<SandboxCreateOptions, "createIfNotExist"> = {}) {
     return this.create(sandbox, { ...options, createIfNotExist: true });
@@ -946,6 +1163,29 @@ export class SandboxInstance {
   }
 
   /* eslint-disable */
+  /**
+   * Reach a sandbox through a session instead of an API key, for example
+   * from a browser that received the session from your backend.
+   *
+   * Requests go to the session URL with its token, so use the subsystems
+   * served by the sandbox itself (`fs`, `process`, `network`, `drives`,
+   * `codegen`, `system`). Calls that go through the Blaxel API, such as
+   * `previews`, `sessions`, `snapshots` or `delete()`, are not bound to the
+   * session and need an API key. The session stops working when its token
+   * expires.
+   *
+   * @param session - A session from `sandbox.sessions.create()` or `createIfExpired()`.
+   * @returns A sandbox instance bound to the session URL and token. No request is made.
+   *
+   * @example
+   * ```typescript
+   * // Backend, with an API key:
+   * const session = await sandbox.sessions.createIfExpired();
+   * // Frontend, with only the session:
+   * const remote = await SandboxInstance.fromSession(session);
+   * const out = await remote.process.exec({ command: "ls /app", waitForCompletion: true });
+   * ```
+   */
   static async fromSession(session: SessionWithToken) {
     // Create a minimal sandbox configuration for session-based access
     const sandboxName = session.name.includes("-") ? session.name.split("-")[0] : session.name;
