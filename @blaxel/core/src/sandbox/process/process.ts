@@ -4,6 +4,10 @@ import { isRetryableGatewayError, isTransientResetError, retryOnTransientReset }
 import { DeleteProcessByIdentifierKillResponse, DeleteProcessByIdentifierResponse, GetProcessByIdentifierResponse, GetProcessResponse, PostProcessResponse, ProcessRequest, deleteProcessByIdentifier, deleteProcessByIdentifierKill, deleteProcessByIdentifierStdin, getProcess, getProcessByIdentifier, getProcessByIdentifierLogs, getProcessByIdentifierLogsStream, postProcess, postProcessByIdentifierStdin } from "../client/index.js";
 import { ProcessRequestWithLog, ProcessResponseWithLog } from "../types.js";
 
+// Server-side hold per long-poll: just under the gateway's 120s cut on held requests.
+const PROCESS_WAIT_MAX_SECONDS = 119;
+const waitSeconds = (remainingMs: number) => Math.max(1, Math.ceil(Math.min(PROCESS_WAIT_MAX_SECONDS, remainingMs / 1000)));
+
 export class SandboxProcess extends SandboxAction {
   constructor(sandbox: Sandbox) {
     super(sandbox);
@@ -307,12 +311,18 @@ export class SandboxProcess extends SandboxAction {
       // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
       controller.signal.addEventListener("abort", () => reject(controller.signal.reason), { once: true });
     });
+    let longPoll = true;
     const poll = async () => {
       while (true) {
         if (performance.now() >= deadline) controller.abort(timeoutError());
         controller.signal.throwIfAborted();
         try {
-          const result = await this.get(identifier, { signal: controller.signal, retry: false });
+          let result = longPoll ? await this.waitOnce(identifier, waitSeconds(deadline - performance.now()), controller.signal) : undefined;
+          if (!result) {
+            // Sandbox older than the /wait route: poll for the rest of this call.
+            longPoll = false;
+            result = await this.get(identifier, { signal: controller.signal, retry: false });
+          }
           if (performance.now() >= deadline) controller.abort(timeoutError());
           controller.signal.throwIfAborted();
           if (["completed", "failed", "killed", "stopped"].includes(result.status)) return result;
@@ -337,6 +347,24 @@ export class SandboxProcess extends SandboxAction {
       clearTimeout(pollTimer);
       signal?.removeEventListener("abort", cancel);
     }
+  }
+
+  /** One long-poll on GET /process/{identifier}/wait; undefined when the sandbox predates the route. */
+  private async waitOnce(identifier: string, timeout: number, signal: AbortSignal): Promise<GetProcessByIdentifierResponse | undefined> {
+    // Not in the generated client yet (ENG-6233): same call shape as getProcessByIdentifier.
+    // No client-side timeout to raise: fetch has none below the 120s hold, wait's deadline aborts via signal.
+    const { response, data, error } = await this.client.get<GetProcessByIdentifierResponse, unknown, false>({
+      security: [{ scheme: "bearer", type: "http" }],
+      url: "/process/{identifier}/wait",
+      path: { identifier },
+      query: { timeout },
+      baseUrl: this.url,
+      signal,
+    });
+    // gin answers an unknown route with a plain-text 404; the endpoint's own 404 is JSON.
+    if (response.status === 404 && typeof error === "string") return undefined;
+    this.handleResponseError(response, data, error);
+    return data;
   }
 
   async get(identifier: string, { signal, retry = true }: { signal?: AbortSignal; retry?: boolean } = {}): Promise<GetProcessByIdentifierResponse> {
