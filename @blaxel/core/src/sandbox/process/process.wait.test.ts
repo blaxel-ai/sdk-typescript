@@ -93,8 +93,8 @@ describe("process wait", () => {
     const controller = new AbortController();
     const reason = new Error("caller cancelled");
     const assertion = expect(api().wait("original", { maxWait: -1, signal: controller.signal })).rejects.toBe(reason);
-    await vi.advanceTimersByTimeAsync(86_400_000);
-    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(vi.getTimerCount()).toBe(1); // Only the per-request stall timer.
     controller.abort(reason);
     await assertion;
     expect((fetch.mock.calls[0] as unknown as [Request])[0].signal.aborted).toBe(true);
@@ -191,7 +191,7 @@ describe("process wait long-poll (GET /process/{id}/wait)", () => {
   });
 
   it("does not abort a held request before the server answers", async () => {
-    // No client-side timeout shorter than the hold: the request lives until the server replies.
+    // The per-request timeout is hold + 10s, so a request held for the full 119s is not aborted.
     vi.useFakeTimers();
     let answer!: (r: Response) => void;
     const fetch = vi.fn(() => new Promise<Response>(resolve => { answer = resolve; }));
@@ -201,5 +201,35 @@ describe("process wait long-poll (GET /process/{id}/wait)", () => {
     expect((fetch.mock.calls[0] as unknown as [Request])[0].signal.aborted).toBe(false);
     answer(response("completed"));
     expect((await waiting).status).toBe("completed");
+  });
+
+  it("drops a /wait request stalled past hold + 10s and retries it", async () => {
+    vi.useFakeTimers();
+    const hang = (request: Request) => new Promise<Response>((_, reject) => {
+      request.signal.addEventListener("abort", () => reject(request.signal.reason as Error), { once: true });
+    });
+    const fetch = vi.fn().mockImplementationOnce(hang).mockResolvedValue(response("completed"));
+    vi.stubGlobal("fetch", fetch);
+    const waiting = api().wait("original", { maxWait: -1, interval: 1 });
+    await vi.advanceTimersByTimeAsync(128_999);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(10);
+    expect((await waiting).status).toBe("completed");
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect((fetch.mock.calls[0] as unknown as [Request])[0].signal.aborted).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("a short maxWait times out before the per-request stall timer, leaving no timers", async () => {
+    vi.useFakeTimers();
+    const hang = (request: Request) => new Promise<Response>((_, reject) => {
+      request.signal.addEventListener("abort", () => reject(request.signal.reason as Error), { once: true });
+    });
+    vi.stubGlobal("fetch", vi.fn(hang));
+    // maxWait 5s: hold 5s, stall timer 15s, so the overall deadline fires first.
+    const assertion = expect(api().wait("original", { maxWait: 5_000 })).rejects.toThrow("did not finish in time");
+    await vi.advanceTimersByTimeAsync(5_000);
+    await assertion;
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

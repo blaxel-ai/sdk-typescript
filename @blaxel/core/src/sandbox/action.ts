@@ -61,8 +61,8 @@ export class ResponseError extends Error {
 /**
  * Thrown when the edge/CDN in front of the sandbox returns a gateway status
  * (502/503/504) — the request never got a usable answer from the sandbox
- * itself (it is waking from standby, the command outran the edge's ~60s
- * origin-read timeout, or the edge could not reach origin). Safe to retry on an
+ * itself (it is waking from standby, the request outran the edge, which cuts
+ * held requests at 120s, or the edge could not reach origin). Safe to retry on an
  * idempotent operation. Catch it with `err instanceof SandboxGatewayError` or
  * `isGatewayTimeout(err)`.
  */

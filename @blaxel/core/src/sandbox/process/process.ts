@@ -6,6 +6,8 @@ import { ProcessRequestWithLog, ProcessResponseWithLog } from "../types.js";
 
 // Server-side hold per long-poll: just under the gateway's 120s cut on held requests.
 const PROCESS_WAIT_MAX_SECONDS = 119;
+// Client-side slack on top of the hold before a wait request counts as stalled.
+const PROCESS_WAIT_GRACE_SECONDS = 10;
 const waitSeconds = (remainingMs: number) => Math.max(1, Math.ceil(Math.min(PROCESS_WAIT_MAX_SECONDS, remainingMs / 1000)));
 
 export class SandboxProcess extends SandboxAction {
@@ -351,20 +353,35 @@ export class SandboxProcess extends SandboxAction {
 
   /** One long-poll on GET /process/{identifier}/wait; undefined when the sandbox predates the route. */
   private async waitOnce(identifier: string, timeout: number, signal: AbortSignal): Promise<GetProcessByIdentifierResponse | undefined> {
-    // Not in the generated client yet (ENG-6233): same call shape as getProcessByIdentifier.
-    // No client-side timeout to raise: fetch has none below the 120s hold, wait's deadline aborts via signal.
-    const { response, data, error } = await this.client.get<GetProcessByIdentifierResponse, unknown, false>({
-      security: [{ scheme: "bearer", type: "http" }],
-      url: "/process/{identifier}/wait",
-      path: { identifier },
-      query: { timeout },
-      baseUrl: this.url,
-      signal,
-    });
-    // gin answers an unknown route with a plain-text 404; the endpoint's own 404 is JSON.
-    if (response.status === 404 && typeof error === "string") return undefined;
-    this.handleResponseError(response, data, error);
-    return data;
+    // A request stalled past hold + 10s is dropped and retried by wait() like a lost connection.
+    // ponytail: AbortController + setTimeout, AbortSignal.any needs Node 20.3+ and engines allows 18.
+    const request = new AbortController();
+    let stalled = false;
+    const timer = setTimeout(() => { stalled = true; request.abort(); }, (timeout + PROCESS_WAIT_GRACE_SECONDS) * 1000);
+    // Clear here too: a transport that ignores abort never reaches the finally below.
+    const forward = () => { clearTimeout(timer); request.abort(signal.reason); };
+    signal.addEventListener("abort", forward, { once: true });
+    try {
+      // Not in the generated client yet (ENG-6233): same call shape as getProcessByIdentifier.
+      const { response, data, error } = await this.client.get<GetProcessByIdentifierResponse, unknown, false>({
+        security: [{ scheme: "bearer", type: "http" }],
+        url: "/process/{identifier}/wait",
+        path: { identifier },
+        query: { timeout },
+        baseUrl: this.url,
+        signal: request.signal,
+      });
+      // gin answers an unknown route with a plain-text 404; the endpoint's own 404 is JSON.
+      if (response.status === 404 && typeof error === "string") return undefined;
+      this.handleResponseError(response, data, error);
+      return data;
+    } catch (error) {
+      if (stalled && !signal.aborted) throw new TypeError("fetch failed", { cause: error });
+      throw error;
+    } finally {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", forward);
+    }
   }
 
   async get(identifier: string, { signal, retry = true }: { signal?: AbortSignal; retry?: boolean } = {}): Promise<GetProcessByIdentifierResponse> {
