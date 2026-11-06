@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
 vi.mock("../../@blaxel/core/src/client/index.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../@blaxel/core/src/client/index.js")>();
@@ -6,6 +6,8 @@ vi.mock("../../@blaxel/core/src/client/index.js", async (importOriginal) => {
 });
 
 import { createSandbox } from "../../@blaxel/core/src/client/index.js";
+import { DriveInstance } from "../../@blaxel/core/src/drive/index.js";
+import { SandboxDrive } from "../../@blaxel/core/src/sandbox/drive/index.js";
 import { describeDrift } from "../../@blaxel/core/src/sandbox/drift.js";
 import { SandboxInstance } from "../../@blaxel/core/src/sandbox/sandbox.js";
 
@@ -117,6 +119,44 @@ describe("SandboxInstance.createIfNotExists drift warning", () => {
     expect(message).toContain("image (requested sandbox/app:v3, existing sandbox/app:v1)");
     expect(message).not.toContain("memory");
     expect(message).not.toContain("region");
+  });
+
+  describe("with mountDrives", () => {
+    const mountDrives = [{ driveName: "data", mountPath: "/mnt/data" }];
+    let mount: MockInstance<SandboxDrive["mount"]>;
+
+    beforeEach(() => {
+      vi.spyOn(DriveInstance, "get").mockResolvedValue(new DriveInstance({ metadata: { name: "data" }, spec: { region: "us-was-1" } }));
+      mount = vi.spyOn(SandboxDrive.prototype, "mount").mockResolvedValue({ success: true });
+      vi.spyOn(SandboxDrive.prototype, "list").mockResolvedValue([{ driveName: "data", mountPath: "/mnt/data", drivePath: "/", readOnly: false }] as never);
+    });
+
+    it("warns, without throwing, when the existing sandbox differs", async () => {
+      mockedCreate.mockResolvedValueOnce(existing());
+      const instance = await SandboxInstance.createIfNotExists(
+        { name: "sbx", image: "sandbox/app:v2", memory: 8192, region: "us-was-1", envs: [{ name: "ADDED", value: "x" }] },
+        { mountDrives },
+      );
+      const [message, ...rest] = driftWarnings();
+      expect(rest).toEqual([]);
+      expect(message).toContain("image (requested sandbox/app:v2, existing sandbox/app:v1)");
+      expect(message).toContain("memory (requested 8192 MB, existing 2048 MB)");
+      expect(message).toContain("envs (not set on the existing sandbox: ADDED)");
+      expect(message).not.toContain("region");
+      // The drive is still mounted on the sandbox that was returned as is.
+      expect(mount).toHaveBeenCalledTimes(1);
+      expect(instance.spec.runtime?.image).toBe("sandbox/app:v1");
+    });
+
+    it("stays quiet when the existing sandbox matches", async () => {
+      mockedCreate.mockResolvedValueOnce(existing());
+      await SandboxInstance.createIfNotExists(
+        { metadata: { name: "sbx" }, spec: { region: "us-was-1", runtime: { image: "sandbox/app:v1", memory: 2048, envs: [{ name: "TOKEN", value: "t" }] } } },
+        { mountDrives },
+      );
+      expect(driftWarnings()).toEqual([]);
+      expect(mount).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("does not warn for a plain create", async () => {
