@@ -12,6 +12,7 @@ import { SandboxNetwork } from "./network/index.js";
 import { SandboxPreviews } from "./preview.js";
 import { SandboxProcess } from "./process/index.js";
 import { SandboxDriveSetup, validateMountDrives } from "./mount-drives.js";
+import { invalidSandboxNameHint } from "./names.js";
 import { SandboxSchedules } from "./schedule.js";
 import { SandboxSnapshotsResource } from "./snapshot.js";
 import { SandboxSessions } from "./session.js";
@@ -181,6 +182,71 @@ const isSandboxNotFound = (e: unknown): boolean => {
   const candidate = e as { code?: unknown; status?: unknown };
   return candidate.code === 404 || candidate.code === "404" || candidate.status === 404;
 };
+
+// A creation the control plane rejects at its credential check, in a way a new
+// attempt can fix: a generic 403 "Authorization failed" (code UNAUTHORIZED) when
+// it could not resolve the credentials, or a 503 AUTHENTICATION_UNAVAILABLE when
+// its credential store is unreachable. Both are answered before anything is
+// created, so sending the same request again is safe. A revoked token (401
+// TOKEN_REVOKED) or a missing workspace permission (UNAUTHORIZED_WORKSPACE) is
+// final and is not retried. A key the API does not recognize gets the same
+// 403, so the retries stay few and the final message asks to check the key.
+export const CREATE_AUTH_RETRIES = 2;
+const CREATE_AUTH_RETRY_BASE_DELAY_MS = 500;
+const CREATE_AUTH_RETRY_MAX_DELAY_MS = 2_000;
+
+const errorCode = (e: unknown): unknown =>
+  typeof e === "object" && e !== null ? (e as { code?: unknown }).code : undefined;
+
+const isTransientCreateAuthFailure = (status: number | undefined, e: unknown): boolean =>
+  (status === 403 && errorCode(e) === "UNAUTHORIZED") ||
+  (status === 503 && errorCode(e) === "AUTHENTICATION_UNAVAILABLE");
+
+// The error a rejected creation is thrown with: the API's error body, with a
+// message that says what to do for the failures callers can act on.
+function createError(status: number | undefined, e: unknown, sandboxName: string | undefined, attempts: number): unknown {
+  if (typeof e !== "object" || e === null) return e;
+  const body = e as { message?: unknown; code?: unknown };
+  const message = typeof body.message === "string" ? body.message : "";
+  if (status === 403 && body.code === "UNAUTHORIZED") {
+    let workspace = "";
+    try {
+      workspace = settings.workspace;
+    } catch {
+      // No credentials resolved: leave the workspace out of the message.
+    }
+    const current = workspace ? `; current workspace: '${workspace}'` : "";
+    return {
+      ...body,
+      message:
+        `${message || "Authorization failed"} (HTTP 403 ${String(body.code)}, after ${attempts} attempts). ` +
+        "The API answers this way both for a key it does not recognize and when its credential check fails for a moment. " +
+        `Check the credentials and workspace the SDK uses (BL_API_KEY and BL_WORKSPACE, or \`bl login\`${current}); if they are right, retry in a few seconds.`,
+    };
+  }
+  if (status === 400) {
+    const hint = invalidSandboxNameHint(sandboxName);
+    if (hint) {
+      const sentence = message && !/[.!?]$/.test(message) ? `${message}.` : message;
+      return { ...body, message: sentence ? sentence + hint : hint.trim() };
+    }
+  }
+  return e;
+}
+
+// Without a region the control plane picks one; say so once per process
+// instead of on every create.
+let regionNoticeShown = false;
+
+function notifyRegionUnset() {
+  if (regionNoticeShown) return;
+  regionNoticeShown = true;
+  console.warn(
+    "SandboxInstance.create: no region set, so the platform picks one for the sandbox. " +
+    "Set 'region' in the sandbox configuration or the BL_REGION environment variable (e.g. 'us-pdx-1', 'eu-lon-1', 'us-was-1') to choose it; " +
+    "'region' will become required in a future version. This notice is shown once per process."
+  );
+}
 
 export class SandboxInstance {
   fs: SandboxFileSystem;
@@ -385,6 +451,22 @@ export class SandboxInstance {
     return this;
   }
 
+  /**
+   * Create a sandbox.
+   *
+   * The name must use lowercase letters, digits and single hyphens, at most
+   * SANDBOX_NAME_MAX_LENGTH (49) characters, like `my-sandbox-1`. The API
+   * rejects any other name with a 400, and the SDK never renames it for you: to
+   * name a sandbox after an external id such as `sesn_01AbC`, pass the id
+   * through `sanitizeSandboxName` first (`isValidSandboxName` checks a name).
+   * Omit the name to let the platform assign one. Without a region (here or in
+   * BL_REGION) the platform picks one.
+   *
+   * A creation rejected by a transient authentication failure (403
+   * `UNAUTHORIZED` or 503 `AUTHENTICATION_UNAVAILABLE`, both answered before
+   * anything is created) is sent again up to CREATE_AUTH_RETRIES times with a
+   * short backoff.
+   */
   static async create(sandbox?: SandboxModel | SandboxCreateConfiguration, options: SandboxCreateOptions = {}) {
     const { mountDrives = [], createIfNotExist = false } = options;
     validateCreateOptions(options);
@@ -449,12 +531,7 @@ export class SandboxInstance {
       const ttl = sandbox.ttl;
       const expires = sandbox.expires;
       const region = sandbox.region || settings.region;
-      if (!region) {
-        console.warn(
-          "SandboxInstance.create: 'region' is not set. In a future version, 'region' will be a required parameter. " +
-          "Please specify a region (e.g. 'us-pdx-1', 'eu-lon-1', 'us-was-1') in the sandbox configuration or set the BL_REGION environment variable."
-        );
-      }
+      if (!region) notifyRegionUnset();
       const lifecycle = sandbox.lifecycle;
       const network = sandbox.network;
       const snapshotEnabled = sandbox.snapshotEnabled;
@@ -523,12 +600,8 @@ export class SandboxInstance {
     }
 
     const headers = timeout !== undefined ? { [CREATION_TIMEOUT_HEADER]: String(timeout) } : undefined;
-    const [createResult, h2Session] = await Promise.all([
-      createSandbox({
-        body: sandbox,
-        query: createIfNotExist ? { createIfNotExist } : undefined,
-        headers,
-      }),
+    const [{ result: createResult, attempts }, h2Session] = await Promise.all([
+      SandboxInstance.sendCreate(sandbox, createIfNotExist, headers),
       edgeDomain && !settings.disableH2 ? import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.get(edgeDomain)).catch(() => null) : Promise.resolve(null),
     ]);
     let data = createResult.data;
@@ -542,7 +615,7 @@ export class SandboxInstance {
         // server-side; wait for the record instead of failing (ENG-3662).
         data = await SandboxInstance.waitAfterCreateGatewayTimeout(name, createResult.error);
       } else {
-        throw createResult.error;
+        throw createError(createResult.response.status, createResult.error, name, attempts);
       }
     }
     if (createIfNotExist) SandboxInstance.warnOnDrift(requested, data)
@@ -805,6 +878,29 @@ export class SandboxInstance {
    */
   static async createIfNotExists(sandbox: SandboxModel | SandboxCreateConfiguration, options: Omit<SandboxCreateOptions, "createIfNotExist"> = {}) {
     return this.create(sandbox, { ...options, createIfNotExist: true });
+  }
+
+  // Send the creation, again after a transient authentication failure (up to
+  // CREATE_AUTH_RETRIES more times, with a short backoff).
+  private static async sendCreate(body: SandboxModel, createIfNotExist: boolean, headers: Record<string, string> | undefined) {
+    for (let attempts = 1; ; attempts++) {
+      const result = await createSandbox({
+        body,
+        query: createIfNotExist ? { createIfNotExist } : undefined,
+        headers,
+      });
+      if (
+        result.error === undefined ||
+        attempts > CREATE_AUTH_RETRIES ||
+        !isTransientCreateAuthFailure(result.response?.status, result.error)
+      ) {
+        return { result, attempts };
+      }
+      logger.debug(`Sandbox creation hit a transient authentication failure (HTTP ${result.response?.status}), retrying`);
+      await new Promise((resolve) =>
+        setTimeout(resolve, backoffDelayMs(attempts, CREATE_AUTH_RETRY_BASE_DELAY_MS, CREATE_AUTH_RETRY_MAX_DELAY_MS)),
+      );
+    }
   }
 
   // createIfNotExists hands back the sandbox already holding the name, whatever
