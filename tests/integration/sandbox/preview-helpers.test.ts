@@ -1,3 +1,4 @@
+import { deleteTestSandbox } from "./cleanup.js";
 import { SandboxInstance } from "@blaxel/core";
 import { expect, it } from "vitest";
 import { defaultImage, defaultLabels, fetchWithRetry, uniqueName } from "./helpers.js";
@@ -51,7 +52,7 @@ it("creates and reuses private shorthand previews and expiry-capped tokens", asy
     testFailed = true;
     throw error;
   } finally {
-    await SandboxInstance.delete(name).catch((error: unknown) => {
+    await deleteTestSandbox(name).catch((error: unknown) => {
       if (!testFailed) throw error;
       // Keep the original setup/assertion failure while still reporting failed cleanup.
       console.error("Preview helper sandbox cleanup failed:", error);

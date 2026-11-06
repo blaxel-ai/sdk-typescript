@@ -1,3 +1,4 @@
+import { deleteTestSandbox } from "./cleanup.js"
 import { SandboxInstance, settings } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
 import { defaultLabels, defaultRegion, sleep, uniqueName } from './helpers.js'
@@ -53,7 +54,7 @@ describe('Sandbox System Operations', () => {
     await Promise.all(
       createdSandboxes.map(async (name) => {
         try {
-          await SandboxInstance.delete(name)
+          await deleteTestSandbox(name)
         } catch {
           // Ignore cleanup errors
         }
