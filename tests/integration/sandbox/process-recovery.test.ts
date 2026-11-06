@@ -25,14 +25,15 @@ it("wait recovers a lost status response without executing the command twice", a
   let starts = 0;
   transport.setConfig({ fetch: async (request) => {
     if (request.method === "POST") starts++;
-    const response = await fetch(request);
-    if (request.method === "GET" && ++reads === 2) {
-      // The status request reached the real server, but its response is lost.
-      await response.arrayBuffer();
+    if (request.method === "GET" && ++reads === 1) {
+      // The first status request (a held /wait, or a GET on older sandboxes) reaches
+      // the real server; the command is released while it is in flight, then its response is lost.
+      const pending = fetch(request);
       await sandbox.fs.write(`${marker}.release`, "continue");
+      await (await pending).arrayBuffer();
       throw new TypeError("Failed to fetch");
     }
-    return response;
+    return fetch(request);
   } });
   Object.defineProperty(sandbox.process, "client", { value: transport, configurable: true });
   try {
@@ -46,7 +47,7 @@ it("wait recovers a lost status response without executing the command twice", a
     expect(result.name).toBe(name);
     expect(result.status).toBe("failed");
     expect(result.exitCode).toBe(7);
-    expect(reads).toBeGreaterThanOrEqual(3);
+    expect(reads).toBeGreaterThanOrEqual(2);
     expect(await sandbox.process.logs(name)).toContain("recovered-output");
     expect(await sandbox.fs.read(marker)).toBe("started\n");
     expect(starts).toBe(1);
