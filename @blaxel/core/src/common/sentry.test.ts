@@ -6,7 +6,7 @@ const mockSettings = vi.hoisted(() => ({
   env: "prod",
   version: "9.9.9",
   commit: "abcdef0",
-  workspace: "private-workspace",
+  workspace: "acme-staging",
 }));
 
 vi.mock("./settings.js", () => ({ settings: mockSettings }));
@@ -66,6 +66,7 @@ type CapturedEvent = {
   level?: string;
   message?: string;
   tags: Record<string, string>;
+  user?: { id?: string };
 };
 
 function createFetchMock() {
@@ -180,6 +181,8 @@ describe("SDK Sentry boundary", () => {
         "blaxel.error_source": "unhandled-sdk-exception",
       });
       expect(event.tags).not.toHaveProperty("blaxel.workspace");
+      // The workspace is the only user identifier, so issues count affected workspaces.
+      expect(event.user).toEqual({ id: "acme-staging" });
       const frames = event.exception?.values[0]?.stacktrace.frames ?? [];
       expect(frames.length).toBeGreaterThan(0);
       for (const frame of frames) {
@@ -189,7 +192,6 @@ describe("SDK Sentry boundary", () => {
       const serialized = JSON.stringify(event);
       expect(serialized).not.toContain("secret response body");
       expect(serialized).not.toContain("customer-123");
-      expect(serialized).not.toContain("private-workspace");
       expect(serialized).not.toContain("/Users/customer");
     } finally {
       process.removeListener("uncaughtExceptionMonitor", hostMonitor);
@@ -320,7 +322,28 @@ describe("SDK Sentry boundary", () => {
         domainTag,
       },
       extra: { count: 100 },
+      user: { id: "acme-staging" },
     });
+  });
+
+  it("leaves the user out when the workspace is not a workspace name", async () => {
+    const fetchMock = createFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+    const workspace = mockSettings.workspace;
+    mockSettings.workspace = "/Users/customer/private project";
+
+    try {
+      const { flushSentry, initSentry } = await import("./sentry.js");
+      initSentry();
+      emitUncaughtExceptionMonitor(makeSdkError());
+      await flushSentry();
+
+      const event = eventFromFetch(fetchMock);
+      expect(event.user).toBeUndefined();
+      expect(JSON.stringify(event)).not.toContain("/Users/customer");
+    } finally {
+      mockSettings.workspace = workspace;
+    }
   });
 
   it("groups keys independently and hashes external domains", async () => {
