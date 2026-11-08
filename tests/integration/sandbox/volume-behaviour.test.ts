@@ -28,15 +28,21 @@ afterAll(async () => {
   }))
 }, 600_000)
 
+// Attaching a volume that is still DEPLOYING fails, so wait until it is ready.
 async function newVolume(prefix: string, size: number): Promise<string> {
   const name = uniqueName(prefix)
-  await VolumeInstance.create({ name, size, region: defaultRegion, labels: defaultLabels })
   createdVolumes.push(name)
+  await VolumeInstance.create({ name, size, region: defaultRegion, labels: defaultLabels })
+  for (let i = 0; i < 60 && (await VolumeInstance.get(name)).status === "DEPLOYING"; i++) await sleep(1000)
+  expect((await VolumeInstance.get(name)).status).toBe("DEPLOYED")
   return name
 }
 
+// Registered before create, so a sandbox that fails to deploy is still deleted
+// and cannot keep its volume attached.
 async function newSandbox(volume: string, { readOnly = false, memory = 2048 } = {}): Promise<SandboxInstance> {
   const name = uniqueName("volbeh")
+  createdSandboxes.push(name)
   const sandbox = await SandboxInstance.create({
     name,
     image: defaultImage,
@@ -45,7 +51,6 @@ async function newSandbox(volume: string, { readOnly = false, memory = 2048 } = 
     volumes: [{ name: volume, mountPath: MOUNT, readOnly }],
     labels: defaultLabels,
   })
-  createdSandboxes.push(name)
   return sandbox
 }
 
