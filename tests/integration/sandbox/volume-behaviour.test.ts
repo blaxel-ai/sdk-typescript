@@ -318,11 +318,28 @@ for i in range(${FILES}):
   })
 })
 
-// The fixture is public packages only (~50k installed files); the repo ignores
-// pnpm-lock.yaml, so it is committed as pnpm-lock.fixture.yaml.
+// Public packages at exact top-level versions, ~50k installed files. No lockfile:
+// the test needs a package manager's file workload, not a reproducible tree.
+const PNPM_PROJECT = {
+  name: "volume-behaviour-pnpm",
+  private: true,
+  dependencies: {
+    "@aws-sdk/client-s3": "3.700.0", "@emotion/react": "11.14.0", "@emotion/styled": "11.14.0",
+    "@mui/material": "6.1.10", "aws-cdk-lib": "2.172.0", axios: "1.7.9", constructs: "10.4.2",
+    "date-fns": "4.1.0", googleapis: "144.0.0", lodash: "4.17.21", next: "15.0.4", react: "19.0.0",
+    "react-dom": "19.0.0", rxjs: "7.8.1", zod: "3.24.1",
+  },
+  devDependencies: {
+    "@babel/core": "7.26.0", "@babel/preset-env": "7.26.0", "@types/node": "22.10.2",
+    "@types/react": "19.0.1", "@types/react-dom": "19.0.2", autoprefixer: "10.4.20", eslint: "9.17.0",
+    "eslint-config-next": "15.0.4", jest: "29.7.0", postcss: "8.4.49", tailwindcss: "3.4.16",
+    typescript: "5.7.2", webpack: "5.97.1",
+  },
+}
+
 describe.runIf(isSlowTestEnabled("RUN_VOLUME_TESTS") && isSlowTestEnabled("RUN_SLOW_VOLUME_PNPM"))("pnpm install on a volume", () => {
   const APP = `${MOUNT}/app`
-  const install = `cd ${APP} && /tmp/pnpm install --frozen-lockfile --ignore-scripts --reporter=append-only --store-dir ${MOUNT}/.pnpm-store`
+  const install = `cd ${APP} && /tmp/pnpm install --ignore-scripts --reporter=append-only --store-dir ${MOUNT}/.pnpm-store`
   const listing = `cd ${APP} && find node_modules | sort | md5sum`
   let sandbox: SandboxInstance
   let installed: { exitCode: number, logs: string }
@@ -333,13 +350,12 @@ describe.runIf(isSlowTestEnabled("RUN_VOLUME_TESTS") && isSlowTestEnabled("RUN_S
     const arch = (await sh(sandbox, "uname -m")).logs === "aarch64" ? "arm64" : "x64"
     await sh(sandbox, `python3 -c "import urllib.request; urllib.request.urlretrieve('https://github.com/pnpm/pnpm/releases/download/v9.15.9/pnpm-linuxstatic-${arch}', '/tmp/pnpm')" && chmod +x /tmp/pnpm`, 300)
     await sandbox.fs.mkdir(APP)
-    await sandbox.fs.write(`${APP}/package.json`, readFileSync(join(fixtures, "pnpm", "package.json"), "utf8"))
-    await sandbox.fs.write(`${APP}/pnpm-lock.yaml`, readFileSync(join(fixtures, "pnpm", "pnpm-lock.fixture.yaml"), "utf8"))
+    await sandbox.fs.write(`${APP}/package.json`, JSON.stringify(PNPM_PROJECT, null, 2))
     installed = await sh(sandbox, install, 1800)
     listingBefore = (await sh(sandbox, listing, 600)).logs
   }, 2_400_000)
 
-  it("installs a ~50k-file lockfile with --frozen-lockfile", async () => {
+  it("installs a ~50k-file dependency tree", async () => {
     expect(installed.exitCode).toBe(0)
     const files = Number((await sh(sandbox, `find ${APP}/node_modules -type f | wc -l`, 300)).logs)
     expect(files).toBeGreaterThan(45_000)
@@ -348,6 +364,6 @@ describe.runIf(isSlowTestEnabled("RUN_VOLUME_TESTS") && isSlowTestEnabled("RUN_S
   it("keeps node_modules identical across a standby", { timeout: 900_000 }, async () => {
     expect(await parkAndWake(sandbox)).toBe(true)
     expect((await sh(sandbox, listing, 600)).logs).toBe(listingBefore)
-    expect((await sh(sandbox, `${install} --offline`, 600)).exitCode).toBe(0)
+    expect((await sh(sandbox, `${install} --frozen-lockfile --offline`, 600)).exitCode).toBe(0)
   })
 })

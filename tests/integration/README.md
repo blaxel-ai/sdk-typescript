@@ -46,7 +46,7 @@ Opt-in suites, all off by default. Enable with `true` or `1`, e.g.
 | `RUN_DRIVE_TESTS`            | `drives.test.ts`, `drive-acl.test.ts`, `mount-drives.test.ts` | Needs a drive-enabled region |
 | `RUN_VOLUME_TESTS`           | `volumes.test.ts`, `volume-behaviour.test.ts`, volume blocks of `region.test.ts`, volume test of `large-envs.test.ts` | Volumes are not enabled on mk3.1 hosts yet |
 | `RUN_SLOW_VOLUME_TESTS`      | `volume-behaviour.test.ts` > live grow, "volume state across a standby" (also needs `RUN_VOLUME_TESTS`) | Waits on resize propagation and a real idle standby (~30-60s each) |
-| `RUN_SLOW_VOLUME_PNPM`       | `volume-behaviour.test.ts` > "pnpm install on a volume" (also needs `RUN_VOLUME_TESTS`) | Installs a public-package lockfile (~50k files), 3-5 minutes |
+| `RUN_SLOW_VOLUME_PNPM`       | `volume-behaviour.test.ts` > "pnpm install on a volume" (also needs `RUN_VOLUME_TESTS`) | Installs public packages (~50k files), 3-5 minutes |
 | `RUN_FIREWALL_RULESET_TESTS` | `proxy/firewall.test.ts` > "no proxy bypass (firewall ruleset: proxy)" | Firewall rulesets are not enabled on mk3.1 hosts yet |
 
 ## Credential gates
