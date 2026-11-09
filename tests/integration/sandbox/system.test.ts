@@ -108,17 +108,18 @@ describe('Sandbox System Operations', () => {
       expect(preview.spec.url).toBeDefined()
       const previewUrl = preview.spec.url!
 
-      // Wait for preview to be ready (boot dev server up and first page compiled).
+      // Wait for preview to be ready (boot dev server up and first page compiled, ~13s
+      // in practice). Kept under the 1-minute integration test budget with the upgrade.
       // Each attempt is capped so one hung request cannot eat the budget, and the
       // last outcome is reported on failure.
-      const previewWaitTime = 90000
+      const previewWaitTime = 40000
       const startTime = Date.now()
       let previewReady = false
       let lastAttempt = "no attempt"
 
       while (Date.now() - startTime < previewWaitTime) {
         try {
-          const response = await fetch(previewUrl, { signal: AbortSignal.timeout(15000) })
+          const response = await fetch(previewUrl, { signal: AbortSignal.timeout(10000) })
           lastAttempt = `status ${response.status}`
           await response.body?.cancel()
           if (response.status === 200) {
