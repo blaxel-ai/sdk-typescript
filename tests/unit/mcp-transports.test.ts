@@ -19,28 +19,32 @@ async function echo({ text, delayMs }: { text: string; delayMs: number }) {
   return { content: [{ type: "text" as const, text }] }
 }
 
+type WaitState = { started: boolean; aborted: boolean }
+
 // Resolves when the server-side abort signal fires, or after 2s.
-function waitForAbort(signal: AbortSignal, onAbort: () => void) {
+function waitForAbort(signal: AbortSignal, state: WaitState) {
+  state.started = true
   return new Promise<{ content: [] }>((resolve) => {
     const done = () => resolve({ content: [] })
-    signal.addEventListener("abort", () => { onAbort(); done() })
+    const onAbort = () => { state.aborted = true; done() }
+    if (signal.aborted) return onAbort()
+    signal.addEventListener("abort", onAbort)
     setTimeout(done, 2000)
   })
 }
 
 function startServer(version: "v1" | "v2", port: number) {
   const transport = new BlaxelMcpServerTransport(port)
-  const state = { aborted: false }
-  const onAbort = () => { state.aborted = true }
+  const state: WaitState = { started: false, aborted: false }
   if (version === "v1") {
     const server = new McpServerV1({ name: "test", version: "1.0.0" })
     server.registerTool("echo", { description: echoTool.description, inputSchema: echoTool.inputSchema.shape }, echo)
-    server.registerTool("wait", { description: "Wait for cancel" }, (extra) => waitForAbort(extra.signal, onAbort))
+    server.registerTool("wait", { description: "Wait for cancel" }, (extra) => waitForAbort(extra.signal, state))
     return { state, connect: () => server.connect(transport), close: () => server.close() }
   }
   const server = new McpServerV2({ name: "test", version: "1.0.0" })
   server.registerTool("echo", echoTool, echo)
-  server.registerTool("wait", { description: "Wait for cancel" }, (ctx) => waitForAbort(ctx.mcpReq.signal, onAbort))
+  server.registerTool("wait", { description: "Wait for cancel" }, (ctx) => waitForAbort(ctx.mcpReq.signal, state))
   return { state, connect: () => server.connect(transport), close: () => server.close() }
 }
 
@@ -108,7 +112,9 @@ describe.each(combos)("server %s with client %s", (serverVersion, clientVersion)
     const call = client instanceof ClientV1
       ? client.callTool(params, undefined, options)
       : client.callTool(params, options)
-    setTimeout(() => controller.abort(), 100)
+    // Abort only once the tool runs, so the cancel has an in-flight call to hit.
+    await expect.poll(() => server.state.started, { timeout: 1000 }).toBe(true)
+    controller.abort()
     await expect(call).rejects.toThrow()
     await expect.poll(() => server.state.aborted, { timeout: 1000 }).toBe(true)
   })
