@@ -84,7 +84,8 @@ export class SandboxProcess extends SandboxAction {
     };
 
     const processLine = (line: string) => {
-      if (line.startsWith("[keepalive]")) {
+      // No callback after close(), even for a chunk already read or buffered.
+      if (controller.signal.aborted || line.startsWith("[keepalive]")) {
         return;
       }
       if (line.startsWith('stdout:')) {
@@ -132,13 +133,7 @@ export class SandboxProcess extends SandboxAction {
           processLine(buffer);
         }
       } catch (err: unknown) {
-        if (controller.signal.aborted) {
-          // Process remaining buffer before returning on abort
-          if (buffer.trim()) {
-            processLine(buffer);
-          }
-          return;
-        }
+        if (controller.signal.aborted) return;
         handleError(err instanceof Error ? err : new Error('Unknown stream error'));
       }
     })();

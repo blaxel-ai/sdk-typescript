@@ -484,6 +484,13 @@ async function _h2Request(
     h2Headers["content-length"] = body.byteLength;
   }
 
+  // undici links `Request.signal` to the caller's signal through a WeakRef that
+  // lives only as long as the Request. Nothing else holds the Request once the
+  // response resolves, so a GC mid-stream silently drops the link and abort()
+  // never reaches the stream (ENG-6315). The listener pins the Request to the
+  // signal `_h2Send` keeps for the stream lifetime.
+  input.signal.addEventListener("abort", () => void input, { once: true });
+
   return _h2Send(
     session,
     h2Headers,
