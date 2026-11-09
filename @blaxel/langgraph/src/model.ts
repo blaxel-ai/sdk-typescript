@@ -80,7 +80,7 @@ export const blModel = async (
       },
       ...options,
     };
-    return modelData.spec.runtime?.type === "openai" ? new ChatBlaxelOpenAI(fields) : new ChatOpenAI(fields);
+    return (modelData.spec.runtime?.type ?? "openai") === "openai" ? new ChatBlaxelOpenAI(fields) : new ChatOpenAI(fields);
   }
 
   const url = `${settings.runUrl}/${settings.workspace}/models/${model}`;

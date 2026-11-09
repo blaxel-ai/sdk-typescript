@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { blModel } from "./model.js";
 import { ChatBlaxelOpenAI } from "./model/openai.js";
 
-const runtime = vi.hoisted(() => ({ type: "openai" }));
+const runtime = vi.hoisted(() => ({ type: "openai" as string | undefined }));
 
 vi.mock("@blaxel/core", () => ({
   authenticate: vi.fn(),
@@ -32,6 +32,13 @@ describe("blModel mk3", () => {
     const bound = (model as ChatBlaxelOpenAI).bindTools([tool]);
     expect(bound).toBeInstanceOf(ChatBlaxelOpenAI);
     expect(usesResponses(bound, {})).toBe(true);
+  });
+
+  it("treats an mk3 model without runtime.type as OpenAI", async () => {
+    runtime.type = undefined;
+    const model = await blModel("sandbox-untyped");
+    expect(model).toBeInstanceOf(ChatBlaxelOpenAI);
+    expect(usesResponses(model, { tools: [tool] })).toBe(true);
   });
 
   it("keeps Chat Completions for non-OpenAI providers, even with tools", async () => {
