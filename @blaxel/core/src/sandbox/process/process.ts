@@ -390,22 +390,24 @@ export class SandboxProcess extends SandboxAction {
   }
 
   /**
-   * Poll a process until it ends (`completed`, `failed`, `killed` or
-   * `stopped`). A timeout or cancellation never stops the command; call
-   * `stop()` or `kill()` for that. Transient network and gateway errors are
-   * retried until the deadline.
+   * Wait until a process ends (`completed`, `failed`, `killed` or
+   * `stopped`). The sandbox holds each wait request until the process ends,
+   * for up to 119 seconds; sandboxes without that wait endpoint are polled
+   * every `interval` instead. A timeout or cancellation never stops the
+   * command; call `stop()` or `kill()` for that. Transient network and gateway
+   * errors are retried until the deadline.
    *
    * @param identifier - The process `pid` or `name`.
    * @param options - `maxWait`: milliseconds to wait, default 60000, `-1` for
-   * no limit; `interval`: milliseconds between polls, default 1000; `signal`:
-   * an AbortSignal to cancel the wait.
+   * no limit; `interval`: milliseconds between requests, default 1000;
+   * `signal`: an AbortSignal to cancel the wait.
    * @returns The ended process with its `status`, `exitCode` and output.
    * @throws When `maxWait` runs out ("Process did not finish in time"), or with the signal's reason when aborted.
    *
    * @example
    * ```typescript
    * const { pid } = await sandbox.process.exec({ command: "make build" });
-   * const done = await sandbox.process.wait(pid, { maxWait: 10 * 60_000, interval: 2000 });
+   * const done = await sandbox.process.wait(pid, { maxWait: 10 * 60_000 });
    * ```
    */
   async wait(identifier: string, { maxWait = 60000, interval = 1000, signal }: {
