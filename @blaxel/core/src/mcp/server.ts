@@ -28,6 +28,15 @@ export class BlaxelMcpServerTransport implements Transport {
     this.messageHandler = handler
       ? (msg: JSONRPCMessage, clientId) => {
           if (!("id" in msg)) {
+            // A cancel names the request by the id the client knows; prefix it
+            // like the request itself so the server matches the in-flight call.
+            const requestId = msg.params?.requestId as string | number | undefined;
+            if (msg.method === "notifications/cancelled" && requestId !== undefined) {
+              return handler({
+                ...msg,
+                params: { ...msg.params, requestId: `${clientId}:${requestId}` },
+              });
+            }
             return handler(msg);
           }
           return handler({
