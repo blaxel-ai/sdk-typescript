@@ -10,11 +10,62 @@ const PROCESS_WAIT_MAX_SECONDS = 119;
 const PROCESS_WAIT_GRACE_SECONDS = 10;
 const waitSeconds = (remainingMs: number) => Math.max(1, Math.ceil(Math.min(PROCESS_WAIT_MAX_SECONDS, remainingMs / 1000)));
 
+/**
+ * Run and manage processes in a sandbox. Reach it through `sandbox.process`.
+ *
+ * Commands run through a shell (`sh -c` unless the image sets `SHELL`), so
+ * pipes, `&&` and `cd` work. A process is addressed by its `pid` or by the
+ * `name` you give it. Its output is kept after it ends, so `logs()` and
+ * `get()` work on finished processes too.
+ *
+ * Three ways to run a command:
+ * - `exec({ command, waitForCompletion: true })` returns once the command
+ *   ends, with `exitCode`, `stdout`, `stderr` and `logs`. The request stays
+ *   open meanwhile, and the edge in front of the sandbox closes it after 120
+ *   seconds with a `SandboxGatewayError` (HTTP 504) while the command keeps
+ *   running. Use it for short commands.
+ * - `exec({ command, waitForCompletion: true, onLog })` also waits, but
+ *   streams the output to the callbacks as it arrives, with keepalives that
+ *   hold the connection open. Use it for long commands.
+ * - `exec({ command })` returns as soon as the process starts. Follow it
+ *   with `wait()`, `streamLogs()`, `get()` and `logs()`. Use it for servers
+ *   and background jobs.
+ *
+ * A command that exits non-zero does not throw: check `status` (`"failed"`)
+ * and `exitCode`.
+ *
+ * @example
+ * ```typescript
+ * const result = await sandbox.process.exec({
+ *   command: "npm test",
+ *   workingDir: "/app",
+ *   waitForCompletion: true,
+ *   onLog: (line) => console.log(line),
+ * });
+ * if (result.exitCode !== 0) throw new Error(result.stderr);
+ * ```
+ */
 export class SandboxProcess extends SandboxAction {
   constructor(sandbox: Sandbox) {
     super(sandbox);
   }
 
+  /**
+   * Stream the output of a process to callbacks: the output so far first,
+   * then new output until the process ends.
+   *
+   * @param identifier - The process `pid` or `name`.
+   * @param options - `onLog` gets every chunk, `onStdout` and `onStderr` only their stream; `onError` gets a stream failure.
+   * @returns `close()` to stop streaming (the process keeps running) and `wait()`, which resolves when the process ends or `close()` is called.
+   *
+   * @example
+   * ```typescript
+   * await sandbox.process.exec({ command: "npm run dev", name: "dev" });
+   * const stream = sandbox.process.streamLogs("dev", { onLog: (line) => console.log(line) });
+   * // later
+   * stream.close();
+   * ```
+   */
   public streamLogs(
     identifier: string,
     options: {
@@ -100,6 +151,53 @@ export class SandboxProcess extends SandboxAction {
     };
   }
 
+  /**
+   * Start a command in the sandbox. See the class description for when to wait,
+   * stream or return right away.
+   *
+   * @param process - The process to start:
+   * - `command`: shell command.
+   * - `name`: identifier to use instead of the `pid`. Starting a process with
+   *   the name of one still running is rejected with HTTP 400.
+   * - `workingDir`: directory to run in. Defaults to the sandbox API's working directory.
+   * - `env`: extra environment variables, as a `{ NAME: "value" }` map.
+   * - `waitForCompletion`: return only when the command ends. Defaults to false.
+   * - `waitForPorts`: return once the process listens on all these ports
+   *   (for servers); fails early if the process exits with an error first.
+   * - `timeout`: seconds before the process is killed. Defaults to 0 (no
+   *   limit), or 600 when `keepAlive` is set.
+   * - `keepAlive`: keep the sandbox from scaling to zero while the process runs.
+   * - `restartOnFailure` and `maxRestarts`: restart on a non-zero exit, up to
+   *   `maxRestarts` times (negative for no limit).
+   * - `stdin`: open a stdin pipe for `writeStdin()` and `closeStdin()`.
+   * - `onLog`, `onStdout`, `onStderr`: output callbacks. With
+   *   `waitForCompletion` the output streams over the same request; without
+   *   it the SDK follows the logs with `streamLogs()`.
+   * @returns The process: `pid`, `name`, `status` (`"running"`, `"completed"`,
+   * `"failed"`, `"killed"` or `"stopped"`), `exitCode`, `stdout`, `stderr`, `logs`
+   * and timestamps. With callbacks it also has `close()`, which stops the
+   * callbacks without stopping the process.
+   * @throws ResponseError on HTTP 400 (invalid request or name in use), and
+   * `SandboxGatewayError` when a non-streamed wait outlasts the edge timeout of 120 seconds.
+   *
+   * @example
+   * ```typescript
+   * // Short command: wait for the result.
+   * const { exitCode, stdout } = await sandbox.process.exec({
+   *   command: "ls -la /app",
+   *   waitForCompletion: true,
+   * });
+   *
+   * // Server: start it, wait for its port, then read its logs later.
+   * await sandbox.process.exec({
+   *   command: "npm run dev",
+   *   name: "dev",
+   *   workingDir: "/app",
+   *   waitForPorts: [3000],
+   * });
+   * const logs = await sandbox.process.logs("dev");
+   * ```
+   */
   async exec(
     process: ProcessRequest | ProcessRequestWithLog,
   ): Promise<PostProcessResponse | ProcessResponseWithLog> {
@@ -291,7 +389,27 @@ export class SandboxProcess extends SandboxAction {
     };
   }
 
-  /** Wait for a terminal API state. Timeout/cancellation never stops the command. */
+  /**
+   * Wait until a process ends (`completed`, `failed`, `killed` or
+   * `stopped`). The sandbox holds each wait request until the process ends,
+   * for up to 119 seconds; sandboxes without that wait endpoint are polled
+   * every `interval` instead. A timeout or cancellation never stops the
+   * command; call `stop()` or `kill()` for that. Transient network and gateway
+   * errors are retried until the deadline.
+   *
+   * @param identifier - The process `pid` or `name`.
+   * @param options - `maxWait`: milliseconds to wait, default 60000, `-1` for
+   * no limit; `interval`: milliseconds between requests, default 1000;
+   * `signal`: an AbortSignal to cancel the wait.
+   * @returns The ended process with its `status`, `exitCode` and output.
+   * @throws When `maxWait` runs out ("Process did not finish in time"), or with the signal's reason when aborted.
+   *
+   * @example
+   * ```typescript
+   * const { pid } = await sandbox.process.exec({ command: "make build" });
+   * const done = await sandbox.process.wait(pid, { maxWait: 10 * 60_000 });
+   * ```
+   */
   async wait(identifier: string, { maxWait = 60000, interval = 1000, signal }: {
     maxWait?: number; interval?: number; signal?: AbortSignal;
   } = {}): Promise<GetProcessByIdentifierResponse> {
@@ -384,6 +502,15 @@ export class SandboxProcess extends SandboxAction {
     }
   }
 
+  /**
+   * Get a process, running or ended, with its status and output. Retried on
+   * transient connection resets unless `retry` is false.
+   *
+   * @param identifier - The process `pid` or `name`.
+   * @param options - `signal` to cancel the request; `retry` (default true).
+   * @returns The process: `status`, `exitCode`, timestamps, settings, and `stdout`, `stderr` and `logs` holding the last 64 KB of each stream (use `logs()` for more).
+   * @throws ResponseError with status 404 when no process matches.
+   */
   async get(identifier: string, { signal, retry = true }: { signal?: AbortSignal; retry?: boolean } = {}): Promise<GetProcessByIdentifierResponse> {
     const read = async () => {
       const { response, data, error } = await getProcessByIdentifier(this.withClient({
@@ -398,6 +525,12 @@ export class SandboxProcess extends SandboxAction {
     return retry ? retryOnTransientReset(read) : read();
   }
 
+  /**
+   * List the processes of the sandbox, running and ended. Each entry carries
+   * the last 64 KB of each output stream.
+   *
+   * @returns The processes.
+   */
   async list(): Promise<GetProcessResponse> {
     // Idempotent GET: self-heal a transient connection reset.
     return retryOnTransientReset(async () => {
@@ -409,6 +542,14 @@ export class SandboxProcess extends SandboxAction {
     });
   }
 
+  /**
+   * Ask a process to stop gracefully (SIGTERM). Returns once the signal is
+   * sent; use `wait()` to know when the process has ended, and `kill()` if it
+   * does not.
+   *
+   * @param identifier - The process `pid` or `name`.
+   * @returns A confirmation message.
+   */
   async stop(identifier: string): Promise<DeleteProcessByIdentifierResponse> {
     const { response, data, error } = await deleteProcessByIdentifier(this.withClient({
       path: { identifier },
@@ -418,6 +559,12 @@ export class SandboxProcess extends SandboxAction {
     return data as DeleteProcessByIdentifierResponse;
   }
 
+  /**
+   * Stop a process immediately (SIGKILL).
+   *
+   * @param identifier - The process `pid` or `name`.
+   * @returns A confirmation message.
+   */
   async kill(identifier: string): Promise<DeleteProcessByIdentifierKillResponse> {
     const { response, data, error } = await deleteProcessByIdentifierKill(this.withClient({
       path: { identifier },
@@ -456,6 +603,15 @@ export class SandboxProcess extends SandboxAction {
     this.handleResponseError(response, data, error);
   }
 
+  /**
+   * Get the output of a process so far, running or ended.
+   *
+   * @param identifier - The process `pid` or `name`.
+   * @param type - `"stdout"`, `"stderr"` or `"all"` (default). `"all"` is
+   * stdout followed by stderr, not interleaved in time order; use
+   * `streamLogs()` or exec callbacks for live, ordered output.
+   * @returns The output as one string (the last 4 MB of each stream at most), empty when there is none.
+   */
   async logs(identifier: string, type: "stdout" | "stderr" | "all" = "all"): Promise<string> {
     // Idempotent GET: self-heal a transient connection reset.
     const data = await retryOnTransientReset(async () => {

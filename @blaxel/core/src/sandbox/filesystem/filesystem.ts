@@ -56,12 +56,36 @@ async function normalizeBinaryDownload(data: unknown, response: Response): Promi
   throw new Error(`Unsupported binary download response: ${data === null ? "null" : typeof data}`);
 }
 
+/**
+ * The filesystem of a sandbox, available as `sandbox.fs`.
+ *
+ * Use absolute paths: a relative path is resolved from the working directory
+ * of the sandbox API. Writes create missing parent directories and overwrite
+ * existing files, so retrying a write is safe. `write()` and `writeBinary()`
+ * upload content over 5 MB (5 * 1024 * 1024 bytes) in 5 MB parts, up to 3 at
+ * a time, through the multipart upload API, with no change to the call.
+ *
+ * @example
+ * ```typescript
+ * await sandbox.fs.write("/app/main.py", "print('hi')");
+ * const code = await sandbox.fs.read("/app/main.py");
+ * const listing = await sandbox.fs.ls("/app");
+ * const hits = await sandbox.fs.grep("TODO", "/app", { filePattern: "*.py" });
+ * ```
+ */
 export class SandboxFileSystem extends SandboxAction {
   constructor(sandbox: Sandbox, private process: SandboxProcess) {
     super(sandbox);
     this.process = process;
   }
 
+  /**
+   * Create a directory, with any missing parents. An existing directory is kept.
+   *
+   * @param path - Absolute path of the directory.
+   * @param permissions - Octal mode as a string. Defaults to `"0755"`.
+   * @returns A confirmation message.
+   */
   async mkdir(path: string, permissions: string = "0755"): Promise<SuccessResponse> {
     path = this.formatPath(path);
     const { response, data, error } = await putFilesystemByPath(this.withClient({
@@ -73,6 +97,20 @@ export class SandboxFileSystem extends SandboxAction {
     return data as SuccessResponse;
   }
 
+  /**
+   * Write a text file, replacing any existing content. Missing parent
+   * directories are created. Content over 5 MB is uploaded in parts
+   * automatically. For bytes, or a local file, use `writeBinary()`.
+   *
+   * @param path - Absolute path of the file.
+   * @param content - Text to write (UTF-8).
+   * @returns A confirmation message with the path.
+   *
+   * @example
+   * ```typescript
+   * await sandbox.fs.write("/app/config.json", JSON.stringify({ port: 3000 }));
+   * ```
+   */
   async write(path: string, content: string): Promise<SuccessResponse> {
     path = this.formatPath(path);
 
@@ -95,6 +133,21 @@ export class SandboxFileSystem extends SandboxAction {
     return data as SuccessResponse;
   }
 
+  /**
+   * Write a binary file, replacing any existing content. Missing parent
+   * directories are created. Content over 5 MB is uploaded in 5 MB parts
+   * automatically, and uploads are retried on transient connection resets.
+   *
+   * @param path - Absolute path of the file in the sandbox.
+   * @param content - The bytes as a Buffer, Blob, File or Uint8Array, or a string holding the path of a local file to upload (Node.js only; the file is read into memory).
+   * @returns A confirmation message with the path.
+   *
+   * @example
+   * ```typescript
+   * await sandbox.fs.writeBinary("/app/data.zip", "./data.zip");
+   * await sandbox.fs.writeBinary("/app/logo.png", new Uint8Array(pngBytes));
+   * ```
+   */
   async writeBinary(path: string, content: Buffer | Blob | File | Uint8Array | string): Promise<SuccessResponse> {
     path = this.formatPath(path);
 
@@ -183,6 +236,23 @@ export class SandboxFileSystem extends SandboxAction {
     return retryOnTransient(putWithSlot);
   }
 
+  /**
+   * Write several text files in one request. Each file path is joined to
+   * `destinationPath`; missing directories are created and existing files
+   * are overwritten.
+   *
+   * @param files - Files as `{ path, content }`, with paths relative to `destinationPath`.
+   * @param destinationPath - Directory to write into. Defaults to the working directory of the sandbox API.
+   * @returns The resulting directory listing.
+   *
+   * @example
+   * ```typescript
+   * await sandbox.fs.writeTree([
+   *   { path: "package.json", content: '{"name":"app"}' },
+   *   { path: "src/index.js", content: "console.log('hi')" },
+   * ], "/app");
+   * ```
+   */
   async writeTree(files: SandboxFilesystemFile[], destinationPath: string | null = null) {
     const options = {
       body: {
@@ -205,6 +275,19 @@ export class SandboxFileSystem extends SandboxAction {
     return data;
   }
 
+  /**
+   * Read a text file. Retried on transient connection resets. For binary
+   * content use `readBinary()`.
+   *
+   * @param path - Absolute path of the file.
+   * @returns The file content as a string.
+   * @throws When the path does not exist or is a directory.
+   *
+   * @example
+   * ```typescript
+   * const text = await sandbox.fs.read("/app/package.json");
+   * ```
+   */
   async read(path: string): Promise<string> {
     path = this.formatPath(path);
     // Idempotent GET: self-heal a transient connection reset (e.g. first call
@@ -256,6 +339,12 @@ export class SandboxFileSystem extends SandboxAction {
     });
   }
 
+  /**
+   * Read a file as bytes. Retried on transient connection resets.
+   *
+   * @param path - Absolute path of the file.
+   * @returns The file content as a Blob (use `await blob.arrayBuffer()` for the bytes).
+   */
   async readBinary(path: string): Promise<Blob> {
     path = this.formatPath(path);
     // Idempotent GET: self-heal a transient connection reset.
@@ -273,6 +362,14 @@ export class SandboxFileSystem extends SandboxAction {
     });
   }
 
+  /**
+   * Copy a file from the sandbox to the local filesystem (Node.js only). The
+   * whole file is held in memory on the way.
+   *
+   * @param src - Absolute path of the file in the sandbox.
+   * @param destinationPath - Local path to write to; an existing file is overwritten.
+   * @param options - `mode`: permissions of the local file. Defaults to `0o644`.
+   */
   async download(src: string, destinationPath: string, { mode = 0o644 }: { mode?: number } = {}): Promise<void> {
     if (!fs) {
       throw new Error("File download to local filesystem is only supported in Node.js environments");
@@ -283,6 +380,14 @@ export class SandboxFileSystem extends SandboxAction {
     fs.writeFileSync(destinationPath, buffer, { mode: mode ?? 0o644 });
   }
 
+  /**
+   * Delete a file or directory.
+   *
+   * @param path - Absolute path to delete.
+   * @param recursive - Set to true to delete a directory with its content. Defaults to false.
+   * @returns A confirmation message.
+   * @throws When the path does not exist (HTTP 404).
+   */
   async rm(path: string, recursive: boolean = false): Promise<SuccessResponse> {
     path = this.formatPath(path);
     const { response, data, error } = await deleteFilesystemByPath(this.withClient({
@@ -294,6 +399,14 @@ export class SandboxFileSystem extends SandboxAction {
     return data as SuccessResponse;
   }
 
+  /**
+   * List the direct content of a directory. Retried on transient connection
+   * resets. For a search through subdirectories use `find()`.
+   *
+   * @param path - Absolute path of the directory.
+   * @returns The directory with its `files` (name, path, size in bytes, permissions, owner, lastModified) and `subdirectories`.
+   * @throws When the path does not exist or is not a directory.
+   */
   async ls(path: string): Promise<Directory> {
     path = this.formatPath(path);
     // Idempotent GET: self-heal a transient connection reset (the file-tree
@@ -311,6 +424,14 @@ export class SandboxFileSystem extends SandboxAction {
     });
   }
 
+  /**
+   * Fuzzy search for file and directory paths, like an editor's "go to file".
+   *
+   * @param query - Fuzzy pattern matched against each path relative to `path`, for example `"mngo"` for `src/main.go`.
+   * @param path - Directory to search in. Defaults to `/`.
+   * @param options - `maxResults` (default 20); `excludeDirs`, directory names to skip (default `node_modules`, `vendor`, `.git`, `dist`, `build`, `target`, `__pycache__`, `.venv`, `.next`, `coverage`); `excludeHidden` (default true). `patterns` is currently ignored by the API; use `find()` for glob filtering.
+   * @returns Matches with `path`, `score` and `type` (`"file"` or `"directory"`), best first, and the `total` count.
+   */
   async search(
     query: string,
     path: string = "/",
@@ -344,6 +465,19 @@ export class SandboxFileSystem extends SandboxAction {
     });
   }
 
+  /**
+   * Find files or directories under a path by glob pattern, searching
+   * subdirectories.
+   *
+   * @param path - Directory to search in.
+   * @param options - `type`: `"file"` or `"directory"`; `patterns`: globs matched against file names (not directories), such as `["*.ts", "*.json"]`; `maxResults` (default 20, `0` returns all); `excludeDirs`, directory names to skip (default `node_modules`, `vendor`, `.git`, `dist`, `build`, `target`, `__pycache__`, `.venv`, `.next`, `coverage`); `excludeHidden` (default true).
+   * @returns Matches with `path` and `type`, and the `total` count.
+   *
+   * @example
+   * ```typescript
+   * const { matches } = await sandbox.fs.find("/app", { type: "file", patterns: ["*.ts"], maxResults: 0 });
+   * ```
+   */
   async find(
     path: string,
     options?: FilesystemFindOptions
@@ -385,6 +519,20 @@ export class SandboxFileSystem extends SandboxAction {
     });
   }
 
+  /**
+   * Search file contents for a plain-text string (not a regular expression),
+   * line by line, under a directory and its subdirectories.
+   *
+   * @param query - Text to look for.
+   * @param path - Directory to search in. Defaults to `/`.
+   * @param options - `caseSensitive` (default false); `contextLines`, lines returned before and after each match in `context` (default 0, max 20); `maxResults` (default 100); `filePattern`, a glob matched against the file name such as `"*.go"`; `excludeDirs`, directory names to skip (default `node_modules`, `vendor`, `.git`, `dist`, `build`, `target`, `__pycache__`, `.venv`, `.next`, `coverage`).
+   * @returns Matches with `path`, `line`, `column`, `text` and optional `context`, and the `total` count.
+   *
+   * @example
+   * ```typescript
+   * const { matches } = await sandbox.fs.grep("TODO", "/app/src", { filePattern: "*.ts", contextLines: 2 });
+   * ```
+   */
   async grep(
     query: string,
     path: string = "/",
@@ -430,6 +578,21 @@ export class SandboxFileSystem extends SandboxAction {
     });
   }
 
+  /**
+   * Copy a file or directory inside the sandbox. By default it runs `cp -r`
+   * as a sandbox process, so it follows `cp` rules: existing files are
+   * overwritten, and a destination that is an existing directory receives the
+   * source inside it. With `noOverwrite`, one sandbox API request copies with
+   * exclusive creates and leaves an existing final target unchanged.
+   *
+   * @param source - Absolute path to copy.
+   * @param destination - Absolute target path.
+   * @param options - `maxWait`: milliseconds to wait for the copy, default 180000 (3 minutes). The copy keeps running if the wait runs out.
+   * `noOverwrite`: fail with `SandboxFileExistsError` instead of overwriting; entries created before a failure remain.
+   * @returns The source and destination paths.
+   * @throws When `cp` fails (the message includes its output) or does not finish within `maxWait`;
+   * `SandboxFileExistsError` with `noOverwrite` when the final target exists.
+   */
   async cp(source: string, destination: string, { maxWait = 180000, noOverwrite = false }: { maxWait?: number; noOverwrite?: boolean } = {}): Promise<CopyResponse> {
     if (noOverwrite) {
       return this.copyNoOverwrite(source, destination, maxWait);
@@ -492,6 +655,33 @@ export class SandboxFileSystem extends SandboxAction {
     return { message: "Files copied", source, destination };
   }
 
+  /**
+   * Watch a directory for changes and call `callback` for each event, until
+   * `close()` is called. Only changes after the call are reported, with no
+   * initial listing. Events arrive one at a time: the next waits for the
+   * callback's promise.
+   *
+   * @param path - Directory to watch. Only its direct entries are watched;
+   * end the path with `/**` to include subdirectories.
+   * @param callback - Called with `op` (`CREATE`, `WRITE`, `REMOVE`, `RENAME`
+   * or `CHMOD`, several may be joined with `|`), `path` (the directory) and
+   * `name` (the entry), plus `content` when `withContent` is set.
+   * @param options - `withContent`: read the file and pass its text as
+   * `content` on `CREATE` and `WRITE` (undefined if the read fails);
+   * `ignore`: substrings, an event whose full path contains one is skipped
+   * (for example `["node_modules", ".git"]`); `onError`: called when the
+   * watch stream fails, after which it stops.
+   * @returns A handle whose `close()` stops watching.
+   *
+   * @example
+   * ```typescript
+   * const watcher = sandbox.fs.watch("/app/src/**", (event) => {
+   *   console.log(event.op, `${event.path}/${event.name}`);
+   * }, { withContent: false, ignore: ["node_modules"] });
+   * // later
+   * watcher.close();
+   * ```
+   */
   watch(
     path: string,
     callback: (fileEvent: WatchEvent) => void | Promise<void>,
