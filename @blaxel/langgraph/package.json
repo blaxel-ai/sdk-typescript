@@ -7,6 +7,7 @@
 	"homepage": "https://blaxel.ai",
 	"scripts": {
 		"lint": "eslint src/",
+		"test": "vitest --run",
 		"dev": "tsc --watch",
 		"build": "npm run build:cjs && npm run build:esm && npm run build:fix-esm && npm run build:esm-package",
 		"build:cjs": "NODE_OPTIONS='--max-old-space-size=8192' tsc -p tsconfig.cjs.json",
