@@ -1,6 +1,6 @@
 import { SandboxInstance, Snapshot } from "@blaxel/core";
 import { afterAll, describe, expect, it } from "vitest";
-import { defaultImage, defaultLabels, defaultRegion, isSandboxMk31, isSlowTestEnabled, retry, uniqueName, waitForSandboxDeletion } from "./helpers.js";
+import { defaultImage, defaultLabels, defaultRegion, isSandboxMk31, isSlowTestEnabled, retry, skipIfSnapshotForkDisabled, uniqueName, waitForSandboxDeletion } from "./helpers.js";
 
 describe("Workspace snapshots", { timeout: 180000 }, () => {
   const sandboxName = uniqueName("snap-src");
@@ -34,7 +34,7 @@ describe("Workspace snapshots", { timeout: 180000 }, () => {
     // Snapshots only exist on mk3.1 sandboxes.
     if (!(await isSandboxMk31(sandbox))) ctx.skip("snapshots require an mk3.1 sandbox");
 
-    const snapshot = await sandbox.snapshots.create(snapshotName);
+    const snapshot = await skipIfSnapshotForkDisabled(ctx, sandbox.snapshots.create(snapshotName));
     expect(snapshot.name).toBe(snapshotName);
     expect(snapshot.source?.kind).toBe("sandbox");
     expect(snapshot.source?.name).toBe(sandboxName);
@@ -70,7 +70,7 @@ describe("Workspace snapshots", { timeout: 180000 }, () => {
     if (!snapshotId) ctx.skip("no snapshot was taken (mk3.0 sandbox or earlier failure)");
     const snapshot = await Snapshot.get(snapshotId);
 
-    const fork = await snapshot.fork(forkName);
+    const fork = await skipIfSnapshotForkDisabled(ctx, snapshot.fork(forkName));
     expect(fork.name).toBe(forkName);
     expect(fork.type).toBe("sandbox");
 

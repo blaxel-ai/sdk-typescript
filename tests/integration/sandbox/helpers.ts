@@ -1,4 +1,4 @@
-import { getWorkspaceFeatures, SandboxInstance, settings, VolumeInstance } from "@blaxel/core"
+import { getBlaxelErrorMessage, getBlaxelErrorStatus, getWorkspaceFeatures, SandboxInstance, settings, VolumeInstance } from "@blaxel/core"
 import { v4 as uuidv4 } from 'uuid'
 import { expect } from 'vitest'
 
@@ -238,6 +238,25 @@ export async function isSandboxMk31(sandbox: SandboxInstance): Promise<boolean> 
     waitForCompletion: true,
   })
   return result.logs?.trim() === "mk31"
+}
+
+/**
+ * Awaits a snapshot or fork call, skipping the calling test when the workspace
+ * does not have the snapshot/fork feature (a 403 "feature is not enabled").
+ * Any other error is rethrown.
+ */
+export async function skipIfSnapshotForkDisabled<T>(
+  ctx: { skip: (note?: string) => never },
+  call: Promise<T>
+): Promise<T> {
+  try {
+    return await call
+  } catch (err) {
+    if (getBlaxelErrorStatus(err) === 403 && /feature is not enabled/i.test(getBlaxelErrorMessage(err) ?? "")) {
+      ctx.skip(`snapshot/fork feature is not enabled on workspace ${settings.workspace}`)
+    }
+    throw err
+  }
 }
 
 /**
