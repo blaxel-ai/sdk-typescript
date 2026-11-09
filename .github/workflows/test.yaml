@@ -42,10 +42,6 @@ jobs:
         with:
           deno-version: v2.x
 
-      - name: Install Playwright browsers
-        if: matrix.runtime == 'browser'
-        run: npx playwright install chromium
-
       - name: Install and build SDK packages
         run: |
           bun install
@@ -59,6 +55,12 @@ jobs:
           mv package.json.tmp package.json
           # Re-run bun install to resolve workspace dependencies for the runtime-environment
           bun install
+
+      # After the install, so the browser matches the pinned playwright instead of whatever npx pulls from npm.
+      - name: Install Playwright browsers
+        if: matrix.runtime == 'browser'
+        working-directory: tests/runtime-environments/browser
+        run: npx playwright install chromium
 
       - name: Verify Next.js advisory floors
         if: matrix.runtime == 'vercel-nextjs'

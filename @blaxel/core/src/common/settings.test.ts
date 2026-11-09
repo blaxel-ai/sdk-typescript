@@ -1,7 +1,39 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiKey } from '../authentication/apikey.js';
+import { CODING_AGENT_ENV_VARS } from './coding-agent.js';
 import { env } from './env.js';
 import { isBrokenBunH2Runtime } from './h2-runtime.js';
+
+/**
+ * These tests may run inside a coding agent, which sets the variables the SDK
+ * reads to tag its User-Agent. Clear them (and DO_NOT_TRACK) for each test.
+ */
+function withoutCodingAgentEnv() {
+  const names = [...CODING_AGENT_ENV_VARS, 'DO_NOT_TRACK', 'HOME', 'USERPROFILE'];
+  const saved: Record<string, string | undefined> = {};
+  return {
+    clear() {
+      for (const name of names) {
+        saved[name] = process.env[name];
+      }
+      for (const name of [...CODING_AGENT_ENV_VARS, 'DO_NOT_TRACK']) {
+        delete process.env[name];
+      }
+    },
+    restore() {
+      for (const name of names) {
+        if (saved[name] === undefined) {
+          delete process.env[name];
+        } else {
+          process.env[name] = saved[name];
+        }
+      }
+    },
+  };
+}
 
 describe('Settings.apiVersion', () => {
   beforeEach(() => {
@@ -262,6 +294,7 @@ describe('Settings H2 tuning knobs (config > env > default)', () => {
 
 describe('Settings.integration', () => {
   const sdkUserAgent = /^blaxel\/sdk\/typescript\/\S+ \([^)]+\) blaxel\/\S+/;
+  const agentEnv = withoutCodingAgentEnv();
 
   async function authenticated() {
     const { settings } = await import('./settings.js');
@@ -271,7 +304,10 @@ describe('Settings.integration', () => {
     return settings;
   }
 
+  beforeEach(() => agentEnv.clear());
+
   afterEach(async () => {
+    agentEnv.restore();
     const { settings } = await import('./settings.js');
     delete settings.config.integration;
     delete process.env.BL_INTEGRATION;
@@ -337,5 +373,115 @@ describe('Settings.integration warnings', () => {
       warn.mockRestore();
       delete settings.config.integration;
     }
+  });
+});
+
+describe('Settings.codingAgent', () => {
+  const sdkUserAgent = /^blaxel\/sdk\/typescript\/\S+ \([^)]+\) blaxel\/\S+/;
+  const agentEnv = withoutCodingAgentEnv();
+  let home = '';
+
+  /** A fresh settings module, so it reads the empty test home directory. */
+  async function authenticated() {
+    const { settings } = await import('./settings.js');
+    settings.credentials = new ApiKey({ apiKey: 'test-key', workspace: 'test-ws' });
+    delete settings.config.integration;
+    delete process.env.BL_INTEGRATION;
+    return settings;
+  }
+
+  /** A fresh settings module whose home directory holds this config.yaml. */
+  async function withConfig(config: string) {
+    mkdirSync(join(home, '.blaxel'));
+    writeFileSync(join(home, '.blaxel', 'config.yaml'), config);
+    return authenticated();
+  }
+
+  // Keep the tracking choice saved on the machine running the tests out.
+  beforeEach(() => {
+    agentEnv.clear();
+    home = mkdtempSync(join(tmpdir(), 'blaxel-home-'));
+    process.env.HOME = home;
+    process.env.USERPROFILE = home;
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    agentEnv.restore();
+    delete process.env.BL_INTEGRATION;
+    rmSync(home, { recursive: true, force: true });
+    vi.resetModules();
+  });
+
+  it('sends no agent token outside a coding agent', async () => {
+    const settings = await authenticated();
+    expect(settings.codingAgent).toBe('');
+    expect(settings.headers['User-Agent']).toMatch(new RegExp(sdkUserAgent.source + '$'));
+  });
+
+  it('appends the agent token detected from the environment', async () => {
+    const settings = await authenticated();
+    process.env.CLAUDECODE = '1';
+    expect(settings.codingAgent).toBe('claude-code');
+    const userAgent = settings.headers['User-Agent'];
+    expect(userAgent).toMatch(sdkUserAgent);
+    expect(userAgent.endsWith(' agent/claude-code')).toBe(true);
+  });
+
+  it('puts the agent token after the integration token', async () => {
+    const settings = await authenticated();
+    process.env.CODEX_SANDBOX = 'seatbelt';
+    settings.integration = 'herdr/1.4.0';
+    expect(settings.headers['User-Agent'].endsWith(' herdr/1.4.0 agent/codex')).toBe(true);
+  });
+
+  it.each(['1', 'true'])('drops the token when DO_NOT_TRACK=%s', async (value) => {
+    const settings = await authenticated();
+    process.env.CLAUDECODE = '1';
+    process.env.DO_NOT_TRACK = value;
+    expect(settings.codingAgent).toBe('');
+    expect(settings.headers['User-Agent']).toMatch(new RegExp(sdkUserAgent.source + '$'));
+  });
+
+  it('drops the token when the process sets DO_NOT_TRACK=1 and the project .env says false', async () => {
+    vi.doMock('./node.js', async (importOriginal) => {
+      const original = await importOriginal<typeof import('./node.js')>();
+      const fs = original.fs!;
+      const readFileSync = ((file: string, ...rest: unknown[]) =>
+        file === '.env' ? 'DO_NOT_TRACK=false\n' : (fs.readFileSync as (...args: unknown[]) => unknown)(file, ...rest)) as typeof fs.readFileSync;
+      return { ...original, fs: { ...fs, readFileSync } };
+    });
+    try {
+      const settings = await authenticated();
+      const { env: projectEnv } = await import('./env.js');
+      expect(projectEnv.DO_NOT_TRACK).toBe('false');
+      process.env.CLAUDECODE = '1';
+      process.env.DO_NOT_TRACK = '1';
+      expect(settings.codingAgent).toBe('');
+      expect(settings.headers['User-Agent']).toMatch(new RegExp(sdkUserAgent.source + '$'));
+    } finally {
+      vi.doUnmock('./node.js');
+    }
+  });
+
+  it('keeps the token when DO_NOT_TRACK turns tracking on', async () => {
+    const settings = await authenticated();
+    process.env.CLAUDECODE = '1';
+    process.env.DO_NOT_TRACK = '0';
+    expect(settings.codingAgent).toBe('claude-code');
+  });
+
+  it('keeps the token when config.yaml says tracking: false', async () => {
+    // bl login saves tracking: false until the user opts in to error reports.
+    const settings = await withConfig('tracking: false\n');
+    process.env.CURSOR_AGENT = '1';
+    expect(settings.codingAgent).toBe('cursor');
+  });
+
+  it('keeps the token when no tracking choice was saved', async () => {
+    const settings = await withConfig('context:\n  workspace: test-ws\n');
+    process.env.CURSOR_AGENT = '1';
+    expect(settings.tracking).toBe(false);
+    expect(settings.codingAgent).toBe('cursor');
   });
 });

@@ -11,6 +11,8 @@ describe("SandboxProcess.wait", () => {
     const process = Object.create(SandboxProcess.prototype) as SandboxProcess;
     const completed = { status: "completed" } as Awaited<ReturnType<SandboxProcess["get"]>>;
     const get = vi.spyOn(process, "get").mockResolvedValue(completed);
+    // Sandbox without the /wait route: the read goes through the polling fallback.
+    Object.assign(process, { waitOnce: () => Promise.resolve(undefined) });
 
     await expect(process.wait("process-id", { interval: 5000 })).resolves.toBe(completed);
 
