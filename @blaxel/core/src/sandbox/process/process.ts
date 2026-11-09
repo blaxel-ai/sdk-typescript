@@ -21,8 +21,8 @@ const waitSeconds = (remainingMs: number) => Math.max(1, Math.ceil(Math.min(PROC
  * Three ways to run a command:
  * - `exec({ command, waitForCompletion: true })` returns once the command
  *   ends, with `exitCode`, `stdout`, `stderr` and `logs`. The request stays
- *   open meanwhile, and the edge in front of the sandbox closes it after about
- *   60 seconds with a `SandboxGatewayError` (HTTP 504) while the command keeps
+ *   open meanwhile, and the edge in front of the sandbox closes it after 120
+ *   seconds with a `SandboxGatewayError` (HTTP 504) while the command keeps
  *   running. Use it for short commands.
  * - `exec({ command, waitForCompletion: true, onLog })` also waits, but
  *   streams the output to the callbacks as it arrives, with keepalives that
@@ -178,7 +178,7 @@ export class SandboxProcess extends SandboxAction {
    * and timestamps. With callbacks it also has `close()`, which stops the
    * callbacks without stopping the process.
    * @throws ResponseError on HTTP 400 (invalid request or name in use), and
-   * `SandboxGatewayError` when a non-streamed wait outlasts the edge timeout of about 60 seconds.
+   * `SandboxGatewayError` when a non-streamed wait outlasts the edge timeout of 120 seconds.
    *
    * @example
    * ```typescript
