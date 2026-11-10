@@ -43,6 +43,17 @@ describe("process HTTP contract", () => {
     expect(onError).toHaveBeenCalledTimes(1);
     streaming = true; const stream = process.streamLogs("p"); stream.close(); await expect(stream.wait()).resolves.toBeUndefined();
   });
+  it("fires no callback once a callback closes the stream", async () => {
+    const process = await localServer((_request, response) => {
+      response.writeHead(200, { "content-type": "text/plain" }); response.end("stdout:first\nstdout:second\n");
+    });
+    const onLog = vi.fn(); let stream: { close: () => void, wait: () => Promise<void> } | undefined;
+    const onStdout = vi.fn(() => stream?.close());
+    stream = process.streamLogs("p", { onStdout, onLog });
+    await stream.wait();
+    expect(onStdout.mock.calls).toEqual([["first"]]);
+    expect(onLog).not.toHaveBeenCalled();
+  });
   it("retries real status HTTP errors within the wait deadline", async () => {
     let reads = 0;
     const process = await localServer((_request, response) => {

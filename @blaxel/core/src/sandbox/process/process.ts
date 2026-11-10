@@ -83,18 +83,23 @@ export class SandboxProcess extends SandboxAction {
       throw err;
     };
 
+    // No callback after close(), even for a chunk already read or buffered, or
+    // when an earlier callback for the same line called close().
+    const emit = (cb: ((data: string) => void) | undefined, data: string) => {
+      if (!controller.signal.aborted) cb?.(data);
+    };
     const processLine = (line: string) => {
       if (line.startsWith("[keepalive]")) {
         return;
       }
       if (line.startsWith('stdout:')) {
-        options.onStdout?.(line.slice(7));
-        options.onLog?.(line.slice(7));
+        emit(options.onStdout, line.slice(7));
+        emit(options.onLog, line.slice(7));
       } else if (line.startsWith('stderr:')) {
-        options.onStderr?.(line.slice(7));
-        options.onLog?.(line.slice(7));
+        emit(options.onStderr, line.slice(7));
+        emit(options.onLog, line.slice(7));
       } else {
-        options.onLog?.(line);
+        emit(options.onLog, line);
       }
     };
 
@@ -132,13 +137,7 @@ export class SandboxProcess extends SandboxAction {
           processLine(buffer);
         }
       } catch (err: unknown) {
-        if (controller.signal.aborted) {
-          // Process remaining buffer before returning on abort
-          if (buffer.trim()) {
-            processLine(buffer);
-          }
-          return;
-        }
+        if (controller.signal.aborted) return;
         handleError(err instanceof Error ? err : new Error('Unknown stream error'));
       }
     })();
