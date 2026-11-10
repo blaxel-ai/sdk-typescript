@@ -74,7 +74,7 @@ describe('Sandbox System Operations', () => {
         image: "blaxel/nextjs:latest",
         memory: 4096,
         region: defaultRegion,
-        ports: [{ target: 3001 }],
+        ports: [{ target: 3000 }],
         labels: defaultLabels,
       })
       createdSandboxes.push(name)
@@ -94,55 +94,45 @@ describe('Sandbox System Operations', () => {
       
       expect(initialHealthResponse.status).toBe(200)
 
-      // Start the Next.js dev server
-      
-      const devServerStart = Date.now()
-      await sandbox.process.exec({
-        name: "nextjs-dev",
-        command: "npm run dev -- --port 3001",
-        workingDir: "/blaxel/app",
-        waitForPorts: [3001],
-      })
-      
-
-      // Port 3001: the nextjs image already runs its own dev server on 3000 at boot.
-
-      // Create a public preview on port 3001
-      
+      // Use the dev server the nextjs image starts at boot on port 3000. Starting a second
+      // `next dev` in /blaxel/app races it: Next.js allows one dev server per project dir,
+      // so whichever starts second exits with "Another next dev server is already running".
       const preview = await sandbox.previews.create({
         metadata: { name: "upgrade-test-preview" },
         spec: {
-          port: 3001,
+          port: 3000,
           public: true,
         },
       })
 
       expect(preview.spec.url).toBeDefined()
       const previewUrl = preview.spec.url!
-      
 
-      // Wait for preview to be ready and verify it's responsive
-      
-      let previewReady = false
-      const maxWaitTime = 30000
+      // Wait for preview to be ready (boot dev server up and first page compiled, ~13s
+      // in practice). Kept under the 1-minute integration test budget with the upgrade.
+      // Each attempt is capped so one hung request cannot eat the budget, and the
+      // last outcome is reported on failure.
+      const previewWaitTime = 40000
       const startTime = Date.now()
+      let previewReady = false
+      let lastAttempt = "no attempt"
 
-      while (Date.now() - startTime < maxWaitTime) {
+      while (Date.now() - startTime < previewWaitTime) {
         try {
-          const response = await fetch(previewUrl)
-          
+          const response = await fetch(previewUrl, { signal: AbortSignal.timeout(10000) })
+          lastAttempt = `status ${response.status}`
+          await response.body?.cancel()
           if (response.status === 200) {
             previewReady = true
             break
           }
         } catch (error: unknown) {
-          
+          lastAttempt = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
         }
         await sleep(1000)
       }
 
-      
-      expect(previewReady).toBe(true)
+      expect(previewReady, `preview ${previewUrl} not ready after ${previewWaitTime}ms, last attempt: ${lastAttempt}`).toBe(true)
 
       // Verify preview is accessible before upgrade and capture content
       
@@ -160,7 +150,7 @@ describe('Sandbox System Operations', () => {
       expect(upgradeResult).toBeDefined()
 
       // Wait for health to show upgrade count > 0
-      const healthData = await waitForUpgradeComplete(sandboxHost!, maxWaitTime)
+      const healthData = await waitForUpgradeComplete(sandboxHost!)
       expect(healthData.upgradeCount).toBeGreaterThan(0)
 
       // Wait a bit for everything to stabilize after upgrade
