@@ -7,6 +7,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { AuthenticatedChatGoogleGenerativeAI } from "./model/google-genai.js";
 import { CohereClient } from "cohere-ai";
 import { createCohereFetcher } from "./model/cohere.js";
+import { ChatBlaxelOpenAI } from "./model/openai.js";
 import { ChatXAI } from "./model/xai.js";
 
 /**
@@ -69,7 +70,7 @@ export const blModel = async (
       throw new Error(`Model ${model} is mk3 but has no gateway URL in metadata`);
     }
 
-    return new ChatOpenAI({
+    const fields = {
       apiKey: "replaced",
       model: model,
       configuration: {
@@ -78,7 +79,8 @@ export const blModel = async (
         fetch: authenticatedFetch(),
       },
       ...options,
-    });
+    };
+    return (modelData.spec.runtime?.type ?? "openai") === "openai" ? new ChatBlaxelOpenAI(fields) : new ChatOpenAI(fields);
   }
 
   const url = `${settings.runUrl}/${settings.workspace}/models/${model}`;
