@@ -1,6 +1,6 @@
 import { SandboxInstance, SandboxLifecycle } from "@blaxel/core";
 import { afterAll, describe, expect, it } from "vitest";
-import { defaultImage, defaultLabels, defaultRegion, skipUnlessGenerationMk31, uniqueName } from "./helpers.js";
+import { defaultImage, defaultLabels, defaultRegion, skipIfSnapshotForkDisabled, skipUnlessGenerationMk31, uniqueName } from "./helpers.js";
 
 const policies = (lifecycle: SandboxLifecycle | undefined) =>
   (lifecycle?.expirationPolicies ?? []).map(({ type, value }) => ({ type, value }));
@@ -40,7 +40,7 @@ describe("Sandbox fork lifecycle", { timeout: 60000 }, () => {
       },
     });
 
-    await source.fork(inheritedName);
+    await skipIfSnapshotForkDisabled(ctx, source.fork(inheritedName));
     const inherited = await SandboxInstance.get(inheritedName);
     expect(policies(inherited.spec.lifecycle)).toEqual([
       { type: "ttl-max-age", value: "2h" },
