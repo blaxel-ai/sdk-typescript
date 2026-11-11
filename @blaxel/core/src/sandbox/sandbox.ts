@@ -877,9 +877,14 @@ export class SandboxInstance {
     let started = false;
     let attempt = 0;
     for (;;) {
-      attempt++;
+      // Until the operation is seen pending, read at the first interval: a
+      // backed-off sleep could pass the entry grace window or miss a short
+      // pending status.
+      if (started) {
+        attempt++;
+      }
       const remaining = Math.max(deadline - Date.now(), 0);
-      await new Promise((resolve) => setTimeout(resolve, Math.min(pollDelayMs(attempt, interval), remaining)));
+      await new Promise((resolve) => setTimeout(resolve, Math.min(pollDelayMs(Math.max(attempt, 1), interval), remaining)));
       const instance = await SandboxInstance.get(sandboxName);
       const status = instance.status;
       if (status === target) {
