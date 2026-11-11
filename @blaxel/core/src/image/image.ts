@@ -62,6 +62,13 @@ export interface ImageBuildOptions {
   buildMemoryMb?: number;
   /** @deprecated Use `buildVolume`. */
   buildVolumeMb?: number;
+  /**
+   * Registry credentials the build pulls FROM images with, in Docker config.json
+   * format: { auths: { "ghcr.io": { auth: base64("user:token") } } }, as an object
+   * or JSON text. Same as `bl deploy --registry-cred`; use it for private images or
+   * to avoid Docker Hub pull rate limits. The builder keeps it out of the image.
+   */
+  dockerConfig?: string | Record<string, unknown>;
 }
 
 // Build settings travel as sandbox labels. The control plane signs the allowed
@@ -78,6 +85,30 @@ const BUILD_UPLOAD_LABELS = [
 const MAX_BUILD_UPLOAD_LABEL_VALUE = 64;
 // The builder ignores a region that is not a resource name, so reject it here.
 const BUILD_REGION_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
+// Where `bl deploy` puts registry credentials in the build context. The builder
+// pulls FROM images with them and leaves the file out of the image.
+const BUILD_DOCKER_CONFIG_PATH = [".docker", "config.json"];
+
+// Registry credentials for the build as Docker config.json text. Errors never
+// include the value: it holds credentials.
+function buildDockerConfig(dockerConfig: string | Record<string, unknown> | undefined): string | undefined {
+  if (dockerConfig === undefined) {
+    return undefined;
+  }
+  let parsed: unknown = dockerConfig;
+  if (typeof dockerConfig === "string") {
+    try {
+      parsed = JSON.parse(dockerConfig);
+    } catch {
+      throw new Error("dockerConfig must be Docker config.json text");
+    }
+  }
+  const auths = (parsed as { auths?: unknown } | null)?.auths;
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed) || typeof auths !== "object" || auths === null || Array.isArray(auths)) {
+    throw new Error('dockerConfig must be a Docker config.json object: { auths: { "<registry>": { auth: "<base64 user:password>" } } }');
+  }
+  return JSON.stringify(parsed);
+}
 
 // Reads an option that also has a deprecated `...Mb` spelling.
 function buildSizeLabel(
@@ -1058,6 +1089,7 @@ export class ImageInstance {
       }
       buildLabels["x-blaxel-build-region"] = options.buildRegion;
     }
+    const dockerConfig = buildDockerConfig(options.dockerConfig);
 
     // Prepare image for sandbox deployment (add sandbox-api and entrypoint)
     const preparedImage = this._prepareForSandbox(sandboxVersion);
@@ -1066,6 +1098,12 @@ export class ImageInstance {
     const buildDir = preparedImage.writeTemp();
 
     try {
+      if (dockerConfig !== undefined) {
+        const dockerConfigPath = path!.join(buildDir, ...BUILD_DOCKER_CONFIG_PATH);
+        fs!.mkdirSync(path!.dirname(dockerConfigPath), { recursive: true });
+        fs!.writeFileSync(dockerConfigPath, dockerConfig, { mode: 0o600 });
+      }
+
       // Create zip
       const zipContent = await this._createZip(buildDir);
 
