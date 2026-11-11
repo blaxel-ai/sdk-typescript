@@ -219,4 +219,28 @@ describe.skipIf(!IMAGE_BUILD)('Image Build Integration', () => {
     expect(sandbox.metadata?.labels?.["x-blaxel-build-memory"]).toBe("8192")
     expect(sandbox.metadata?.labels?.["x-blaxel-build-volume"]).toBe("16384")
   }, 1200000)
+
+  // Needs a private FROM image and credentials that can pull it, e.g.
+  // PRIVATE_REGISTRY_IMAGE=ghcr.io/org/private:v1
+  // PRIVATE_REGISTRY_DOCKER_CONFIG='{"auths":{"ghcr.io":{"auth":"<base64 user:token>"}}}'
+  const privateImage = process.env.PRIVATE_REGISTRY_IMAGE
+  const dockerConfig = process.env.PRIVATE_REGISTRY_DOCKER_CONFIG
+
+  it.runIf(privateImage && dockerConfig)('builds from a private image with dockerConfig like bl deploy --registry-cred', async () => {
+    const sandboxName = uniqueName("image-private")
+    createdSandboxes.push(sandboxName)
+
+    const built = await ImageInstance.fromRegistry(privateImage!)
+      .copy(".", "/tmp/build-context")
+      .build({ name: sandboxName, timeout: 900000, onStatusChange: printStatus, dockerConfig })
+
+    expect(built.status).toBe("DEPLOYED")
+    // The credentials pull the base image but never land in the image.
+    const sandbox = await SandboxInstance.get(sandboxName)
+    const result = await sandbox.process.exec({
+      command: "test -e /tmp/build-context/Dockerfile && test ! -e /tmp/build-context/.docker && echo clean",
+      waitForCompletion: true,
+    })
+    expect(result.logs?.trim()).toBe("clean")
+  }, 1200000)
 })
