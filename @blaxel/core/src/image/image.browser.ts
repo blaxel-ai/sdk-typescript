@@ -39,6 +39,7 @@ export interface ImageBuildOptions {
   buildMemoryMb?: number;
   /** @deprecated Use `buildVolume`. */
   buildVolumeMb?: number;
+  dockerConfig?: string | Record<string, unknown>;
 }
 
 function throwBrowserError(): never {

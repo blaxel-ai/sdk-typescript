@@ -3,6 +3,7 @@
  */
 
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
+import AdmZip from "adm-zip";
 import { tmpdir } from "os";
 import { join } from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -688,7 +689,7 @@ describe("Dockerfile instruction order", () => {
 });
 
 describe("ImageInstance.build worker resources", () => {
-  type Call = { url: string; method: string; headers: Record<string, string>; body: unknown };
+  type Call = { url: string; method: string; headers: Record<string, string>; body: unknown; raw: unknown };
 
   // signing: "all" signs every build label, "update" signs only on PUT after a
   // 404 then POST create (production today), "none" never signs them.
@@ -707,7 +708,7 @@ describe("ImageInstance.build worker resources", () => {
     vi.stubGlobal("fetch", (url: string, init: RequestInit = {}) => {
       const headers = init.headers as Record<string, string>;
       const body: unknown = typeof init.body === "string" ? JSON.parse(init.body) : undefined;
-      calls.push({ url, method: init.method ?? "GET", headers, body });
+      calls.push({ url, method: init.method ?? "GET", headers, body, raw: init.body });
       if (url.includes("upload=true")) {
         if (signing === "update" && init.method === "PUT" && !created) {
           return Promise.resolve(new Response("{}", { status: 404 }));
@@ -808,6 +809,41 @@ describe("ImageInstance.build worker resources", () => {
     const { upload } = await buildWith({}, { "x-blaxel-auto-generated": "true", "x-blaxel-build-memory": "8192" });
     expect(upload.headers["x-amz-meta-x-blaxel-build-memory"]).toBe("8192");
   });
+
+  function zipEntries(upload: Call): AdmZip {
+    return new AdmZip(Buffer.from(upload.raw as Uint8Array));
+  }
+
+  it.each([
+    ["an object", false],
+    ["JSON text", true],
+  ])("puts dockerConfig given as %s in the build context", async (_, asText) => {
+    const auths = { auths: { "https://index.docker.io/v1/": { auth: "dXNlcjp0b2tlbg==" } } };
+    const { create, upload } = await buildWith({ dockerConfig: asText ? JSON.stringify(auths) : auths });
+    const entry = zipEntries(upload).getEntry(".docker/config.json");
+    expect(JSON.parse(entry!.getData().toString("utf8"))).toEqual(auths);
+    expect(JSON.stringify(create.body)).not.toContain("dXNlcjp0b2tlbg");
+    expect(Object.keys(upload.headers).filter((name) => name.toLowerCase().includes("docker"))).toEqual([]);
+  });
+
+  it("puts no docker config in the build context by default", async () => {
+    const { upload } = await buildWith({});
+    const names = zipEntries(upload).getEntries().map((entry) => entry.entryName);
+    expect(names).toContain("Dockerfile");
+    expect(names.filter((name) => name.startsWith(".docker"))).toEqual([]);
+  });
+
+  it.each<string | Record<string, unknown>>(["", "not json", '["auths"]', "{}", { "ghcr.io": { auth: "c2VjcmV0" } }])(
+    "rejects dockerConfig %o before any request",
+    async (dockerConfig) => {
+      const fetchSpy = vi.fn();
+      vi.stubGlobal("fetch", fetchSpy);
+      const build = ImageInstance.fromRegistry("alpine:3.20").build({ name: "img", dockerConfig });
+      await expect(build).rejects.toThrow("dockerConfig must");
+      await expect(build).rejects.not.toThrow("c2VjcmV0");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    }
+  );
 
   it.each([
     [{ buildMemory: 0 }, "buildMemory must"],
