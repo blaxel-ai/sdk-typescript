@@ -92,6 +92,30 @@ const BUILD_REGION_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
 // image; the Depot builder does not yet, so a COPY of the whole context copies it.
 const BUILD_DOCKER_CONFIG_PATH = [".docker", "config.json"];
 
+// Whether a rejected build request can be retried, for quota and rate-limit
+// 429s. Image storage is checked before each build: a full quota answers 429
+// with code QUOTA_EXCEEDED, or on older control planes
+// {"error": ..., "code": 429} with a message that links the plan quotas page.
+export function buildLimitHint(status: number, text: string): string {
+  if (status !== 429) return "";
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return "";
+  }
+  if (typeof body !== "object" || body === null) return "";
+  const { code, error, message } = body as { code?: unknown; error?: unknown; message?: unknown };
+  const said = typeof error === "string" ? error : typeof message === "string" ? message : "";
+  if (code === "QUOTA_EXCEEDED" || (code === 429 && said.includes("/account/plan-quotas"))) {
+    return " (not retryable until usage drops or the quota is raised: https://docs.blaxel.ai/Security/Quotas)";
+  }
+  if (code === "WORKSPACE_RATE_LIMIT_EXCEEDED" || code === "RATE_LIMIT_EXCEEDED") {
+    return " (rate limited: retry with backoff)";
+  }
+  return "";
+}
+
 // Registry credentials for the build as Docker config.json text. Errors never
 // include the value: it holds credentials.
 function buildDockerConfig(dockerConfig: string | Record<string, unknown> | undefined): string | undefined {
@@ -951,7 +975,7 @@ export class ImageInstance {
 
     if (response.status >= 400) {
       const text = await response.text();
-      throw new Error(`Failed to create sandbox: ${response.status} - ${text}`);
+      throw new Error(`Failed to create sandbox: ${response.status} - ${text}${buildLimitHint(response.status, text)}`);
     }
 
     if (!uploadUrl) {

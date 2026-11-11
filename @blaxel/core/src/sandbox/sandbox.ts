@@ -224,6 +224,7 @@ const isNonApiErrorBody = (e: unknown): boolean => {
 
 const EDGE_BLOCKED_MESSAGE =
   "HTTP 403 without a JSON error body: likely an edge rate limit or firewall block in front of the API. " +
+  "If you send many requests, slow down and retry after about 60 s. " +
   "Blaxel quota and permission errors carry a JSON error code";
 
 const RATE_LIMIT_REASONS: Record<string, string> = {
