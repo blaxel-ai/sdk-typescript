@@ -213,46 +213,60 @@ function retryAfterSeconds(headers: Headers | undefined, now = Date.now()): numb
   return Number.isNaN(at) ? undefined : Math.max(0, Math.ceil((at - now) / 1000));
 }
 
-// A 403 the API itself did not answer: no body, or only the documentation
-// the authentication interceptor adds (a line appended to a non-JSON body, or
-// a `documentation` field added to an empty JSON object).
-const isEmptyErrorBody = (e: unknown): boolean => {
-  if (e === undefined || e === null) return true;
-  if (typeof e === "string") return e.replace(/For more information on authentication, visit: \S+/, "").trim() === "";
+// A 403 the API itself did not answer: no JSON error body. That is an empty
+// or non-JSON body (an edge block can return an HTML page), possibly with the
+// line the authentication interceptor appends, or an empty JSON object holding
+// only the `documentation` field that interceptor adds.
+const isNonApiErrorBody = (e: unknown): boolean => {
+  if (e === undefined || e === null || typeof e === "string") return true;
   return typeof e === "object" && Object.keys(e).every((key) => key === "documentation");
 };
 
+const EDGE_BLOCKED_MESSAGE =
+  "HTTP 403 without a JSON error body: likely an edge rate limit or firewall block in front of the API. " +
+  "Blaxel quota and permission errors carry a JSON error code";
+
+const RATE_LIMIT_REASONS: Record<string, string> = {
+  WORKSPACE_RATE_LIMIT_EXCEEDED: "too many creations in flight in this workspace",
+  RATE_LIMIT_EXCEEDED: "the region's creation rate limit was reached",
+};
+
 // The error a rejected creation is thrown with: the API's error body, with a
-// message that says what to do for the failures callers can act on. Two 429
-// codes need opposite handling: QUOTA_EXCEEDED stays until quota is freed or
-// raised, WORKSPACE_RATE_LIMIT_EXCEEDED clears once creations in flight finish.
-// `retryable` says which; the SDK itself does not retry either.
+// message that says what to do for the failures callers can act on. Quota and
+// rate-limit errors need opposite handling: QUOTA_EXCEEDED (HTTP 429 for a
+// workspace quota, 400 for one ephemeral volume over the per-volume maximum)
+// stays until quota is freed or raised; the rate-limit codes clear on their
+// own. `retryable` says which; the SDK itself retries none of them.
 function createError(response: Response | undefined, e: unknown, sandboxName: string | undefined, attempts: number): unknown {
   const status = response?.status;
-  if (status === 403 && isEmptyErrorBody(e)) {
-    return {
-      message: "HTTP 403 with no body: blocked before the API (edge rate limit or firewall), not a quota",
-      status_code: 403,
-    };
+  if (status === 403 && isNonApiErrorBody(e)) {
+    return { message: EDGE_BLOCKED_MESSAGE, status_code: 403 };
   }
   if (typeof e !== "object" || e === null) return e;
-  const body = e as { message?: unknown; code?: unknown };
+  const body = e as { message?: unknown; code?: unknown; retry_after?: unknown };
   const message = typeof body.message === "string" ? body.message : "";
-  if (status === 429 && body.code === "QUOTA_EXCEEDED") {
+  if ((status === 429 || status === 400) && body.code === "QUOTA_EXCEEDED") {
+    const advice =
+      status === 400
+        ? "not retryable as is; request a smaller volume or raise the quota"
+        : "not retryable until quota is freed or raised";
     return {
       ...body,
       retryable: false,
-      message: `${message || "Quota exceeded"} (HTTP 429 QUOTA_EXCEEDED: not retryable; free quota or raise it: ${QUOTAS_DOC_URL})`,
+      message: `${message || "Quota exceeded"} (HTTP ${status} QUOTA_EXCEEDED: ${advice}: ${QUOTAS_DOC_URL})`,
     };
   }
-  if (status === 429 && body.code === "WORKSPACE_RATE_LIMIT_EXCEEDED") {
-    const wait = retryAfterSeconds(response?.headers);
+  if (status === 429 && typeof body.code === "string" && body.code in RATE_LIMIT_REASONS) {
+    const wait =
+      typeof body.retry_after === "number" && body.retry_after >= 0
+        ? body.retry_after
+        : retryAfterSeconds(response?.headers);
     return {
       ...body,
       retryable: true,
-      ...(wait !== undefined ? { retryAfterSeconds: wait } : {}),
+      ...(wait !== undefined ? { retry_after: wait } : {}),
       message:
-        `${message || "Workspace rate limit exceeded"} (HTTP 429 WORKSPACE_RATE_LIMIT_EXCEEDED: too many creations in flight; ` +
+        `${message || "Rate limit exceeded"} (HTTP 429 ${body.code}: ${RATE_LIMIT_REASONS[body.code]}; ` +
         `${wait !== undefined ? `retry after ${wait} s` : "retry with backoff"})`,
     };
   }
