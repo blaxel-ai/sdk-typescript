@@ -1,6 +1,7 @@
 import type http2 from "http2";
 import { archiveSandbox, createSandbox, createSandboxSnapshot, deleteSandbox, deleteSandboxSnapshot, type Env, forkSandbox, getSandbox, getSandboxByExternalId, listSandboxes, listSandboxSnapshots, type ListSandboxesData, restoreSandboxSnapshot, type SandboxForkResponse, type SandboxLifecycle, type Sandbox as SandboxModel, type SandboxRestoreResponse, type SandboxSnapshot, unarchiveSandbox, updateSandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
+import { pollDelayMs } from "../common/polling.js";
 import { backoffDelayMs } from "../common/transient-retry.js";
 import { createPaginatedList } from "../common/pagination.js";
 import { settings } from "../common/settings.js";
@@ -77,7 +78,10 @@ export type SandboxArchiveOptions = {
   wait?: boolean;
   /** Give up after this many milliseconds. Defaults to 30 minutes. */
   maxWait?: number;
-  /** Milliseconds between two reads of the sandbox. Defaults to 2 seconds. */
+  /**
+   * Milliseconds before the second read of the sandbox. Defaults to 2 seconds.
+   * Later reads back off with jitter up to 30 seconds (or `interval` if larger).
+   */
   interval?: number;
 };
 
@@ -871,8 +875,11 @@ export class SandboxInstance {
     // turns into a status change, but never past the wait the caller asked for.
     const entryDeadline = Date.now() + Math.min(ARCHIVE_ENTRY_MAX_WAIT_MS, maxWait);
     let started = false;
+    let attempt = 0;
     for (;;) {
-      await new Promise((resolve) => setTimeout(resolve, interval));
+      attempt++;
+      const remaining = Math.max(deadline - Date.now(), 0);
+      await new Promise((resolve) => setTimeout(resolve, Math.min(pollDelayMs(attempt, interval), remaining)));
       const instance = await SandboxInstance.get(sandboxName);
       const status = instance.status;
       if (status === target) {

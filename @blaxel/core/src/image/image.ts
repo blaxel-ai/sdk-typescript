@@ -3,6 +3,7 @@ import { createPaginatedList } from "../common/pagination.js";
 import { DockerfileParser, Dockerfile } from "dockerfile-ast";
 import { Metadata, MetadataLabels, SandboxRuntime, Sandbox, SandboxSpec } from "../client/types.gen.js";
 import { crypto, fs, os, path } from "../common/node.js";
+import { pollDelayMs } from "../common/polling.js";
 import { settings } from "../common/settings.js";
 import archiver from "archiver";
 
@@ -40,6 +41,11 @@ export interface ImageBuildContext {
 export interface ImageBuildOptions {
   name: string;
   memory?: number;
+  /**
+   * Milliseconds to wait for the build to deploy (default 15 minutes). The
+   * build status is read every few seconds at first, then less often (with
+   * jitter, up to every 30 seconds) as the build runs.
+   */
   timeout?: number;
   onStatusChange?: (status: string) => void;
   sandboxVersion?: string;
@@ -1037,6 +1043,8 @@ export class ImageInstance {
     return null;
   }
 
+  // Reads the build status every `pollInterval` ms (with jitter) until the
+  // build is seen running, then less often (up to every 30 seconds) until done.
   private async _waitForDeployment(
     name: string,
     timeout: number = 900000, // 15 minutes in ms
@@ -1048,7 +1056,8 @@ export class ImageInstance {
     const terminalStates = new Set(["DEPLOYED", "FAILED", "TERMINATED"]);
     let buildStarted = false;
 
-    while (Date.now() - startTime < timeout) {
+    let attempt = 0;
+    for (;;) {
       const status = await this._getSandboxStatus(name);
 
       if (status && status !== lastStatus) {
@@ -1077,7 +1086,16 @@ export class ImageInstance {
         }
       }
 
-      await sleep(pollInterval);
+      const remaining = timeout - (Date.now() - startTime);
+      if (remaining <= 0) {
+        break;
+      }
+      // Until the build is seen running, read at the first interval: a rebuild
+      // that starts and ends inside one long sleep would be missed.
+      if (buildStarted) {
+        attempt++;
+      }
+      await sleep(Math.min(pollDelayMs(Math.max(attempt, 1), pollInterval), remaining));
     }
 
     throw new Error(`Deployment timed out after ${timeout / 1000} seconds`);
