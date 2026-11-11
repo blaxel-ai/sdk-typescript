@@ -242,6 +242,7 @@ describe("SandboxInstance.create on a limit or an edge block", () => {
   it.each([
     ["the body the auth interceptor leaves", "\nFor more information on authentication, visit: https://docs.blaxel.ai/sdk-reference/introduction#how-authentication-works"],
     ["an empty object", {}],
+    ["an empty JSON object the auth interceptor annotated", { documentation: "For more information on authentication, visit: https://docs.blaxel.ai/sdk-reference/introduction#how-authentication-works" }],
   ])("says a 403 with no body was blocked before the API (%s)", async (_, error) => {
     mockedCreate.mockResolvedValueOnce(rejected(403, error));
 

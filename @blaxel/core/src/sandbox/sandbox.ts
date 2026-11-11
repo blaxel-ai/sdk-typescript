@@ -214,11 +214,12 @@ function retryAfterSeconds(headers: Headers | undefined, now = Date.now()): numb
 }
 
 // A 403 the API itself did not answer: no body, or only the documentation
-// line the authentication interceptor appends to a non-JSON body.
+// the authentication interceptor adds (a line appended to a non-JSON body, or
+// a `documentation` field added to an empty JSON object).
 const isEmptyErrorBody = (e: unknown): boolean => {
   if (e === undefined || e === null) return true;
   if (typeof e === "string") return e.replace(/For more information on authentication, visit: \S+/, "").trim() === "";
-  return typeof e === "object" && Object.keys(e).length === 0;
+  return typeof e === "object" && Object.keys(e).every((key) => key === "documentation");
 };
 
 // The error a rejected creation is thrown with: the API's error body, with a
