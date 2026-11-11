@@ -58,4 +58,25 @@ describe("image build wait", () => {
     expect(sleeps).toEqual([...sleeps].sort((a, b) => a - b));
     expect(sleeps[sleeps.length - 1]).toBe(POLL_MAX_INTERVAL_MS);
   });
+
+  it("keeps the first interval until the build starts", async () => {
+    const statuses = [...Array<string>(6).fill("DEPLOYED"), "BUILDING", "BUILDING", "DEPLOYED"];
+    const image = ImageInstance.fromRegistry("python:3.12-slim");
+    const internals = image as unknown as {
+      _getSandboxStatus(name: string): Promise<string | null>;
+      _waitForDeployment(name: string, timeout: number, pollInterval: number): Promise<string>;
+    };
+    vi.spyOn(internals, "_getSandboxStatus").mockImplementation(() => Promise.resolve(statuses.shift() ?? null));
+    vi.spyOn(Math, "random").mockReturnValue(1);
+    const sleeps: number[] = [];
+    vi.spyOn(globalThis, "setTimeout").mockImplementation(((resolve: () => void, ms: number) => {
+      sleeps.push(ms);
+      resolve();
+      return 0;
+    }) as never);
+
+    await expect(internals._waitForDeployment("build", 900_000, 3000)).resolves.toBe("DEPLOYED");
+
+    expect(sleeps).toEqual([3000, 3000, 3000, 3000, 3000, 3000, 3000, 4500]);
+  });
 });

@@ -1016,8 +1016,8 @@ export class ImageInstance {
     return null;
   }
 
-  // Reads the build status right away, then after `pollInterval` ms, then
-  // less often (with jitter, up to every 30 seconds) until the build is done.
+  // Reads the build status every `pollInterval` ms (with jitter) until the
+  // build is seen running, then less often (up to every 30 seconds) until done.
   private async _waitForDeployment(
     name: string,
     timeout: number = 900000, // 15 minutes in ms
@@ -1063,8 +1063,12 @@ export class ImageInstance {
       if (remaining <= 0) {
         break;
       }
-      attempt++;
-      await sleep(Math.min(pollDelayMs(attempt, pollInterval), remaining));
+      // Until the build is seen running, read at the first interval: a rebuild
+      // that starts and ends inside one long sleep would be missed.
+      if (buildStarted) {
+        attempt++;
+      }
+      await sleep(Math.min(pollDelayMs(Math.max(attempt, 1), pollInterval), remaining));
     }
 
     throw new Error(`Deployment timed out after ${timeout / 1000} seconds`);
