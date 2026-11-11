@@ -231,14 +231,14 @@ describe.skipIf(!IMAGE_BUILD)('Image Build Integration', () => {
     createdSandboxes.push(sandboxName)
 
     const built = await ImageInstance.fromRegistry(privateImage!)
-      .copy(".", "/tmp/build-context")
+      .copy(".", "/opt/build-context")
       .build({ name: sandboxName, timeout: 900000, onStatusChange: printStatus, dockerConfig })
 
     expect(built.status).toBe("DEPLOYED")
     // The credentials pull the base image but never land in the image.
     const sandbox = await SandboxInstance.get(sandboxName)
     const result = await sandbox.process.exec({
-      command: "test -e /tmp/build-context/Dockerfile && test ! -e /tmp/build-context/.docker && echo clean",
+      command: "test -e /opt/build-context/Dockerfile && test ! -e /opt/build-context/.docker && echo clean",
       waitForCompletion: true,
     })
     expect(result.logs?.trim()).toBe("clean")
