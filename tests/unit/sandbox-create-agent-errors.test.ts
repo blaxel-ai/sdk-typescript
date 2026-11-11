@@ -188,6 +188,73 @@ describe("SandboxInstance.create with an invalid name", () => {
   });
 });
 
+describe("SandboxInstance.create on a limit or an edge block", () => {
+  beforeEach(() => {
+    vi.stubEnv("BL_REGION", "");
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+    mockedCreate.mockReset();
+  });
+
+  const rejected = (status: number, error: unknown, headers: Record<string, string> = {}) =>
+    ({ error, response: { status, headers: new Headers(headers) }, request: {} }) as never;
+
+  it("says a 429 QUOTA_EXCEEDED is not retryable and links the quotas page", async () => {
+    const body = { code: "QUOTA_EXCEEDED", message: "Sandbox quota exceeded", status_code: 429 };
+    mockedCreate.mockResolvedValueOnce(rejected(429, body, { "Retry-After": "5" }));
+
+    const error = await SandboxInstance.create({ name: "agent-errors" }).catch((e: unknown) => e);
+
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+    expect(error).toMatchObject({ code: "QUOTA_EXCEEDED", status_code: 429, retryable: false });
+    expect((error as { message: string }).message).toBe(
+      "Sandbox quota exceeded (HTTP 429 QUOTA_EXCEEDED: not retryable; free quota or raise it: https://docs.blaxel.ai/Security/Quotas)",
+    );
+  });
+
+  it("says a 429 WORKSPACE_RATE_LIMIT_EXCEEDED is retryable after the Retry-After delay", async () => {
+    const body = { code: "WORKSPACE_RATE_LIMIT_EXCEEDED", message: "Too many sandbox creations", status_code: 429 };
+    mockedCreate.mockResolvedValueOnce(rejected(429, body, { "Retry-After": "7" }));
+
+    const error = await SandboxInstance.create({ name: "agent-errors" }).catch((e: unknown) => e);
+
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+    expect(error).toMatchObject({ code: "WORKSPACE_RATE_LIMIT_EXCEEDED", retryable: true, retryAfterSeconds: 7 });
+    expect((error as { message: string }).message).toBe(
+      "Too many sandbox creations (HTTP 429 WORKSPACE_RATE_LIMIT_EXCEEDED: too many creations in flight; retry after 7 s)",
+    );
+  });
+
+  it("says to back off on a WORKSPACE_RATE_LIMIT_EXCEEDED without Retry-After", async () => {
+    const body = { code: "WORKSPACE_RATE_LIMIT_EXCEEDED", message: "Too many sandbox creations", status_code: 429 };
+    mockedCreate.mockResolvedValueOnce(rejected(429, body));
+
+    const error = await SandboxInstance.create({ name: "agent-errors" }).catch((e: unknown) => e);
+
+    expect(error).not.toHaveProperty("retryAfterSeconds");
+    expect((error as { message: string }).message).toMatch(/too many creations in flight; retry with backoff\)$/);
+  });
+
+  it.each([
+    ["the body the auth interceptor leaves", "\nFor more information on authentication, visit: https://docs.blaxel.ai/sdk-reference/introduction#how-authentication-works"],
+    ["an empty object", {}],
+  ])("says a 403 with no body was blocked before the API (%s)", async (_, error) => {
+    mockedCreate.mockResolvedValueOnce(rejected(403, error));
+
+    const thrown = await SandboxInstance.create({ name: "agent-errors" }).catch((e: unknown) => e);
+
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+    expect(thrown).toEqual({
+      message: "HTTP 403 with no body: blocked before the API (edge rate limit or firewall), not a quota",
+      status_code: 403,
+    });
+  });
+});
+
 describe("SandboxInstance.create without a region", () => {
   afterEach(() => {
     vi.unstubAllEnvs();

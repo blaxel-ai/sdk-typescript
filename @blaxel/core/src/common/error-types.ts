@@ -147,6 +147,13 @@ export type BlaxelActionErrorBody = {
   timestamp?: string;
   cause?: string;
   details?: Record<string, unknown>;
+  /**
+   * Set by `SandboxInstance.create` on a 429: false for QUOTA_EXCEEDED (free or
+   * raise quota first), true for WORKSPACE_RATE_LIMIT_EXCEEDED.
+   */
+  retryable?: boolean;
+  /** Seconds from the Retry-After header of a WORKSPACE_RATE_LIMIT_EXCEEDED. */
+  retryAfterSeconds?: number;
 };
 
 /** Edge gateway error body; also used by the control plane for TOKEN_REVOKED. */
