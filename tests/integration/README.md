@@ -45,7 +45,7 @@ Opt-in suites, all off by default. Enable with `true` or `1`, e.g.
 | `RUN_CUSTOM_DOMAIN_TESTS`    | `custom-domains.test.ts` | Creates and deletes real custom domains |
 | `RUN_DRIVE_TESTS`            | `drives.test.ts`, `drive-acl.test.ts`, `mount-drives.test.ts` | Needs a drive-enabled region |
 | `RUN_VOLUME_TESTS`           | `volumes.test.ts`, volume blocks of `region.test.ts`, volume test of `large-envs.test.ts` | Volumes are not enabled on mk3.1 hosts yet |
-| `RUN_FIREWALL_RULESET_TESTS` | `proxy/firewall.test.ts` > "no proxy bypass (firewall ruleset: proxy)" | Firewall rulesets are not enabled on mk3.1 hosts yet |
+| `RUN_FIREWALL_RULESET_TESTS` | `proxy/firewall.test.ts` > "no proxy bypass" and "allowlist of one domain" (firewall ruleset: proxy) | Firewall rulesets are not enabled on mk3.1 hosts yet |
 
 ## Credential gates
 

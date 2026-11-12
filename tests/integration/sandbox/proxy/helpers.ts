@@ -134,6 +134,36 @@ else {
 `.trim()
 
 /**
+ * Sends one hand-built request line to the sandbox's HTTP proxy, so a test can
+ * use plain HTTP, an IP address, or a host spelling that a URL parser would
+ * normalize away. Prints `{"status":<code>,"body":"..."}`; status 0 means the
+ * proxy never answered.
+ */
+export const rawProxyRequestScript = `
+const net = require("net");
+const [, , method, target, hostHeader] = process.argv;
+const p = new URL(process.env.HTTP_PROXY || process.env.http_proxy);
+const req = method === "CONNECT"
+  ? "CONNECT " + target + " HTTP/1.1\\r\\nHost: " + target + "\\r\\n\\r\\n"
+  : method + " " + target + " HTTP/1.1\\r\\nHost: " + hostHeader + "\\r\\nConnection: close\\r\\n\\r\\n";
+let buf = "";
+const timer = setTimeout(done, 10000);
+function done() {
+  clearTimeout(timer);
+  const status = parseInt((buf.split("\\r\\n")[0] || "").split(" ")[1]) || 0;
+  console.log(JSON.stringify({ status, body: buf.split("\\r\\n\\r\\n").slice(1).join("").slice(0, 500) }));
+  process.exit(0);
+}
+const s = net.connect({ host: p.hostname, port: parseInt(p.port) || 3128 }, () => s.write(req));
+s.on("data", (c) => {
+  buf += c;
+  if (method === "CONNECT" && buf.indexOf("\\r\\n\\r\\n") >= 0 && !buf.startsWith("HTTP/1.1 4")) done();
+});
+s.on("end", done);
+s.on("error", (e) => { buf = ""; process.stderr.write("PROXY ERR: " + e.message + "\\n"); done(); });
+`.trim()
+
+/**
  * Like {@link proxyHelperScript}, but instead of writing only the upstream
  * response body it emits a single JSON object combining the response status,
  * the *response headers* the proxy returned (so tests can assert the

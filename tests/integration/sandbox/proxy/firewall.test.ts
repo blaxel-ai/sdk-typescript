@@ -1,7 +1,14 @@
 import { SandboxInstance } from "@blaxel/core"
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { defaultImage, defaultLabels, defaultRegion, isSlowTestEnabled, uniqueName } from '../helpers.js'
-import { createEchoServerSandbox, createReadyProxySandbox, execProxyCommandWithRetry, lowercaseKeys, parseJsonObjectOutput, proxyCleanup } from './helpers.js'
+import { createEchoServerSandbox, createReadyProxySandbox, execProxyCommandWithRetry, lowercaseKeys, parseJsonObjectOutput, proxyCleanup, rawProxyRequestScript } from './helpers.js'
+
+type Sandbox = Awaited<ReturnType<typeof SandboxInstance.create>>
+
+type RawResponse = {
+  status: number
+  body: string
+}
 
 type HttpBinResponse = {
   headers: Record<string, string>
@@ -93,6 +100,102 @@ describe('firewall e2e (allowedDomains / forbiddenDomains)', () => {
       // succeeding.
       const result = await bypassSandbox.process.exec({
         command: `timeout 10 env -u HTTP_PROXY -u http_proxy -u HTTPS_PROXY -u https_proxy node /tmp/proxy-test.js GET ${echoUrl}/get`,
+        waitForCompletion: true,
+      })
+      expect(result.exitCode, result.logs).not.toBe(0)
+    }, 60_000)
+  })
+
+  // Sends a raw request through the proxy (see rawProxyRequestScript).
+  const rawRequest = async (sandbox: Sandbox, method: string, target: string, host = ""): Promise<RawResponse> => {
+    const result = await sandbox.process.exec({
+      command: `node /tmp/raw-proxy.js ${method} '${target}' '${host}'`,
+      waitForCompletion: true,
+    })
+    const line = (result.logs ?? "").trim().split("\n").filter(l => l.startsWith('{"status"')).pop()
+    expect(line, result.logs).toBeDefined()
+    return JSON.parse(line!) as RawResponse
+  }
+
+  // A 403 from the upstream site is not a block: require the proxy's own error body.
+  const expectProxyBlocked = (res: RawResponse) => {
+    expect(res.status, res.body).toBe(403)
+    expect(res.body).toContain("firewall_blocked")
+  }
+
+  const resolveIPv4 = async (sandbox: Sandbox, host: string): Promise<string> => {
+    const result = await sandbox.process.exec({
+      command: `node -e 'require("dns").lookup("${host}", { family: 4 }, (e, a) => { if (e) { console.error(e.message); process.exit(1) } console.log(a) })'`,
+      waitForCompletion: true,
+    })
+    const ip = (result.logs ?? "").trim().split("\n").pop() ?? ""
+    expect(ip, result.logs).toMatch(/^\d+\.\d+\.\d+\.\d+$/)
+    return ip
+  }
+
+  describe.runIf(isSlowTestEnabled("RUN_FIREWALL_RULESET_TESTS"))('allowlist of one domain (firewall ruleset: proxy)', () => {
+    let allowOnlySandbox: Sandbox
+    let exampleIP: string
+
+    beforeAll(async () => {
+      allowOnlySandbox = await createReadyProxySandbox(
+        async () => {
+          const name = uniqueName("fw-allow-only")
+          const sandbox = await SandboxInstance.create({
+            name, image: defaultImage, region: defaultRegion, labels: defaultLabels,
+            network: {
+              firewall: { rulesets: ["proxy"] },
+              allowedDomains: ["example.com"],
+              proxy: { routing: [] },
+            },
+          })
+          return { name, sandbox }
+        },
+        createdSandboxes,
+        'node /tmp/proxy-test.js GET https://example.com/',
+      )
+      await allowOnlySandbox.fs.write("/tmp/raw-proxy.js", rawProxyRequestScript)
+      exampleIP = await resolveIPv4(allowOnlySandbox, "example.com")
+    }, 180_000)
+
+    it('allows the allowlisted domain over HTTPS', async () => {
+      const result = await execProxyCommandWithRetry(allowOnlySandbox, 'node /tmp/proxy-test.js GET https://example.com/')
+      expect(result.exitCode, result.logs).toBe(0)
+      expect(result.logs).toContain("Example Domain")
+    }, 60_000)
+
+    it('allows the allowlisted domain over plain HTTP', async () => {
+      const res = await rawRequest(allowOnlySandbox, "GET", "http://example.com/", "example.com")
+      expect(res.status, res.body).toBe(200)
+    }, 60_000)
+
+    it('treats a trailing root dot as the same allowlisted domain', async () => {
+      const res = await rawRequest(allowOnlySandbox, "GET", "http://example.com./", "example.com.")
+      expect(res.body).not.toContain("firewall_blocked")
+      expect(res.status, res.body).not.toBe(0)
+    }, 60_000)
+
+    it('blocks every other domain over HTTPS', async () => {
+      const result = await allowOnlySandbox.process.exec({ command: `node /tmp/proxy-test.js GET ${echoUrl}/get`, waitForCompletion: true })
+      expect(result.exitCode).not.toBe(0)
+      expect(result.logs).toContain("CONNECT 403")
+    }, 60_000)
+
+    it('blocks every other domain over plain HTTP', async () => {
+      const res = await rawRequest(allowOnlySandbox, "GET", `http://${echoHost}/get`, echoHost)
+      expectProxyBlocked(res)
+    }, 60_000)
+
+    it("blocks the allowlisted domain's IP address, which is not on the allowlist", async () => {
+      const res = await rawRequest(allowOnlySandbox, "GET", `http://${exampleIP}/`, "example.com")
+      expectProxyBlocked(res)
+      const connect = await rawRequest(allowOnlySandbox, "CONNECT", `${exampleIP}:443`)
+      expectProxyBlocked(connect)
+    }, 60_000)
+
+    it('blocks a direct connection that skips the proxy', async () => {
+      const result = await allowOnlySandbox.process.exec({
+        command: 'timeout 10 env -u HTTP_PROXY -u http_proxy -u HTTPS_PROXY -u https_proxy node /tmp/proxy-test.js GET https://example.com/',
         waitForCompletion: true,
       })
       expect(result.exitCode, result.logs).not.toBe(0)
