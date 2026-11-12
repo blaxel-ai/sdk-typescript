@@ -106,13 +106,57 @@ describe("SandboxInstance.create on a transient authentication failure", () => {
     expect(error).toHaveProperty("documentation");
   });
 
-  it("rethrows the original error once a 503 AUTHENTICATION_UNAVAILABLE persists", async () => {
+  it("throws a persisting 503 AUTHENTICATION_UNAVAILABLE as retryable, not as a credential error", async () => {
     mockedCreate.mockResolvedValue(authUnavailable());
 
     const { error } = await createWithBackoff({ name: "agent-errors" });
 
     expect(mockedCreate).toHaveBeenCalledTimes(CREATE_AUTH_RETRIES + 1);
-    expect(error).toEqual({ code: "AUTHENTICATION_UNAVAILABLE", message: "Unable to verify credentials, please retry", status_code: 503 });
+    expect(error).toMatchObject({ code: "AUTHENTICATION_UNAVAILABLE", status_code: 503, retryable: true });
+    const message = (error as { message: string }).message;
+    expect(message).toBe(
+      "Unable to verify credentials, please retry (HTTP 503 AUTHENTICATION_UNAVAILABLE: the API could not check " +
+        "credentials for a moment; not a credential or permission error; retry in a few seconds)",
+    );
+    expect(message).not.toContain("BL_API_KEY");
+  });
+
+  it("waits the server's Retry-After on a 503 AUTHENTICATION_UNAVAILABLE and reports it", async () => {
+    const withRetryAfter = () =>
+      ({
+        error: { code: "AUTHENTICATION_UNAVAILABLE", message: "Unable to verify credentials, please retry", retryable: true },
+        response: new Response(null, { status: 503, headers: { "Retry-After": "7" } }),
+        request: {},
+      }) as never;
+    mockedCreate.mockResolvedValue(withRetryAfter());
+
+    const pending = SandboxInstance.create({ name: "agent-errors" }).catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(6_999);
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(mockedCreate).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(7_000);
+    const error = await pending;
+
+    expect(mockedCreate).toHaveBeenCalledTimes(CREATE_AUTH_RETRIES + 1);
+    expect(error).toMatchObject({ retryable: true, retry_after: 7 });
+    expect((error as { message: string }).message).toContain("not a credential or permission error; retry after 7 s");
+  });
+
+  it("does not retry a 503 AUTHENTICATION_UNAVAILABLE the server says not to retry", async () => {
+    mockedCreate.mockResolvedValue(
+      ({
+        error: { code: "AUTHENTICATION_UNAVAILABLE", message: "Unable to verify credentials" },
+        response: new Response(null, { status: 503, headers: { "X-Should-Retry": "false" } }),
+        request: {},
+      }) as never,
+    );
+
+    const { error } = await createWithBackoff({ name: "agent-errors" });
+
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+    expect(error).toMatchObject({ retryable: false });
+    expect((error as { message: string }).message).toContain("the server says not to retry");
   });
 
   it.each([
@@ -253,8 +297,8 @@ describe("SandboxInstance.create on a limit or an edge block", () => {
     expect(mockedCreate).toHaveBeenCalledTimes(1);
     expect(thrown).toEqual({
       message:
-        "HTTP 403 without a JSON error body: not a quota. The request was blocked or throttled before the API could answer it " +
-        "(an auth check that failed while the backend was throttled, or an edge rate limit or firewall block). " +
+        "HTTP 403 without a JSON error body: not a quota. The request was blocked or throttled before the API could answer it, " +
+        "for example by an edge rate limit or firewall block. " +
         "Slow down and retry after about 60 s. Blaxel quota and permission errors carry a JSON error code",
       status_code: 403,
     });

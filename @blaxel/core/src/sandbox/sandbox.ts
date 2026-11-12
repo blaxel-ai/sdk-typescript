@@ -202,9 +202,9 @@ const CREATE_AUTH_RETRY_MAX_DELAY_MS = 2_000;
 const errorCode = (e: unknown): unknown =>
   typeof e === "object" && e !== null ? (e as { code?: unknown }).code : undefined;
 
-const isTransientCreateAuthFailure = (status: number | undefined, e: unknown): boolean =>
-  (status === 403 && errorCode(e) === "UNAUTHORIZED") ||
-  (status === 503 && errorCode(e) === "AUTHENTICATION_UNAVAILABLE");
+const isTransientCreateAuthFailure = (response: Response | undefined, e: unknown): boolean =>
+  (response?.status === 403 && errorCode(e) === "UNAUTHORIZED") ||
+  (response?.status === 503 && errorCode(e) === "AUTHENTICATION_UNAVAILABLE" && authUnavailableSignal(response, e).retryable);
 
 const QUOTAS_DOC_URL = "https://docs.blaxel.ai/Security/Quotas";
 
@@ -217,10 +217,28 @@ function retryAfterSeconds(headers: Headers | undefined, now = Date.now()): numb
   return Number.isNaN(at) ? undefined : Math.max(0, Math.ceil((at - now) / 1000));
 }
 
+// A 503 AUTHENTICATION_UNAVAILABLE: the API could not check credentials for a
+// moment; not a credential or permission error. The server's signal wins: the
+// X-Should-Retry header, then the body's `retryable`; Retry-After (or the body's
+// `retry_after`) gives the wait. Without a signal it is retryable.
+function authUnavailableSignal(response: Response | undefined, e: unknown): { retryable: boolean; wait?: number } {
+  const body = (typeof e === "object" && e !== null ? e : {}) as { retryable?: unknown; retry_after?: unknown };
+  const header = response?.headers?.get("x-should-retry")?.trim().toLowerCase();
+  const retryable =
+    header === "true" || header === "false"
+      ? header === "true"
+      : typeof body.retryable === "boolean"
+        ? body.retryable
+        : true;
+  const wait =
+    retryAfterSeconds(response?.headers) ??
+    (typeof body.retry_after === "number" && body.retry_after >= 0 ? body.retry_after : undefined);
+  return { retryable, wait };
+}
+
 // A 403 with no JSON error body: not a quota. The request was blocked or
-// throttled before the API could answer it: an auth check that failed while the
-// backend was throttled (empty body), or an edge rate limit or firewall block
-// (can be a text or HTML page). That is an empty or non-JSON body, possibly with the
+// throttled before the API could answer it, for example by an edge rate limit
+// or firewall block (can be a text or HTML page). That is an empty or non-JSON body, possibly with the
 // line the authentication interceptor appends, or an empty JSON object holding
 // only the `documentation` field that interceptor adds.
 const isNonApiErrorBody = (e: unknown): boolean => {
@@ -229,8 +247,8 @@ const isNonApiErrorBody = (e: unknown): boolean => {
 };
 
 const EDGE_BLOCKED_MESSAGE =
-  "HTTP 403 without a JSON error body: not a quota. The request was blocked or throttled before the API could answer it " +
-  "(an auth check that failed while the backend was throttled, or an edge rate limit or firewall block). " +
+  "HTTP 403 without a JSON error body: not a quota. The request was blocked or throttled before the API could answer it, " +
+  "for example by an edge rate limit or firewall block. " +
   "Slow down and retry after about 60 s. Blaxel quota and permission errors carry a JSON error code";
 
 const RATE_LIMIT_REASONS: Record<string, string> = {
@@ -276,6 +294,22 @@ function createError(response: Response | undefined, e: unknown, sandboxName: st
       message:
         `${message || "Rate limit exceeded"} (HTTP 429 ${body.code}: ${RATE_LIMIT_REASONS[body.code]}; ` +
         `${wait !== undefined ? `retry after ${wait} s` : "retry with backoff"})`,
+    };
+  }
+  if (status === 503 && body.code === "AUTHENTICATION_UNAVAILABLE") {
+    const { retryable, wait } = authUnavailableSignal(response, e);
+    const advice = !retryable
+      ? "the server says not to retry"
+      : wait !== undefined
+        ? `retry after ${wait} s`
+        : "retry in a few seconds";
+    return {
+      ...body,
+      retryable,
+      ...(wait !== undefined ? { retry_after: wait } : {}),
+      message:
+        `${message || "Unable to verify credentials"} (HTTP 503 AUTHENTICATION_UNAVAILABLE: the API could not check ` +
+        `credentials for a moment; not a credential or permission error; ${advice})`,
     };
   }
   if (status === 403 && body.code === "UNAUTHORIZED") {
@@ -607,7 +641,9 @@ export class SandboxInstance {
    * A creation rejected by a transient authentication failure (403
    * `UNAUTHORIZED` or 503 `AUTHENTICATION_UNAVAILABLE`, both answered before
    * anything is created) is sent again up to CREATE_AUTH_RETRIES times with a
-   * short backoff.
+   * short backoff, or after the server's Retry-After. A 503
+   * `AUTHENTICATION_UNAVAILABLE` that persists is thrown with `retryable` and
+   * `retry_after` (seconds) set; it is not a credential or permission error.
    *
    * @param sandbox - Shorthand configuration or full `Sandbox` model. Optional: all defaults apply when omitted.
    * @param options - `timeout` (whole seconds, 1 to 50) to cancel a creation that takes too long, `safe` (default false) to check the sandbox answers and delete it if it does not, and `mountDrives` to mount drives as part of the creation.
@@ -1176,7 +1212,7 @@ export class SandboxInstance {
   }
 
   // Send the creation, again after a transient authentication failure (up to
-  // CREATE_AUTH_RETRIES more times, with a short backoff).
+  // CREATE_AUTH_RETRIES more times, with a short backoff or the server's Retry-After).
   private static async sendCreate(body: SandboxModel, createIfNotExist: boolean, headers: Record<string, string> | undefined) {
     for (let attempts = 1; ; attempts++) {
       const result = await createSandbox({
@@ -1187,14 +1223,19 @@ export class SandboxInstance {
       if (
         result.error === undefined ||
         attempts > CREATE_AUTH_RETRIES ||
-        !isTransientCreateAuthFailure(result.response?.status, result.error)
+        !isTransientCreateAuthFailure(result.response, result.error)
       ) {
         return { result, attempts };
       }
       logger.debug(`Sandbox creation hit a transient authentication failure (HTTP ${result.response?.status}), retrying`);
-      await new Promise((resolve) =>
-        setTimeout(resolve, backoffDelayMs(attempts, CREATE_AUTH_RETRY_BASE_DELAY_MS, CREATE_AUTH_RETRY_MAX_DELAY_MS)),
-      );
+      // The server's Retry-After wins over the backoff.
+      const serverWait =
+        result.response?.status === 503 ? authUnavailableSignal(result.response, result.error).wait : undefined;
+      const delayMs =
+        serverWait !== undefined
+          ? serverWait * 1000
+          : backoffDelayMs(attempts, CREATE_AUTH_RETRY_BASE_DELAY_MS, CREATE_AUTH_RETRY_MAX_DELAY_MS);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
 
