@@ -65,7 +65,7 @@ describe('credential validation', () => {
     settings.credentials = new ApiKey({ apiKey: 'test-key', workspace: 'my-workspace' });
     const headers = settings.headers;
     expect(headers['x-blaxel-workspace']).toBe('my-workspace');
-    expect(headers['x-blaxel-authorization']).toBe('Bearer test-key');
+    expect(headers['authorization']).toBe('Bearer test-key');
     expect(Object.values(headers)).not.toContain('');
   });
 
