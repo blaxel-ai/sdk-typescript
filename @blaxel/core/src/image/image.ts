@@ -100,28 +100,52 @@ const BUILD_REGION_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
 // file are routed to the sandbox builder, a COPY of the whole context copies it.
 const BUILD_DOCKER_CONFIG_PATH = [".docker", "config.json"];
 
-// Whether a rejected build request can be retried, for quota and rate-limit
-// 429s. Image storage is checked before each build: a full quota answers 429
-// with code QUOTA_EXCEEDED, or on older control planes
-// {"error": ..., "code": 429} with a message that links the plan quotas page.
-export function buildLimitHint(status: number, text: string): string {
+// Text of the build-backlog 429 from control planes that send it without a code.
+const BUILD_BACKLOG_TEXT = "builds are waiting";
+const RETRYABLE_LIMIT_CODES = ["WORKSPACE_RATE_LIMIT_EXCEEDED", "RATE_LIMIT_EXCEEDED", "BUILD_QUEUE_FULL"];
+
+// Whether a rejected build request can be retried, for quota and limit 429s.
+// The server's signal wins: the X-Should-Retry header, then the body's
+// `retryable`, then its string `code`. Only a body with the numeric code 429
+// and no signal (older control planes) falls back to the text: the
+// build-backlog refusal ("builds are waiting") clears once builds finish, any
+// other message linking the plan quotas page is a quota.
+export function buildLimitHint(status: number, text: string, headers?: Headers): string {
   if (status !== 429) return "";
-  let body: unknown;
+  let parsed: unknown;
   try {
-    body = JSON.parse(text);
+    parsed = JSON.parse(text);
   } catch {
-    return "";
+    parsed = undefined;
   }
-  if (typeof body !== "object" || body === null) return "";
-  const { code, error, message } = body as { code?: unknown; error?: unknown; message?: unknown };
+  const body = (typeof parsed === "object" && parsed !== null ? parsed : {}) as {
+    code?: unknown;
+    error?: unknown;
+    message?: unknown;
+    retryable?: unknown;
+  };
+  const { code, error, message } = body;
   const said = typeof error === "string" ? error : typeof message === "string" ? message : "";
-  if (code === "QUOTA_EXCEEDED" || (code === 429 && said.includes("/account/plan-quotas"))) {
-    return " (not retryable until usage drops or the quota is raised: https://docs.blaxel.ai/Security/Quotas)";
+  const backlog = code === "BUILD_QUEUE_FULL" || (code === 429 && said.includes(BUILD_BACKLOG_TEXT));
+  const quota = code === "QUOTA_EXCEEDED" || (code === 429 && !backlog && said.includes("/account/plan-quotas"));
+
+  const shouldRetry = headers?.get("x-should-retry")?.trim().toLowerCase();
+  let retryable: boolean | undefined;
+  if (shouldRetry === "true" || shouldRetry === "false") retryable = shouldRetry === "true";
+  else if (typeof body.retryable === "boolean") retryable = body.retryable;
+  else if (quota) retryable = false;
+  else if (backlog || (typeof code === "string" && RETRYABLE_LIMIT_CODES.includes(code))) retryable = true;
+
+  if (retryable === false) {
+    return quota
+      ? " (not retryable until usage drops or the quota is raised: https://docs.blaxel.ai/Security/Quotas)"
+      : " (the server says not to retry)";
   }
-  if (code === "WORKSPACE_RATE_LIMIT_EXCEEDED" || code === "RATE_LIMIT_EXCEEDED") {
-    return " (rate limited: retry with backoff)";
-  }
-  return "";
+  if (retryable === undefined) return "";
+  const wait = headers?.get("retry-after")?.trim();
+  const after = wait && /^\d+$/.test(wait) ? `after ${wait} s` : "with backoff";
+  if (backlog) return ` (the account's build queue is full: retry ${after}, once some builds finish)`;
+  return ` (rate limited: retry ${after})`;
 }
 
 // Registry credentials for the build as Docker config.json text. Errors never
@@ -983,7 +1007,7 @@ export class ImageInstance {
 
     if (response.status >= 400) {
       const text = await response.text();
-      throw new Error(`Failed to create sandbox: ${response.status} - ${text}${buildLimitHint(response.status, text)}`);
+      throw new Error(`Failed to create sandbox: ${response.status} - ${text}${buildLimitHint(response.status, text, response.headers)}`);
     }
 
     if (!uploadUrl) {

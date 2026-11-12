@@ -217,8 +217,10 @@ function retryAfterSeconds(headers: Headers | undefined, now = Date.now()): numb
   return Number.isNaN(at) ? undefined : Math.max(0, Math.ceil((at - now) / 1000));
 }
 
-// A 403 the API itself did not answer: no JSON error body. That is an empty
-// or non-JSON body (an edge block can return an HTML page), possibly with the
+// A 403 with no JSON error body: not a quota. The request was blocked or
+// throttled before the API could answer it: an auth check that failed while the
+// backend was throttled (empty body), or an edge rate limit or firewall block
+// (can be a text or HTML page). That is an empty or non-JSON body, possibly with the
 // line the authentication interceptor appends, or an empty JSON object holding
 // only the `documentation` field that interceptor adds.
 const isNonApiErrorBody = (e: unknown): boolean => {
@@ -227,9 +229,9 @@ const isNonApiErrorBody = (e: unknown): boolean => {
 };
 
 const EDGE_BLOCKED_MESSAGE =
-  "HTTP 403 without a JSON error body: likely an edge rate limit or firewall block in front of the API. " +
-  "If you send many requests, slow down and retry after about 60 s. " +
-  "Blaxel quota and permission errors carry a JSON error code";
+  "HTTP 403 without a JSON error body: not a quota. The request was blocked or throttled before the API could answer it " +
+  "(an auth check that failed while the backend was throttled, or an edge rate limit or firewall block). " +
+  "Slow down and retry after about 60 s. Blaxel quota and permission errors carry a JSON error code";
 
 const RATE_LIMIT_REASONS: Record<string, string> = {
   WORKSPACE_RATE_LIMIT_EXCEEDED: "too many creations in flight in this workspace",
@@ -238,9 +240,10 @@ const RATE_LIMIT_REASONS: Record<string, string> = {
 
 // The error a rejected creation is thrown with: the API's error body, with a
 // message that says what to do for the failures callers can act on. Quota and
-// rate-limit errors need opposite handling: QUOTA_EXCEEDED (HTTP 429 for a
-// workspace quota, 400 for one ephemeral volume over the per-volume maximum)
-// stays until quota is freed or raised; the rate-limit codes clear on their
+// rate-limit errors need opposite handling: QUOTA_EXCEEDED (HTTP 429 for an
+// account quota, and for one ephemeral volume over the per-volume maximum on
+// PUT /sandboxes/{name} and jobs; create and fork answer that one with 400) does
+// not clear by retrying the same request; the rate-limit codes clear on their
 // own. `retryable` says which; the SDK itself retries none of them.
 function createError(response: Response | undefined, e: unknown, sandboxName: string | undefined, attempts: number): unknown {
   const status = response?.status;
@@ -254,7 +257,7 @@ function createError(response: Response | undefined, e: unknown, sandboxName: st
     const advice =
       status === 400
         ? "not retryable as is; request a smaller volume or raise the quota"
-        : "not retryable until quota is freed or raised";
+        : "not retryable until usage drops, the request asks for less (such as a smaller volume), or the quota is raised";
     return {
       ...body,
       retryable: false,
