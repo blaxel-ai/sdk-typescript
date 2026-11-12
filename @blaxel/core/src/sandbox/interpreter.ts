@@ -109,11 +109,12 @@ export class CodeInterpreter extends SandboxInstance {
   }
 
   private _fetch(input: string | URL, init?: RequestInit): Promise<Response> {
+    const requestInit: RequestInit = { redirect: "manual", ...init };
     const h2Domain = this._sandboxConfig.h2Domain;
     if (h2Domain) {
-      return h2RequestDirectFromPool(h2Pool, h2Domain, input.toString(), init);
+      return h2RequestDirectFromPool(h2Pool, h2Domain, input.toString(), requestInit);
     }
-    return globalThis.fetch(input, init);
+    return globalThis.fetch(input, requestInit);
   }
 
   static OutputMessage = class {

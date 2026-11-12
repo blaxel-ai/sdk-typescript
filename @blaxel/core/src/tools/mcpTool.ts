@@ -103,7 +103,7 @@ export class McpTool {
       mcpUrl.pathname = mcpUrl.pathname.replace(/\/$/, "") + "/mcp";
       logger.debug(`MCP:${this.name}:Connecting::${mcpUrl.toString()}`);
       const transport = new StreamableHTTPClientTransport(mcpUrl, {
-        requestInit: { headers: settings.headers },
+        requestInit: { headers: settings.headers, redirect: "manual" },
       });
       await this.client.connect(transport);
       logger.debug(`MCP:${this.name}:Connected`);
