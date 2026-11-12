@@ -68,6 +68,7 @@ class BlAgent {
         ...headers,
       },
       body,
+      redirect: "manual",
     });
     return response;
   }
