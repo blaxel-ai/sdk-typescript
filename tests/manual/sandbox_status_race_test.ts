@@ -162,7 +162,7 @@ async function suiteRapidCreation(): Promise<TestResult> {
 
     // Fetch list and compare
     console.log("  Fetching list endpoint...")
-    const allListed = await SandboxInstance.list()
+    const allListed = await (await SandboxInstance.list()).autoPagingToArray({ limit: 10000 })
     const listedByName = new Map<string, SandboxInstance>()
     for (const sbx of allListed) {
       if (sbx.metadata?.labels?.[LABEL_KEY] === LABEL_VALUE) {
@@ -238,7 +238,7 @@ async function suiteDeleteRace(): Promise<TestResult> {
 
     // Verify: none of them should appear in list
     console.log("  Checking list for ghost records...")
-    const allListed = await SandboxInstance.list()
+    const allListed = await (await SandboxInstance.list()).autoPagingToArray({ limit: 10000 })
     const ghosts = allListed.filter(
       (sbx) =>
         sbx.metadata?.labels?.[LABEL_KEY] === LABEL_VALUE &&
@@ -331,7 +331,7 @@ async function suiteUpdateAfterDeploy(): Promise<TestResult> {
 
     // Check list vs get after the update
     console.log("  Verifying list vs get after update...")
-    const allListed = await SandboxInstance.list()
+    const allListed = await (await SandboxInstance.list()).autoPagingToArray({ limit: 10000 })
     const listedByName = new Map<string, SandboxInstance>()
     for (const sbx of allListed) {
       if (names.includes(sbx.metadata?.name ?? "")) {
@@ -415,7 +415,7 @@ async function suiteConcurrentBurst(): Promise<TestResult> {
     // Short wait then compare list vs get
     await sleep(3000)
     console.log("  Comparing list vs get...")
-    const allListed = await SandboxInstance.list()
+    const allListed = await (await SandboxInstance.list()).autoPagingToArray({ limit: 10000 })
     const listedByName = new Map<string, SandboxInstance>()
     for (const sbx of allListed) {
       if (names.includes(sbx.metadata?.name ?? "")) {
@@ -501,7 +501,7 @@ async function suiteStatusDistribution(): Promise<TestResult> {
 
     // Snapshot: list + get for each
     console.log("  Taking list+get snapshot...")
-    const allListed = await SandboxInstance.list()
+    const allListed = await (await SandboxInstance.list()).autoPagingToArray({ limit: 10000 })
     const listedByName = new Map<string, SandboxInstance>()
     for (const sbx of allListed) {
       if (names.includes(sbx.metadata?.name ?? "")) {

@@ -69,7 +69,6 @@ describe.runIf(isSlowTestEnabled("RUN_DRIVE_TESTS"))('Drive ACL Permissions', ()
           labels: defaultLabels,
         },
         spec: {
-          size: 1,
           region: defaultRegion,
           permissions,
         },
