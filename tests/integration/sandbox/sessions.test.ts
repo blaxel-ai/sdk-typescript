@@ -1,3 +1,4 @@
+import { deleteTestSandbox } from "./cleanup.js"
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import { SandboxInstance } from "@blaxel/core"
 import { uniqueName, defaultImage, defaultLabels, defaultRegion, sleep } from './helpers.js'
@@ -18,7 +19,7 @@ describe('Sandbox Session Operations', () => {
 
   afterAll(async () => {
     try {
-      await SandboxInstance.delete(sandboxName)
+      await deleteTestSandbox(sandboxName)
     } catch {
       // Ignore
     }
