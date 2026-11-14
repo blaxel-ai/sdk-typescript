@@ -71,6 +71,18 @@ export type ContentSearchResponse = {
     total: number;
 };
 
+export type CopyRequest = {
+    destination: string;
+    noOverwrite?: boolean;
+    source: string;
+};
+
+export type CopyResponse = {
+    destination: string;
+    message: string;
+    source: string;
+};
+
 export type Directory = {
     files: Array<File>;
     name: string;
@@ -151,6 +163,7 @@ export type DriveUnmountResponse = {
 };
 
 export type ErrorResponse = {
+    code?: string;
     error: string;
 };
 
@@ -406,6 +419,14 @@ export type ProcessLogs = {
 };
 
 export type ProcessRequest = {
+    /**
+     * Key the webhook is signed with (HMAC-SHA256, X-Blaxel-Signature header). At least 32 characters; required with callbackUrl. Never returned by the API.
+     */
+    callbackSecret?: string;
+    /**
+     * URL that receives a signed process.exited webhook when the process ends for good (not on auto-restart). Requires callbackSecret.
+     */
+    callbackUrl?: string;
     command: string;
     env?: {
         [key: string]: string;
@@ -558,11 +579,11 @@ export type TunnelConfigRequest = {
 
 export type UpgradeRequest = {
     /**
-     * Base URL for releases (useful for forks)
+     * Deprecated: custom binary sources are not accepted
      */
     baseUrl?: string;
     /**
-     * Version to upgrade to: "latest" (default), "develop", "main", or specific tag like "v1.0.0"
+     * Version to upgrade to: "latest" (default), "develop", "main", or a release tag like "v1.0.0"
      */
     version?: string;
 };
@@ -812,7 +833,7 @@ export type GetCodegenRerankingByPathErrors = {
      */
     422: ErrorResponse;
     /**
-     * Service unavailable - Relace not configured
+     * Service unavailable - code reranking is no longer offered by any provider
      */
     503: ErrorResponse;
 };
@@ -1026,6 +1047,42 @@ export type GetFilesystemContentSearchByPathResponses = {
 };
 
 export type GetFilesystemContentSearchByPathResponse = GetFilesystemContentSearchByPathResponses[keyof GetFilesystemContentSearchByPathResponses];
+
+export type PostFilesystemCopyData = {
+    /**
+     * Source, destination, and optional noOverwrite flag
+     */
+    body: CopyRequest;
+    path?: never;
+    query?: never;
+    url: '/filesystem-copy';
+};
+
+export type PostFilesystemCopyErrors = {
+    /**
+     * Bad request
+     */
+    400: ErrorResponse;
+    /**
+     * Destination exists (FILE_ALREADY_EXISTS)
+     */
+    409: ErrorResponse;
+    /**
+     * Copy failed
+     */
+    422: ErrorResponse;
+};
+
+export type PostFilesystemCopyError = PostFilesystemCopyErrors[keyof PostFilesystemCopyErrors];
+
+export type PostFilesystemCopyResponses = {
+    /**
+     * Files copied
+     */
+    200: CopyResponse;
+};
+
+export type PostFilesystemCopyResponse = PostFilesystemCopyResponses[keyof PostFilesystemCopyResponses];
 
 export type GetFilesystemFindByPathData = {
     body?: never;
@@ -2200,6 +2257,99 @@ export type PostProcessByIdentifierStdinResponses = {
 
 export type PostProcessByIdentifierStdinResponse = PostProcessByIdentifierStdinResponses[keyof PostProcessByIdentifierStdinResponses];
 
+export type GetProcessByIdentifierWaitData = {
+    body?: never;
+    path: {
+        /**
+         * Process identifier (PID or name)
+         */
+        identifier: string;
+    };
+    query?: {
+        /**
+         * Seconds to wait (default and max 119; larger values are capped)
+         */
+        timeout?: number;
+    };
+    url: '/process/{identifier}/wait';
+};
+
+export type GetProcessByIdentifierWaitErrors = {
+    /**
+     * Invalid timeout
+     */
+    400: ErrorResponse;
+    /**
+     * Process not found
+     */
+    404: ErrorResponse;
+};
+
+export type GetProcessByIdentifierWaitError = GetProcessByIdentifierWaitErrors[keyof GetProcessByIdentifierWaitErrors];
+
+export type GetProcessByIdentifierWaitResponses = {
+    /**
+     * Process information
+     */
+    200: ProcessResponse;
+};
+
+export type GetProcessByIdentifierWaitResponse = GetProcessByIdentifierWaitResponses[keyof GetProcessByIdentifierWaitResponses];
+
+export type PostResumeData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/resume';
+};
+
+export type PostResumeResponses = {
+    /**
+     * Sandbox is running
+     */
+    200: SuccessResponse;
+};
+
+export type PostResumeResponse = PostResumeResponses[keyof PostResumeResponses];
+
+export type PostStandbyData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Put the sandbox in standby even while keepAlive processes hold it awake: their holds are released for the standby and taken back once it resumes
+         */
+        force?: boolean;
+    };
+    url: '/standby';
+};
+
+export type PostStandbyErrors = {
+    /**
+     * The sandbox is held awake
+     */
+    409: ErrorResponse;
+    /**
+     * Standby is not supported in this environment
+     */
+    501: ErrorResponse;
+    /**
+     * The keep-awake state could not be read
+     */
+    503: ErrorResponse;
+};
+
+export type PostStandbyError = PostStandbyErrors[keyof PostStandbyErrors];
+
+export type PostStandbyResponses = {
+    /**
+     * Standby requested
+     */
+    202: SuccessResponse;
+};
+
+export type PostStandbyResponse = PostStandbyResponses[keyof PostStandbyResponses];
+
 export type PostUpgradeData = {
     /**
      * Upgrade options
@@ -2211,6 +2361,10 @@ export type PostUpgradeData = {
 };
 
 export type PostUpgradeErrors = {
+    /**
+     * Invalid version or baseUrl
+     */
+    400: ErrorResponse;
     /**
      * Internal server error
      */
@@ -2238,7 +2392,7 @@ export type GetWatchFilesystemByPathData = {
     };
     query?: {
         /**
-         * Comma-separated substrings; events whose full path contains one are skipped
+         * Comma-separated substrings; events whose full path contains one are skipped, and matching directories are not watched at all
          */
         ignore?: string;
     };
