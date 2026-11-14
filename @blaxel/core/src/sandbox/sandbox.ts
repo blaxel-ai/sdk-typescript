@@ -710,11 +710,20 @@ export class SandboxInstance {
       }
     }
     if (createIfNotExist) SandboxInstance.warnOnDrift(requested, data)
-    // Inject the H2 session into the config so subsystems can use it
-    const config = { ...data, h2Session, h2Domain: settings.disableH2 ? null : edgeDomain } as SandboxConfiguration;
-    const instance = new SandboxInstance(config);
-    instance.h2Session = h2Session;
-    // Note: H2 session already attached via Promise.all above, no need for attachH2Session()
+    const instance = new SandboxInstance({ ...data } as SandboxConfiguration);
+    // The edge is picked from the region the sandbox landed in: without a region in
+    // the request the platform chooses one, and createIfNotExist may hand back a
+    // sandbox living elsewhere. The session warmed during the API call is reused
+    // when it matches; otherwise one is opened for the sandbox's own region.
+    const sandboxDomain = SandboxInstance.edgeDomainForRegion(instance.spec?.region) ?? edgeDomain;
+    if (sandboxDomain && !settings.disableH2) {
+      const session = sandboxDomain === edgeDomain
+        ? h2Session
+        : await import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.get(sandboxDomain)).catch(() => null);
+      instance.h2Session = session;
+      instance.sandbox.h2Session = session;
+      instance.sandbox.h2Domain = sandboxDomain;
+    }
     // TODO remove this part once we have a better way to handle this
     if (safe) {
       try {
