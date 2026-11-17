@@ -4,13 +4,15 @@ import type { Env } from "../client/index.js";
 export type SandboxEnvsUpdate = Record<string, string | null> | Env[];
 
 /**
- * Merge `envs` into `current` by name. A record sets each name to its value
- * and removes the names set to `null`; a list sets each entry as given
+ * Merge `envs` into `current` by name. A record sets each name to its value,
+ * keeping the other fields of an existing variable (its `secret` flag), and
+ * removes the names set to `null`; a list sets each entry exactly as given
  * (`secret` included). With `replace`, `current` is dropped first. Existing
  * variables keep their position, new ones are appended in the given order.
  */
 export function updatedEnvs(current: Env[] | undefined, envs: SandboxEnvsUpdate, replace = false): Env[] {
   const changes = new Map<string, Env | null>();
+  const fromRecord = !Array.isArray(envs);
   if (Array.isArray(envs)) {
     for (const env of envs) {
       if (!env.name) {
@@ -31,7 +33,8 @@ export function updatedEnvs(current: Env[] | undefined, envs: SandboxEnvsUpdate,
       if (env.name !== undefined && changes.has(env.name)) {
         const change = changes.get(env.name);
         changes.delete(env.name);
-        if (change) result.push(change);
+        // A record changes only the value: a secret stays secret.
+        if (change) result.push(fromRecord ? { ...env, ...change } : change);
       } else {
         result.push(env);
       }

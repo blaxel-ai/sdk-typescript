@@ -78,5 +78,11 @@ describe('SandboxInstance.updateEnvs', () => {
     const logs = await echo(name, { API_KEY: "s3cr3t-value", PLAIN: "plain" })
     expect(logs).toContain("API_KEY=s3cr3t-value")
     expect(logs).toContain("PLAIN=plain")
+
+    // Rotating it with the record form changes the value and keeps it secret.
+    const rotated = await SandboxInstance.updateEnvs(name, { API_KEY: "rotated-value" })
+    expect(rotated.spec.runtime?.envs?.find((e) => e.name === "API_KEY")?.secret).toBe(true)
+    const rotatedLogs = await echo(name, { API_KEY: "rotated-value", PLAIN: "plain" })
+    expect(rotatedLogs).toContain("API_KEY=rotated-value")
   })
 })

@@ -22,6 +22,12 @@ describe("updatedEnvs", () => {
     ]);
   });
 
+  it("keeps the secret flag when a record changes a value", () => {
+    expect(updatedEnvs([{ name: "API_KEY", value: "****", secret: true }], { API_KEY: "rotated" })).toEqual([
+      { name: "API_KEY", value: "rotated", secret: true },
+    ]);
+  });
+
   it("replaces every variable with replace", () => {
     expect(updatedEnvs(current, { ONLY: "1" }, true)).toEqual([{ name: "ONLY", value: "1" }]);
   });

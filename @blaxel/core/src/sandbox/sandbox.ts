@@ -1011,8 +1011,9 @@ export class SandboxInstance {
    * Set, change or remove environment variables of a sandbox without recreating it.
    *
    * By default the given variables are merged into the current ones: a
-   * variable with the same name takes the new value, the others are kept. In
-   * the record form, a `null` value removes the variable. With
+   * variable with the same name takes the new value, the others are kept. The
+   * record form changes only the value, so an existing variable keeps its
+   * `secret` flag, and a `null` value removes it. With
    * `{ replace: true }`, the given variables replace the whole list.
    *
    * The sandbox is redeployed to apply the change: its status goes from
