@@ -11,17 +11,22 @@ describe('SandboxInstance.updateEnvs', () => {
 
   // Read `expected`'s variables in a new process until they all match. The
   // status can still read DEPLOYED from before the update when the polling
-  // starts, so the values themselves are what is waited for.
+  // starts, and on mk3.0 the sandbox reboots to apply the change, so an exec
+  // can fail meanwhile: the values themselves are what is waited for.
   async function echo(name: string, expected: Record<string, string>) {
     const command = Object.keys(expected).map((v) => `echo "${v}=\${${v}:-unset}";`).join(" ")
     const lines = Object.entries(expected).map(([v, value]) => `${v}=${value}`)
     let logs = ""
     for (let attempt = 0; attempt < 30; attempt++) {
       if (await waitForSandboxDeployed(name)) {
-        const sandbox = await SandboxInstance.get(name)
-        const result = await sandbox.process.exec({ command, waitForCompletion: true })
-        logs = result.logs ?? ""
-        if (lines.every((line) => logs.split("\n").includes(line))) return logs
+        try {
+          const sandbox = await SandboxInstance.get(name)
+          const result = await sandbox.process.exec({ command, waitForCompletion: true })
+          logs = result.logs ?? ""
+          if (lines.every((line) => logs.split("\n").includes(line))) return logs
+        } catch (error) {
+          logs = `exec failed while the update was applied: ${String(error)}`
+        }
       }
       await new Promise((resolve) => setTimeout(resolve, 1000))
     }
