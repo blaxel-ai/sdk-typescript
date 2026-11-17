@@ -9,13 +9,23 @@ describe('SandboxInstance.updateEnvs', () => {
     await Promise.all(createdSandboxes.map((name) => SandboxInstance.delete(name).catch(() => undefined)))
   })
 
-  async function echo(name: string, vars: string[]) {
-    const sandbox = await SandboxInstance.get(name)
-    const result = await sandbox.process.exec({
-      command: vars.map((v) => `echo "${v}=\${${v}:-unset}";`).join(" "),
-      waitForCompletion: true,
-    })
-    return result.logs ?? ""
+  // Read `expected`'s variables in a new process until they all match. The
+  // status can still read DEPLOYED from before the update when the polling
+  // starts, so the values themselves are what is waited for.
+  async function echo(name: string, expected: Record<string, string>) {
+    const command = Object.keys(expected).map((v) => `echo "${v}=\${${v}:-unset}";`).join(" ")
+    const lines = Object.entries(expected).map(([v, value]) => `${v}=${value}`)
+    let logs = ""
+    for (let attempt = 0; attempt < 30; attempt++) {
+      if (await waitForSandboxDeployed(name)) {
+        const sandbox = await SandboxInstance.get(name)
+        const result = await sandbox.process.exec({ command, waitForCompletion: true })
+        logs = result.logs ?? ""
+        if (lines.every((line) => logs.split("\n").includes(line))) return logs
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+    }
+    return logs
   }
 
   it('merges, removes and replaces variables', { timeout: 60_000 }, async () => {
@@ -38,17 +48,13 @@ describe('SandboxInstance.updateEnvs', () => {
     expect(updated.spec.runtime?.envs?.map((e) => e.name)).toEqual(["KEEP", "CHANGE", "ADDED"])
 
     // The new environment reaches the sandbox a few seconds after the update.
-    expect(await waitForSandboxDeployed(name)).toBe(true)
-    const logs = await echo(name, ["KEEP", "CHANGE", "DROP", "ADDED"])
-    expect(logs).toContain("KEEP=kept")
-    expect(logs).toContain("CHANGE=after")
-    expect(logs).toContain("DROP=unset")
-    expect(logs).toContain("ADDED=new")
+    const expected = { KEEP: "kept", CHANGE: "after", DROP: "unset", ADDED: "new" }
+    const logs = await echo(name, expected)
+    for (const [v, value] of Object.entries(expected)) expect(logs).toContain(`${v}=${value}`)
 
     const replaced = await SandboxInstance.updateEnvs(name, { ONLY: "one" }, { replace: true })
     expect(replaced.spec.runtime?.envs?.map((e) => e.name)).toEqual(["ONLY"])
-    expect(await waitForSandboxDeployed(name)).toBe(true)
-    const replacedLogs = await echo(name, ["ONLY", "KEEP"])
+    const replacedLogs = await echo(name, { ONLY: "one", KEEP: "unset" })
     expect(replacedLogs).toContain("ONLY=one")
     expect(replacedLogs).toContain("KEEP=unset")
   })
@@ -69,8 +75,7 @@ describe('SandboxInstance.updateEnvs', () => {
     expect(envs.find((e) => e.name === "API_KEY")?.secret).toBe(true)
     expect(envs.map((e) => e.name)).toContain("PLAIN")
 
-    expect(await waitForSandboxDeployed(name)).toBe(true)
-    const logs = await echo(name, ["API_KEY", "PLAIN"])
+    const logs = await echo(name, { API_KEY: "s3cr3t-value", PLAIN: "plain" })
     expect(logs).toContain("API_KEY=s3cr3t-value")
     expect(logs).toContain("PLAIN=plain")
   })

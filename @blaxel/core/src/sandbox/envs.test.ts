@@ -31,6 +31,7 @@ describe("updatedEnvs", () => {
   });
 
   it("rejects an env without a name", () => {
-    expect(() => updatedEnvs(current, [{ value: "x" }])).toThrow("without a name");
+    expect(() => updatedEnvs(current, [{ value: "s3cr3t", secret: true }])).toThrow("without a name");
+    expect(() => updatedEnvs(current, [{ value: "s3cr3t", secret: true }])).not.toThrow("s3cr3t");
   });
 });

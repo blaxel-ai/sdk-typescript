@@ -14,7 +14,8 @@ export function updatedEnvs(current: Env[] | undefined, envs: SandboxEnvsUpdate,
   if (Array.isArray(envs)) {
     for (const env of envs) {
       if (!env.name) {
-        throw new Error(`Environment variable without a name: ${JSON.stringify(env)}`);
+        // Name only the fields, never their values: an entry can hold a secret.
+        throw new Error(`Environment variable without a name (fields: ${Object.keys(env).sort().join(", ")})`);
       }
       changes.set(env.name, env);
     }
