@@ -194,8 +194,10 @@ const isSandboxNotFound = (e: unknown): boolean => {
 // its credential store is unreachable. Both are answered before anything is
 // created, so sending the same request again is safe. A revoked token (401
 // TOKEN_REVOKED) or a missing workspace permission (UNAUTHORIZED_WORKSPACE) is
-// final and is not retried. A key the API does not recognize gets the same
-// 403, so the retries stay few and the final message asks to check the key.
+// final and is not retried, and so is a key the API does not recognize
+// (AUTHENTICATION_FAILED, 403 on create). An API older than that code answers
+// an unknown key with the same 403 UNAUTHORIZED, so the retries stay few and the
+// final message asks to check the key.
 export const CREATE_AUTH_RETRIES = 2;
 const CREATE_AUTH_RETRY_BASE_DELAY_MS = 500;
 const CREATE_AUTH_RETRY_MAX_DELAY_MS = 2_000;
@@ -311,6 +313,16 @@ function createError(response: Response | undefined, e: unknown, sandboxName: st
       message:
         `${message || "Unable to verify credentials"} (HTTP 503 AUTHENTICATION_UNAVAILABLE: the API could not check ` +
         `credentials for a moment; not a credential or permission error; ${advice})`,
+    };
+  }
+  if ((status === 401 || status === 403) && body.code === "AUTHENTICATION_FAILED") {
+    return {
+      ...body,
+      retryable: false,
+      message:
+        `${message || "This API key is not valid"} (HTTP ${status} AUTHENTICATION_FAILED: this API key is not valid; ` +
+        "not retried, the same key is refused every time). Check the API key the SDK sends (BL_API_KEY) for a typo or a " +
+        "missing part; if it was deleted, create a new one in the Blaxel Console.",
     };
   }
   if (status === 403 && body.code === "UNAUTHORIZED") {

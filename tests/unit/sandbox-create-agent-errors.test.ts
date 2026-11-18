@@ -174,6 +174,27 @@ describe("SandboxInstance.create on a transient authentication failure", () => {
     expect(error).toEqual(body);
   });
 
+  it.each([403, 401])("does not retry a %i AUTHENTICATION_FAILED and says the API key is not valid", async (status) => {
+    mockedCreate.mockResolvedValue(
+      failed(status, {
+        code: "AUTHENTICATION_FAILED",
+        error_code: "AUTHENTICATION_FAILED",
+        message: "The API key is not valid",
+        status_code: status,
+      }),
+    );
+
+    const { error } = await createWithBackoff({ name: "agent-errors" });
+
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+    expect(error).toMatchObject({ code: "AUTHENTICATION_FAILED", status_code: status, retryable: false });
+    expect((error as { message: string }).message).toBe(
+      `The API key is not valid (HTTP ${status} AUTHENTICATION_FAILED: this API key is not valid; not retried, the same ` +
+        "key is refused every time). Check the API key the SDK sends (BL_API_KEY) for a typo or a missing part; if it " +
+        "was deleted, create a new one in the Blaxel Console.",
+    );
+  });
+
   it("retries the same way for createIfNotExists", async () => {
     mockedCreate.mockResolvedValueOnce(authFailed()).mockResolvedValueOnce(created());
 
