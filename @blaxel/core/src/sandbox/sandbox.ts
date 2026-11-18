@@ -1,5 +1,6 @@
 import type http2 from "http2";
 import { archiveSandbox, createSandbox, createSandboxSnapshot, deleteSandbox, deleteSandboxSnapshot, type Env, forkSandbox, getSandbox, getSandboxByExternalId, listSandboxes, listSandboxSnapshots, type ListSandboxesData, restoreSandboxSnapshot, type SandboxForkResponse, type SandboxLifecycle, type Sandbox as SandboxModel, type SandboxRestoreResponse, type SandboxSnapshot, unarchiveSandbox, updateSandbox } from "../client/index.js";
+import type { BlaxelActionErrorBody } from "../common/error-types.js";
 import { logger } from "../common/logger.js";
 import { backoffDelayMs } from "../common/transient-retry.js";
 import { createPaginatedList } from "../common/pagination.js";
@@ -82,15 +83,16 @@ export type SandboxArchiveOptions = {
   interval?: number;
 };
 
-// A create that outlives the edge's 60s origin-read timeout gets a 504 from
-// CloudFront while the control plane keeps deploying the sandbox for up to
-// 300s (ENG-3662 timeout ladder inversion). The 504 body is edge HTML with no
-// usable payload, so the record is polled instead until it settles.
-// Polling backs off exponentially (1s, 2s, 4s, then 5s + jitter) so a fleet of
-// clients stuck in this window does not hammer the control plane every second.
-const CREATE_GATEWAY_TIMEOUT_MAX_WAIT_MS = 120_000;
-const CREATE_GATEWAY_TIMEOUT_BASE_POLL_MS = 1_000;
-const CREATE_GATEWAY_TIMEOUT_MAX_POLL_MS = 5_000;
+// A create can return before the sandbox is ready while the control plane keeps
+// deploying it, for up to its 3-minute creation deadline: the API answers 202
+// with the sandbox still DEPLOYING once its own wait runs out, and a gateway in
+// front of it may cut a slower request with a 504 whose body is not the API's.
+// Either way the record is polled until it settles, backing off exponentially
+// (0.5s, 1s, 2s, then 3s + jitter) so a fleet of clients waiting at once does
+// not hammer the control plane.
+const CREATE_WAIT_MAX_MS = 240_000;
+const CREATE_WAIT_BASE_POLL_MS = 500;
+const CREATE_WAIT_MAX_POLL_MS = 3_000;
 
 // A creation deadline the caller sets per request through an undocumented
 // header; it can only shorten the control plane's default. Capped below the
@@ -233,6 +235,14 @@ function createError(status: number | undefined, e: unknown, sandboxName: string
     }
   }
   return e;
+}
+
+// Why a creation the API accepted ended FAILED: the message of its latest FAILED
+// event, or else of its latest fatal infrastructure error.
+function createFailureReason(sandbox: SandboxModel): string | undefined {
+  const event = [...(sandbox.events ?? [])].reverse().find((e) => e.status === "FAILED" && e.message);
+  if (event) return event.message;
+  return [...(sandbox.errors ?? [])].reverse().find((e) => e.fatal && e.message)?.message;
 }
 
 // Without a region the control plane picks one; say so once per process
@@ -703,12 +713,17 @@ export class SandboxInstance {
         throw new SandboxCreationTimeoutError(name, timeout, createResult.error);
       }
       if (createResult.response.status === 504 && name) {
-        // The edge gave up on the connection but the creation is still running
-        // server-side; wait for the record instead of failing (ENG-3662).
-        data = await SandboxInstance.waitAfterCreateGatewayTimeout(name, createResult.error);
+        // The gateway gave up on the connection but the creation is still
+        // running server-side; wait for the record instead of failing.
+        data = await SandboxInstance.waitForCreatedSandbox(name, 504, createResult.error);
       } else {
         throw createError(createResult.response.status, createResult.error, name, attempts);
       }
+    } else if (createResult.response?.status === 202) {
+      // Accepted: the sandbox is still deploying server-side. The body carries
+      // its name, which the server assigns when the request had none.
+      const name = data?.metadata?.name ?? sandbox.metadata.name;
+      if (name) data = await SandboxInstance.waitForCreatedSandbox(name, 202);
     }
     if (createIfNotExist) SandboxInstance.warnOnDrift(requested, data)
     const instance = new SandboxInstance({ ...data } as SandboxConfiguration);
@@ -1189,17 +1204,21 @@ export class SandboxInstance {
     }
   }
 
-  // Poll the record after a create was cut by the edge with a 504 while the
-  // control plane is still deploying it. Resolves with the sandbox once it
-  // reaches DEPLOYED; throws on FAILED or once the wait budget is spent.
-  private static async waitAfterCreateGatewayTimeout(name: string, createError: unknown): Promise<SandboxModel> {
-    logger.debug(`Sandbox ${name} creation timed out at the edge (504); polling the record while it finishes deploying`);
-    const deadline = Date.now() + CREATE_GATEWAY_TIMEOUT_MAX_WAIT_MS;
+  // Poll the record of a sandbox the control plane is still creating after the
+  // create returned (202, or a gateway 504). Resolves with the sandbox once it
+  // reaches DEPLOYED. On FAILED it throws a DEPLOYMENT_FAILED error body, the
+  // shape a create the API rejects outright is thrown with, carrying the reason
+  // the control plane recorded. Once CREATE_WAIT_MAX_MS is spent it throws
+  // `timeoutError` when given, otherwise an error saying the sandbox is still
+  // deploying.
+  private static async waitForCreatedSandbox(name: string, status: number, timeoutError?: unknown): Promise<SandboxModel> {
+    logger.debug(`Sandbox ${name} creation returned ${status} before it was ready; polling the record while it finishes deploying`);
+    const deadline = Date.now() + CREATE_WAIT_MAX_MS;
     let attempt = 0;
     while (Date.now() < deadline) {
       attempt++;
       await new Promise((resolve) =>
-        setTimeout(resolve, backoffDelayMs(attempt, CREATE_GATEWAY_TIMEOUT_BASE_POLL_MS, CREATE_GATEWAY_TIMEOUT_MAX_POLL_MS)),
+        setTimeout(resolve, backoffDelayMs(attempt, CREATE_WAIT_BASE_POLL_MS, CREATE_WAIT_MAX_POLL_MS)),
       );
       let current: SandboxModel;
       try {
@@ -1212,10 +1231,20 @@ export class SandboxInstance {
       }
       if (current.status === "DEPLOYED") return current;
       if (current.status === "FAILED") {
-        throw new Error(`Sandbox ${name} failed to deploy after the create timed out at the edge (504).`);
+        const reason = createFailureReason(current);
+        const failure: BlaxelActionErrorBody = {
+          code: "DEPLOYMENT_FAILED",
+          message: `Sandbox ${name} failed to deploy${reason ? `: ${reason}` : "."}`,
+          status_code: 500,
+          sandbox_name: name,
+        };
+        throw failure;
       }
     }
-    throw createError;
+    throw timeoutError ?? new Error(
+      `Sandbox ${name} is still DEPLOYING ${CREATE_WAIT_MAX_MS / 1000}s after it was created; ` +
+      "check it later with SandboxInstance.get() or delete it.",
+    );
   }
 
   /* eslint-disable */
