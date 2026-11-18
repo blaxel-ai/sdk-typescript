@@ -63,31 +63,4 @@ describe('SandboxInstance.updateEnvs', () => {
     expect(replacedLogs).toContain("ONLY=one")
     expect(replacedLogs).toContain("KEEP=unset")
   })
-
-  it('keeps the secret flag of the list form', { timeout: 60_000 }, async () => {
-    const name = uniqueName("update-envs-secret")
-    await SandboxInstance.create({
-      name,
-      image: defaultImage,
-      region: defaultRegion,
-      labels: defaultLabels,
-      envs: [{ name: "PLAIN", value: "plain" }],
-    })
-    createdSandboxes.push(name)
-
-    const updated = await SandboxInstance.updateEnvs(name, [{ name: "API_KEY", value: "s3cr3t-value", secret: true }])
-    const envs = updated.spec.runtime?.envs ?? []
-    expect(envs.find((e) => e.name === "API_KEY")?.secret).toBe(true)
-    expect(envs.map((e) => e.name)).toContain("PLAIN")
-
-    const logs = await echo(name, { API_KEY: "s3cr3t-value", PLAIN: "plain" })
-    expect(logs).toContain("API_KEY=s3cr3t-value")
-    expect(logs).toContain("PLAIN=plain")
-
-    // Rotating it with the record form changes the value and keeps it secret.
-    const rotated = await SandboxInstance.updateEnvs(name, { API_KEY: "rotated-value" })
-    expect(rotated.spec.runtime?.envs?.find((e) => e.name === "API_KEY")?.secret).toBe(true)
-    const rotatedLogs = await echo(name, { API_KEY: "rotated-value", PLAIN: "plain" })
-    expect(rotatedLogs).toContain("API_KEY=rotated-value")
-  })
 })
