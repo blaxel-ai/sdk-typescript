@@ -2,6 +2,7 @@ import {
   type BlaxelActionErrorBody,
   type BlaxelApiErrorBody,
   type BlaxelAuthErrorCode,
+  type BlaxelControlPlaneErrorCode,
   type BlaxelErrorCode,
   type BlaxelErrorCodeValue,
   type BlaxelErrorLike,
@@ -10,11 +11,13 @@ import {
   type BlaxelSandboxApiErrorBody,
   type BlaxelSandboxCreationErrorCode,
   getBlaxelErrorCode,
+  getBlaxelErrorFeature,
   getBlaxelErrorMessage,
   getBlaxelErrorRequestId,
   getBlaxelErrorStatus,
   getSandbox,
   isBlaxelError,
+  isFeatureNotEnabledError,
   ResponseError,
   SandboxCreationTimeoutError,
   SandboxGatewayError,
@@ -296,5 +299,74 @@ describe("safe inspection of unknown values", () => {
     expectTypeOf<BlaxelAuthErrorCode>().toMatchTypeOf<BlaxelErrorCode>();
     expectTypeOf<BlaxelSandboxCreationErrorCode>().toMatchTypeOf<BlaxelErrorCode>();
     expectTypeOf(getBlaxelErrorCode(err)).toEqualTypeOf<BlaxelErrorCodeValue | undefined>();
+  });
+});
+
+describe("FEATURE_NOT_ENABLED", () => {
+  const message = "Sandbox snapshot/fork feature is not enabled for this workspace";
+  // A generic /v0 endpoint: the HTTP status stays in `code`.
+  const v0 = {
+    error: message, code: 403, error_code: "FEATURE_NOT_ENABLED", feature: "fork",
+    message, retryable: false, status: 403, origin: "platform",
+  };
+  // The sandbox fork endpoint: the registered code is in `code`.
+  const fork = { code: "FEATURE_NOT_ENABLED", feature: "fork", message, status_code: 403 };
+
+  it("reads the generic /v0 body the client throws, leaving the code reader as it was", async () => {
+    const err = await thrownBody(JSON.stringify(v0), 403);
+    expect(err).toEqual(v0);
+    expect(isBlaxelError(err)).toBe(true);
+    expect(isFeatureNotEnabledError(err)).toBe(true);
+    expect(isFeatureNotEnabledError(err, "fork")).toBe(true);
+    expect(isFeatureNotEnabledError(err, "drives")).toBe(false);
+    expect(getBlaxelErrorFeature(err)).toBe("fork");
+    expect(getBlaxelErrorCode(err)).toBe(403);
+    expect(getBlaxelErrorStatus(err)).toBe(403);
+  });
+
+  it("reads the fork body", async () => {
+    const err = await thrownBody(JSON.stringify(fork), 403);
+    expect(isFeatureNotEnabledError(err, "fork")).toBe(true);
+    expect(getBlaxelErrorFeature(err)).toBe("fork");
+    expect(getBlaxelErrorCode(err)).toBe("FEATURE_NOT_ENABLED");
+  });
+
+  it("reads the header and the body of a ResponseError", () => {
+    const response = new Response(null, { status: 403, headers: { "x-blaxel-error-code": "FEATURE_NOT_ENABLED" } });
+    const withBody = new ResponseError(response, undefined, { error: message, feature: "drives" });
+    expect(isFeatureNotEnabledError(withBody, "drives")).toBe(true);
+    expect(getBlaxelErrorFeature(withBody)).toBe("drives");
+    const headerOnly = new ResponseError(response, undefined, undefined);
+    expect(isFeatureNotEnabledError(headerOnly)).toBe(true);
+    expect(isFeatureNotEnabledError(headerOnly, "fork")).toBe(false);
+    expect(getBlaxelErrorFeature(headerOnly)).toBeUndefined();
+  });
+
+  it.each([
+    // A role or credential 403.
+    { error: "user has no role in workspace", code: 403, error_code: "WORKSPACE_ACCESS_DENIED" },
+    { code: "UNAUTHORIZED", message: "denied", status_code: 403 },
+    // The body before the code existed: the message alone is not matched.
+    { code: 403, error: message },
+    // A feature field on another code does not name a disabled feature.
+    { code: "FORK_FAILED", message: "boom", status_code: 500, feature: "fork" },
+    new Error(message), message, undefined, null, {},
+  ])("is false for %s", (err) => {
+    expect(isFeatureNotEnabledError(err)).toBe(false);
+    expect(getBlaxelErrorFeature(err)).toBeUndefined();
+  });
+
+  it("never throws for hostile values", () => {
+    const hostile = new Proxy({}, { get() { throw new Error("getter failed"); } });
+    const badHeaders = { response: { headers: { get() { throw new Error("header failed"); } } } };
+    for (const err of [hostile, badHeaders]) {
+      expect(isFeatureNotEnabledError(err)).toBe(false);
+      expect(getBlaxelErrorFeature(err)).toBeUndefined();
+    }
+  });
+
+  it("lists the code in the known code types", () => {
+    expectTypeOf<"FEATURE_NOT_ENABLED">().toMatchTypeOf<BlaxelControlPlaneErrorCode>();
+    expectTypeOf<BlaxelControlPlaneErrorCode>().toMatchTypeOf<BlaxelErrorCode>();
   });
 });

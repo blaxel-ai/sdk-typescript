@@ -79,6 +79,29 @@ headers/request IDs, and `getBlaxelErrorStatus` is `undefined` for transport
 errors such as an HTTP/2 stream reset. All accessors accept `unknown` safely,
 including values the guard rejects. `POLICY_VIOLATION` is reserved, not emitted today.
 
+Some features are enabled per workspace, such as snapshots and forks. Calling
+one the workspace doesn't have fails with HTTP 403 and code
+`FEATURE_NOT_ENABLED`, which is not a role or credential problem.
+`isFeatureNotEnabledError(err, "fork")` recognizes it and
+`getBlaxelErrorFeature(err)` returns the feature's key. To check first, read the
+workspace's features: the response lists only the enabled ones, by the same key.
+
+```typescript
+import { getWorkspaceFeatures, isFeatureNotEnabledError } from "@blaxel/core";
+
+const { data } = await getWorkspaceFeatures({ throwOnError: true });
+if (data.features?.fork) {
+  await sandbox.snapshots.create();
+}
+
+try {
+  await sandbox.snapshots.create();
+} catch (err) {
+  if (!isFeatureNotEnabledError(err, "fork")) throw err;
+  // continue without snapshots, or ask support to enable them
+}
+```
+
 ## Usage
 
 ### Sandboxes

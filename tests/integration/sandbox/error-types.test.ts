@@ -4,11 +4,12 @@ import {
   getBlaxelErrorRequestId,
   getBlaxelErrorStatus,
   isBlaxelError,
+  isFeatureNotEnabledError,
   ResponseError,
   SandboxInstance,
 } from "@blaxel/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { defaultImage, defaultLabels, defaultRegion, uniqueName, waitForSandboxDeletion } from "./helpers.js";
+import { defaultImage, defaultLabels, defaultRegion, uniqueName, waitForSandboxDeletion, workspaceFeatureEnabled } from "./helpers.js";
 
 // Verify the additive helpers on current wire responses; errors stay unwrapped.
 describe("API error types over current thrown values", () => {
@@ -67,6 +68,13 @@ describe("API error types over current thrown values", () => {
       .map((header) => responseError.response.headers.get(header)).find(Boolean) ?? undefined;
     expect(getBlaxelErrorRequestId(err)).toBe(requestId);
     expect(Object.keys(err as object)).not.toContain("requestId");
+  }, 15_000);
+
+  it("names the feature when the workspace cannot snapshot", async (ctx) => {
+    if (await workspaceFeatureEnabled("fork")) ctx.skip("the workspace has the fork feature");
+    const err: unknown = await sandbox.snapshots.create().catch((err: unknown) => err);
+    expect(getBlaxelErrorStatus(err)).toBe(403);
+    expect(isFeatureNotEnabledError(err, "fork")).toBe(true);
   }, 15_000);
 
   it("recognizes API errors but not local errors", async () => {

@@ -115,11 +115,26 @@ export type BlaxelSandboxCreationErrorCode =
   | "INTERNAL_ERROR"
   | "UNKNOWN_ERROR";
 
+/**
+ * Registered codes the control plane returns from its other endpoints. A
+ * generic `/v0` body keeps the HTTP status in `code` and puts these in
+ * `error_code`; the sandbox fork body puts them in `code`. Both also send
+ * the `X-Blaxel-Error-Code` header.
+ */
+export type BlaxelControlPlaneErrorCode =
+  /**
+   * 403, not retryable: the workspace does not have the feature named in the
+   * body's `feature` field. Not a role or credential problem. See
+   * {@link isFeatureNotEnabledError}.
+   */
+  | "FEATURE_NOT_ENABLED";
+
 /** Known backend codes, including the reserved POLICY_VIOLATION code. */
 export type BlaxelErrorCode =
   | BlaxelGatewayErrorCode
   | BlaxelAuthErrorCode
-  | BlaxelSandboxCreationErrorCode;
+  | BlaxelSandboxCreationErrorCode
+  | BlaxelControlPlaneErrorCode;
 
 /** Known/new string codes, or the numeric HTTP code of a generic control-plane body. */
 export type BlaxelErrorCodeValue = BlaxelErrorCode | (string & Record<never, never>) | number;
@@ -319,6 +334,58 @@ export function getBlaxelErrorMessage(err: unknown): string | undefined {
     if (typeof message === "string" && message.length > 0) return message;
   }
   return undefined;
+}
+
+const readString = (value: unknown, key: string): string | undefined => {
+  const field = readProperty(value, key);
+  return typeof field === "string" && field.length > 0 ? field : undefined;
+};
+
+// A generic /v0 body has the HTTP status in `code` and the registered code in
+// `error_code`; the fork body has the registered code in `code`.
+const namesFeatureNotEnabled = (body: unknown): boolean =>
+  readString(body, "code") === "FEATURE_NOT_ENABLED" ||
+  readString(body, "error_code") === "FEATURE_NOT_ENABLED";
+
+/**
+ * The key of the workspace feature a `FEATURE_NOT_ENABLED` error names, for
+ * example `"fork"` for snapshots and forks, or `undefined` for any other error.
+ * It is the key `getWorkspaceFeatures()` (`GET /v0/features`) lists once the
+ * feature is on. Never throws.
+ */
+export function getBlaxelErrorFeature(err: unknown): string | undefined {
+  const byHeader = readHeader(err, "x-blaxel-error-code") === "FEATURE_NOT_ENABLED";
+  for (const candidate of errorCandidates(err)) {
+    if (!byHeader && !namesFeatureNotEnabled(candidate)) continue;
+    const feature = readString(candidate, "feature");
+    if (feature !== undefined) return feature;
+  }
+  return undefined;
+}
+
+/**
+ * True when the API refused the call because the workspace does not have a
+ * feature (code `FEATURE_NOT_ENABLED`, HTTP 403), optionally only for the
+ * given feature key. Snapshots and forks use the key `"fork"`. This 403 is
+ * not a role or credential problem: a new API key, a higher role or a retry
+ * will not help. Continue without the feature or ask support to enable it;
+ * {@link getBlaxelErrorFeature} returns the key.
+ *
+ * To check before calling, read the workspace's features: the response lists
+ * only the enabled ones.
+ *
+ * ```typescript
+ * const { data } = await getWorkspaceFeatures({ throwOnError: true });
+ * if (data.features?.fork) await sandbox.snapshots.create();
+ * ```
+ *
+ * Reads `code` and `error_code` on the thrown body, then the
+ * `X-Blaxel-Error-Code` header. Never throws.
+ */
+export function isFeatureNotEnabledError(err: unknown, feature?: string): boolean {
+  const named = errorCandidates(err).some(namesFeatureNotEnabled) ||
+    readHeader(err, "x-blaxel-error-code") === "FEATURE_NOT_ENABLED";
+  return named && (feature === undefined || getBlaxelErrorFeature(err) === feature);
 }
 
 /**
