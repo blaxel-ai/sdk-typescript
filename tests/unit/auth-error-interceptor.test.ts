@@ -16,6 +16,7 @@ describe("authenticationErrorInterceptor", () => {
     ["a REQUEST_BLOCKED JSON body", JSON.stringify({ code: "REQUEST_BLOCKED", message: "Request blocked." }), {}],
     ["a nested REQUEST_BLOCKED envelope", JSON.stringify({ error: { code: "REQUEST_BLOCKED", message: "Request blocked." } }), {}],
     ["the edge's HTML block page", "<!DOCTYPE html><html><body>Request blocked.</body></html>", {}],
+    ["the edge's plain-text block", "403 Request blocked", {}],
     ["the X-Blaxel-Error-Code header", "", { "X-Blaxel-Error-Code": "REQUEST_BLOCKED" }],
   ])("leaves an edge block alone: %s", async (_, body, headers) => {
     const response = new Response(body, { status: 403, headers });

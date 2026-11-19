@@ -65,14 +65,14 @@ export const authenticationErrorInterceptor: ResponseInterceptor = async (
   }
 };
 
-// A REQUEST_BLOCKED JSON body, or the edge's HTML "Request blocked." page.
+// A REQUEST_BLOCKED JSON body, or the edge's text or HTML "Request blocked." page.
 function isEdgeBlock(bodyText: string): boolean {
   try {
     const parsed = JSON.parse(bodyText) as { code?: unknown; error?: unknown };
     const nested = typeof parsed.error === "object" && parsed.error !== null ? (parsed.error as { code?: unknown }) : {};
     return parsed.code === "REQUEST_BLOCKED" || nested.code === "REQUEST_BLOCKED";
   } catch {
-    return /request blocked/i.test(bodyText) && /<html|<!doctype/i.test(bodyText);
+    return /request blocked/i.test(bodyText);
   }
 }
 

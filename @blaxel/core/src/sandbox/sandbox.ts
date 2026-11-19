@@ -299,8 +299,10 @@ export const CREATE_AUTH_RETRIES = 2;
 const CREATE_AUTH_RETRY_BASE_DELAY_MS = 500;
 const CREATE_AUTH_RETRY_MAX_DELAY_MS = 2_000;
 
+// The registered code: a 403 WORKSPACE_ACCESS_DENIED may still carry code
+// UNAUTHORIZED, and must not be retried as a passing credential check failure.
 const errorCode = (e: unknown): unknown =>
-  typeof e === "object" && e !== null ? (e as { code?: unknown }).code : undefined;
+  typeof e === "object" && e !== null ? registeredCode(e) : undefined;
 
 const isTransientCreateAuthFailure = (response: Response | undefined, e: unknown): boolean =>
   (response?.status === 403 && errorCode(e) === "UNAUTHORIZED") ||
@@ -375,13 +377,50 @@ function registeredCode(body: { code?: unknown; error_code?: unknown }): string 
   return typeof body.code === "string" && body.code ? body.code : undefined;
 }
 
+// A string field of the API's error: in the `error` envelope, else at the top level.
+function serverField(body: { error?: unknown } & Record<string, unknown>, key: string): string | undefined {
+  const nested = (typeof body.error === "object" && body.error !== null ? body.error : {}) as Record<string, unknown>;
+  for (const source of [nested, body]) {
+    const value = source[key];
+    if (typeof value === "string" && value) return value;
+  }
+  return undefined;
+}
+
+// The API's next step for a code the SDK has no advice of its own for: its
+// `action`, then its `docs_url`.
+function nextStep(action: string | undefined, docsUrl: string | undefined): string {
+  const step = action ? action.trim().replace(/\.+$/, "") : "";
+  if (docsUrl && !step.includes(docsUrl)) return step ? `${step}: ${docsUrl}` : docsUrl;
+  return step;
+}
+
+function requestBlockedMessage(text: string, action: string): string {
+  return (
+    `${text} (HTTP 403 REQUEST_BLOCKED: blocked at the edge before the API read the request; ` +
+    `not a quota and not an API key problem; ${action})`
+  );
+}
+
+// The edge firewall's text or HTML "Request blocked." page, sent until it
+// answers with a REQUEST_BLOCKED JSON body.
+const isEdgeBlockPage = (e: unknown): e is string => typeof e === "string" && /request blocked/i.test(e);
+
 function createErrorBody(response: Response | undefined, e: unknown, sandboxName: string | undefined, attempts: number): unknown {
   const status = response?.status;
+  if (status === 403 && isEdgeBlockPage(e)) {
+    return {
+      code: "REQUEST_BLOCKED",
+      status_code: 403,
+      retryable: false,
+      message: requestBlockedMessage("Request blocked", REQUEST_BLOCKED_DEFAULT_ACTION),
+    };
+  }
   if (status === 403 && isNonApiErrorBody(e)) {
     return { message: EDGE_BLOCKED_MESSAGE, status_code: 403 };
   }
   if (typeof e !== "object" || e === null) return e;
-  const body = e as { message?: unknown; code?: unknown; error_code?: unknown; retry_after?: unknown; action?: unknown; error?: unknown };
+  const body = e as { message?: unknown; code?: unknown; error_code?: unknown; retry_after?: unknown; action?: unknown; error?: unknown } & Record<string, unknown>;
   const code = registeredCode(body);
   const message = typeof body.message === "string" ? body.message : "";
   if (status === 403 && code === "REQUEST_BLOCKED") {
@@ -393,13 +432,7 @@ function createErrorBody(response: Response | undefined, e: unknown, sandboxName
           ? body.action
           : REQUEST_BLOCKED_DEFAULT_ACTION;
     const text = message || (typeof nested.message === "string" && nested.message) || "Request blocked";
-    return {
-      ...body,
-      retryable: false,
-      message:
-        `${text} (HTTP 403 REQUEST_BLOCKED: blocked at the edge before the API read the request; ` +
-        `not a quota and not an API key problem; ${action})`,
-    };
+    return { ...body, retryable: false, message: requestBlockedMessage(text, action) };
   }
   if ((status === 429 || status === 400) && code === "QUOTA_EXCEEDED") {
     const advice =
@@ -452,7 +485,7 @@ function createErrorBody(response: Response | undefined, e: unknown, sandboxName
         "missing part; if it was deleted, create a new one in the Blaxel Console.",
     };
   }
-  if (status === 403 && body.code === "UNAUTHORIZED") {
+  if (status === 403 && code === "UNAUTHORIZED") {
     let workspace = "";
     try {
       workspace = settings.workspace;
@@ -463,12 +496,12 @@ function createErrorBody(response: Response | undefined, e: unknown, sandboxName
     return {
       ...body,
       message:
-        `${message || "Authorization failed"} (HTTP 403 ${String(body.code)}, after ${attempts} attempts). ` +
+        `${message || "Authorization failed"} (HTTP 403 ${code}, after ${attempts} attempts). ` +
         "The API answers this way both for a key it does not recognize and when its credential check fails for a moment. " +
         `Check the credentials and workspace the SDK uses (BL_API_KEY and BL_WORKSPACE, or \`bl login\`${current}); if they are right, retry in a few seconds.`,
     };
   }
-  const tagged = withStatusAndCode(message, status, code ?? body.code);
+  const tagged = withStatusAndCode(message, status, code ?? body.code, nextStep(serverField(body, "action"), serverField(body, "docs_url")));
   if (status === 400) {
     const hint = invalidSandboxNameHint(sandboxName);
     if (hint) {
@@ -479,12 +512,14 @@ function createErrorBody(response: Response | undefined, e: unknown, sandboxName
   return tagged === message ? e : { ...body, message: tagged };
 }
 
-// "<message> (HTTP <status> <CODE>)", so the message alone names what the API
-// answered; left as is when it already does.
-function withStatusAndCode(message: string, status: number | undefined, code: unknown): string {
+// "<message> (HTTP <status> <CODE>: <next step>)", so the message alone names
+// what the API answered and the next step it gives; left as is when it already
+// names the status.
+function withStatusAndCode(message: string, status: number | undefined, code: unknown, next = ""): string {
   if (status === undefined || message.includes(`HTTP ${status}`)) return message;
   // A numeric `code` is the HTTP status again (older /v0 bodies): leave it out.
-  const tag = typeof code === "string" && code ? `HTTP ${status} ${code}` : `HTTP ${status}`;
+  let tag = typeof code === "string" && code ? `HTTP ${status} ${code}` : `HTTP ${status}`;
+  if (next) tag += `: ${next}`;
   return message ? `${message} (${tag})` : tag;
 }
 
