@@ -6236,6 +6236,10 @@ export type ListDrivesErrors = {
      * Unauthorized
      */
     401: _Error;
+    /**
+     * Drives feature not enabled
+     */
+    403: _Error;
 };
 
 export type ListDrivesError = ListDrivesErrors[keyof ListDrivesErrors];
@@ -6261,6 +6265,10 @@ export type CreateDriveErrors = {
      * Unauthorized
      */
     401: _Error;
+    /**
+     * Drives feature not enabled
+     */
+    403: _Error;
 };
 
 export type CreateDriveError = CreateDriveErrors[keyof CreateDriveErrors];
@@ -6288,6 +6296,10 @@ export type DeleteDriveErrors = {
      * Unauthorized
      */
     401: _Error;
+    /**
+     * Drives feature not enabled
+     */
+    403: _Error;
     /**
      * Drive not found
      */
@@ -6324,6 +6336,10 @@ export type GetDriveErrors = {
      */
     401: _Error;
     /**
+     * Drives feature not enabled
+     */
+    403: _Error;
+    /**
      * Drive not found
      */
     404: _Error;
@@ -6354,6 +6370,10 @@ export type UpdateDriveErrors = {
      * Unauthorized
      */
     401: _Error;
+    /**
+     * Drives feature not enabled
+     */
+    403: _Error;
     /**
      * Drive not found
      */
