@@ -8,6 +8,7 @@ import { settings } from "../common/settings.js";
 import { SandboxCodegen } from "./codegen/index.js";
 import { SandboxDrive } from "./drive/index.js";
 import { describeDrift, driftWarning, type RequestedSandbox } from "./drift.js";
+import { type SandboxEnvsUpdate, updatedEnvs } from "./envs.js";
 import { SandboxFileSystem } from "./filesystem/index.js";
 import { SandboxNetwork } from "./network/index.js";
 import { SandboxPreviews } from "./preview.js";
@@ -816,11 +817,20 @@ export class SandboxInstance {
       }
     }
     if (createIfNotExist) SandboxInstance.warnOnDrift(requested, data)
-    // Inject the H2 session into the config so subsystems can use it
-    const config = { ...data, h2Session, h2Domain: settings.disableH2 ? null : edgeDomain } as SandboxConfiguration;
-    const instance = new SandboxInstance(config);
-    instance.h2Session = h2Session;
-    // Note: H2 session already attached via Promise.all above, no need for attachH2Session()
+    const instance = new SandboxInstance({ ...data } as SandboxConfiguration);
+    // The edge is picked from the region the sandbox landed in: without a region in
+    // the request the platform chooses one, and createIfNotExist may hand back a
+    // sandbox living elsewhere. The session warmed during the API call is reused
+    // when it matches; otherwise one is opened for the sandbox's own region.
+    const sandboxDomain = SandboxInstance.edgeDomainForRegion(instance.spec?.region) ?? edgeDomain;
+    if (sandboxDomain && !settings.disableH2) {
+      const session = sandboxDomain === edgeDomain
+        ? h2Session
+        : await import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.get(sandboxDomain)).catch(() => null);
+      instance.h2Session = session;
+      instance.sandbox.h2Session = session;
+      instance.sandbox.h2Domain = sandboxDomain;
+    }
     // TODO remove this part once we have a better way to handle this
     if (safe) {
       try {
@@ -1102,6 +1112,52 @@ export class SandboxInstance {
   static async updateTtl(sandboxName: string, ttl: string | null) {
     const sandbox = await SandboxInstance.get(sandboxName);
     const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, runtime: { ...sandbox.spec.runtime, ttl: ttl === '' ? null : ttl ?? null } } } as SandboxModel
+    const { data } = await updateSandbox({
+      path: { sandboxName },
+      body,
+      throwOnError: true,
+    });
+    const instance = new SandboxInstance(data);
+    return SandboxInstance.attachH2Session(instance);
+  }
+
+  /**
+   * Set, change or remove environment variables of a sandbox without recreating it.
+   *
+   * By default the given variables are merged into the current ones: a
+   * variable with the same name takes the new value, the others are kept. The
+   * record form changes only the value, so an existing variable keeps its
+   * `secret` flag, and a `null` value removes it. With
+   * `{ replace: true }`, the given variables replace the whole list.
+   *
+   * The sandbox is redeployed to apply the change: its status goes from
+   * `DEPLOYING` back to `DEPLOYED` a few seconds after this call returns, and
+   * processes started from then on read the new values. Files and running
+   * processes of the sandbox are not kept across this redeploy; keep data you
+   * need on a volume. Values are masked (`****`) in API responses, including
+   * the returned instance; variables you do not pass keep their real values.
+   *
+   * Reads the sandbox, then writes it back with the change: two updates of
+   * the same sandbox at the same time can overwrite each other.
+   *
+   * @param sandboxName - Name of the sandbox.
+   * @param envs - `{ NAME: "value" }` (`null` removes `NAME`), or a list of `{ name, value, secret? }`.
+   * @param options - `replace: true` replaces every variable instead of merging into them.
+   * @returns The updated sandbox.
+   *
+   * @example
+   * ```typescript
+   * // Set NODE_ENV, change PORT and remove DEBUG; other variables stay.
+   * await SandboxInstance.updateEnvs("my-sandbox", { NODE_ENV: "staging", PORT: "3000", DEBUG: null });
+   *
+   * // Keep a value secret.
+   * await SandboxInstance.updateEnvs("my-sandbox", [{ name: "API_KEY", value: key, secret: true }]);
+   * ```
+   */
+  static async updateEnvs(sandboxName: string, envs: SandboxEnvsUpdate, options: { replace?: boolean } = {}) {
+    const sandbox = await SandboxInstance.get(sandboxName);
+    const runtime = { ...sandbox.spec.runtime, envs: updatedEnvs(sandbox.spec.runtime?.envs, envs, options.replace) };
+    const body = { ...sandbox.sandbox, spec: { ...sandbox.spec, runtime } } as SandboxModel
     const { data } = await updateSandbox({
       path: { sandboxName },
       body,

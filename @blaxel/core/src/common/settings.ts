@@ -390,7 +390,7 @@ class Settings {
       userAgent += ` agent/${codingAgent}`;
     }
     return {
-      "x-blaxel-authorization": this.authorization,
+      "authorization": this.authorization,
       "x-blaxel-workspace": this.workspace || "",
       "Blaxel-Version": this.apiVersion,
       "User-Agent": userAgent,

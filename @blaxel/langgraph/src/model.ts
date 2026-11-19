@@ -19,10 +19,19 @@ const authenticatedFetch = () => {
     await authenticate();
     const dynamicHeaders = settings.headers;
 
-    // Merge headers: init headers take precedence over dynamic headers
+    // Merge headers: init headers take precedence over dynamic headers,
+    // EXCEPT the authorization header. The model clients are configured with a
+    // placeholder apiKey ("replaced") and send `authorization: Bearer replaced`.
+    // Now that the Blaxel credential also rides in the standard `authorization`
+    // header (it used to be `x-blaxel-authorization`), the placeholder must not
+    // overwrite it, so drop the client's authorization and apply the dynamic
+    // Blaxel headers last.
+    const incoming: Record<string, string> = { ...(init?.headers as Record<string, string> || {}) };
+    delete incoming["authorization"];
+    delete incoming["Authorization"];
     const headers: Record<string, string> = {
+      ...incoming,
       ...dynamicHeaders,
-      ...(init?.headers as Record<string, string> || {}),
     };
 
     // Ensure Content-Type is set for JSON requests if body exists and Content-Type is not already set

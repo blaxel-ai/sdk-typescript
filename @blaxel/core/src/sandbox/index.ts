@@ -19,5 +19,6 @@ export * from "./sandbox.js";
 export { SANDBOX_NAME_MAX_LENGTH, isValidSandboxName, sanitizeSandboxName } from "./names.js";
 export * from "./system.js";
 export * from "./types.js";
+export type { SandboxEnvsUpdate } from "./envs.js";
 export * from "./interpreter.js";
 // Re-export everything from client except ClientOptions to avoid conflict

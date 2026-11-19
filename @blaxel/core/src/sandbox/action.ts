@@ -120,6 +120,7 @@ export class SandboxAction {
       return createClient({
         baseUrl: this.sandbox.forceUrl,
         headers: this.sandbox.headers,
+        redirect: "manual",
       })
     }
 
@@ -128,6 +129,7 @@ export class SandboxAction {
       if (!this._h2Client || this._h2ClientDomain !== h2Domain) {
         this._h2Client = createClient({
           fetch: createPoolBackedH2Fetch(h2Pool, h2Domain),
+          redirect: "manual",
         });
         this._h2ClientDomain = h2Domain;
         for (const interceptor of interceptors) {
@@ -163,11 +165,12 @@ export class SandboxAction {
    * globalThis.fetch. Uses a direct H2 path that avoids Request allocation.
    */
   protected h2Fetch(input: string | URL, init?: RequestInit): Promise<Response> {
+    const requestInit: RequestInit = { redirect: "manual", ...init };
     const h2Domain = this.sandbox.h2Domain;
     if (h2Domain && !settings.disableH2) {
-      return h2RequestDirectFromPool(h2Pool, h2Domain, input.toString(), init);
+      return h2RequestDirectFromPool(h2Pool, h2Domain, input.toString(), requestInit);
     }
-    return globalThis.fetch(input, init);
+    return globalThis.fetch(input, requestInit);
   }
 
   get forcedUrl() {

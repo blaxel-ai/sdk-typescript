@@ -7,10 +7,13 @@ import { Config, settings } from "./settings.js";
 
 export { ensureAutoloaded } from "./lazyInit.js";
 
+// Return 3xx responses to the caller instead of following them, like the H2 path.
 client.setConfig({
   baseUrl: settings.baseUrl,
   fetch: controlPlaneFetch,
+  redirect: "manual",
 });
+clientSandbox.setConfig({ redirect: "manual" });
 
 // Register request interceptors
 for (const interceptor of interceptors) {
