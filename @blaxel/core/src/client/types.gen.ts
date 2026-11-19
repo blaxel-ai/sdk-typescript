@@ -6235,8 +6235,10 @@ export type ListDrivesErrors = {
     /**
      * Unauthorized
      */
-    401: unknown;
+    401: _Error;
 };
+
+export type ListDrivesError = ListDrivesErrors[keyof ListDrivesErrors];
 
 export type ListDrivesResponses = {
     /**
@@ -6258,8 +6260,10 @@ export type CreateDriveErrors = {
     /**
      * Unauthorized
      */
-    401: unknown;
+    401: _Error;
 };
+
+export type CreateDriveError = CreateDriveErrors[keyof CreateDriveErrors];
 
 export type CreateDriveResponses = {
     /**
@@ -6283,12 +6287,14 @@ export type DeleteDriveErrors = {
     /**
      * Unauthorized
      */
-    401: unknown;
+    401: _Error;
     /**
      * Drive not found
      */
-    404: unknown;
+    404: _Error;
 };
+
+export type DeleteDriveError = DeleteDriveErrors[keyof DeleteDriveErrors];
 
 export type DeleteDriveResponses = {
     /**
@@ -6316,12 +6322,14 @@ export type GetDriveErrors = {
     /**
      * Unauthorized
      */
-    401: unknown;
+    401: _Error;
     /**
      * Drive not found
      */
-    404: unknown;
+    404: _Error;
 };
+
+export type GetDriveError = GetDriveErrors[keyof GetDriveErrors];
 
 export type GetDriveResponses = {
     /**
@@ -6345,12 +6353,14 @@ export type UpdateDriveErrors = {
     /**
      * Unauthorized
      */
-    401: unknown;
+    401: _Error;
     /**
      * Drive not found
      */
-    404: unknown;
+    404: _Error;
 };
+
+export type UpdateDriveError = UpdateDriveErrors[keyof UpdateDriveErrors];
 
 export type UpdateDriveResponses = {
     /**
@@ -6374,16 +6384,18 @@ export type CreateDriveAccessTokenErrors = {
     /**
      * Unauthorized
      */
-    401: unknown;
+    401: _Error;
     /**
      * Drives feature not enabled
      */
-    403: unknown;
+    403: _Error;
     /**
      * Drive not found
      */
-    404: unknown;
+    404: _Error;
 };
+
+export type CreateDriveAccessTokenError = CreateDriveAccessTokenErrors[keyof CreateDriveAccessTokenErrors];
 
 export type CreateDriveAccessTokenResponses = {
     /**
@@ -6416,32 +6428,34 @@ export type DeleteDriveFolderErrors = {
     /**
      * Invalid folder path
      */
-    400: unknown;
+    400: _Error;
     /**
      * Unauthorized
      */
-    401: unknown;
+    401: _Error;
     /**
      * Insufficient permissions, protected path, or drives feature disabled
      */
-    403: unknown;
+    403: _Error;
     /**
      * Drive not found
      */
-    404: unknown;
+    404: _Error;
     /**
      * Drive unavailable or requested path is not a folder
      */
-    409: unknown;
+    409: _Error;
     /**
      * Storage unavailable or deletion incomplete; retry to finish cleanup
      */
-    502: unknown;
+    502: _Error;
     /**
      * Deletion timed out and may be partially complete; retry to finish cleanup
      */
-    504: unknown;
+    504: _Error;
 };
+
+export type DeleteDriveFolderError = DeleteDriveFolderErrors[keyof DeleteDriveFolderErrors];
 
 export type DeleteDriveFolderResponses = {
     /**
@@ -6468,20 +6482,22 @@ export type GetDriveByExternalIdErrors = {
     /**
      * Unauthorized
      */
-    401: unknown;
+    401: _Error;
     /**
      * Forbidden - Insufficient permissions to view drives
      */
-    403: unknown;
+    403: _Error;
     /**
      * Drive not found
      */
-    404: unknown;
+    404: _Error;
     /**
      * Internal server error
      */
-    500: unknown;
+    500: _Error;
 };
+
+export type GetDriveByExternalIdError = GetDriveByExternalIdErrors[keyof GetDriveByExternalIdErrors];
 
 export type GetDriveByExternalIdResponses = {
     /**
@@ -10627,6 +10643,35 @@ export type UpdateVolumeData = {
     query?: never;
     url: '/volumes/{volumeName}';
 };
+
+export type UpdateVolumeErrors = {
+    /**
+     * Bad request - Invalid update, such as a smaller size, a changed region or template, or invalid metadata
+     */
+    400: _Error;
+    /**
+     * Unauthorized - Invalid or missing authentication credentials
+     */
+    401: _Error;
+    /**
+     * Forbidden - Insufficient permissions to update this volume, or the new size exceeds the volume quota
+     */
+    403: _Error;
+    /**
+     * Not found - Volume does not exist
+     */
+    404: _Error;
+    /**
+     * Conflict - The volume was attached, detached or deleted during the update; retry the request
+     */
+    409: _Error;
+    /**
+     * Internal server error
+     */
+    500: _Error;
+};
+
+export type UpdateVolumeError = UpdateVolumeErrors[keyof UpdateVolumeErrors];
 
 export type UpdateVolumeResponses = {
     /**
