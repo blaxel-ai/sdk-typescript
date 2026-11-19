@@ -1,5 +1,5 @@
 import { ResponseError } from "../sandbox/action.js";
-import { SandboxCreationTimeoutError } from "../sandbox/sandbox.js";
+import { SandboxCreateError, SandboxCreationTimeoutError } from "../sandbox/sandbox.js";
 
 /**
  * Codes the edge gateway returns for sandbox, agent, function and MCP URLs,
@@ -30,6 +30,11 @@ export type BlaxelGatewayErrorCode =
   | "BAD_REQUEST"
   /** 402: the workspace exceeded its plan's usage limits. */
   | "USAGE_LIMIT_EXCEEDED"
+  /**
+   * 403, not retryable: the edge firewall blocked the request before the API
+   * read it. Not a quota and not a credential problem: don't rotate the key.
+   */
+  | "REQUEST_BLOCKED"
   /** Reserved: defined by the gateway but not currently returned. */
   | "POLICY_VIOLATION"
   /** Retryable: could not connect to the workload. */
@@ -57,7 +62,9 @@ export type BlaxelAuthErrorCode =
   /** 503, retryable: credentials could not be verified right now. */
   | "AUTHENTICATION_UNAVAILABLE"
   /** 400: the credentials reach several workspaces (or none); set one. */
-  | "WORKSPACE_REQUIRED";
+  | "WORKSPACE_REQUIRED"
+  /** 403: no role in the workspace (also the answer for one that does not exist). */
+  | "WORKSPACE_ACCESS_DENIED";
 
 /** Codes the control plane returns when creating or forking a sandbox. */
 export type BlaxelSandboxCreationErrorCode =
@@ -127,7 +134,17 @@ export type BlaxelControlPlaneErrorCode =
    * body's `feature` field. Not a role or credential problem. See
    * {@link isFeatureNotEnabledError}.
    */
-  | "FEATURE_NOT_ENABLED";
+  | "FEATURE_NOT_ENABLED"
+  // Limits. Not retryable: the same request is refused until usage drops or
+  // the limit is raised.
+  | "REQUEST_EXCEEDS_LIMIT"
+  | "PLAN_LIMIT_REACHED"
+  | "ACCOUNT_SUSPENDED"
+  | "FORK_LIMIT_REACHED"
+  | "ONLY_ONE_ALLOWED"
+  // Limits that clear on their own: retryable.
+  | "JOB_CAPACITY_EXCEEDED"
+  | "BUILD_QUEUE_FULL";
 
 /** Known backend codes, including the reserved POLICY_VIOLATION code. */
 export type BlaxelErrorCode =
@@ -175,6 +192,22 @@ export type BlaxelActionErrorBody = {
    * the body has none.
    */
   retry_after?: number;
+  /** The registered code, the same string as `code` on this body. */
+  error_code?: string;
+  /** The one next step that works. */
+  action?: string;
+  /** The tempting wrong move. */
+  do_not?: string;
+  docs_url?: string;
+  /** False when retrying the same request cannot help or could repeat work. */
+  safe_to_retry_request?: boolean;
+  /** `not_dispatched`: nothing was created. `dispatched_unknown`: it may have been. */
+  dispatch_state?: "not_dispatched" | "dispatched_unknown";
+  /** HTTP status. */
+  status?: number;
+  origin?: "platform";
+  /** The ID the platform logs the failure under. */
+  request_id?: string;
 };
 
 /** Edge gateway error body; also used by the control plane for TOKEN_REVOKED. */
@@ -217,6 +250,7 @@ export type BlaxelSandboxApiErrorBody = {
  */
 export type BlaxelErrorLike =
   | ResponseError
+  | SandboxCreateError
   | SandboxCreationTimeoutError
   | BlaxelApiErrorBody
   | Pick<BlaxelActionErrorBody, "code" | "message" | "status_code">
@@ -256,7 +290,7 @@ const isStatus = (value: unknown): value is number =>
 export function isBlaxelError(err: unknown): err is BlaxelErrorLike {
   try {
     if (err instanceof Error) {
-      return err instanceof ResponseError || err instanceof SandboxCreationTimeoutError;
+      return err instanceof ResponseError || err instanceof SandboxCreateError || err instanceof SandboxCreationTimeoutError;
     }
     if (typeof err !== "object" || err === null || Array.isArray(err)) return false;
     const error = readProperty(err, "error");
@@ -296,9 +330,21 @@ function readHeader(err: unknown, name: string): string | undefined {
   }
 }
 
-/** Read a code from the existing error/body, then X-Blaxel-Error-Code. Never throws. */
+/**
+ * Read the registered code (`error_code`, or v1 `details.error_code`) from the
+ * existing error/body, then `code`, then X-Blaxel-Error-Code. Most /v0 bodies
+ * keep the HTTP status in `code` and the string code in `error_code`. Never
+ * throws.
+ */
 export function getBlaxelErrorCode(err: unknown): BlaxelErrorCodeValue | undefined {
-  for (const candidate of errorCandidates(err)) {
+  const candidates = errorCandidates(err);
+  for (const candidate of candidates) {
+    for (const source of [candidate, readProperty(candidate, "details")]) {
+      const registered = readProperty(source, "error_code");
+      if (typeof registered === "string" && registered.length > 0) return registered;
+    }
+  }
+  for (const candidate of candidates) {
     const code = readProperty(candidate, "code");
     if (isCode(code)) return code;
   }
@@ -389,11 +435,20 @@ export function isFeatureNotEnabledError(err: unknown, feature?: string): boolea
 }
 
 /**
- * Read X-Cf-Request-Id, X-Amz-Cf-Id, then CF-Ray from a retained response.
- * Raw control-plane bodies and SandboxCreationTimeoutError do not retain
- * response headers, so their request ID is unavailable. Never throws.
+ * Read the request ID: a SandboxCreateError's `requestId`, the body's
+ * `request_id` (the ID the platform logs the failure under), then
+ * X-Cf-Request-Id, X-Amz-Cf-Id or CF-Ray from a retained response. Raw
+ * control-plane bodies without `request_id` and SandboxCreationTimeoutError
+ * do not retain response headers, so their request ID is unavailable. Never
+ * throws.
  */
 export function getBlaxelErrorRequestId(err: unknown): string | undefined {
+  const own = readProperty(err, "requestId");
+  if (typeof own === "string" && own.length > 0) return own;
+  for (const candidate of errorCandidates(err)) {
+    const id = readProperty(candidate, "request_id");
+    if (typeof id === "string" && id.length > 0) return id;
+  }
   for (const name of ["x-cf-request-id", "x-amz-cf-id", "cf-ray"]) {
     const value = readHeader(err, name);
     if (value !== undefined) return value;

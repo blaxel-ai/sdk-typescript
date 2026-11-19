@@ -18,6 +18,11 @@ export const authenticationErrorInterceptor: ResponseInterceptor = async (
   if (response.status !== 401 && response.status !== 403) {
     return response;
   }
+  // An edge firewall block is not an authentication error: the key was never
+  // checked, so don't point at the authentication docs.
+  if (response.headers.get("x-blaxel-error-code") === "REQUEST_BLOCKED") {
+    return response;
+  }
 
   // Clone the response so we can modify it
   const clonedResponse = response.clone();
@@ -25,6 +30,9 @@ export const authenticationErrorInterceptor: ResponseInterceptor = async (
   try {
     // Read the original response body
     const bodyText = await clonedResponse.text();
+    if (isEdgeBlock(bodyText)) {
+      return response;
+    }
 
     // Try to parse as JSON
     let enhancedBody: string;
@@ -56,6 +64,17 @@ export const authenticationErrorInterceptor: ResponseInterceptor = async (
     return response;
   }
 };
+
+// A REQUEST_BLOCKED JSON body, or the edge's HTML "Request blocked." page.
+function isEdgeBlock(bodyText: string): boolean {
+  try {
+    const parsed = JSON.parse(bodyText) as { code?: unknown; error?: unknown };
+    const nested = typeof parsed.error === "object" && parsed.error !== null ? (parsed.error as { code?: unknown }) : {};
+    return parsed.code === "REQUEST_BLOCKED" || nested.code === "REQUEST_BLOCKED";
+  } catch {
+    return /request blocked/i.test(bodyText) && /<html|<!doctype/i.test(bodyText);
+  }
+}
 
 export const responseInterceptors: ResponseInterceptor[] = [
   authenticationErrorInterceptor,

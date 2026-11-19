@@ -163,6 +163,103 @@ export class SandboxCreationTimeoutError extends Error {
   }
 }
 
+const REQUEST_ID_HEADERS = ["x-cf-request-id", "x-amz-cf-id", "cf-ray"];
+
+/**
+ * Thrown when the control plane rejects `SandboxInstance.create` (and
+ * `createIfNotExists`). A real `Error` that also keeps every field of the
+ * API's error body as its own property (`code`, `status_code`, `reason`,
+ * `details`, ...), so code that read the plain body it replaced keeps working,
+ * and `JSON.stringify(err)` still gives that body.
+ *
+ * - `code`: the registered string code (`error_code`, else `code`), such as
+ *   `QUOTA_EXCEEDED` or `WORKSPACE_RATE_LIMIT_EXCEEDED`.
+ * - `status`: the HTTP status.
+ * - `requestId`: the body's `request_id` (the ID the platform logs the
+ *   failure under) when sent, else the edge request ID header.
+ * - `retryable`: the server's `X-Should-Retry` header, then the body's
+ *   `retryable` (false for `QUOTA_EXCEEDED`, true for the rate limits).
+ * - `retry_after`: seconds to wait, from the body or `Retry-After`.
+ * - `action`, `do_not`, `docs_url`, `dispatch_state` and
+ *   `safe_to_retry_request` when the API sends them.
+ */
+export class SandboxCreateError extends Error {
+  // Declared, not initialized: each field is an own property only when the
+  // response carries it, so the error serializes like the body it replaces.
+  /** The registered string code, or the body's `code` when it has none. */
+  declare readonly code?: string | number;
+  /** HTTP status of the rejection. */
+  declare readonly status?: number;
+  /** HTTP status, under the field name the control-plane body uses. */
+  declare readonly status_code?: number;
+  /** Request ID to quote to support: the body's `request_id`, else the edge header. */
+  declare readonly requestId?: string;
+  /** Whether the same request can succeed later; undefined when nothing says. */
+  declare readonly retryable?: boolean;
+  /** Seconds to wait before retrying, when the server says. */
+  declare readonly retry_after?: number;
+  /** The one next step the API suggests, when it sends one. */
+  declare readonly action?: string;
+  /** The tempting wrong move, when the API names one. */
+  declare readonly do_not?: string;
+  declare readonly docs_url?: string;
+  /** `not_dispatched`: nothing was created. `dispatched_unknown`: it may have been. */
+  declare readonly dispatch_state?: "not_dispatched" | "dispatched_unknown";
+  /** True only when retryable and nothing was dispatched. */
+  declare readonly safe_to_retry_request?: boolean;
+  /** The raw error body the API answered with. */
+  declare readonly body: unknown;
+  /** The HTTP response, for its headers. */
+  declare readonly response: Response | undefined;
+
+  constructor(fields: unknown, response: Response | undefined, body: unknown) {
+    const record = (typeof fields === "object" && fields !== null ? fields : {}) as Record<string, unknown>;
+    const status = response?.status ?? (typeof record.status_code === "number" ? record.status_code : undefined);
+    const message =
+      typeof record.message === "string" && record.message
+        ? record.message
+        : `Sandbox creation failed (HTTP ${status ?? "unknown status"}${typeof fields === "string" ? ", non-JSON body in err.body" : ""})`;
+    super(message);
+    Object.defineProperty(this, "name", { value: "SandboxCreateError", enumerable: false, configurable: true, writable: true });
+    Object.defineProperty(this, "body", { value: body, enumerable: false });
+    Object.defineProperty(this, "response", { value: response, enumerable: false });
+    const own = this as unknown as Record<string, unknown>;
+    for (const [key, value] of Object.entries(record)) {
+      if (key !== "message" && key !== "name" && key !== "stack") own[key] = value;
+    }
+    const set = (key: string, value: unknown) => {
+      if (value !== undefined) own[key] = value;
+    };
+    set("code", registeredCode(record) ?? record.code);
+    set("status", status);
+    set("status_code", typeof record.status_code === "number" ? record.status_code : status);
+    const header = response?.headers?.get("x-should-retry")?.trim().toLowerCase();
+    set(
+      "retryable",
+      header === "true" || header === "false"
+        ? header === "true"
+        : typeof record.retryable === "boolean"
+          ? record.retryable
+          : undefined,
+    );
+    const bodyRequestId = typeof record.request_id === "string" && record.request_id ? record.request_id : undefined;
+    set(
+      "requestId",
+      bodyRequestId ?? REQUEST_ID_HEADERS.map((name) => response?.headers?.get(name) ?? undefined).find((value) => !!value),
+    );
+  }
+
+  /** The error body fields, as the plain object this error replaces serialized. */
+  toJSON(): Record<string, unknown> {
+    return { ...(this as unknown as Record<string, unknown>), message: this.message };
+  }
+}
+
+/** True when `err` is a rejected sandbox creation (see {@link SandboxCreateError}). */
+export function isSandboxCreateError(err: unknown): err is SandboxCreateError {
+  return err instanceof SandboxCreateError;
+}
+
 /** True when `err` is a sandbox creation timeout (408 CREATION_TIMEOUT). */
 export function isCreationTimeoutError(err: unknown): err is SandboxCreationTimeoutError {
   return err instanceof SandboxCreationTimeoutError;
@@ -266,15 +363,45 @@ const RATE_LIMIT_REASONS: Record<string, string> = {
 // PUT /sandboxes/{name} and jobs; create and fork answer that one with 400) does
 // not clear by retrying the same request; the rate-limit codes clear on their
 // own. `retryable` says which; the SDK itself retries none of them.
-function createError(response: Response | undefined, e: unknown, sandboxName: string | undefined, attempts: number): unknown {
+// A 403 REQUEST_BLOCKED: the edge firewall refused the request before the API
+// read it. Not a quota and not a credential problem; not retried.
+const REQUEST_BLOCKED_DEFAULT_ACTION =
+  "send a User-Agent header and slow down; do not rotate the API key, it was never checked";
+
+// The registered string code: `error_code` (sent next to `code`, which holds the
+// HTTP status on most /v0 bodies), else a string `code`.
+function registeredCode(body: { code?: unknown; error_code?: unknown }): string | undefined {
+  if (typeof body.error_code === "string" && body.error_code) return body.error_code;
+  return typeof body.code === "string" && body.code ? body.code : undefined;
+}
+
+function createErrorBody(response: Response | undefined, e: unknown, sandboxName: string | undefined, attempts: number): unknown {
   const status = response?.status;
   if (status === 403 && isNonApiErrorBody(e)) {
     return { message: EDGE_BLOCKED_MESSAGE, status_code: 403 };
   }
   if (typeof e !== "object" || e === null) return e;
-  const body = e as { message?: unknown; code?: unknown; retry_after?: unknown };
+  const body = e as { message?: unknown; code?: unknown; error_code?: unknown; retry_after?: unknown; action?: unknown; error?: unknown };
+  const code = registeredCode(body);
   const message = typeof body.message === "string" ? body.message : "";
-  if ((status === 429 || status === 400) && body.code === "QUOTA_EXCEEDED") {
+  if (status === 403 && code === "REQUEST_BLOCKED") {
+    const nested = (typeof body.error === "object" && body.error !== null ? body.error : {}) as { message?: unknown; action?: unknown };
+    const action =
+      typeof nested.action === "string" && nested.action
+        ? nested.action
+        : typeof body.action === "string" && body.action
+          ? body.action
+          : REQUEST_BLOCKED_DEFAULT_ACTION;
+    const text = message || (typeof nested.message === "string" && nested.message) || "Request blocked";
+    return {
+      ...body,
+      retryable: false,
+      message:
+        `${text} (HTTP 403 REQUEST_BLOCKED: blocked at the edge before the API read the request; ` +
+        `not a quota and not an API key problem; ${action})`,
+    };
+  }
+  if ((status === 429 || status === 400) && code === "QUOTA_EXCEEDED") {
     const advice =
       status === 400
         ? "not retryable as is; request a smaller volume or raise the quota"
@@ -285,7 +412,7 @@ function createError(response: Response | undefined, e: unknown, sandboxName: st
       message: `${message || "Quota exceeded"} (HTTP ${status} QUOTA_EXCEEDED: ${advice}: ${QUOTAS_DOC_URL})`,
     };
   }
-  if (status === 429 && typeof body.code === "string" && body.code in RATE_LIMIT_REASONS) {
+  if (status === 429 && code !== undefined && code in RATE_LIMIT_REASONS) {
     const wait =
       typeof body.retry_after === "number" && body.retry_after >= 0
         ? body.retry_after
@@ -295,11 +422,11 @@ function createError(response: Response | undefined, e: unknown, sandboxName: st
       retryable: true,
       ...(wait !== undefined ? { retry_after: wait } : {}),
       message:
-        `${message || "Rate limit exceeded"} (HTTP 429 ${body.code}: ${RATE_LIMIT_REASONS[body.code]}; ` +
+        `${message || "Rate limit exceeded"} (HTTP 429 ${code}: ${RATE_LIMIT_REASONS[code]}; ` +
         `${wait !== undefined ? `retry after ${wait} s` : "retry with backoff"})`,
     };
   }
-  if (status === 503 && body.code === "AUTHENTICATION_UNAVAILABLE") {
+  if (status === 503 && code === "AUTHENTICATION_UNAVAILABLE") {
     const { retryable, wait } = authUnavailableSignal(response, e);
     const advice = !retryable
       ? "the server says not to retry"
@@ -315,7 +442,7 @@ function createError(response: Response | undefined, e: unknown, sandboxName: st
         `credentials for a moment; not a credential or permission error; ${advice})`,
     };
   }
-  if ((status === 401 || status === 403) && body.code === "AUTHENTICATION_FAILED") {
+  if ((status === 401 || status === 403) && code === "AUTHENTICATION_FAILED") {
     return {
       ...body,
       retryable: false,
@@ -341,14 +468,30 @@ function createError(response: Response | undefined, e: unknown, sandboxName: st
         `Check the credentials and workspace the SDK uses (BL_API_KEY and BL_WORKSPACE, or \`bl login\`${current}); if they are right, retry in a few seconds.`,
     };
   }
+  const tagged = withStatusAndCode(message, status, code ?? body.code);
   if (status === 400) {
     const hint = invalidSandboxNameHint(sandboxName);
     if (hint) {
-      const sentence = message && !/[.!?]$/.test(message) ? `${message}.` : message;
+      const sentence = tagged && !/[.!?]$/.test(tagged) ? `${tagged}.` : tagged;
       return { ...body, message: sentence ? sentence + hint : hint.trim() };
     }
   }
-  return e;
+  return tagged === message ? e : { ...body, message: tagged };
+}
+
+// "<message> (HTTP <status> <CODE>)", so the message alone names what the API
+// answered; left as is when it already does.
+function withStatusAndCode(message: string, status: number | undefined, code: unknown): string {
+  if (status === undefined || message.includes(`HTTP ${status}`)) return message;
+  // A numeric `code` is the HTTP status again (older /v0 bodies): leave it out.
+  const tag = typeof code === "string" && code ? `HTTP ${status} ${code}` : `HTTP ${status}`;
+  return message ? `${message} (${tag})` : tag;
+}
+
+// The error a rejected creation is thrown with: a SandboxCreateError carrying
+// the fields above.
+function createError(response: Response | undefined, e: unknown, sandboxName: string | undefined, attempts: number): SandboxCreateError {
+  return new SandboxCreateError(createErrorBody(response, e, sandboxName, attempts), response, e);
 }
 
 // Without a region the control plane picks one; say so once per process

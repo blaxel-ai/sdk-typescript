@@ -19,6 +19,7 @@ import {
   isBlaxelError,
   isFeatureNotEnabledError,
   ResponseError,
+  SandboxCreateError,
   SandboxCreationTimeoutError,
   SandboxGatewayError,
 } from "@blaxel/core";
@@ -312,7 +313,7 @@ describe("FEATURE_NOT_ENABLED", () => {
   // The sandbox fork endpoint: the registered code is in `code`.
   const fork = { code: "FEATURE_NOT_ENABLED", feature: "fork", message, status_code: 403 };
 
-  it("reads the generic /v0 body the client throws, leaving the code reader as it was", async () => {
+  it("reads the generic /v0 body the client throws, with the registered error_code as its code", async () => {
     const err = await thrownBody(JSON.stringify(v0), 403);
     expect(err).toEqual(v0);
     expect(isBlaxelError(err)).toBe(true);
@@ -320,7 +321,7 @@ describe("FEATURE_NOT_ENABLED", () => {
     expect(isFeatureNotEnabledError(err, "fork")).toBe(true);
     expect(isFeatureNotEnabledError(err, "drives")).toBe(false);
     expect(getBlaxelErrorFeature(err)).toBe("fork");
-    expect(getBlaxelErrorCode(err)).toBe(403);
+    expect(getBlaxelErrorCode(err)).toBe("FEATURE_NOT_ENABLED");
     expect(getBlaxelErrorStatus(err)).toBe(403);
   });
 
@@ -368,5 +369,45 @@ describe("FEATURE_NOT_ENABLED", () => {
   it("lists the code in the known code types", () => {
     expectTypeOf<"FEATURE_NOT_ENABLED">().toMatchTypeOf<BlaxelControlPlaneErrorCode>();
     expectTypeOf<BlaxelControlPlaneErrorCode>().toMatchTypeOf<BlaxelErrorCode>();
+  });
+});
+
+describe("the registered error contract", () => {
+  it("reads error_code before a numeric /v0 code", async () => {
+    const body = {
+      error: "You have reached the maximum memory (32768) for your account.",
+      code: 429,
+      error_code: "QUOTA_EXCEEDED",
+      retryable: false,
+      request_id: "req-v0",
+    };
+    const err = await thrownBody(JSON.stringify(body), 429);
+    expect(getBlaxelErrorCode(err)).toBe("QUOTA_EXCEEDED");
+    expect(getBlaxelErrorStatus(err)).toBe(429);
+    expect(getBlaxelErrorRequestId(err)).toBe("req-v0");
+  });
+
+  it("reads the v1 details.error_code over the generic v1 code", () => {
+    const body = { code: "RESOURCE_EXHAUSTED", message: "quota", details: { error_code: "QUOTA_EXCEEDED", request_id: "req-v1" } };
+    expect(getBlaxelErrorCode(body)).toBe("QUOTA_EXCEEDED");
+  });
+
+  it("recognizes a SandboxCreateError", () => {
+    const err = new SandboxCreateError(
+      { code: "QUOTA_EXCEEDED", message: "quota", status_code: 429, request_id: "req-1" },
+      new Response(null, { status: 429 }),
+      {},
+    );
+    expect(isBlaxelError(err)).toBe(true);
+    expect(getBlaxelErrorCode(err)).toBe("QUOTA_EXCEEDED");
+    expect(getBlaxelErrorStatus(err)).toBe(429);
+    expect(getBlaxelErrorRequestId(err)).toBe("req-1");
+  });
+
+  it("lists the limit and edge codes in the known code types", () => {
+    expectTypeOf<"REQUEST_BLOCKED">().toMatchTypeOf<BlaxelGatewayErrorCode>();
+    expectTypeOf<"WORKSPACE_ACCESS_DENIED">().toMatchTypeOf<BlaxelAuthErrorCode>();
+    expectTypeOf<"PLAN_LIMIT_REACHED">().toMatchTypeOf<BlaxelControlPlaneErrorCode>();
+    expectTypeOf<"BUILD_QUEUE_FULL">().toMatchTypeOf<BlaxelControlPlaneErrorCode>();
   });
 });
