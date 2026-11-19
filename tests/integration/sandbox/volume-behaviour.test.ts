@@ -118,7 +118,8 @@ describe.runIf(isSlowTestEnabled("RUN_VOLUME_TESTS"))("volume behaviour", () => 
     })
 
     it("chown -h leaves the symlink's target untouched", async () => {
-      await sh(sandbox, `chown -h 3000:3001 ${MOUNT}/link`)
+      expect((await sh(sandbox, `chown -h 3000:3001 ${MOUNT}/link`)).exitCode).toBe(0)
+      expect(await statOnVolume(sandbox, "%u:%g", `${MOUNT}/link`)).toBe("3000:3001")
       expect(await statOnVolume(sandbox, "%u:%g", `${MOUNT}/target`)).toBe("0:0")
     })
 
@@ -313,9 +314,12 @@ for i in range(${FILES}):
     expect(after).toMatchObject({ small_ok: true, large_ok: true, linked_ok: true, linked_other_name_ok: true })
   })
 
+  // The writer thread dies silently on an fsync error, so require it to have
+  // made progress both before standby and after waking.
   it("every fsynced record survives standby", () => {
+    expect(before.records as number).toBeGreaterThan(0)
     expect(after.records_bad).toBe(0)
-    expect(after.records as number).toBeGreaterThanOrEqual(before.records as number)
+    expect(after.records as number).toBeGreaterThan(before.records as number)
   })
 
   it("the volume lists the same files after standby", async () => {
