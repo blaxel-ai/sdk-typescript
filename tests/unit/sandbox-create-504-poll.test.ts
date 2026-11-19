@@ -20,8 +20,14 @@ const EDGE_504_BODY = "<html><body>504 Gateway Time-out</body></html>";
 const edge504 = () =>
   ({ error: EDGE_504_BODY, response: { status: 504 }, request: {} }) as never;
 
-const record = (status: string, extra: Record<string, unknown> = {}) =>
-  ({ data: { metadata: { name: "slow" }, spec: { runtime: {} }, status, ...extra } }) as never;
+// The sandbox as GET returns it. `createdAt` defaults to now: a sandbox this
+// creation made, not one that already held the name.
+const record = (status: string, extra: Record<string, unknown> = {}, createdAt = new Date().toISOString()) =>
+  ({ data: { metadata: { name: "slow", createdAt }, spec: { runtime: {} }, status, ...extra } }) as never;
+
+// RFC 3339 with nanoseconds, as the control plane writes it, `secondsAgo` before now.
+const createdAgo = (secondsAgo: number) =>
+  new Date(Date.now() - secondsAgo * 1000).toISOString().replace("Z", "123456Z");
 
 // A create the API answered before the sandbox was ready: 202 with the sandbox,
 // named by the server when the request had no name, still DEPLOYING.
@@ -76,16 +82,79 @@ describe("SandboxInstance.create 504 gateway-timeout handling (ENG-3662)", () =>
     await expect(pending).resolves.toBeInstanceOf(SandboxInstance);
   });
 
-  it("throws the original edge error when the sandbox never lands within the wait budget", async () => {
+  it("says the sandbox is still DEPLOYING when it does not settle within the wait budget", async () => {
     mockedCreate.mockResolvedValueOnce(edge504());
     mockedGet.mockResolvedValue(record("DEPLOYING"));
 
     const pending = SandboxInstance.create({ name: "slow" });
-    const expectation = expect(pending).rejects.toBe(EDGE_504_BODY);
+    const expectation = expect(pending).rejects.toThrow(/^Sandbox slow is still DEPLOYING 240s after it was created/);
     // Capped backoff needs the last 3s tick past the 240s deadline to land.
     await vi.advanceTimersByTimeAsync(245_000);
 
     await expectation;
+  });
+
+  it("throws the 504 instead of taking a sandbox that held the name before the request", async () => {
+    mockedCreate.mockResolvedValueOnce(edge504());
+    mockedGet.mockResolvedValue(record("DEPLOYED", {}, createdAgo(3600)));
+
+    const pending = SandboxInstance.create({ name: "slow" });
+    const expectation = expect(pending).rejects.toBe(EDGE_504_BODY);
+    await vi.advanceTimersByTimeAsync(500);
+
+    await expectation;
+    expect(mockedGet).toHaveBeenCalledTimes(1);
+  });
+
+  it("takes a sandbox created a few seconds before the request, allowing for clock difference", async () => {
+    mockedCreate.mockResolvedValueOnce(edge504());
+    mockedGet.mockResolvedValueOnce(record("DEPLOYED", {}, createdAgo(10)));
+
+    const pending = SandboxInstance.create({ name: "slow" });
+    await vi.advanceTimersByTimeAsync(500);
+
+    await expect(pending).resolves.toBeInstanceOf(SandboxInstance);
+  });
+
+  it("returns the sandbox that held the name through createIfNotExists, as after a 200", async () => {
+    mockedCreate.mockResolvedValueOnce(edge504());
+    mockedGet.mockResolvedValueOnce(record("DEPLOYED", {}, createdAgo(3600)));
+
+    const pending = SandboxInstance.createIfNotExists({ name: "slow" });
+    await vi.advanceTimersByTimeAsync(500);
+
+    const instance = await pending;
+    expect(instance.status).toBe("DEPLOYED");
+  });
+
+  it("throws the 504 when the sandbox never shows up within 30s", async () => {
+    mockedCreate.mockResolvedValueOnce(edge504());
+    mockedGet.mockRejectedValue({ code: 404 });
+
+    const pending = SandboxInstance.create({ name: "slow" });
+    let settled = false;
+    pending.catch(() => {}).finally(() => { settled = true; });
+    const expectation = expect(pending).rejects.toBe(EDGE_504_BODY);
+    await vi.advanceTimersByTimeAsync(25_000);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    await expectation;
+  });
+
+  it("stops when the sandbox goes away after it showed up", async () => {
+    mockedCreate.mockResolvedValueOnce(edge504());
+    mockedGet
+      .mockResolvedValueOnce(record("DEPLOYING"))
+      .mockRejectedValueOnce({ code: 404 })
+      .mockResolvedValue(record("DEPLOYED"));
+
+    const pending = SandboxInstance.create({ name: "slow" });
+    const expectation = expect(pending).rejects.toEqual({ code: 404 });
+    await vi.advanceTimersByTimeAsync(1_500);
+
+    await expectation;
+    expect(mockedGet).toHaveBeenCalledTimes(2);
   });
 
   it("throws when the sandbox lands FAILED after the create 504", async () => {
@@ -187,6 +256,28 @@ describe("SandboxInstance.create 202 Accepted handling", () => {
     await vi.advanceTimersByTimeAsync(45_000);
 
     await expectation;
+  });
+
+  it("stops at once when the sandbox is not found after a 202", async () => {
+    mockedCreate.mockResolvedValueOnce(accepted());
+    mockedGet.mockRejectedValue({ code: 404 });
+
+    const pending = SandboxInstance.create({ name: "slow" });
+    const expectation = expect(pending).rejects.toEqual({ code: 404 });
+    await vi.advanceTimersByTimeAsync(500);
+
+    await expectation;
+    expect(mockedGet).toHaveBeenCalledTimes(1);
+  });
+
+  it("takes the sandbox after a 202 whatever its creation time", async () => {
+    mockedCreate.mockResolvedValueOnce(accepted());
+    mockedGet.mockResolvedValueOnce(record("DEPLOYED", {}, createdAgo(3600)));
+
+    const pending = SandboxInstance.create({ name: "slow" });
+    await vi.advanceTimersByTimeAsync(500);
+
+    await expect(pending).resolves.toBeInstanceOf(SandboxInstance);
   });
 
   it.each(["DEPLOYED", "DEPLOYING", "BUILDING"])("returns a 200 create as it is, without reading the sandbox (%s)", async (status) => {

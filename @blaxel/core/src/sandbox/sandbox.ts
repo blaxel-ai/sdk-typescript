@@ -93,6 +93,25 @@ export type SandboxArchiveOptions = {
 const CREATE_WAIT_MAX_MS = 240_000;
 const CREATE_WAIT_BASE_POLL_MS = 500;
 const CREATE_WAIT_MAX_POLL_MS = 3_000;
+// After a gateway 504 the name alone does not prove that a sandbox found under
+// it is this creation. One created before the request was sent, allowing this
+// much clock difference between client and control plane, already held the
+// name, so the 504 is thrown as before (createIfNotExists takes it, as it would
+// after a 200).
+const CREATE_CLOCK_SKEW_MS = 30_000;
+// After a 504 the record can lag behind the creation: not found keeps the wait
+// going for this long, and only until the sandbox has shown up, so a later
+// sandbox under the same name is not taken for a creation that went away.
+const CREATE_NOT_FOUND_MS = 30_000;
+
+// Whether the sandbox was created after a request sent at `sentAt` (ms).
+function createdSince(sandbox: SandboxModel, sentAt: number): boolean {
+  const createdAt = sandbox.metadata?.createdAt;
+  if (!createdAt) return false;
+  // Date.parse reads milliseconds at most; the control plane sends nanoseconds.
+  const createdMs = Date.parse(createdAt.replace(/(\.\d{3})\d+/, "$1"));
+  return !Number.isNaN(createdMs) && createdMs >= sentAt - CREATE_CLOCK_SKEW_MS;
+}
 
 // A creation deadline the caller sets per request through an undocumented
 // header; it can only shorten the control plane's default. Capped below the
@@ -702,6 +721,7 @@ export class SandboxInstance {
     }
 
     const headers = timeout !== undefined ? { [CREATION_TIMEOUT_HEADER]: String(timeout) } : undefined;
+    const sentAt = Date.now();
     const [{ result: createResult, attempts }, h2Session] = await Promise.all([
       SandboxInstance.sendCreate(sandbox, createIfNotExist, headers),
       edgeDomain && !settings.disableH2 ? import("../common/h2pool.js").then(({ h2Pool }) => h2Pool.get(edgeDomain)).catch(() => null) : Promise.resolve(null),
@@ -715,7 +735,10 @@ export class SandboxInstance {
       if (createResult.response.status === 504 && name) {
         // The gateway gave up on the connection but the creation is still
         // running server-side; wait for the record instead of failing.
-        data = await SandboxInstance.waitForCreatedSandbox(name, 504, createResult.error);
+        data = await SandboxInstance.waitForCreatedSandbox(name, {
+          error: createResult.error,
+          sentAt: createIfNotExist ? undefined : sentAt,
+        });
       } else {
         throw createError(createResult.response.status, createResult.error, name, attempts);
       }
@@ -723,7 +746,7 @@ export class SandboxInstance {
       // Accepted: the sandbox is still deploying server-side. The body carries
       // its name, which the server assigns when the request had none.
       const name = data?.metadata?.name ?? sandbox.metadata.name;
-      if (name) data = await SandboxInstance.waitForCreatedSandbox(name, 202);
+      if (name) data = await SandboxInstance.waitForCreatedSandbox(name);
     }
     if (createIfNotExist) SandboxInstance.warnOnDrift(requested, data)
     const instance = new SandboxInstance({ ...data } as SandboxConfiguration);
@@ -1205,15 +1228,19 @@ export class SandboxInstance {
   }
 
   // Poll the record of a sandbox the control plane is still creating after the
-  // create returned (202, or a gateway 504). Resolves with the sandbox once it
-  // reaches DEPLOYED. On FAILED it throws a DEPLOYMENT_FAILED error body, the
-  // shape a create the API rejects outright is thrown with, carrying the reason
-  // the control plane recorded. Once CREATE_WAIT_MAX_MS is spent it throws
-  // `timeoutError` when given, otherwise an error saying the sandbox is still
+  // create returned: 202, or a gateway 504 (`after504`, with the 504's error and
+  // when the request was sent). Resolves with the sandbox once it reaches
+  // DEPLOYED. On FAILED it throws a DEPLOYMENT_FAILED error body, the shape a
+  // create the API rejects outright is thrown with, carrying the reason the
+  // control plane recorded. After a 504 it throws that 504 for a sandbox created
+  // before the request (not this creation) or one that never shows up. Once
+  // CREATE_WAIT_MAX_MS is spent it throws an error saying the sandbox is still
   // deploying.
-  private static async waitForCreatedSandbox(name: string, status: number, timeoutError?: unknown): Promise<SandboxModel> {
-    logger.debug(`Sandbox ${name} creation returned ${status} before it was ready; polling the record while it finishes deploying`);
-    const deadline = Date.now() + CREATE_WAIT_MAX_MS;
+  private static async waitForCreatedSandbox(name: string, after504?: { error: unknown; sentAt?: number }): Promise<SandboxModel> {
+    logger.debug(`Sandbox ${name} creation returned ${after504 ? 504 : 202} before it was ready; polling the record while it finishes deploying`);
+    const started = Date.now();
+    const deadline = started + CREATE_WAIT_MAX_MS;
+    let seen = false;
     let attempt = 0;
     while (Date.now() < deadline) {
       attempt++;
@@ -1225,10 +1252,18 @@ export class SandboxInstance {
         const { data } = await getSandbox({ path: { sandboxName: name }, throwOnError: true });
         current = data;
       } catch (e) {
-        // The record can lag behind the accepted create; keep waiting on 404.
-        if (isSandboxNotFound(e)) continue;
-        throw e;
+        // After a 202 the record existed when the API answered, so not found
+        // means the sandbox is gone. After a 504 the record can lag behind the
+        // creation for a short while; a sandbox that never shows up leaves the
+        // 504 as all there is to say.
+        if (!isSandboxNotFound(e) || !after504 || seen) throw e;
+        if (Date.now() - started < CREATE_NOT_FOUND_MS) continue;
+        throw after504.error;
       }
+      if (after504?.sentAt !== undefined && !createdSince(current, after504.sentAt)) {
+        throw after504.error;
+      }
+      seen = true;
       if (current.status === "DEPLOYED") return current;
       if (current.status === "FAILED") {
         const reason = createFailureReason(current);
@@ -1241,7 +1276,8 @@ export class SandboxInstance {
         throw failure;
       }
     }
-    throw timeoutError ?? new Error(
+    if (after504 && !seen) throw after504.error;
+    throw new Error(
       `Sandbox ${name} is still DEPLOYING ${CREATE_WAIT_MAX_MS / 1000}s after it was created; ` +
       "check it later with SandboxInstance.get() or delete it.",
     );
