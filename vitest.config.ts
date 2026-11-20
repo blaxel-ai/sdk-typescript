@@ -83,6 +83,11 @@ export default defineConfig({
       // volumes.test.ts, region.test.ts > volume blocks, large-envs.test.ts >
       // volume persistence: volumes are not enabled on mk3.1 hosts yet.
       RUN_VOLUME_TESTS: process.env.RUN_VOLUME_TESTS ?? "false",
+      // volume-behaviour.test.ts > live grow and standby blocks: each waits on
+      // backend resize propagation or a real idle standby (~30-60s).
+      RUN_SLOW_VOLUME_TESTS: process.env.RUN_SLOW_VOLUME_TESTS ?? "false",
+      // volume-behaviour.test.ts > pnpm: installs ~50k files, ~3-5 minutes.
+      RUN_SLOW_VOLUME_PNPM: process.env.RUN_SLOW_VOLUME_PNPM ?? "false",
       // proxy/firewall.test.ts > "no proxy bypass (firewall ruleset: proxy)":
       // firewall rulesets are not enabled on mk3.1 hosts yet (deployment fails
       // at the "lockdown" step).
