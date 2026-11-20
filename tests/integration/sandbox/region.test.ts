@@ -2,7 +2,7 @@ import { SandboxInstance, VolumeInstance, CodeInterpreter } from "@blaxel/core"
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { alternateRegion, defaultImage, defaultLabels, defaultRegion, env, isSlowTestEnabled, uniqueName, waitForSandboxDeletion, waitForVolumeDeletion } from './helpers.js'
 
-const backendDefaultRegion = env === "dev" ? "eu-dub-1" : "us-pdx-1"
+const backendDefaultRegion = env === "dev" ? "us-was-1" : "us-pdx-1"
 const describeWhenRegionUnset = process.env.BL_REGION ? describe.skip : describe
 
 describeWhenRegionUnset('BL_REGION Environment Variable Auto-Fill', () => {
