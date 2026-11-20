@@ -22,7 +22,7 @@ Values can also be put in a `.env` file at the repo root.
 | ----------------- | ---------------------------------------- | ----------- |
 | `BL_ENV`          | `prod`                                   | `dev` switches default regions and the sandbox-api version used by `system.test.ts` |
 | `BL_REGION`       | `us-was-1` (prod) / `eu-dub-1` (dev)     | Region for test sandboxes. When set, the `BL_REGION` auto-fill suite in `region.test.ts` is skipped |
-| `BL_DRIVE_REGION` | `us-was-1` (prod) / `eu-dub-1` (dev)     | Region for drive tests (`drives.test.ts`, `drive-acl.test.ts`) |
+| `BL_DRIVE_REGION` | `us-was-1` (prod) / `eu-dub-1` (dev)     | Region for drive tests (`drives.test.ts`, `drive-acl.test.ts`, `mount-drives.test.ts`) |
 | `SKIP_CLEANUP`    | unset                                    | `1` keeps test resources around after the run, for debugging |
 | `LOCAL_PROCESS_API_URL` | unset                              | Points `process-recovery.test.ts` at a local sandbox-api instead of creating a sandbox |
 

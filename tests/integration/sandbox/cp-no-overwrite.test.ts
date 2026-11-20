@@ -1,11 +1,11 @@
 import { SandboxFileExistsError, SandboxInstance } from "@blaxel/core";
 import { expect, it } from "vitest";
-import { defaultImage, defaultLabels, uniqueName } from "./helpers.js";
+import { defaultImage, defaultLabels, defaultRegion, uniqueName } from "./helpers.js";
 
 it("protects cp final entries, directory children and parallel copies without changing defaults", async () => {
   const name = uniqueName("cp-no-overwrite");
   try {
-    const sandbox = await SandboxInstance.create({ name, image: defaultImage, region: "us-was-1", memory: 512, labels: defaultLabels });
+    const sandbox = await SandboxInstance.create({ name, image: defaultImage, region: defaultRegion, memory: 512, labels: defaultLabels });
     const setup = await sandbox.process.exec({
       command: "mkdir -p /tmp/cpn/container /tmp/cpn/tree/sub /tmp/cpn/race; printf source-new > /tmp/cpn/source; printf target-original > /tmp/cpn/target; printf hidden > /tmp/cpn/tree/.hidden; printf nested > /tmp/cpn/tree/sub/file; ln -s sub/file /tmp/cpn/tree/link; ln -s missing /tmp/cpn/source-link; ln -s missing /tmp/cpn/dangling-target",
       waitForCompletion: true,

@@ -7,6 +7,15 @@ import { expect } from 'vitest'
  */
 export const env = process.env.BL_ENV || "prod"
 export const defaultRegion = process.env.BL_REGION || (env === "dev" ? "eu-dub-1" : "us-was-1")
+/**
+ * Regions that exist in each environment. Dev only has eu-dub-1 and us-was-1.
+ */
+export const availableRegions = env === "dev" ? ["eu-dub-1", "us-was-1"] : ["us-was-1", "us-pdx-1", "eu-lon-1"]
+/**
+ * A region of the current environment that differs from defaultRegion, for
+ * tests that need two distinct regions.
+ */
+export const alternateRegion = availableRegions.find((region) => region !== defaultRegion) ?? availableRegions[0]
 export const defaultImage = "blaxel/base-image:latest"
 
 /**

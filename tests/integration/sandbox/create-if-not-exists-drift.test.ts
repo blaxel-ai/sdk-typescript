@@ -1,13 +1,13 @@
 import { SandboxInstance } from "@blaxel/core"
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest"
-import { defaultImage, defaultLabels, defaultRegion, uniqueName } from "./helpers.js"
+import { alternateRegion, defaultImage, defaultLabels, defaultRegion, uniqueName } from "./helpers.js"
 
 // createIfNotExists returns the sandbox already holding the name, whatever it
 // was created with. When that sandbox is not what the call asked for, the SDK
 // says so with one warning; what the call returns does not change.
 describe("createIfNotExists drift warning", () => {
   const name = uniqueName("drift")
-  const otherRegion = defaultRegion === "us-pdx-1" ? "us-was-1" : "us-pdx-1"
+  const otherRegion = alternateRegion
   const config = {
     name,
     image: defaultImage,

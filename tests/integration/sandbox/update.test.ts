@@ -211,6 +211,10 @@ describe('Sandbox Update Operations', () => {
         image: defaultImage,
         region: defaultRegion,
         labels: defaultLabels,
+        // The network proxy can only be enabled at creation (a domain filter
+        // enables it); later updates that set domain filters, routing or
+        // bypass rules need it.
+        network: { forbiddenDomains: ["evil.com"] },
       })
       createdSandboxes.push(name)
 
