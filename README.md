@@ -43,12 +43,17 @@ code unions), `BlaxelErrorCodeValue` (also unknown string codes and numeric HTTP
 codes), and body types: `BlaxelApiErrorBody`, `BlaxelActionErrorBody`,
 `BlaxelPlatformErrorBody`, `BlaxelSandboxApiErrorBody`.
 
-Errors are **not wrapped or changed**. The SDK still throws raw control-plane
-bodies, existing sandbox error classes, plain `Error`, or text/HTML bodies.
-`isBlaxelError` is true only for the shapes the SDK throws for API errors
-(`BlaxelErrorLike`): `ResponseError` (including `SandboxGatewayError`),
-`SandboxCreationTimeoutError`, and raw control-plane error bodies that carry a
-code and status. It is false for plain `Error`s (a network error with a code such
+`SandboxInstance.create` throws a `SandboxCreateError` (an `Error`) when the
+API refuses the creation. It keeps every field of the API's error body and adds
+`code` (the registered code, such as `QUOTA_EXCEEDED`), `status` (the HTTP
+status), `requestId`, `retryable` and, when the API sends them, `retry_after`,
+`action` and `docs_url`. Its `message` names the status and code, and
+`err.body` holds the raw body. Other calls throw what they did before: raw
+control-plane bodies, existing sandbox error classes, plain `Error`, or
+text/HTML bodies. `isBlaxelError` is true only for the shapes the SDK throws for
+API errors (`BlaxelErrorLike`): `ResponseError` (including
+`SandboxGatewayError`), `SandboxCreateError`, `SandboxCreationTimeoutError`,
+and raw control-plane error bodies that carry a code and status. It is false for plain `Error`s (a network error with a code such
 as `ECONNRESET` included), strings, raw HTML/text bodies and empty bodies. Like
 `is_blaxel_error` in the Python SDK, it is false for plain exceptions and
 strings. Unlike Python, a control-plane error with a non-JSON body (an HTML 502,
@@ -73,11 +78,36 @@ try {
 }
 ```
 
-Unknown codes need a fallback. Missing fields return `undefined`; in particular,
-raw control-plane bodies and creation-timeout errors do not retain response
+Unknown codes need a fallback. `getBlaxelErrorCode` reads the registered
+`error_code` before `code`, which most `/v0` bodies keep as the HTTP status.
+Missing fields return `undefined`; in particular, raw control-plane bodies
+without a `request_id` and creation-timeout errors do not retain response
 headers/request IDs, and `getBlaxelErrorStatus` is `undefined` for transport
 errors such as an HTTP/2 stream reset. All accessors accept `unknown` safely,
 including values the guard rejects. `POLICY_VIOLATION` is reserved, not emitted today.
+
+Some features are enabled per workspace, such as snapshots and forks. Calling
+one the workspace doesn't have fails with HTTP 403 and code
+`FEATURE_NOT_ENABLED`, which is not a role or credential problem.
+`isFeatureNotEnabledError(err, "fork")` recognizes it and
+`getBlaxelErrorFeature(err)` returns the feature's key. To check first, read the
+workspace's features: the response lists only the enabled ones, by the same key.
+
+```typescript
+import { getWorkspaceFeatures, isFeatureNotEnabledError } from "@blaxel/core";
+
+const { data } = await getWorkspaceFeatures({ throwOnError: true });
+if (data.features?.fork) {
+  await sandbox.snapshots.create();
+}
+
+try {
+  await sandbox.snapshots.create();
+} catch (err) {
+  if (!isFeatureNotEnabledError(err, "fork")) throw err;
+  // continue without snapshots, or ask support to enable them
+}
+```
 
 ## Usage
 

@@ -3,6 +3,7 @@ import { createPaginatedList } from "../common/pagination.js";
 import { DockerfileParser, Dockerfile } from "dockerfile-ast";
 import { Metadata, MetadataLabels, SandboxRuntime, Sandbox, SandboxSpec } from "../client/types.gen.js";
 import { crypto, fs, os, path } from "../common/node.js";
+import { pollDelayMs } from "../common/polling.js";
 import { settings } from "../common/settings.js";
 import archiver from "archiver";
 
@@ -40,6 +41,11 @@ export interface ImageBuildContext {
 export interface ImageBuildOptions {
   name: string;
   memory?: number;
+  /**
+   * Milliseconds to wait for the build to deploy (default 15 minutes). The
+   * build status is read every few seconds at first, then less often (with
+   * jitter, up to every 30 seconds) as the build runs.
+   */
   timeout?: number;
   onStatusChange?: (status: string) => void;
   sandboxVersion?: string;
@@ -66,7 +72,10 @@ export interface ImageBuildOptions {
    * Registry credentials the build pulls FROM images with, in Docker config.json
    * format: { auths: { "ghcr.io": { auth: base64("user:token") } } }, as an object
    * or JSON text. Same as `bl deploy --registry-cred`; use it for private images or
-   * to avoid Docker Hub pull rate limits. The builder keeps it out of the image.
+   * to avoid Docker Hub pull rate limits. The sandbox builder keeps the credentials
+   * out of the image. Builds that carry them are being moved onto it; until that
+   * reaches a workspace still on the older builder, a Dockerfile step there that
+   * copies the whole build context also copies `.docker/config.json`.
    */
   dockerConfig?: string | Record<string, unknown>;
 }
@@ -86,8 +95,58 @@ const MAX_BUILD_UPLOAD_LABEL_VALUE = 64;
 // The builder ignores a region that is not a resource name, so reject it here.
 const BUILD_REGION_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
 // Where `bl deploy` puts registry credentials in the build context. The builder
-// pulls FROM images with them and leaves the file out of the image.
+// pulls FROM images with them. The sandbox builder leaves the file out of the
+// image. On a workspace still on the older builder, until builds that carry the
+// file are routed to the sandbox builder, a COPY of the whole context copies it.
 const BUILD_DOCKER_CONFIG_PATH = [".docker", "config.json"];
+
+// Text of the build-backlog 429 from control planes that send it without a code.
+const BUILD_BACKLOG_TEXT = "builds are waiting";
+const RETRYABLE_LIMIT_CODES = ["WORKSPACE_RATE_LIMIT_EXCEEDED", "RATE_LIMIT_EXCEEDED", "BUILD_QUEUE_FULL"];
+
+// Whether a rejected build request can be retried, for quota and limit 429s.
+// The server's signal wins: the X-Should-Retry header, then the body's
+// `retryable`, then its string `code`. Only a body with the numeric code 429
+// and no signal (older control planes) falls back to the text: the
+// build-backlog refusal ("builds are waiting") clears once builds finish, any
+// other message linking the plan quotas page is a quota.
+export function buildLimitHint(status: number, text: string, headers?: Headers): string {
+  if (status !== 429) return "";
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    parsed = undefined;
+  }
+  const body = (typeof parsed === "object" && parsed !== null ? parsed : {}) as {
+    code?: unknown;
+    error?: unknown;
+    message?: unknown;
+    retryable?: unknown;
+  };
+  const { code, error, message } = body;
+  const said = typeof error === "string" ? error : typeof message === "string" ? message : "";
+  const backlog = code === "BUILD_QUEUE_FULL" || (code === 429 && said.includes(BUILD_BACKLOG_TEXT));
+  const quota = code === "QUOTA_EXCEEDED" || (code === 429 && !backlog && said.includes("/account/plan-quotas"));
+
+  const shouldRetry = headers?.get("x-should-retry")?.trim().toLowerCase();
+  let retryable: boolean | undefined;
+  if (shouldRetry === "true" || shouldRetry === "false") retryable = shouldRetry === "true";
+  else if (typeof body.retryable === "boolean") retryable = body.retryable;
+  else if (quota) retryable = false;
+  else if (backlog || (typeof code === "string" && RETRYABLE_LIMIT_CODES.includes(code))) retryable = true;
+
+  if (retryable === false) {
+    return quota
+      ? " (not retryable until usage drops or the quota is raised: https://docs.blaxel.ai/Security/Quotas)"
+      : " (the server says not to retry)";
+  }
+  if (retryable === undefined) return "";
+  const wait = headers?.get("retry-after")?.trim();
+  const after = wait && /^\d+$/.test(wait) ? `after ${wait} s` : "with backoff";
+  if (backlog) return ` (the account's build queue is full: retry ${after}, once some builds finish)`;
+  return ` (rate limited: retry ${after})`;
+}
 
 // Registry credentials for the build as Docker config.json text. Errors never
 // include the value: it holds credentials.
@@ -948,7 +1007,7 @@ export class ImageInstance {
 
     if (response.status >= 400) {
       const text = await response.text();
-      throw new Error(`Failed to create sandbox: ${response.status} - ${text}`);
+      throw new Error(`Failed to create sandbox: ${response.status} - ${text}${buildLimitHint(response.status, text, response.headers)}`);
     }
 
     if (!uploadUrl) {
@@ -1010,6 +1069,8 @@ export class ImageInstance {
     return null;
   }
 
+  // Reads the build status every `pollInterval` ms (with jitter) until the
+  // build is seen running, then less often (up to every 30 seconds) until done.
   private async _waitForDeployment(
     name: string,
     timeout: number = 900000, // 15 minutes in ms
@@ -1021,7 +1082,8 @@ export class ImageInstance {
     const terminalStates = new Set(["DEPLOYED", "FAILED", "TERMINATED"]);
     let buildStarted = false;
 
-    while (Date.now() - startTime < timeout) {
+    let attempt = 0;
+    for (;;) {
       const status = await this._getSandboxStatus(name);
 
       if (status && status !== lastStatus) {
@@ -1050,7 +1112,16 @@ export class ImageInstance {
         }
       }
 
-      await sleep(pollInterval);
+      const remaining = timeout - (Date.now() - startTime);
+      if (remaining <= 0) {
+        break;
+      }
+      // Until the build is seen running, read at the first interval: a rebuild
+      // that starts and ends inside one long sleep would be missed.
+      if (buildStarted) {
+        attempt++;
+      }
+      await sleep(Math.min(pollDelayMs(Math.max(attempt, 1), pollInterval), remaining));
     }
 
     throw new Error(`Deployment timed out after ${timeout / 1000} seconds`);

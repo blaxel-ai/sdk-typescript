@@ -8,7 +8,8 @@ vi.mock("../../@blaxel/core/src/client/index.js", async (importOriginal) => {
 });
 
 import { createSandbox, listSandboxes } from "../../@blaxel/core/src/client/index.js";
-import { CREATE_AUTH_RETRIES, SandboxInstance } from "../../@blaxel/core/src/sandbox/sandbox.js";
+import { CREATE_AUTH_RETRIES, SandboxCreateError, SandboxInstance } from "../../@blaxel/core/src/sandbox/sandbox.js";
+import { getBlaxelErrorCode, getBlaxelErrorRequestId, isBlaxelError } from "../../@blaxel/core/src/common/error-types.js";
 
 const mockedCreate = vi.mocked(createSandbox);
 const mockedList = vi.mocked(listSandboxes);
@@ -106,13 +107,57 @@ describe("SandboxInstance.create on a transient authentication failure", () => {
     expect(error).toHaveProperty("documentation");
   });
 
-  it("rethrows the original error once a 503 AUTHENTICATION_UNAVAILABLE persists", async () => {
+  it("throws a persisting 503 AUTHENTICATION_UNAVAILABLE as retryable, not as a credential error", async () => {
     mockedCreate.mockResolvedValue(authUnavailable());
 
     const { error } = await createWithBackoff({ name: "agent-errors" });
 
     expect(mockedCreate).toHaveBeenCalledTimes(CREATE_AUTH_RETRIES + 1);
-    expect(error).toEqual({ code: "AUTHENTICATION_UNAVAILABLE", message: "Unable to verify credentials, please retry", status_code: 503 });
+    expect(error).toMatchObject({ code: "AUTHENTICATION_UNAVAILABLE", status_code: 503, retryable: true });
+    const message = (error as { message: string }).message;
+    expect(message).toBe(
+      "Unable to verify credentials, please retry (HTTP 503 AUTHENTICATION_UNAVAILABLE: the API could not check " +
+        "credentials for a moment; not a credential or permission error; retry in a few seconds)",
+    );
+    expect(message).not.toContain("BL_API_KEY");
+  });
+
+  it("waits the server's Retry-After on a 503 AUTHENTICATION_UNAVAILABLE and reports it", async () => {
+    const withRetryAfter = () =>
+      ({
+        error: { code: "AUTHENTICATION_UNAVAILABLE", message: "Unable to verify credentials, please retry", retryable: true },
+        response: new Response(null, { status: 503, headers: { "Retry-After": "7" } }),
+        request: {},
+      }) as never;
+    mockedCreate.mockResolvedValue(withRetryAfter());
+
+    const pending = SandboxInstance.create({ name: "agent-errors" }).catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(6_999);
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(mockedCreate).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(7_000);
+    const error = await pending;
+
+    expect(mockedCreate).toHaveBeenCalledTimes(CREATE_AUTH_RETRIES + 1);
+    expect(error).toMatchObject({ retryable: true, retry_after: 7 });
+    expect((error as { message: string }).message).toContain("not a credential or permission error; retry after 7 s");
+  });
+
+  it("does not retry a 503 AUTHENTICATION_UNAVAILABLE the server says not to retry", async () => {
+    mockedCreate.mockResolvedValue(
+      ({
+        error: { code: "AUTHENTICATION_UNAVAILABLE", message: "Unable to verify credentials" },
+        response: new Response(null, { status: 503, headers: { "X-Should-Retry": "false" } }),
+        request: {},
+      }) as never,
+    );
+
+    const { error } = await createWithBackoff({ name: "agent-errors" });
+
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+    expect(error).toMatchObject({ retryable: false });
+    expect((error as { message: string }).message).toContain("the server says not to retry");
   });
 
   it.each([
@@ -127,7 +172,33 @@ describe("SandboxInstance.create on a transient authentication failure", () => {
     const { error } = await createWithBackoff({ name: "agent-errors" });
 
     expect(mockedCreate).toHaveBeenCalledTimes(1);
-    expect(error).toEqual(body);
+    expect(error).toBeInstanceOf(SandboxCreateError);
+    expect((error as SandboxCreateError).toJSON()).toEqual({
+      ...body,
+      status,
+      message: `${body.message} (HTTP ${status} ${body.code})`,
+    });
+  });
+
+  it.each([403, 401])("does not retry a %i AUTHENTICATION_FAILED and says the API key is not valid", async (status) => {
+    mockedCreate.mockResolvedValue(
+      failed(status, {
+        code: "AUTHENTICATION_FAILED",
+        error_code: "AUTHENTICATION_FAILED",
+        message: "The API key is not valid",
+        status_code: status,
+      }),
+    );
+
+    const { error } = await createWithBackoff({ name: "agent-errors" });
+
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+    expect(error).toMatchObject({ code: "AUTHENTICATION_FAILED", status_code: status, retryable: false });
+    expect((error as { message: string }).message).toBe(
+      `The API key is not valid (HTTP ${status} AUTHENTICATION_FAILED: this API key is not valid; not retried, the same ` +
+        "key is refused every time). Check the API key the SDK sends (BL_API_KEY) for a typo or a missing part; if it " +
+        "was deleted, create a new one in the Blaxel Console.",
+    );
   });
 
   it("retries the same way for createIfNotExists", async () => {
@@ -172,19 +243,333 @@ describe("SandboxInstance.create with an invalid name", () => {
 
     expect(error).toMatchObject({ code: "BAD_REQUEST", status_code: 400 });
     const text = (error as { message: string }).message;
-    expect(text.startsWith(`${message}. Sandbox names use`)).toBe(true);
+    expect(text.startsWith(`${message} (HTTP 400 BAD_REQUEST). Sandbox names use`)).toBe(true);
     expect(text).toContain("lowercase letters, digits and single hyphens");
     expect(text).toContain('sanitizeSandboxName("sesn_01AbC") gives "sesn-01abc"');
     expect(mockedCreate).toHaveBeenCalledTimes(1);
   });
 
-  it("leaves a 400 for a valid name as it is", async () => {
+  it("adds no naming rule to a 400 for a valid name", async () => {
     const body = { code: "BAD_REQUEST", message: "invalid memory", status_code: 400 };
     mockedCreate.mockResolvedValueOnce(failed(400, body));
 
     const error = await SandboxInstance.create({ name: "valid-name" }).catch((e: unknown) => e);
 
-    expect(error).toEqual(body);
+    expect((error as SandboxCreateError).toJSON()).toEqual({ ...body, status: 400, message: "invalid memory (HTTP 400 BAD_REQUEST)" });
+  });
+});
+
+describe("SandboxInstance.create on a limit or an edge block", () => {
+  beforeEach(() => {
+    vi.stubEnv("BL_REGION", "");
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+    mockedCreate.mockReset();
+  });
+
+  const rejected = (status: number, error: unknown, headers: Record<string, string> = {}) =>
+    ({ error, response: { status, headers: new Headers(headers) }, request: {} }) as never;
+
+  it("says a 429 QUOTA_EXCEEDED is not retryable and links the quotas page", async () => {
+    const body = { code: "QUOTA_EXCEEDED", message: "Sandbox quota exceeded", status_code: 429 };
+    mockedCreate.mockResolvedValueOnce(rejected(429, body, { "Retry-After": "5" }));
+
+    const error = await SandboxInstance.create({ name: "agent-errors" }).catch((e: unknown) => e);
+
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+    expect(error).toMatchObject({ code: "QUOTA_EXCEEDED", status_code: 429, retryable: false });
+    expect((error as { message: string }).message).toBe(
+      "Sandbox quota exceeded (HTTP 429 QUOTA_EXCEEDED: not retryable until usage drops, the request asks for less (such as a smaller volume), or the quota is raised: https://docs.blaxel.ai/Security/Quotas)",
+    );
+  });
+
+  it("says a 429 WORKSPACE_RATE_LIMIT_EXCEEDED is retryable after the Retry-After delay", async () => {
+    const body = { code: "WORKSPACE_RATE_LIMIT_EXCEEDED", message: "Too many sandbox creations", status_code: 429 };
+    mockedCreate.mockResolvedValueOnce(rejected(429, body, { "Retry-After": "7" }));
+
+    const error = await SandboxInstance.create({ name: "agent-errors" }).catch((e: unknown) => e);
+
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+    expect(error).toMatchObject({ code: "WORKSPACE_RATE_LIMIT_EXCEEDED", retryable: true, retry_after: 7 });
+    expect((error as { message: string }).message).toBe(
+      "Too many sandbox creations (HTTP 429 WORKSPACE_RATE_LIMIT_EXCEEDED: too many creations in flight in this workspace; retry after 7 s)",
+    );
+  });
+
+  it("says to back off on a WORKSPACE_RATE_LIMIT_EXCEEDED without Retry-After", async () => {
+    const body = { code: "WORKSPACE_RATE_LIMIT_EXCEEDED", message: "Too many sandbox creations", status_code: 429 };
+    mockedCreate.mockResolvedValueOnce(rejected(429, body));
+
+    const error = await SandboxInstance.create({ name: "agent-errors" }).catch((e: unknown) => e);
+
+    expect(error).not.toHaveProperty("retry_after");
+    expect((error as { message: string }).message).toMatch(/in flight in this workspace; retry with backoff\)$/);
+  });
+
+  it.each([
+    ["the body the auth interceptor leaves", "\nFor more information on authentication, visit: https://docs.blaxel.ai/sdk-reference/introduction#how-authentication-works"],
+    ["an empty object", {}],
+    ["an empty JSON object the auth interceptor annotated", { documentation: "For more information on authentication, visit: https://docs.blaxel.ai/sdk-reference/introduction#how-authentication-works" }],
+    ["an HTML error page from the edge", "<!DOCTYPE HTML><HTML><BODY><H1>403 ERROR</H1>Generated by cloudfront (CloudFront)</BODY></HTML>"],
+  ])("says a 403 without a JSON error body is not a quota and was blocked before the API (%s)", async (_, error) => {
+    mockedCreate.mockResolvedValueOnce(rejected(403, error));
+
+    const thrown = await SandboxInstance.create({ name: "agent-errors" }).catch((e: unknown) => e);
+
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+    expect(thrown).toBeInstanceOf(SandboxCreateError);
+    expect((thrown as SandboxCreateError).toJSON()).toEqual({
+      message:
+        "HTTP 403 without a JSON error body: not a quota. The request was blocked or throttled before the API could answer it, " +
+        "for example by an edge rate limit or firewall block. " +
+        "Slow down and retry after about 60 s. Blaxel quota and permission errors carry a JSON error code",
+      status: 403,
+      status_code: 403,
+    });
+    // The raw body stays reachable, off the enumerable fields.
+    expect((thrown as SandboxCreateError).body).toEqual(error);
+  });
+
+  it.each([
+    ["plain text", "403 Request blocked"],
+    ["an HTML page", "<!DOCTYPE html><html><body><h1>Request blocked.</h1></body></html>"],
+  ])("gives the edge's Request blocked page (%s) the REQUEST_BLOCKED advice", async (_, page) => {
+    mockedCreate.mockResolvedValue(rejected(403, page));
+
+    const thrown = await SandboxInstance.create({ name: "agent-errors" }).catch((e: unknown) => e);
+
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+    expect(thrown).toBeInstanceOf(SandboxCreateError);
+    expect((thrown as SandboxCreateError).toJSON()).toEqual({
+      code: "REQUEST_BLOCKED",
+      status: 403,
+      status_code: 403,
+      retryable: false,
+      message:
+        "Request blocked (HTTP 403 REQUEST_BLOCKED: blocked at the edge before the API read the request; " +
+        "not a quota and not an API key problem; send a User-Agent header and slow down; do not rotate the API key, it was never checked)",
+    });
+    expect((thrown as SandboxCreateError).body).toBe(page);
+  });
+
+  it("does not retry a 403 WORKSPACE_ACCESS_DENIED that still carries code UNAUTHORIZED", async () => {
+    const body = {
+      code: "UNAUTHORIZED",
+      error_code: "WORKSPACE_ACCESS_DENIED",
+      message: "You do not have access to this workspace",
+      status_code: 403,
+      action: "Ask a workspace admin for access, or use a key from this workspace.",
+    };
+    mockedCreate.mockResolvedValue(rejected(403, body));
+
+    const thrown = await SandboxInstance.create({ name: "agent-errors" }).catch((e: unknown) => e);
+
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+    expect(thrown).toMatchObject({ code: "WORKSPACE_ACCESS_DENIED", status: 403 });
+    expect((thrown as Error).message).toBe(
+      "You do not have access to this workspace (HTTP 403 WORKSPACE_ACCESS_DENIED: Ask a workspace admin for access, or use a key from this workspace)",
+    );
+  });
+
+  it("ends a code without advice of its own with the API's action and docs link", async () => {
+    const body = {
+      code: 409,
+      error_code: "SANDBOX_ALREADY_EXISTS",
+      message: "Sandbox agent-errors already exists",
+      status_code: 409,
+      error: {
+        code: "SANDBOX_ALREADY_EXISTS",
+        action: "Use createIfNotExists, or pick another name.",
+        docs_url: "https://docs.blaxel.ai/Sandboxes/Overview",
+      },
+    };
+    mockedCreate.mockResolvedValueOnce(rejected(409, body));
+
+    const thrown = await SandboxInstance.create({ name: "agent-errors" }).catch((e: unknown) => e);
+
+    expect((thrown as Error).message).toBe(
+      "Sandbox agent-errors already exists (HTTP 409 SANDBOX_ALREADY_EXISTS: Use createIfNotExists, or pick another name: https://docs.blaxel.ai/Sandboxes/Overview)",
+    );
+  });
+
+  it("keeps a JSON 403 from the API, naming its code and status", async () => {
+    const body = { code: "UNAUTHORIZED_WORKSPACE", message: "no write access", status_code: 403 };
+    mockedCreate.mockResolvedValueOnce(rejected(403, body));
+
+    const thrown = await SandboxInstance.create({ name: "agent-errors" }).catch((e: unknown) => e);
+
+    expect((thrown as SandboxCreateError).toJSON()).toEqual({
+      ...body,
+      status: 403,
+      message: "no write access (HTTP 403 UNAUTHORIZED_WORKSPACE)",
+    });
+  });
+
+  it("says a JSON 403 REQUEST_BLOCKED came from the edge, is not an API key problem, and does not retry it", async () => {
+    const body = {
+      code: "REQUEST_BLOCKED",
+      message: "Request blocked.",
+      error: {
+        code: "REQUEST_BLOCKED",
+        message: "Request blocked.",
+        action: "Send a User-Agent header and slow down.",
+        do_not: "Do not rotate the API key; it was never checked.",
+        retryable: false,
+      },
+    };
+    mockedCreate.mockResolvedValue(rejected(403, body));
+
+    const thrown = await SandboxInstance.create({ name: "agent-errors" }).catch((e: unknown) => e);
+
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+    expect(thrown).toMatchObject({ code: "REQUEST_BLOCKED", status: 403, retryable: false });
+    expect((thrown as Error).message).toBe(
+      "Request blocked. (HTTP 403 REQUEST_BLOCKED: blocked at the edge before the API read the request; " +
+        "not a quota and not an API key problem; Send a User-Agent header and slow down.)",
+    );
+  });
+
+  it("prefers the retry_after the API sends over the header", async () => {
+    const body = { code: "WORKSPACE_RATE_LIMIT_EXCEEDED", message: "Too many sandbox creations", status_code: 429, retryable: true, retry_after: 4 };
+    mockedCreate.mockResolvedValueOnce(rejected(429, body, { "Retry-After": "9" }));
+
+    const error = await SandboxInstance.create({ name: "agent-errors" }).catch((e: unknown) => e);
+
+    expect(error).toMatchObject({ retryable: true, retry_after: 4 });
+    expect((error as { message: string }).message).toMatch(/retry after 4 s\)$/);
+  });
+
+  it("says a 429 RATE_LIMIT_EXCEEDED is retryable", async () => {
+    const body = { code: "RATE_LIMIT_EXCEEDED", message: "rate limit exceeded", status_code: 429 };
+    mockedCreate.mockResolvedValueOnce(rejected(429, body));
+
+    const error = await SandboxInstance.create({ name: "agent-errors" }).catch((e: unknown) => e);
+
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+    expect(error).toMatchObject({ code: "RATE_LIMIT_EXCEEDED", retryable: true });
+    expect((error as { message: string }).message).toBe(
+      "rate limit exceeded (HTTP 429 RATE_LIMIT_EXCEEDED: the region's creation rate limit was reached; retry with backoff)",
+    );
+  });
+
+  it("says a 400 QUOTA_EXCEEDED for one volume is not retryable as is", async () => {
+    const message = "Ephemeral volume 'scratch' size 900000 MB exceeds maximum allowed size";
+    const body = { code: "QUOTA_EXCEEDED", message, status_code: 400 };
+    mockedCreate.mockResolvedValueOnce(rejected(400, body));
+
+    const error = await SandboxInstance.create({ name: "agent-errors" }).catch((e: unknown) => e);
+
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+    expect(error).toMatchObject({ code: "QUOTA_EXCEEDED", status_code: 400, retryable: false });
+    expect((error as { message: string }).message).toBe(
+      `${message} (HTTP 400 QUOTA_EXCEEDED: not retryable as is; request a smaller volume or raise the quota: https://docs.blaxel.ai/Security/Quotas)`,
+    );
+  });
+});
+
+describe("SandboxInstance.create throws a SandboxCreateError", () => {
+  beforeEach(() => {
+    vi.stubEnv("BL_REGION", "");
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+    mockedCreate.mockReset();
+  });
+
+  const rejected = (status: number, error: unknown, headers: Record<string, string> = {}) =>
+    ({ error, response: new Response(null, { status, headers }), request: {} }) as never;
+
+  // The quota answer under the registered error contract: the string code in
+  // `code` and `error_code`, plus the platform fields and X-Should-Retry.
+  const quota = {
+    code: "QUOTA_EXCEEDED",
+    error_code: "QUOTA_EXCEEDED",
+    message: "You have reached the maximum memory (32768) for your account. Requested: 49152",
+    status_code: 429,
+    action: "Free quota by deleting sandboxes you no longer need, or raise the quota.",
+    docs_url: "https://docs.blaxel.ai/Security/Quotas",
+    retryable: false,
+    safe_to_retry_request: false,
+    dispatch_state: "not_dispatched",
+    origin: "platform",
+    request_id: "req-123",
+  };
+
+  it("is a real Error with the code, the HTTP status and the request ID", async () => {
+    mockedCreate.mockResolvedValue(rejected(429, quota, { "X-Should-Retry": "false", "x-amz-cf-id": "edge-id" }));
+
+    const error = await SandboxInstance.create({ name: "agent-errors" }).catch((e: unknown) => e);
+
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+    expect(error).toBeInstanceOf(Error);
+    expect(error).toBeInstanceOf(SandboxCreateError);
+    const err = error as SandboxCreateError;
+    expect(err.name).toBe("SandboxCreateError");
+    expect(err.stack).toContain("SandboxCreateError");
+    expect(err).toMatchObject({
+      code: "QUOTA_EXCEEDED",
+      status: 429,
+      status_code: 429,
+      requestId: "req-123",
+      retryable: false,
+      action: quota.action,
+      docs_url: quota.docs_url,
+      dispatch_state: "not_dispatched",
+    });
+    expect(err.message).toContain("(HTTP 429 QUOTA_EXCEEDED: not retryable until usage drops");
+    expect(err.message).toContain("https://docs.blaxel.ai/Security/Quotas");
+    expect(isBlaxelError(err)).toBe(true);
+    expect(getBlaxelErrorCode(err)).toBe("QUOTA_EXCEEDED");
+    expect(getBlaxelErrorRequestId(err)).toBe("req-123");
+    expect(JSON.parse(JSON.stringify(err))).toMatchObject({ code: "QUOTA_EXCEEDED", status: 429, message: err.message });
+  });
+
+  it("reads the registered error_code over a numeric code", async () => {
+    mockedCreate.mockResolvedValue(rejected(429, { ...quota, code: 429 }));
+
+    const error = await SandboxInstance.create({ name: "agent-errors" }).catch((e: unknown) => e);
+
+    expect(mockedCreate).toHaveBeenCalledTimes(1);
+    expect(error).toMatchObject({ code: "QUOTA_EXCEEDED", retryable: false });
+  });
+
+  it("takes the request ID from the edge header when the body has none", async () => {
+    const body: Record<string, unknown> = { ...quota };
+    delete body.request_id;
+    mockedCreate.mockResolvedValue(rejected(429, body, { "x-amz-cf-id": "edge-id" }));
+
+    const error = await SandboxInstance.create({ name: "agent-errors" }).catch((e: unknown) => e);
+
+    expect(error).toMatchObject({ requestId: "edge-id" });
+    expect(getBlaxelErrorRequestId(error)).toBe("edge-id");
+  });
+
+  it("follows the server's retry headers on a WORKSPACE_RATE_LIMIT_EXCEEDED", async () => {
+    const body = { code: "WORKSPACE_RATE_LIMIT_EXCEEDED", message: "Too many sandbox creations", status_code: 429 };
+    mockedCreate.mockResolvedValue(rejected(429, body, { "X-Should-Retry": "true", "Retry-After": "1" }));
+
+    const error = await SandboxInstance.create({ name: "agent-errors" }).catch((e: unknown) => e);
+
+    expect(error).toMatchObject({ code: "WORKSPACE_RATE_LIMIT_EXCEEDED", status: 429, retryable: true, retry_after: 1 });
+    expect((error as Error).message).toMatch(/\(HTTP 429 WORKSPACE_RATE_LIMIT_EXCEEDED: .*; retry after 1 s\)$/);
+  });
+
+  it("names the status when the body is not JSON", async () => {
+    mockedCreate.mockResolvedValue(rejected(502, "<html>bad gateway</html>"));
+
+    const error = await SandboxInstance.create({ name: "agent-errors" }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(SandboxCreateError);
+    expect((error as Error).message).toBe("Sandbox creation failed (HTTP 502, non-JSON body in err.body)");
+    expect((error as SandboxCreateError).body).toBe("<html>bad gateway</html>");
+    expect(error).toMatchObject({ status: 502 });
   });
 });
 
