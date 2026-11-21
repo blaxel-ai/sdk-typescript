@@ -1,4 +1,5 @@
 import { SandboxInstance, VolumeInstance } from "@blaxel/core"
+import { belongsToTestRun, deleteTestSandbox } from "./cleanup.js"
 
 /**
  * Global setup - returns a teardown function that runs after ALL tests complete
@@ -6,11 +7,7 @@ import { SandboxInstance, VolumeInstance } from "@blaxel/core"
  */
 export default function globalSetup() {
   const runId = process.env.BL_TEST_RUN_ID
-  const belongsToRun = (labels: Record<string, string>) =>
-    labels.env === "integration-test" &&
-    labels.language === "typescript" &&
-    labels["created-by"] === "vitest-integration" &&
-    labels["test-run-id"] === runId
+  const belongsToRun = (labels: Record<string, string>) => belongsToTestRun(labels, runId)
   // Return the teardown function
   return async () => {
     if (process.env.SKIP_CLEANUP === "1") {
@@ -25,17 +22,14 @@ export default function globalSetup() {
 
     // Clean up sandboxes with test labels
     try {
-      const sandboxes = await (await SandboxInstance.list()).autoPagingToArray({ limit: 10000 })
+      const sandboxes = await (await SandboxInstance.list({ showTerminated: true })).autoPagingToArray({ limit: 10000 })
       for (const sb of sandboxes) {
-        if (sb.status === "TERMINATED") {
-          continue
-        }
         const labels = sb.metadata.labels || {}
         if (belongsToRun(labels)) {
           try {
-            if (sb.metadata.name) await SandboxInstance.delete(sb.metadata.name)
-          } catch {
-            // Ignore deletion errors
+            if (sb.metadata.name) await deleteTestSandbox(sb.metadata.name, runId)
+          } catch (error) {
+            console.log(`  Error cleaning sandbox ${sb.metadata.name}:`, error)
           }
         }
       }
