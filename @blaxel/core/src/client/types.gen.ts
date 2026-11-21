@@ -4621,7 +4621,7 @@ export type SandboxSpec = {
 };
 
 /**
- * Workspace secret, referenced from proxy routing as {{SECRET:name}}. Values are write-only and can never be read back. Every upsert stores a new immutable version and the latest one is resolved at runtime.
+ * Workspace secret, referenced from proxy routing as {{SECRET:name}}. Values are write-only and can never be read back. Every upsert stores a new immutable version and the latest one is resolved at runtime, only for requests to its destinations.
  */
 export type Secret = {
     /**
@@ -4629,9 +4629,17 @@ export type Secret = {
      */
     readonly createdAt?: string;
     /**
+     * Destinations the secret resolves for, same syntax as routing destinations: a host, optionally followed by a path glob. The secret is never substituted toward any other destination.
+     */
+    destinations: Array<string>;
+    /**
      * Case-sensitive secret name
      */
     name: string;
+    /**
+     * Delivery of the latest change to every region. Absent once every region applied it; PENDING while a region has not yet; DEGRADED when a region has been behind for more than 15 minutes; DELETING for a deleted secret not yet removed from every region.
+     */
+    status?: 'PENDING' | 'DEGRADED' | 'DELETING';
     /**
      * The date and time of the latest version
      */
@@ -4643,13 +4651,21 @@ export type Secret = {
 };
 
 /**
- * Workspace secret, referenced from proxy routing as {{SECRET:name}}. Values are write-only and can never be read back. Every upsert stores a new immutable version and the latest one is resolved at runtime.
+ * Workspace secret, referenced from proxy routing as {{SECRET:name}}. Values are write-only and can never be read back. Every upsert stores a new immutable version and the latest one is resolved at runtime, only for requests to its destinations.
  */
 export type SecretWritable = {
+    /**
+     * Destinations the secret resolves for, same syntax as routing destinations: a host, optionally followed by a path glob. The secret is never substituted toward any other destination.
+     */
+    destinations: Array<string>;
     /**
      * Case-sensitive secret name
      */
     name: string;
+    /**
+     * Delivery of the latest change to every region. Absent once every region applied it; PENDING while a region has not yet; DEGRADED when a region has been behind for more than 15 minutes; DELETING for a deleted secret not yet removed from every region.
+     */
+    status?: 'PENDING' | 'DEGRADED' | 'DELETING';
     /**
      * Secret value. Write-only, never returned by the API
      */
