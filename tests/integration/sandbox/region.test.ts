@@ -1,9 +1,8 @@
 import { SandboxInstance, VolumeInstance, CodeInterpreter } from "@blaxel/core"
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { defaultImage, defaultLabels, defaultRegion, env, isSlowTestEnabled, uniqueName, waitForSandboxDeletion, waitForVolumeDeletion } from './helpers.js'
+import { alternateRegion, defaultImage, defaultLabels, defaultRegion, env, isSlowTestEnabled, uniqueName, waitForSandboxDeletion, waitForVolumeDeletion } from './helpers.js'
 
-const backendDefaultRegion = env === "dev" ? "eu-dub-1" : "us-pdx-1"
-const alternateRegion = env === "dev" ? "eu-dub-2" : "eu-lon-1"
+const backendDefaultRegion = env === "dev" ? "us-was-1" : "us-pdx-1"
 const describeWhenRegionUnset = process.env.BL_REGION ? describe.skip : describe
 
 describeWhenRegionUnset('BL_REGION Environment Variable Auto-Fill', () => {
@@ -81,7 +80,7 @@ describeWhenRegionUnset('BL_REGION Environment Variable Auto-Fill', () => {
     })
 
     it('creates sandbox with BL_REGION when environment variable is set', async () => {
-      const testRegion = process.env.BL_ENV === "dev" ? "eu-dub-1" : "us-was-1"
+      const testRegion = defaultRegion
       process.env.BL_REGION = testRegion
 
       const name = uniqueName("with-env-region")
@@ -115,7 +114,7 @@ describeWhenRegionUnset('BL_REGION Environment Variable Auto-Fill', () => {
     })
 
     it('empty string region does not override BL_REGION', async () => {
-      process.env.BL_REGION = process.env.BL_ENV === "dev" ? "eu-dub-1" : "us-was-1"
+      process.env.BL_REGION = defaultRegion
 
       const name = uniqueName("empty-region")
       const sandbox = await SandboxInstance.create({
@@ -147,7 +146,7 @@ describeWhenRegionUnset('BL_REGION Environment Variable Auto-Fill', () => {
     })
 
     it('creates CodeInterpreter with BL_REGION when environment variable is set', async () => {
-      const testRegion = process.env.BL_ENV === "dev" ? "eu-dub-1" : "us-was-1"
+      const testRegion = defaultRegion
       process.env.BL_REGION = testRegion
 
       const name = uniqueName("interpreter-with-env")
@@ -194,7 +193,7 @@ describeWhenRegionUnset('BL_REGION Environment Variable Auto-Fill', () => {
     })
 
     it('creates volume with BL_REGION when environment variable is set', async () => {
-      const testRegion = process.env.BL_ENV === "dev" ? "eu-dub-1" : "us-was-1"
+      const testRegion = defaultRegion
       process.env.BL_REGION = testRegion
 
       const name = uniqueName("vol-with-env")
@@ -228,7 +227,7 @@ describeWhenRegionUnset('BL_REGION Environment Variable Auto-Fill', () => {
     })
 
     it('empty string region does not override BL_REGION in volume', async () => {
-      process.env.BL_REGION = process.env.BL_ENV === "dev" ? "eu-dub-1" : "us-was-1"
+      process.env.BL_REGION = defaultRegion
 
       const name = uniqueName("vol-empty-region")
       const volume = await VolumeInstance.create({
@@ -247,7 +246,7 @@ describeWhenRegionUnset('BL_REGION Environment Variable Auto-Fill', () => {
 
   describe.runIf(isSlowTestEnabled("RUN_VOLUME_TESTS"))('Multiple resource creation with BL_REGION', () => {
     it('creates sandbox and volume in same region from BL_REGION', async () => {
-      const testRegion = process.env.BL_ENV === "dev" ? "eu-dub-1" : "us-was-1"
+      const testRegion = defaultRegion
       process.env.BL_REGION = testRegion
 
       const volumeName = uniqueName("multi-vol")
@@ -287,7 +286,7 @@ describeWhenRegionUnset('BL_REGION Environment Variable Auto-Fill', () => {
     })
 
     it('handles mixed explicit and auto-filled regions', async () => {
-      process.env.BL_REGION = process.env.BL_ENV === "dev" ? "eu-dub-1" : "us-was-1"
+      process.env.BL_REGION = defaultRegion
       const explicitRegion = defaultRegion
 
       const volume1Name = uniqueName("mixed-vol1")
@@ -319,7 +318,7 @@ describeWhenRegionUnset('BL_REGION Environment Variable Auto-Fill', () => {
   describe('BL_REGION changes during runtime', () => {
     it('respects BL_REGION changes between create calls', async () => {
       // Create first resource with region1
-      let region1 = process.env.BL_ENV === "dev" ? "eu-dub-1" : "us-was-1"
+      const region1 = defaultRegion
       process.env.BL_REGION = region1
       const name1 = uniqueName("region1")
       const sandbox1 = await SandboxInstance.create({
@@ -332,7 +331,7 @@ describeWhenRegionUnset('BL_REGION Environment Variable Auto-Fill', () => {
       expect(sandbox1.spec.region).toBe(process.env.BL_REGION)
 
       // Change BL_REGION and create second resource
-      let region2 = process.env.BL_ENV === "dev" ? "eu-dub-1" : "eu-lon-1"
+      const region2 = alternateRegion
       process.env.BL_REGION = region2
       const name2 = uniqueName("region2")
       const sandbox2 = await SandboxInstance.create({

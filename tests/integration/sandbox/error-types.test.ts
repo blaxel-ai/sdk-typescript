@@ -10,7 +10,7 @@ import {
   SandboxInstance,
 } from "@blaxel/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { defaultImage, defaultLabels, defaultRegion, uniqueName, waitForSandboxDeletion, workspaceFeatureEnabled } from "./helpers.js";
+import { defaultImage, defaultLabels, defaultRegion, uniqueName, workspaceFeatureEnabled } from "./helpers.js";
 
 // Verify the additive helpers on current wire responses; errors stay unwrapped.
 describe("API error types over current thrown values", () => {
@@ -28,8 +28,9 @@ describe("API error types over current thrown values", () => {
     await SandboxInstance.delete(name).catch((err: unknown) => {
       if (getBlaxelErrorStatus(err) !== 404) throw err;
     });
-    expect(await waitForSandboxDeletion(name, 10)).toBe(true);
-    // console.log(`Deleted test sandbox ${name}`);
+    // Deletion finishes in the background (~5-6s in prod, longer under suite
+    // load); waiting on it here only made cleanup flaky. The ttl and the
+    // integration-test labels let the global teardown catch any leftover.
   }, 15_000);
 
   it("reads the raw control-plane body for a missing sandbox", async () => {

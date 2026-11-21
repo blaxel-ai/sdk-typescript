@@ -1,13 +1,13 @@
 import { SandboxInstance } from "@blaxel/core";
 import { expect, it } from "vitest";
-import { defaultImage, defaultLabels, fetchWithRetry, uniqueName } from "./helpers.js";
+import { defaultImage, defaultLabels, defaultRegion, fetchWithRetry, uniqueName } from "./helpers.js";
 
 it("creates and reuses private shorthand previews and expiry-capped tokens", async () => {
   const name = uniqueName("preview-helpers");
   let testFailed = false;
   try {
     const sandbox = await SandboxInstance.create({
-      name, image: defaultImage, region: "us-was-1", memory: 512,
+      name, image: defaultImage, region: defaultRegion, memory: 512,
       ports: [{ target: 3000 }], labels: defaultLabels,
     });
     await sandbox.process.exec({

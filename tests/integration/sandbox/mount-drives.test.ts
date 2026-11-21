@@ -1,8 +1,8 @@
 import { DriveInstance, SandboxDriveSetupError, SandboxInstance } from "@blaxel/core"
 import { afterAll, describe, expect, it } from 'vitest'
-import { defaultImage, defaultLabels, isSlowTestEnabled, uniqueName, waitForSandboxDeletion } from './helpers.js'
+import { availableRegions, defaultImage, defaultLabels, isSlowTestEnabled, uniqueName, waitForSandboxDeletion } from './helpers.js'
 
-const region = 'us-was-1' // Drives are only available in some regions
+const region = process.env.BL_DRIVE_REGION || (process.env.BL_ENV !== 'dev' ? 'us-was-1' : 'eu-dub-1') // Drives are only available in some regions
 
 describe.runIf(isSlowTestEnabled("RUN_DRIVE_TESTS"))('Sandbox create with mountDrives', () => {
   const sandboxes: string[] = []
@@ -44,7 +44,7 @@ describe.runIf(isSlowTestEnabled("RUN_DRIVE_TESTS"))('Sandbox create with mountD
     expect(reused.metadata.name).toBe(first.metadata.name)
 
     // A drive in another region is rejected; the sandbox stays.
-    const otherRegion = await SandboxInstance.create({ ...config(), region: 'eu-lon-1' }, {
+    const otherRegion = await SandboxInstance.create({ ...config(), region: availableRegions.find((r) => r !== region) }, {
       mountDrives: [{ driveName, mountPath: '/mnt/data' }],
     }).catch((error: unknown) => error)
     expect(otherRegion).toBeInstanceOf(SandboxDriveSetupError)

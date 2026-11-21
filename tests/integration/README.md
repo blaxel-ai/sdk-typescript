@@ -21,8 +21,8 @@ Values can also be put in a `.env` file at the repo root.
 | Variable          | Default                                  | Description |
 | ----------------- | ---------------------------------------- | ----------- |
 | `BL_ENV`          | `prod`                                   | `dev` switches default regions and the sandbox-api version used by `system.test.ts` |
-| `BL_REGION`       | `us-was-1` (prod) / `eu-dub-1` (dev)     | Region for test sandboxes. When set, the `BL_REGION` auto-fill suite in `region.test.ts` is skipped |
-| `BL_DRIVE_REGION` | `us-was-1` (prod) / `eu-dub-1` (dev)     | Region for drive tests (`drives.test.ts`, `drive-acl.test.ts`) |
+| `BL_REGION`       | `us-was-1`                               | Region for test sandboxes. When set, the `BL_REGION` auto-fill suite in `region.test.ts` is skipped |
+| `BL_DRIVE_REGION` | `us-was-1` (prod) / `eu-dub-1` (dev)     | Region for drive tests (`drives.test.ts`, `drive-acl.test.ts`, `mount-drives.test.ts`) |
 | `SKIP_CLEANUP`    | unset                                    | `1` keeps test resources around after the run, for debugging |
 | `LOCAL_PROCESS_API_URL` | unset                              | Points `process-recovery.test.ts` at a local sandbox-api instead of creating a sandbox |
 
@@ -44,7 +44,9 @@ Opt-in suites, all off by default. Enable with `true` or `1`, e.g.
 | `ENABLE_CUSTOM_DOCKER_TESTS` | `image.test.ts` > "with custom Docker images" | Needs prebuilt custom images in the workspace |
 | `RUN_CUSTOM_DOMAIN_TESTS`    | `custom-domains.test.ts` | Creates and deletes real custom domains |
 | `RUN_DRIVE_TESTS`            | `drives.test.ts`, `drive-acl.test.ts`, `mount-drives.test.ts` | Needs a drive-enabled region |
-| `RUN_VOLUME_TESTS`           | `volumes.test.ts`, volume blocks of `region.test.ts`, volume test of `large-envs.test.ts` | Volumes are not enabled on mk3.1 hosts yet |
+| `RUN_VOLUME_TESTS`           | `volumes.test.ts`, `volume-behaviour.test.ts`, volume blocks of `region.test.ts`, volume test of `large-envs.test.ts` | Volumes are not enabled on mk3.1 hosts yet |
+| `RUN_SLOW_VOLUME_TESTS`      | `volume-behaviour.test.ts` > live grow, "volume state across a standby" (also needs `RUN_VOLUME_TESTS`) | Waits on resize propagation and a real idle standby (~30-60s each) |
+| `RUN_SLOW_VOLUME_PNPM`       | `volume-behaviour.test.ts` > "pnpm install on a volume" (also needs `RUN_VOLUME_TESTS`) | Installs public packages (~50k files), 3-5 minutes |
 | `RUN_FIREWALL_RULESET_TESTS` | `proxy/firewall.test.ts` > "no proxy bypass (firewall ruleset: proxy)" | Firewall rulesets are not enabled on mk3.1 hosts yet |
 
 ## Credential gates
