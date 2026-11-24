@@ -64,7 +64,7 @@ class H2TransportStatsStore {
   }
 
   /** @internal */
-  recordEstablishFailure(domain: string, error: unknown): void {
+  recordEstablishFailure(domain: string, error: unknown, report = true): void {
     this.totals.establishFailures++;
     this.forDomain(domain).establishFailures++;
     try {
@@ -73,7 +73,14 @@ class H2TransportStatsStore {
     } catch {
       // Diagnostics must never change transport behavior.
     }
-    reportH2TransportDegradation(domain, "establish-failure");
+    // Only an on-demand establish (serving a real request through `get()`) is a
+    // true transport degradation. A fire-and-forget `warm()` miss degrades no
+    // request — the request path transparently re-establishes or falls back to
+    // fetch — so it is counted locally for diagnostics but never shipped as a
+    // Sentry degradation warning.
+    if (report) {
+      reportH2TransportDegradation(domain, "establish-failure");
+    }
     publishDebugSnapshot(this.snapshot());
   }
 
@@ -131,8 +138,12 @@ export function resetH2TransportStats(): void {
 }
 
 /** @internal */
-export function recordH2EstablishFailure(domain: string, error: unknown): void {
-  store.recordEstablishFailure(domain, error);
+export function recordH2EstablishFailure(
+  domain: string,
+  error: unknown,
+  report = true,
+): void {
+  store.recordEstablishFailure(domain, error, report);
 }
 
 /** @internal */

@@ -139,6 +139,26 @@ describe("H2 transport statistics", () => {
     expect(snapshot.byDomain["edge.example.com"]?.fetchFallbacks).toBe(20);
   });
 
+  it("counts a speculative warm establishment failure without a request fallback", async () => {
+    const pool = new H2Pool();
+    withEstablish(pool, () => Promise.reject(new Error("connect refused")));
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    pool.warm("edge.example.com");
+    await (
+      pool as unknown as { inflight: Map<string, Promise<unknown>> }
+    ).inflight.get("edge.example.com");
+
+    // A warm is fire-and-forget: no request falls back, but the failure is still
+    // counted locally for BL_H2_DEBUG_STATS diagnostics.
+    expect(fetchSpy).not.toHaveBeenCalled();
+    const snapshot = snapshotH2TransportStats();
+    expect(snapshot.establishFailures).toBe(1);
+    expect(snapshot.fetchFallbacks).toBe(0);
+    expect(snapshot.byDomain["edge.example.com"]?.establishFailures).toBe(1);
+    expect(snapshot.byDomain["edge.example.com"]?.fetchFallbacks).toBe(0);
+  });
+
   it("records nothing when the H2 request succeeds", async () => {
     const pool = new H2Pool();
     withEstablish(pool, () => Promise.resolve(asSession(new MockSession())));

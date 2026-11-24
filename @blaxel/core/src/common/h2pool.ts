@@ -63,14 +63,17 @@ export class H2Pool {
     return session;
   }
 
-  private startEstablish(domain: string): Promise<http2.ClientHttp2Session | null> {
+  private startEstablish(
+    domain: string,
+    reportEstablishFailure = true,
+  ): Promise<http2.ClientHttp2Session | null> {
     const pending = this.establish(domain)
       .then((session) => {
         this.cache(domain, session);
         return session;
       })
       .catch((error) => {
-        recordH2EstablishFailure(domain, error);
+        recordH2EstablishFailure(domain, error, reportEstablishFailure);
         return null;
       })
       .finally(() => {
@@ -210,7 +213,11 @@ export class H2Pool {
     if (existing) return;
     if (this.inflight.has(domain)) return;
 
-    void this.startEstablish(domain);
+    // Speculative warming: a failed establish degrades no request (a later
+    // `get()` re-establishes or the request falls back to fetch), so do not
+    // surface it as a Sentry transport-degradation warning. It is still counted
+    // in the local H2 stats for BL_H2_DEBUG_STATS diagnostics.
+    void this.startEstablish(domain, false);
   }
 
   /**
