@@ -8,7 +8,7 @@ vi.mock("../../@blaxel/core/src/client/index.js", async (importOriginal) => {
 });
 
 import { createSandbox, getSandbox } from "../../@blaxel/core/src/client/index.js";
-import { SandboxInstance } from "../../@blaxel/core/src/sandbox/sandbox.js";
+import { SandboxCreateError, SandboxInstance } from "../../@blaxel/core/src/sandbox/sandbox.js";
 
 const mockedCreate = vi.mocked(createSandbox);
 const mockedGet = vi.mocked(getSandbox);
@@ -90,13 +90,16 @@ describe("SandboxInstance.create 504 gateway-timeout handling (ENG-3662)", () =>
     await expectation;
   });
 
-  it("rethrows non-504 create errors untouched without polling", async () => {
+  it("rethrows non-504 create errors without polling", async () => {
     const conflict = { code: 409, message: "already exists" };
     mockedCreate.mockResolvedValueOnce(
       ({ error: conflict, response: { status: 409 }, request: {} }) as never,
     );
 
-    await expect(SandboxInstance.create({ name: "slow" })).rejects.toBe(conflict);
+    const error = await SandboxInstance.create({ name: "slow" }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(SandboxCreateError);
+    expect(error).toMatchObject({ code: 409, status: 409, message: "already exists (HTTP 409)" });
+    expect((error as SandboxCreateError).body).toBe(conflict);
     expect(mockedGet).not.toHaveBeenCalled();
   });
 });
