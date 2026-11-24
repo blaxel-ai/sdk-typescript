@@ -368,7 +368,10 @@ export class SandboxPreviews {
    * const current = await sandbox.previews.get("app");
    * const preview = await sandbox.previews.update({
    *   metadata: { name: "app" },
-   *   spec: { ...current.spec, responseHeaders: { "X-Blaxel-Embed-Origins": "https://app.example.com" } },
+   *   spec: {
+   *     ...current.spec,
+   *     responseHeaders: { ...current.spec.responseHeaders, "X-Blaxel-Embed-Origins": "https://app.example.com" },
+   *   },
    * });
    * ```
    */

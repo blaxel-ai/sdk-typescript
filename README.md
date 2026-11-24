@@ -204,7 +204,10 @@ pass replaces the stored one, so start from the current spec:
 const current = await sandbox.previews.get("custom-app-preview");
 await sandbox.previews.update({
   metadata: { name: "custom-app-preview" },
-  spec: { ...current.spec, responseHeaders: { "Access-Control-Allow-Origin": "https://app.example.com" } }
+  spec: {
+    ...current.spec,
+    responseHeaders: { ...current.spec.responseHeaders, "Access-Control-Allow-Origin": "https://app.example.com" }
+  }
 });
 ```
 
