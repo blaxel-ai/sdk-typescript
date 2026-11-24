@@ -103,8 +103,12 @@ export type SandboxCreateConfiguration = {
   image?: string;
   /** Memory in MB. Defaults to 4096. CPU scales with it (memory / 2048 cores, so 4096 MB is 2 CPUs). */
   memory?: number;
-  /** Ports to expose, as `{ name?, target, protocol? }`; `protocol` (`HTTP`, `TCP` or `UDP`) defaults to `HTTP`. */
-  ports?: (Port | Record<string, any>)[];
+  /**
+   * Ports to expose, as `{ name?, target, protocol? }`; `protocol` (`HTTP`,
+   * `TCP` or `UDP`) defaults to `HTTP`. A bare port number (`3000`) or numeric
+   * string (`"3000"`) is accepted as shorthand for `{ target, protocol: "HTTP" }`.
+   */
+  ports?: (Port | Record<string, any> | number | string)[];
   /** Environment variables of the sandbox. */
   envs?: EnvVar[];
   /** Volumes to attach: an existing volume by name, or an ephemeral one with `type: "ephemeral"` and `sizeMb`. */
@@ -155,22 +159,46 @@ export type SandboxCreateConfiguration = {
   dockerConfig?: string | Record<string, unknown>;
 }
 
-export function normalizePorts(ports?: (Port | Record<string, any>)[]): Port[] | undefined {
+/**
+ * Coerce a port target to a valid TCP/UDP port number. Accepts a number or a
+ * numeric string (e.g. `3000` or `"3000"`) so the common shorthand callers
+ * reach for does not throw.
+ */
+function toPortTarget(value: unknown): number {
+  const target =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && value.trim() !== ''
+        ? Number(value)
+        : NaN;
+  if (!Number.isInteger(target) || target < 1 || target > 65535) {
+    throw new Error(
+      `Invalid port target: ${JSON.stringify(value)}. Expected an integer between 1 and 65535.`
+    );
+  }
+  return target;
+}
+
+export function normalizePorts(
+  ports?: (Port | Record<string, any> | number | string)[]
+): Port[] | undefined {
   if (!ports || ports.length === 0) {
     return undefined;
   }
 
   const portObjects: Port[] = [];
   for (const port of ports) {
+    // Shorthand: a bare port number (3000) or numeric string ("3000").
+    if (typeof port === 'number' || typeof port === 'string') {
+      portObjects.push({ target: toPortTarget(port), protocol: "HTTP" });
+      continue;
+    }
     if (typeof port === 'object' && port !== null) {
       if ('name' in port || 'target' in port || 'protocol' in port) {
-        if (typeof port.target !== 'number') {
-          throw new Error(`Port target must be a number: ${JSON.stringify(port)}`);
-        }
         // It's a Port-like object, ensure protocol defaults to HTTP
         const normalizedPort: Port = {
           name: typeof port.name === 'string' ? port.name : undefined,
-          target: port.target,
+          target: toPortTarget(port.target),
           protocol: typeof port.protocol === 'string' ? port.protocol as "HTTP" | "TCP" | "UDP" : "HTTP"
         };
         portObjects.push(normalizedPort);
@@ -178,7 +206,7 @@ export function normalizePorts(ports?: (Port | Record<string, any>)[]): Port[] |
         throw new Error(`Invalid port type: ${typeof port}. Expected Port object or object with port properties.`);
       }
     } else {
-      throw new Error(`Invalid port type: ${typeof port}. Expected Port object or object with port properties.`);
+      throw new Error(`Invalid port type: ${typeof port}. Expected Port object, port number, or object with port properties.`);
     }
   }
 
