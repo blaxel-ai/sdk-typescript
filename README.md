@@ -197,6 +197,20 @@ and `public`; custom prefixes and other advanced settings still use the full mod
 above. Existing previews are returned **as-is**, even if their port or public
 setting differs: the private default only applies on creation.
 
+To change an existing preview, call `update()` with a full preview. The `spec` you
+pass replaces the stored one, so start from the current spec:
+
+```typescript
+const current = await sandbox.previews.get("custom-app-preview");
+await sandbox.previews.update({
+  metadata: { name: "custom-app-preview" },
+  spec: {
+    ...current.spec,
+    responseHeaders: { ...current.spec.responseHeaders, "Access-Control-Allow-Origin": "https://app.example.com" }
+  }
+});
+```
+
 `createIfExpired(expiresAt?, minValidity?)` defaults to a new 24-hour expiry and
 one hour of minimum remaining validity (milliseconds). It reuses the latest valid,
 nonempty token no later than the requested expiry, so an explicitly shorter expiry

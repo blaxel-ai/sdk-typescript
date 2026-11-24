@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Preview, PreviewToken, SandboxPreviewCreateConfiguration } from "@blaxel/core";
 
 type Client = typeof import("../../@blaxel/core/src/client/index.js");
-const { create, get, mint, list, remove } = vi.hoisted(() => ({
+const { create, get, mint, list, remove, update } = vi.hoisted(() => ({
+  update: vi.fn<Client["updateSandboxPreview"]>(),
   create: vi.fn<Client["createSandboxPreview"]>(),
   get: vi.fn<Client["getSandboxPreview"]>(),
   mint: vi.fn<Client["createSandboxPreviewToken"]>(),
@@ -12,7 +13,7 @@ const { create, get, mint, list, remove } = vi.hoisted(() => ({
 // Exercise the built package; source signatures supply types for its JS client mocks.
 vi.mock("../../@blaxel/core/dist/esm/client/index.js", async (importOriginal) => ({
   ...await importOriginal<Client>(),
-  createSandboxPreview: create, getSandboxPreview: get,
+  createSandboxPreview: create, getSandboxPreview: get, updateSandboxPreview: update,
   createSandboxPreviewToken: mint, listSandboxPreviewTokens: list, deleteSandboxPreviewToken: remove,
 }));
 import { SandboxPreview, SandboxPreviews, SandboxPreviewToken, SandboxPreviewTokens } from "@blaxel/core";
@@ -29,6 +30,23 @@ beforeEach(() => {
   remove.mockResolvedValue({ data: {} } as never);
 });
 afterEach(() => { vi.useRealTimers(); vi.resetAllMocks(); });
+
+describe("preview update", () => {
+  it("sends the full preview to the named preview and returns the result", async () => {
+    const next = { metadata: { name: "app" }, spec: { port: 3000, public: false, responseHeaders: { "X-Blaxel-Embed-Origins": "https://app.example.com" } } };
+    update.mockResolvedValue({ data: { ...next, spec: { ...next.spec, url: "https://app.example" } } } as never);
+    const result = await previews().update(next);
+    expect(update).toHaveBeenCalledWith({ path: { sandboxName: "sandbox", previewName: "app" }, body: next, throwOnError: true });
+    expect(result).toBeInstanceOf(SandboxPreview);
+    expect(result.url).toBe("https://app.example");
+    expect(result.spec?.responseHeaders).toEqual(next.spec.responseHeaders);
+  });
+  it("lets the API error through", async () => {
+    const error = { code: 404 }; update.mockRejectedValue(error);
+    await expect(previews().update(preview)).rejects.toBe(error);
+    expect(create).not.toHaveBeenCalled(); expect(get).not.toHaveBeenCalled();
+  });
+});
 
 describe("preview shorthand", () => {
   it("exports the type and maps defaults identically in different sandboxes", async () => {

@@ -35,6 +35,29 @@ describe('Sandbox Preview Operations', () => {
     }
   })
 
+  describe('update', () => {
+    it('replaces the settings of an existing preview', async () => {
+      const created = await sandbox.previews.create({
+        metadata: { name: "update-preview" },
+        spec: { port: 3000, public: false }
+      })
+
+      const updated = await sandbox.previews.update({
+        metadata: { name: "update-preview" },
+        spec: { ...created.spec, responseHeaders: { "X-Blaxel-Embed-Origins": "https://app.example.com" } }
+      })
+      expect(updated.metadata.name).toBe("update-preview")
+      expect(updated.spec.url).toBe(created.spec.url)
+      expect(updated.spec.responseHeaders).toEqual({ "X-Blaxel-Embed-Origins": "https://app.example.com" })
+
+      const fetched = await sandbox.previews.get("update-preview")
+      expect(fetched.spec.responseHeaders).toEqual({ "X-Blaxel-Embed-Origins": "https://app.example.com" })
+      expect(fetched.spec.public).toBe(false)
+
+      await sandbox.previews.delete("update-preview")
+    })
+  })
+
   describe('create', () => {
     it('creates a public preview', async () => {
       const preview = await sandbox.previews.create({

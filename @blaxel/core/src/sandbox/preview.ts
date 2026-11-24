@@ -1,4 +1,4 @@
-import { createSandboxPreview, createSandboxPreviewToken, deleteSandboxPreview, deleteSandboxPreviewToken, getSandboxPreview, listSandboxPreviews, listSandboxPreviewTokens } from "../client/index.js";
+import { createSandboxPreview, createSandboxPreviewToken, deleteSandboxPreview, deleteSandboxPreviewToken, getSandboxPreview, listSandboxPreviews, listSandboxPreviewTokens, updateSandboxPreview } from "../client/index.js";
 import type { Preview, PreviewToken, Sandbox } from "../client/index.js";
 import { logger } from "../common/logger.js";
 import type { SandboxPreviewCreateConfiguration } from "./types.js";
@@ -348,6 +348,40 @@ export class SandboxPreviews {
         sandboxName: this.sandboxName,
         previewName,
       },
+      throwOnError: true,
+    });
+    return new SandboxPreview(data);
+  }
+
+  /**
+   * Replace the settings of an existing preview. The `spec` you pass replaces
+   * the stored one: a setting you leave out is removed. To change one setting,
+   * start from the current spec. The custom domain of a preview cannot be
+   * changed. Changes apply within a few seconds.
+   *
+   * @param preview - A full preview: `{ metadata: { name }, spec }`. `metadata.name` selects the preview to update.
+   * @returns The updated preview.
+   * @throws When no preview has this name (HTTP 404).
+   *
+   * @example
+   * ```typescript
+   * const current = await sandbox.previews.get("app");
+   * const preview = await sandbox.previews.update({
+   *   metadata: { name: "app" },
+   *   spec: {
+   *     ...current.spec,
+   *     responseHeaders: { ...current.spec.responseHeaders, "X-Blaxel-Embed-Origins": "https://app.example.com" },
+   *   },
+   * });
+   * ```
+   */
+  async update(preview: Preview): Promise<SandboxPreview> {
+    const { data } = await updateSandboxPreview({
+      path: {
+        sandboxName: this.sandboxName,
+        previewName: preview.metadata.name,
+      },
+      body: preview,
       throwOnError: true,
     });
     return new SandboxPreview(data);
