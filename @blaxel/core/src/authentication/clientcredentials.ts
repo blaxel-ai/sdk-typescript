@@ -4,11 +4,19 @@ import { env } from "../common/env.js";
 import { Credentials } from "./credentials.js";
 import { CredentialsType } from "./types.js";
 
+// Forced renewals back off by counting rejections, never by time: the local
+// clock is the thing that cannot be trusted here. The n-th consecutive forced
+// renewal needs 2^(n-1) rejections of the current token, capped at this many.
+const MAX_REJECTIONS_PER_FORCED_RENEWAL = 64;
+
 export class ClientCredentials extends Credentials {
   private clientCredentials: string;
   private accessToken: string;
   private credentials: CredentialsType;
   private currentPromise: Promise<void> | null;
+  private forceRefresh = false;
+  private consecutiveForced = 0;
+  private rejectionsSinceForce = 0;
 
   constructor(credentials: CredentialsType) {
     super();
@@ -24,6 +32,7 @@ export class ClientCredentials extends Credentials {
 
   needRefresh() {
     if (this.currentPromise) return false;
+    if (this.forceRefresh) return true;
     if (this.accessToken) {
       const decoded = jwtDecode(this.accessToken);
       const { exp, iat } = decoded;
@@ -37,6 +46,51 @@ export class ClientCredentials extends Credentials {
       return ratio < 0.5;
     }
     return true;
+  }
+
+  /**
+   * Mark the cached token for renewal so the next authenticate() exchanges the
+   * client credentials again.
+   *
+   * needRefresh() trusts the local clock, which a workload cannot always do:
+   * an agent suspended while idle resumes with the wall clock it was paused
+   * with, so a token that expired during the pause still looks fresh to it.
+   * The server's 401 is the one signal that does not depend on that clock.
+   *
+   * - The token stays readable until it is replaced: callers that read
+   *   settings.headers without authenticating keep working meanwhile.
+   * - `rejectedToken` is the token the failed request carried. A rejection
+   *   that arrives after the token was already replaced is ignored, so a late
+   *   401 cannot discard a fresh token.
+   * - Consecutive forced renewals back off by rejection count (1, 2, 4, ...
+   *   up to MAX_REJECTIONS_PER_FORCED_RENEWAL), so a server that keeps
+   *   rejecting cannot turn every request into a token exchange. The count is
+   *   not time-based, so a frozen clock cannot hold the backoff shut. The
+   *   server accepting the current token (accepted()) resets it, as does a
+   *   renewal the clock asked for.
+   */
+  invalidate(rejectedToken?: string): void {
+    if (this.currentPromise) return; // a refresh is already on its way
+    if (this.forceRefresh) return; // already due
+    if (rejectedToken !== undefined && rejectedToken !== this.accessToken) return;
+    this.rejectionsSinceForce++;
+    const needed = Math.min(2 ** this.consecutiveForced, MAX_REJECTIONS_PER_FORCED_RENEWAL);
+    if (this.rejectionsSinceForce < needed) return;
+    this.rejectionsSinceForce = 0;
+    this.consecutiveForced++;
+    this.forceRefresh = true;
+  }
+
+  /**
+   * Record that a server accepted `acceptedToken`. The token lifecycle is
+   * healthy again, so the next rejection renews at once. This is the reset a
+   * frozen clock cannot provide: without it, every pause would need more
+   * rejections than the last before the token is renewed.
+   */
+  accepted(acceptedToken?: string): void {
+    if (acceptedToken !== undefined && acceptedToken !== this.accessToken) return;
+    this.consecutiveForced = 0;
+    this.rejectionsSinceForce = 0;
   }
 
   async authenticate() {
@@ -81,6 +135,12 @@ export class ClientCredentials extends Credentials {
       throw new Error(response.error.error);
     }
     this.accessToken = response.data?.access_token || "";
+    if (!this.forceRefresh) {
+      // A renewal the clock asked for: the token lifecycle is healthy again.
+      this.consecutiveForced = 0;
+      this.rejectionsSinceForce = 0;
+    }
+    this.forceRefresh = false;
   }
 
   get authorization() {

@@ -612,6 +612,23 @@ class Settings {
     this.assertCredentials();
     await this.credentials.authenticate();
   }
+
+  /**
+   * Mark the cached token for renewal after a server rejected it (HTTP 401),
+   * so the next authenticate() fetches a fresh one instead of trusting the
+   * local clock. Pass the token the rejected request carried.
+   */
+  invalidateCredentials(rejectedToken?: string) {
+    this.credentials.invalidate(rejectedToken);
+  }
+
+  /**
+   * Record that a server accepted the token, resetting any renewal backoff
+   * that invalidateCredentials() built up. Pass the token the request carried.
+   */
+  credentialsAccepted(acceptedToken?: string) {
+    this.credentials.accepted(acceptedToken);
+  }
 }
 
 export const settings = new Settings();

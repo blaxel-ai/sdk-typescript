@@ -39,6 +39,17 @@ export class DeviceMode {
     return true;
   }
 
+  /**
+   * Device mode is a developer's `bl login` session, not a workload, so it is
+   * never suspended with a stale clock. Kept a no-op: currentPromise is never
+   * cleared here, and resetting it could redeem the refresh token twice.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  invalidate(_rejectedToken?: string): void {}
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  accepted(_acceptedToken?: string): void {}
+
   async authenticate() {
     if (!this.needRefresh()) {
       return this.currentPromise || Promise.resolve();
