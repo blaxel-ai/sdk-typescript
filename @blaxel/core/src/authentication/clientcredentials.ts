@@ -4,7 +4,10 @@ import { env } from "../common/env.js";
 import { Credentials } from "./credentials.js";
 import { CredentialsType } from "./types.js";
 
-const MIN_INVALIDATE_INTERVAL_MS = 30_000;
+// Forced renewals back off by counting rejections, never by time: the local
+// clock is the thing that cannot be trusted here. The n-th consecutive forced
+// renewal needs 2^(n-1) rejections of the current token, capped at this many.
+const MAX_REJECTIONS_PER_FORCED_RENEWAL = 64;
 
 export class ClientCredentials extends Credentials {
   private clientCredentials: string;
@@ -12,7 +15,8 @@ export class ClientCredentials extends Credentials {
   private credentials: CredentialsType;
   private currentPromise: Promise<void> | null;
   private forceRefresh = false;
-  private lastInvalidatedAt = 0;
+  private consecutiveForced = 0;
+  private rejectionsSinceForce = 0;
 
   constructor(credentials: CredentialsType) {
     super();
@@ -58,16 +62,21 @@ export class ClientCredentials extends Credentials {
    * - `rejectedToken` is the token the failed request carried. A rejection
    *   that arrives after the token was already replaced is ignored, so a late
    *   401 cannot discard a fresh token.
-   * - At most one forced renewal every MIN_INVALIDATE_INTERVAL_MS, so a server
-   *   that keeps rejecting cannot turn every request into a token exchange.
+   * - Consecutive forced renewals back off by rejection count (1, 2, 4, ...
+   *   up to MAX_REJECTIONS_PER_FORCED_RENEWAL), so a server that keeps
+   *   rejecting cannot turn every request into a token exchange. The count is
+   *   not time-based, so a frozen clock cannot hold the backoff shut. A
+   *   renewal the clock asked for resets it.
    */
   invalidate(rejectedToken?: string): void {
     if (this.currentPromise) return; // a refresh is already on its way
+    if (this.forceRefresh) return; // already due
     if (rejectedToken !== undefined && rejectedToken !== this.accessToken) return;
-    const elapsed = Date.now() - this.lastInvalidatedAt;
-    // A negative gap means the clock was stepped back: do not let it block.
-    if (elapsed >= 0 && elapsed < MIN_INVALIDATE_INTERVAL_MS) return;
-    this.lastInvalidatedAt = Date.now();
+    this.rejectionsSinceForce++;
+    const needed = Math.min(2 ** this.consecutiveForced, MAX_REJECTIONS_PER_FORCED_RENEWAL);
+    if (this.rejectionsSinceForce < needed) return;
+    this.rejectionsSinceForce = 0;
+    this.consecutiveForced++;
     this.forceRefresh = true;
   }
 
@@ -113,6 +122,11 @@ export class ClientCredentials extends Credentials {
       throw new Error(response.error.error);
     }
     this.accessToken = response.data?.access_token || "";
+    if (!this.forceRefresh) {
+      // A renewal the clock asked for: the token lifecycle is healthy again.
+      this.consecutiveForced = 0;
+      this.rejectionsSinceForce = 0;
+    }
     this.forceRefresh = false;
   }
 

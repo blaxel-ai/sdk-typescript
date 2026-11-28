@@ -53,18 +53,28 @@ describe("ClientCredentials.invalidate", () => {
     expect(creds.needRefresh()).toBe(false);
   });
 
-  // Proves a server that keeps rejecting cannot turn every export into a token exchange.
-  it("forces at most one renewal per interval", () => {
+  // Proves a server that keeps rejecting cannot turn every export into a token
+  // exchange. The backoff counts rejections and reads no clock, so the second
+  // renewal below happens with no time passing at all: a clock frozen by a
+  // pause cannot hold it shut.
+  it("backs off consecutive forced renewals by rejection count, not time", () => {
     const creds = credentials();
     const testable = creds as unknown as Testable & { forceRefresh: boolean };
-    const token = freshLookingJwt();
+    let token = freshLookingJwt();
     testable.accessToken = token;
 
-    creds.invalidate(token);
-    testable.forceRefresh = false; // as if the renewal completed with the same token
-    creds.invalidate(token);
+    creds.invalidate(token); // first rejection renews at once
+    expect(creds.needRefresh()).toBe(true);
 
+    // As if the forced renewal completed and fetched a new token.
+    testable.forceRefresh = false;
+    token = `${freshLookingJwt()}x`;
+    testable.accessToken = token;
+
+    creds.invalidate(token); // second episode: 1 of 2 rejections needed
     expect(creds.needRefresh()).toBe(false);
+    creds.invalidate(token); // 2 of 2, renews although the clock never moved
+    expect(creds.needRefresh()).toBe(true);
   });
 
   // Proves invalidate does not interfere with a refresh already in flight.
