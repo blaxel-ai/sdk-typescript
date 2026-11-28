@@ -1,0 +1,78 @@
+import { settings } from "@blaxel/core";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ClientCredentials } from "../../@blaxel/core/src/authentication/clientcredentials.js";
+import { invalidateOnUnauthorized } from "../../@blaxel/telemetry/src/auth_refresh_exporters.js";
+
+type Testable = { accessToken: string; currentPromise: Promise<void> | null };
+
+// A token whose exp is far in the future by the local clock. A workload
+// resumed from a pause sees exactly this: the token expired on the server
+// while the guest clock stood still, so it still looks fresh locally.
+function freshLookingJwt(): string {
+  const now = Math.floor(Date.now() / 1000);
+  const header = Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({ iat: now, exp: now + 7200, sub: "t" })).toString("base64url");
+  return `${header}.${payload}.sig`;
+}
+
+function credentials(): ClientCredentials {
+  return new ClientCredentials({ clientCredentials: "dGVzdDp0ZXN0", workspace: "test" });
+}
+
+describe("ClientCredentials.invalidate", () => {
+  // Proves a token the local clock calls fresh is refreshed once the server rejected it.
+  it("forces a refresh of a token the local clock still considers fresh", () => {
+    const creds = credentials();
+    (creds as unknown as Testable).accessToken = freshLookingJwt();
+    expect(creds.needRefresh()).toBe(false);
+
+    creds.invalidate();
+
+    expect(creds.needRefresh()).toBe(true);
+    expect(creds.token).toBe("");
+  });
+
+  // Proves invalidate does not clobber a token that a refresh in flight is about to replace.
+  it("leaves an in-flight refresh alone", () => {
+    const creds = credentials();
+    const testable = creds as unknown as Testable;
+    testable.accessToken = freshLookingJwt();
+    testable.currentPromise = new Promise(() => {});
+
+    creds.invalidate();
+
+    expect(testable.accessToken).not.toBe("");
+  });
+});
+
+describe("telemetry exporters on 401", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  function otlpError(code: number): Error {
+    return Object.assign(new Error("Unauthorized"), { name: "OTLPExporterError", code });
+  }
+
+  // Proves a 401 from the collector drops the cached token and still reports the failure.
+  it("invalidates the credentials when the collector answers 401", () => {
+    const invalidate = vi.spyOn(settings, "invalidateCredentials").mockImplementation(() => {});
+    const callback = vi.fn();
+    const result = { code: 1, error: otlpError(401) };
+
+    invalidateOnUnauthorized(callback, "test")(result);
+
+    expect(invalidate).toHaveBeenCalledOnce();
+    expect(callback).toHaveBeenCalledWith(result);
+  });
+
+  // Proves other failures and successes keep the token: only a rejected token is dropped.
+  it("keeps the credentials on success and on non-401 failures", () => {
+    const invalidate = vi.spyOn(settings, "invalidateCredentials").mockImplementation(() => {});
+    const wrapped = invalidateOnUnauthorized(vi.fn(), "test");
+
+    wrapped({ code: 0 });
+    wrapped({ code: 1, error: otlpError(500) });
+    wrapped({ code: 1, error: new Error("Request Timeout") });
+
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+});

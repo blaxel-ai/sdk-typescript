@@ -612,6 +612,14 @@ class Settings {
     this.assertCredentials();
     await this.credentials.authenticate();
   }
+
+  /**
+   * Drop the cached token after a server rejected it (HTTP 401), so the next
+   * authenticate() fetches a fresh one instead of trusting the local clock.
+   */
+  invalidateCredentials() {
+    this.credentials.invalidate();
+  }
 }
 
 export const settings = new Settings();

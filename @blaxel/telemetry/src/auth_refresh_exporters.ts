@@ -4,6 +4,36 @@ import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { ResourceMetrics } from "@opentelemetry/sdk-metrics";
 import { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-node";
 
+type ExportResult = { code: number; error?: Error };
+
+/**
+ * Wraps an export callback so a 401 from the collector drops the cached token.
+ *
+ * authenticate() decides whether to refresh from the local clock. An agent
+ * suspended while idle resumes with the wall clock it was paused with, so a
+ * token that expired during the pause still looks fresh and is sent again on
+ * every export. The collector's 401 does not depend on that clock: invalidate
+ * on it, and the next export exchanges the credentials again. One batch is
+ * lost instead of every batch until the process restarts.
+ */
+export function invalidateOnUnauthorized(
+  resultCallback: (result: ExportResult) => void,
+  source: string
+): (result: ExportResult) => void {
+  return (result) => {
+    if (result.code !== 0 && isUnauthorized(result.error)) {
+      logger.warn(`[${source}] Export rejected with 401, renewing the token before the next export`);
+      // Optional call: an older @blaxel/core has no invalidateCredentials.
+      (settings as { invalidateCredentials?: () => void }).invalidateCredentials?.();
+    }
+    resultCallback(result);
+  };
+}
+
+function isUnauthorized(error?: Error): boolean {
+  return (error as { code?: unknown } | undefined)?.code === 401;
+}
+
 /**
  * SpanExporter that refreshes authentication before each export.
  * This is necessary for long-running containers where tokens may expire.
@@ -54,7 +84,7 @@ export class AuthRefreshingSpanExporter implements SpanExporter {
       // Export using the fresh exporter
       if (this.currentExporter && this.currentExporter.export) {
         logger.debug("[AuthRefreshingSpanExporter] Calling export on fresh exporter");
-        this.currentExporter.export(spans, resultCallback);
+        this.currentExporter.export(spans, invalidateOnUnauthorized(resultCallback, "AuthRefreshingSpanExporter"));
       } else {
         const error = new Error('Exporter not initialized');
         logger.error("[AuthRefreshingSpanExporter] Exporter not properly initialized", error);
@@ -135,7 +165,7 @@ export class AuthRefreshingMetricExporter {
       // Export using the fresh exporter
       if (this.currentExporter && this.currentExporter.export) {
         logger.debug("[AuthRefreshingMetricExporter] Calling export on fresh exporter");
-        this.currentExporter.export(metrics, resultCallback);
+        this.currentExporter.export(metrics, invalidateOnUnauthorized(resultCallback, "AuthRefreshingMetricExporter"));
       } else {
         const error = new Error('Exporter not initialized');
         logger.error("[AuthRefreshingMetricExporter] Exporter not properly initialized", error);

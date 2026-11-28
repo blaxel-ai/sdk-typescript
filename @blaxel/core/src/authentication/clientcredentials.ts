@@ -39,6 +39,20 @@ export class ClientCredentials extends Credentials {
     return true;
   }
 
+  /**
+   * Forget the cached token so the next authenticate() exchanges the client
+   * credentials again.
+   *
+   * needRefresh() trusts the local clock, which a workload cannot always do:
+   * an agent suspended while idle resumes with the wall clock it was paused
+   * with, so a token that expired during the pause still looks fresh to it.
+   * The server's 401 is the one signal that does not depend on that clock.
+   */
+  invalidate(): void {
+    if (this.currentPromise) return; // a refresh is already on its way
+    this.accessToken = "";
+  }
+
   async authenticate() {
     if (this.currentPromise) {
       return this.currentPromise;
