@@ -1,3 +1,4 @@
+import { deleteTestSandbox } from "./cleanup.js"
 import { SandboxInstance } from "@blaxel/core"
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { defaultLabels, defaultRegion, fetchWithRetry, uniqueName } from './helpers.js'
@@ -29,7 +30,7 @@ describe('Sandbox Preview Operations', () => {
 
   afterAll(async () => {
     try {
-      await SandboxInstance.delete(sandboxName)
+      await deleteTestSandbox(sandboxName)
     } catch {
       // Ignore
     }
@@ -519,7 +520,7 @@ server.listen(3000, '0.0.0.0', () => {
         const diff = Math.abs(actualExpiry - expectedExpiry)
         expect(diff).toBeLessThan(10000) // 10s tolerance
       } finally {
-        await SandboxInstance.delete(name).catch(() => {})
+        await deleteTestSandbox(name).catch(() => {})
       }
     })
 
@@ -554,7 +555,7 @@ server.listen(3000, '0.0.0.0', () => {
         expect(preview2.spec?.port).toBe(4000)
         expect(preview1.spec?.url).not.toBe(preview2.spec?.url)
       } finally {
-        await SandboxInstance.delete(name).catch(() => {})
+        await deleteTestSandbox(name).catch(() => {})
       }
     })
   })
