@@ -77,6 +77,25 @@ describe("ClientCredentials.invalidate", () => {
     expect(creds.needRefresh()).toBe(true);
   });
 
+  // Proves the server accepting the token resets the backoff with no clock
+  // involved, so every pause costs one rejection again rather than more each time.
+  it("resets the backoff once the server accepts the current token", () => {
+    const creds = credentials();
+    const testable = creds as unknown as Testable & { forceRefresh: boolean };
+    let token = freshLookingJwt();
+    testable.accessToken = token;
+
+    creds.invalidate(token); // first pause: forced renewal
+    testable.forceRefresh = false;
+    token = `${freshLookingJwt()}x`;
+    testable.accessToken = token;
+
+    creds.accepted(token); // exports succeed with the renewed token
+
+    creds.invalidate(token); // next pause: one rejection renews again
+    expect(creds.needRefresh()).toBe(true);
+  });
+
   // Proves invalidate does not interfere with a refresh already in flight.
   it("leaves an in-flight refresh alone", () => {
     const creds = credentials();
@@ -113,6 +132,7 @@ describe("telemetry exporters on 401", () => {
   // Proves other failures and successes keep the token: only a rejected token is dropped.
   it("keeps the credentials on success and on non-401 failures", () => {
     const invalidate = vi.spyOn(settings, "invalidateCredentials").mockImplementation(() => {});
+    vi.spyOn(settings, "credentialsAccepted").mockImplementation(() => {});
     const wrapped = invalidateOnUnauthorized(vi.fn(), "test", "sent-token");
 
     wrapped({ code: 0 });
@@ -120,5 +140,14 @@ describe("telemetry exporters on 401", () => {
     wrapped({ code: 1, error: new Error("Request Timeout") });
 
     expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  // Proves a successful export reports the token it carried as accepted.
+  it("reports the sent token as accepted when the export succeeds", () => {
+    const accepted = vi.spyOn(settings, "credentialsAccepted").mockImplementation(() => {});
+
+    invalidateOnUnauthorized(vi.fn(), "test", "sent-token")({ code: 0 });
+
+    expect(accepted).toHaveBeenCalledExactlyOnceWith("sent-token");
   });
 });

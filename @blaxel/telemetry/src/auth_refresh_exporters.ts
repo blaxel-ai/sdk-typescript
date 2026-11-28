@@ -15,18 +15,28 @@ type ExportResult = { code: number; error?: Error };
  * every export. The collector's 401 does not depend on that clock: invalidate
  * on it, and the next export exchanges the credentials again. One batch is
  * lost instead of every batch until the process restarts.
+ *
+ * A successful export reports the token as accepted, which resets the renewal
+ * backoff: each pause then costs one batch again, not more than the last.
  */
 export function invalidateOnUnauthorized(
   resultCallback: (result: ExportResult) => void,
   source: string,
   sentToken: string
 ): (result: ExportResult) => void {
+  type AuthAware = {
+    invalidateCredentials?: (token?: string) => void;
+    credentialsAccepted?: (token?: string) => void;
+  };
+  // Optional calls: an older @blaxel/core has neither method.
+  const auth = settings as AuthAware;
   return (result) => {
-    if (result.code !== 0 && isUnauthorized(result.error)) {
+    if (result.code === 0) {
+      auth.credentialsAccepted?.(sentToken);
+    } else if (isUnauthorized(result.error)) {
       logger.warn(`[${source}] Export rejected with 401, renewing the token before the next export`);
-      // Optional call: an older @blaxel/core has no invalidateCredentials.
       // Passing the token that was sent lets a late 401 leave a newer token alone.
-      (settings as { invalidateCredentials?: (token?: string) => void }).invalidateCredentials?.(sentToken);
+      auth.invalidateCredentials?.(sentToken);
     }
     resultCallback(result);
   };

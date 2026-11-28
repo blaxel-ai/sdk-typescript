@@ -11,6 +11,13 @@ export class Credentials {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   invalidate(_rejectedToken?: string): void {}
 
+  /**
+   * Record that a server accepted the token. Resets any renewal backoff that
+   * invalidate() built up. No-op for credentials without one.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  accepted(_acceptedToken?: string): void {}
+
   get workspace() {
     return env.BL_WORKSPACE || "";
   }

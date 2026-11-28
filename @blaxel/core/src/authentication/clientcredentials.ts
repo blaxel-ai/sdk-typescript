@@ -65,8 +65,9 @@ export class ClientCredentials extends Credentials {
    * - Consecutive forced renewals back off by rejection count (1, 2, 4, ...
    *   up to MAX_REJECTIONS_PER_FORCED_RENEWAL), so a server that keeps
    *   rejecting cannot turn every request into a token exchange. The count is
-   *   not time-based, so a frozen clock cannot hold the backoff shut. A
-   *   renewal the clock asked for resets it.
+   *   not time-based, so a frozen clock cannot hold the backoff shut. The
+   *   server accepting the current token (accepted()) resets it, as does a
+   *   renewal the clock asked for.
    */
   invalidate(rejectedToken?: string): void {
     if (this.currentPromise) return; // a refresh is already on its way
@@ -78,6 +79,18 @@ export class ClientCredentials extends Credentials {
     this.rejectionsSinceForce = 0;
     this.consecutiveForced++;
     this.forceRefresh = true;
+  }
+
+  /**
+   * Record that a server accepted `acceptedToken`. The token lifecycle is
+   * healthy again, so the next rejection renews at once. This is the reset a
+   * frozen clock cannot provide: without it, every pause would need more
+   * rejections than the last before the token is renewed.
+   */
+  accepted(acceptedToken?: string): void {
+    if (acceptedToken !== undefined && acceptedToken !== this.accessToken) return;
+    this.consecutiveForced = 0;
+    this.rejectionsSinceForce = 0;
   }
 
   async authenticate() {
