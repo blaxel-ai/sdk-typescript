@@ -4,11 +4,12 @@ export class Credentials {
   async authenticate() {}
 
   /**
-   * Drop any cached token so the next authenticate() fetches a fresh one.
-   * Called when a server rejects the token (HTTP 401). No-op for credentials
-   * that hold no renewable token.
+   * Mark the cached token for renewal so the next authenticate() fetches a
+   * fresh one. Called when a server rejects the token (HTTP 401) with the
+   * token it rejected. No-op for credentials that hold no renewable token.
    */
-  invalidate(): void {}
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  invalidate(_rejectedToken?: string): void {}
 
   get workspace() {
     return env.BL_WORKSPACE || "";

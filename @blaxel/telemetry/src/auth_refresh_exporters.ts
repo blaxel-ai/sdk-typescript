@@ -18,13 +18,15 @@ type ExportResult = { code: number; error?: Error };
  */
 export function invalidateOnUnauthorized(
   resultCallback: (result: ExportResult) => void,
-  source: string
+  source: string,
+  sentToken: string
 ): (result: ExportResult) => void {
   return (result) => {
     if (result.code !== 0 && isUnauthorized(result.error)) {
       logger.warn(`[${source}] Export rejected with 401, renewing the token before the next export`);
       // Optional call: an older @blaxel/core has no invalidateCredentials.
-      (settings as { invalidateCredentials?: () => void }).invalidateCredentials?.();
+      // Passing the token that was sent lets a late 401 leave a newer token alone.
+      (settings as { invalidateCredentials?: (token?: string) => void }).invalidateCredentials?.(sentToken);
     }
     resultCallback(result);
   };
@@ -84,7 +86,7 @@ export class AuthRefreshingSpanExporter implements SpanExporter {
       // Export using the fresh exporter
       if (this.currentExporter && this.currentExporter.export) {
         logger.debug("[AuthRefreshingSpanExporter] Calling export on fresh exporter");
-        this.currentExporter.export(spans, invalidateOnUnauthorized(resultCallback, "AuthRefreshingSpanExporter"));
+        this.currentExporter.export(spans, invalidateOnUnauthorized(resultCallback, "AuthRefreshingSpanExporter", settings.token));
       } else {
         const error = new Error('Exporter not initialized');
         logger.error("[AuthRefreshingSpanExporter] Exporter not properly initialized", error);
@@ -165,7 +167,7 @@ export class AuthRefreshingMetricExporter {
       // Export using the fresh exporter
       if (this.currentExporter && this.currentExporter.export) {
         logger.debug("[AuthRefreshingMetricExporter] Calling export on fresh exporter");
-        this.currentExporter.export(metrics, invalidateOnUnauthorized(resultCallback, "AuthRefreshingMetricExporter"));
+        this.currentExporter.export(metrics, invalidateOnUnauthorized(resultCallback, "AuthRefreshingMetricExporter", settings.token));
       } else {
         const error = new Error('Exporter not initialized');
         logger.error("[AuthRefreshingMetricExporter] Exporter not properly initialized", error);

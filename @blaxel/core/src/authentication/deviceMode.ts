@@ -44,7 +44,8 @@ export class DeviceMode {
    * never suspended with a stale clock. Kept a no-op: currentPromise is never
    * cleared here, and resetting it could redeem the refresh token twice.
    */
-  invalidate(): void {}
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  invalidate(_rejectedToken?: string): void {}
 
   async authenticate() {
     if (!this.needRefresh()) {

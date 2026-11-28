@@ -20,28 +20,64 @@ function credentials(): ClientCredentials {
 }
 
 describe("ClientCredentials.invalidate", () => {
-  // Proves a token the local clock calls fresh is refreshed once the server rejected it.
+  // Proves a token the local clock calls fresh is renewed once the server rejected it.
   it("forces a refresh of a token the local clock still considers fresh", () => {
     const creds = credentials();
-    (creds as unknown as Testable).accessToken = freshLookingJwt();
+    const token = freshLookingJwt();
+    (creds as unknown as Testable).accessToken = token;
     expect(creds.needRefresh()).toBe(false);
 
-    creds.invalidate();
+    creds.invalidate(token);
 
     expect(creds.needRefresh()).toBe(true);
-    expect(creds.token).toBe("");
   });
 
-  // Proves invalidate does not clobber a token that a refresh in flight is about to replace.
+  // Proves callers that read the token without authenticating keep a usable value meanwhile.
+  it("keeps the token readable until it is replaced", () => {
+    const creds = credentials();
+    const token = freshLookingJwt();
+    (creds as unknown as Testable).accessToken = token;
+
+    creds.invalidate(token);
+
+    expect(creds.token).toBe(token);
+  });
+
+  // Proves a late 401 for a token that was already replaced leaves the new token alone.
+  it("ignores a rejection of a token that was already replaced", () => {
+    const creds = credentials();
+    (creds as unknown as Testable).accessToken = freshLookingJwt();
+
+    creds.invalidate("an-older-token");
+
+    expect(creds.needRefresh()).toBe(false);
+  });
+
+  // Proves a server that keeps rejecting cannot turn every export into a token exchange.
+  it("forces at most one renewal per interval", () => {
+    const creds = credentials();
+    const testable = creds as unknown as Testable & { forceRefresh: boolean };
+    const token = freshLookingJwt();
+    testable.accessToken = token;
+
+    creds.invalidate(token);
+    testable.forceRefresh = false; // as if the renewal completed with the same token
+    creds.invalidate(token);
+
+    expect(creds.needRefresh()).toBe(false);
+  });
+
+  // Proves invalidate does not interfere with a refresh already in flight.
   it("leaves an in-flight refresh alone", () => {
     const creds = credentials();
-    const testable = creds as unknown as Testable;
-    testable.accessToken = freshLookingJwt();
+    const testable = creds as unknown as Testable & { forceRefresh: boolean };
+    const token = freshLookingJwt();
+    testable.accessToken = token;
     testable.currentPromise = new Promise(() => {});
 
-    creds.invalidate();
+    creds.invalidate(token);
 
-    expect(testable.accessToken).not.toBe("");
+    expect(testable.forceRefresh).toBe(false);
   });
 });
 
@@ -52,22 +88,22 @@ describe("telemetry exporters on 401", () => {
     return Object.assign(new Error("Unauthorized"), { name: "OTLPExporterError", code });
   }
 
-  // Proves a 401 from the collector drops the cached token and still reports the failure.
+  // Proves a 401 from the collector renews the token it rejected and still reports the failure.
   it("invalidates the credentials when the collector answers 401", () => {
     const invalidate = vi.spyOn(settings, "invalidateCredentials").mockImplementation(() => {});
     const callback = vi.fn();
     const result = { code: 1, error: otlpError(401) };
 
-    invalidateOnUnauthorized(callback, "test")(result);
+    invalidateOnUnauthorized(callback, "test", "sent-token")(result);
 
-    expect(invalidate).toHaveBeenCalledOnce();
+    expect(invalidate).toHaveBeenCalledExactlyOnceWith("sent-token");
     expect(callback).toHaveBeenCalledWith(result);
   });
 
   // Proves other failures and successes keep the token: only a rejected token is dropped.
   it("keeps the credentials on success and on non-401 failures", () => {
     const invalidate = vi.spyOn(settings, "invalidateCredentials").mockImplementation(() => {});
-    const wrapped = invalidateOnUnauthorized(vi.fn(), "test");
+    const wrapped = invalidateOnUnauthorized(vi.fn(), "test", "sent-token");
 
     wrapped({ code: 0 });
     wrapped({ code: 1, error: otlpError(500) });

@@ -614,11 +614,12 @@ class Settings {
   }
 
   /**
-   * Drop the cached token after a server rejected it (HTTP 401), so the next
-   * authenticate() fetches a fresh one instead of trusting the local clock.
+   * Mark the cached token for renewal after a server rejected it (HTTP 401),
+   * so the next authenticate() fetches a fresh one instead of trusting the
+   * local clock. Pass the token the rejected request carried.
    */
-  invalidateCredentials() {
-    this.credentials.invalidate();
+  invalidateCredentials(rejectedToken?: string) {
+    this.credentials.invalidate(rejectedToken);
   }
 }
 
